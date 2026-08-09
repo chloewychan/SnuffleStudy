@@ -46,4 +46,10 @@ describe("validateCreateSessionInput", () => {
     });
     expect(result.errors).toHaveLength(2);
   });
+
+  it("rejects an unknown pressure profile", () => {
+    const result = validateCreateSessionInput({ ...validInput, pressureProfileId: "nonexistent-profile" });
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain("Unknown pressure profile.");
+  });
 });
