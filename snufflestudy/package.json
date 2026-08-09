@@ -1,0 +1,39 @@
+{
+  "name": "snufflestudy",
+  "description": "A consensual peer-pressure study accountability companion.",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "compile": "tsc --noEmit",
+    "test": "vitest",
+    "test:e2e": "playwright test",
+    "postinstall": "wxt prepare"
+  },
+  "dependencies": {
+    "idb": "^8.0.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@wxt-dev/module-react": "^1.1.5",
+    "fake-indexeddb": "^6.2.5",
+    "happy-dom": "^20.11.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10",
+    "web-ext": "^10.5.0",
+    "wxt": "^0.21.3"
+  }
+}
