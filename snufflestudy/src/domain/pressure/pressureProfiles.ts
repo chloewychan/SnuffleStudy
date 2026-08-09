@@ -81,7 +81,7 @@ export const PRESSURE_PROFILES: PressureProfile[] = [
     intensity: "moderate",
     description: "Loud, energetic, relentlessly positive.",
     firstWarningMessages: ["LET'S GO. BACK TO IT.", "Nuh uh. Not today. Refocus!"],
-    repeatedWarningMessages: ["You've GOT this. Come on!", "One more distraction and we riot (positively)."],
+    repeatedWarningMessages: ["You've GOT this. Come on!", "One more unapproved tab and we riot (positively)."],
     breakMessages: ["BREAK TIME. You EARNED it!", "Stretch! Hydrate! Let's gooo!"],
     completionMessages: ["YOU DID THAT.", "GOAL. COMPLETE. LEGENDARY."],
     abandonmentMessages: ["It's not over, it's a plot twist. Try again!", "We regroup and come back stronger!"],
