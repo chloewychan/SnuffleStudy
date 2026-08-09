@@ -12,7 +12,9 @@ const KEYS = {
 
 export class ChromeStorageRepository implements SettingsRepository {
   async getSettings(): Promise<UserSettings> {
-    const result = await chrome.storage.local.get(KEYS.settings);
+    const result = await chrome.storage.local.get<Record<typeof KEYS.settings, UserSettings>>(
+      KEYS.settings,
+    );
     return result[KEYS.settings] ?? DEFAULT_USER_SETTINGS;
   }
 
@@ -21,7 +23,9 @@ export class ChromeStorageRepository implements SettingsRepository {
   }
 
   async getActiveSession(): Promise<StudySession | null> {
-    const result = await chrome.storage.local.get(KEYS.activeSession);
+    const result = await chrome.storage.local.get<Record<typeof KEYS.activeSession, StudySession>>(
+      KEYS.activeSession,
+    );
     return result[KEYS.activeSession] ?? null;
   }
 
@@ -34,7 +38,9 @@ export class ChromeStorageRepository implements SettingsRepository {
   }
 
   async getHardBlockCredential(): Promise<HardBlockCredential | null> {
-    const result = await chrome.storage.local.get(KEYS.hardBlockCredential);
+    const result = await chrome.storage.local.get<
+      Record<typeof KEYS.hardBlockCredential, HardBlockCredential>
+    >(KEYS.hardBlockCredential);
     return result[KEYS.hardBlockCredential] ?? null;
   }
 
