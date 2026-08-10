@@ -25,46 +25,53 @@ function key(mode: AnimationAsset["mode"], wellnessState: WellnessState): string
 
 // v1 ships placeholder art only: one static frame per entry. Hand-drawn
 // frame sequences replace `frames` later without touching this shape.
+//
+// Paths are resolved via chrome.runtime.getURL rather than root-absolute literals: this registry
+// is consumed inside a content script, where a plain "/sprites/..." string resolves against the
+// HOST PAGE's origin (e.g. https://youtube.com/sprites/...), not the extension's, producing a
+// 404 on every real page. getURL resolves to the extension's own chrome-extension:// origin
+// instead - the sprites/ directory must stay declared in wxt.config.ts's
+// web_accessible_resources for the host page's document to be allowed to load it at all.
 export const ANIMATION_REGISTRY: AnimationRegistry = {
   [key("study", "focused")]: {
     id: "study-focused",
     mode: "study",
     wellnessState: "focused",
-    frames: ["/sprites/placeholder-focused.png"],
+    frames: [chrome.runtime.getURL("sprites/placeholder-focused.png")],
     frameDurationMs: 0,
-    staticFrame: "/sprites/placeholder-focused.png",
+    staticFrame: chrome.runtime.getURL("sprites/placeholder-focused.png"),
   },
   [key("study", "angry")]: {
     id: "study-angry",
     mode: "study",
     wellnessState: "angry",
-    frames: ["/sprites/placeholder-angry.png"],
+    frames: [chrome.runtime.getURL("sprites/placeholder-angry.png")],
     frameDurationMs: 0,
-    staticFrame: "/sprites/placeholder-angry.png",
+    staticFrame: chrome.runtime.getURL("sprites/placeholder-angry.png"),
   },
   [key("study", "disappointed")]: {
     id: "study-disappointed",
     mode: "study",
     wellnessState: "disappointed",
-    frames: ["/sprites/placeholder-disappointed.png"],
+    frames: [chrome.runtime.getURL("sprites/placeholder-disappointed.png")],
     frameDurationMs: 0,
-    staticFrame: "/sprites/placeholder-disappointed.png",
+    staticFrame: chrome.runtime.getURL("sprites/placeholder-disappointed.png"),
   },
   [key("study", "proud")]: {
     id: "study-proud",
     mode: "study",
     wellnessState: "proud",
-    frames: ["/sprites/placeholder-proud.png"],
+    frames: [chrome.runtime.getURL("sprites/placeholder-proud.png")],
     frameDurationMs: 0,
-    staticFrame: "/sprites/placeholder-proud.png",
+    staticFrame: chrome.runtime.getURL("sprites/placeholder-proud.png"),
   },
   [key("break", "celebratory")]: {
     id: "break-celebratory",
     mode: "break",
     wellnessState: "celebratory",
-    frames: ["/sprites/placeholder-celebratory.png"],
+    frames: [chrome.runtime.getURL("sprites/placeholder-celebratory.png")],
     frameDurationMs: 0,
-    staticFrame: "/sprites/placeholder-celebratory.png",
+    staticFrame: chrome.runtime.getURL("sprites/placeholder-celebratory.png"),
   },
 };
 

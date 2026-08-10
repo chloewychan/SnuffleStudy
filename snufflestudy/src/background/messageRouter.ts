@@ -6,7 +6,11 @@ import { validateCreateSessionInput } from "../domain/session/sessionValidation"
 import { classifySite } from "../domain/sites/siteRules";
 import { createHardBlockCredential, verifyPasscode } from "../domain/sites/hardBlockCredential";
 import { scheduleSessionAlarm, cancelSessionAlarm } from "../infrastructure/browser/alarmsApi";
-import { syncHardBlockRules, clearHardBlockRules } from "../infrastructure/browser/declarativeNetRequestApi";
+import {
+  syncHardBlockRules,
+  clearHardBlockRules,
+  unlockHardBlockRuleForHostname,
+} from "../infrastructure/browser/declarativeNetRequestApi";
 
 const settingsRepo = new ChromeStorageRepository();
 const historyRepo = new IndexedDbSessionRepository();
@@ -169,6 +173,27 @@ async function routeMessage(message: ExtensionMessage, now: number): Promise<unk
     }
 
     case "HARD_BLOCK_SET_PASSCODE": {
+      // Changing an *existing* passcode requires proving knowledge of the current one first
+      // (mirrors the architecture overview's "extending/removing hard restrictions requires
+      // re-entering the passcode" rule) - otherwise anyone with access to Options could silently
+      // replace the passcode a friend was entrusted with, defeating both the End Session gate
+      // and the hard-block site-unlock gate. First-time setup (no existing credential) has
+      // nothing to verify against, so it proceeds unconditionally, same as before.
+      const existing = await settingsRepo.getHardBlockCredential();
+      if (existing) {
+        const oldPasscode = message.payload.oldPasscode;
+        if (!oldPasscode) {
+          return { ok: false, error: "Current passcode required to set a new one." };
+        }
+        const result = await verifyPasscode(existing, oldPasscode, now);
+        await settingsRepo.saveHardBlockCredential(result.credential);
+        if (!result.success) {
+          return {
+            ok: false,
+            error: "Incorrect current passcode, or temporarily locked after repeated attempts.",
+          };
+        }
+      }
       const credential = await createHardBlockCredential(message.payload.passcode);
       await settingsRepo.saveHardBlockCredential(credential);
       return { ok: true };
@@ -179,6 +204,13 @@ async function routeMessage(message: ExtensionMessage, now: number): Promise<unk
       if (!credential) return { ok: false, error: "No passcode configured." };
       const result = await verifyPasscode(credential, message.payload.passcode, now);
       await settingsRepo.saveHardBlockCredential(result.credential);
+      if (result.success) {
+        // A correct entry unlocks this specific site for the remainder of the session (per the
+        // architecture overview) - remove only this hostname's DNR redirect rule so the browser
+        // stops immediately re-catching the LockedPage.tsx redirect back to it. Other
+        // hard-restricted hostnames' rules are untouched and keep blocking.
+        await unlockHardBlockRuleForHostname(message.payload.hostname);
+      }
       return { ok: result.success };
     }
 

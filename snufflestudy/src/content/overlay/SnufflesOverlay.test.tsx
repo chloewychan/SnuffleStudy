@@ -60,6 +60,13 @@ describe("SnufflesOverlay", () => {
     render(
       <SnufflesOverlay classification="ALLOWED" sessionId="session_1" hostname="docs.google.com" reducedMotion />
     );
-    expect(screen.getByAltText("Snuffles")).toHaveAttribute("src", "/sprites/placeholder-focused.png");
+    // Resolved via chrome.runtime.getURL (see animationRegistry.ts), not a root-absolute literal
+    // - a plain "/sprites/..." string would resolve against the host page's origin inside a real
+    // content script, not the extension's. wxt/testing/fake-browser's chrome.runtime.getURL
+    // resolves to chrome-extension://test-extension-id/<path>.
+    expect(screen.getByAltText("Snuffles")).toHaveAttribute(
+      "src",
+      chrome.runtime.getURL("sprites/placeholder-focused.png")
+    );
   });
 });

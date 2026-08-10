@@ -13,7 +13,7 @@ export type ExtensionMessage =
   | { type: "SITE_STATUS_REQUEST"; payload: { hostname: string | null } }
   | { type: "DISTRACTION_ATTEMPT"; payload: { sessionId: string; hostname: string } }
   | { type: "MARK_SITE_STUDY_RELATED"; payload: { sessionId: string; hostname: string } }
-  | { type: "HARD_BLOCK_SET_PASSCODE"; payload: { passcode: string } }
+  | { type: "HARD_BLOCK_SET_PASSCODE"; payload: { passcode: string; oldPasscode?: string } }
   | { type: "HARD_BLOCK_VERIFY_PASSCODE"; payload: { passcode: string; hostname: string } }
   | { type: "SETTINGS_GET" }
   | { type: "SETTINGS_SAVE"; payload: UserSettings };

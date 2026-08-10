@@ -15,7 +15,10 @@ function hostnameFromUrl(url: string | undefined): string | null {
   }
 }
 
-export async function handleTabUpdate(changeInfo: chrome.tabs.OnUpdatedInfo): Promise<void> {
+export async function handleTabUpdate(
+  changeInfo: chrome.tabs.OnUpdatedInfo,
+  tab: chrome.tabs.Tab
+): Promise<void> {
   if (changeInfo.status !== "complete") return;
 
   const settings = await settingsRepo.getSettings();
@@ -24,7 +27,11 @@ export async function handleTabUpdate(changeInfo: chrome.tabs.OnUpdatedInfo): Pr
   const session = await settingsRepo.getActiveSession();
   if (!session || session.state !== "FOCUSING") return;
 
-  const hostname = hostnameFromUrl(changeInfo.url);
+  // chrome.tabs.onUpdated's changeInfo only carries the properties that changed in that
+  // particular delta - url is present on the loading-phase update, not on the terminal
+  // {status: "complete"} update this handler gates on. The full current tab state (including
+  // url) lives in the third listener argument instead.
+  const hostname = hostnameFromUrl(tab.url);
   const classification = classifySite(session, hostname);
   if (classification !== "BLOCKED" || hostname === null) return;
 
@@ -43,7 +50,7 @@ export async function handleTabUpdate(changeInfo: chrome.tabs.OnUpdatedInfo): Pr
 }
 
 export function registerTabHandlers(): void {
-  chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
-    void handleTabUpdate(changeInfo);
+  chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+    void handleTabUpdate(changeInfo, tab);
   });
 }

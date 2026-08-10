@@ -28,5 +28,16 @@ export default defineConfig({
     side_panel: {
       default_path: "sidepanel.html",
     },
+    // A cross-origin navigation from a web page to a chrome-extension:// URL (the
+    // declarativeNetRequest hard-block redirect to locked.html) and a content-script-initiated
+    // fetch of an extension-bundled asset (the overlay's sprite images, requested by the host
+    // page's own document, not the extension) both require Chrome to have been told the path is
+    // web-accessible, or the load is blocked outright.
+    web_accessible_resources: [
+      {
+        resources: ["locked.html", "sprites/*"],
+        matches: ["<all_urls>"],
+      },
+    ],
   },
 });

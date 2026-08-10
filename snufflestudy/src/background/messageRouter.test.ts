@@ -221,3 +221,140 @@ describe("messageRouter — SESSION_END hard-block enforcement", () => {
     expect(ended.session.state).toBe("ABANDONED");
   });
 });
+
+describe("messageRouter — HARD_BLOCK_SET_PASSCODE requires the current passcode to change an existing one", () => {
+  it("succeeds on first-time setup with no existing credential and no oldPasscode", async () => {
+    const result = (await handleMessage({
+      type: "HARD_BLOCK_SET_PASSCODE",
+      payload: { passcode: "1234" },
+    })) as { ok: boolean };
+    expect(result.ok).toBe(true);
+
+    const verified = (await handleMessage({
+      type: "HARD_BLOCK_VERIFY_PASSCODE",
+      payload: { passcode: "1234", hostname: "youtube.com" },
+    })) as { ok: boolean };
+    expect(verified.ok).toBe(true);
+  });
+
+  it("replaces an existing credential when the correct oldPasscode is supplied, and the new passcode actually takes effect", async () => {
+    await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
+
+    const result = (await handleMessage({
+      type: "HARD_BLOCK_SET_PASSCODE",
+      payload: { passcode: "5678", oldPasscode: "1234" },
+    })) as { ok: boolean };
+    expect(result.ok).toBe(true);
+
+    const oldStillWorks = (await handleMessage({
+      type: "HARD_BLOCK_VERIFY_PASSCODE",
+      payload: { passcode: "1234", hostname: "youtube.com" },
+    })) as { ok: boolean };
+    expect(oldStillWorks.ok).toBe(false);
+
+    const newWorks = (await handleMessage({
+      type: "HARD_BLOCK_VERIFY_PASSCODE",
+      payload: { passcode: "5678", hostname: "youtube.com" },
+    })) as { ok: boolean };
+    expect(newWorks.ok).toBe(true);
+  });
+
+  it("rejects replacing an existing credential when oldPasscode is missing, leaving the old passcode working afterward", async () => {
+    await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
+
+    const result = (await handleMessage({
+      type: "HARD_BLOCK_SET_PASSCODE",
+      payload: { passcode: "0000" },
+    })) as { ok: boolean; error: string };
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/current passcode required/i);
+
+    const oldStillWorks = (await handleMessage({
+      type: "HARD_BLOCK_VERIFY_PASSCODE",
+      payload: { passcode: "1234", hostname: "youtube.com" },
+    })) as { ok: boolean };
+    expect(oldStillWorks.ok).toBe(true);
+  });
+
+  it("rejects replacing an existing credential when oldPasscode is wrong, leaving the old passcode working afterward", async () => {
+    await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
+
+    const result = (await handleMessage({
+      type: "HARD_BLOCK_SET_PASSCODE",
+      payload: { passcode: "0000", oldPasscode: "9999" },
+    })) as { ok: boolean; error: string };
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/incorrect current passcode/i);
+
+    const oldStillWorks = (await handleMessage({
+      type: "HARD_BLOCK_VERIFY_PASSCODE",
+      payload: { passcode: "1234", hostname: "youtube.com" },
+    })) as { ok: boolean };
+    expect(oldStillWorks.ok).toBe(true);
+
+    const attackerPasscodeDoesNotWork = (await handleMessage({
+      type: "HARD_BLOCK_VERIFY_PASSCODE",
+      payload: { passcode: "0000", hostname: "youtube.com" },
+    })) as { ok: boolean };
+    expect(attackerPasscodeDoesNotWork.ok).toBe(false);
+  });
+});
+
+describe("messageRouter — HARD_BLOCK_VERIFY_PASSCODE unlocks only the verified hostname's DNR rule", () => {
+  const hardTwoSiteInput: CreateSessionInput = {
+    ...createInput,
+    restrictedSites: ["youtube.com", "reddit.com"],
+    restrictionMode: "hard",
+  };
+
+  it("removes only hostname A's rule on a correct passcode, leaving hostname B's rule blocking", async () => {
+    await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
+    const created = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: hardTwoSiteInput,
+    })) as { session: { id: string } };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    const beforeRules = await chrome.declarativeNetRequest.getDynamicRules();
+    expect(beforeRules).toHaveLength(2);
+
+    const result = (await handleMessage({
+      type: "HARD_BLOCK_VERIFY_PASSCODE",
+      payload: { passcode: "1234", hostname: "youtube.com" },
+    })) as { ok: boolean };
+    expect(result.ok).toBe(true);
+
+    const afterRules = await chrome.declarativeNetRequest.getDynamicRules();
+    expect(afterRules).toHaveLength(1);
+    expect(
+      afterRules.some((rule) => rule.condition.requestDomains?.includes("youtube.com"))
+    ).toBe(false);
+    expect(
+      afterRules.some((rule) => rule.condition.requestDomains?.includes("reddit.com"))
+    ).toBe(true);
+  });
+
+  it("leaves both rules untouched when the passcode is wrong", async () => {
+    await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
+    const created = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: hardTwoSiteInput,
+    })) as { session: { id: string } };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    const result = (await handleMessage({
+      type: "HARD_BLOCK_VERIFY_PASSCODE",
+      payload: { passcode: "0000", hostname: "youtube.com" },
+    })) as { ok: boolean };
+    expect(result.ok).toBe(false);
+
+    const rules = await chrome.declarativeNetRequest.getDynamicRules();
+    expect(rules).toHaveLength(2);
+    expect(rules.some((rule) => rule.condition.requestDomains?.includes("youtube.com"))).toBe(
+      true
+    );
+    expect(rules.some((rule) => rule.condition.requestDomains?.includes("reddit.com"))).toBe(
+      true
+    );
+  });
+});

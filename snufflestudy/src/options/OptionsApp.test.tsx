@@ -91,7 +91,10 @@ describe("OptionsApp", () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
 
     render(<OptionsApp />);
-    await waitFor(() => screen.getByPlaceholderText(/passcode/i) || screen.getByLabelText(/passcode/i));
+    // Two passcode-related inputs now exist (this one and the new old-passcode-input from B1's
+    // fix), so the placeholder-text lookup this test used to use for "wait until rendered" would
+    // now ambiguously match both - wait on the specific testid instead.
+    await waitFor(() => screen.getByTestId("passcode-input"));
 
     fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "1234" } });
     fireEvent.click(screen.getByRole("button", { name: "Save passcode" }));
@@ -102,6 +105,49 @@ describe("OptionsApp", () => {
         payload: { passcode: "1234" },
       })
     );
+  });
+
+  it("sends oldPasscode in the payload when the current-passcode field is filled in", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByTestId("old-passcode-input"));
+
+    fireEvent.change(screen.getByTestId("old-passcode-input"), { target: { value: "1234" } });
+    fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "5678" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save passcode" }));
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "HARD_BLOCK_SET_PASSCODE",
+        payload: { passcode: "5678", oldPasscode: "1234" },
+      })
+    );
+  });
+
+  it("surfaces a rejection (e.g. wrong current passcode) from HARD_BLOCK_SET_PASSCODE via passcodeError", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") return { ok: true, settings: DEFAULT_USER_SETTINGS };
+      if (message.type === "HARD_BLOCK_SET_PASSCODE") {
+        return {
+          ok: false,
+          error: "Incorrect current passcode, or temporarily locked after repeated attempts.",
+        };
+      }
+      return { ok: true };
+    });
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByTestId("old-passcode-input"));
+
+    fireEvent.change(screen.getByTestId("old-passcode-input"), { target: { value: "0000" } });
+    fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "5678" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save passcode" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/incorrect current passcode/i);
+    // The rejected save must not be reported as successful.
+    expect(screen.queryByText("Passcode saved.")).not.toBeInTheDocument();
   });
 
   it("surfaces an error instead of hanging on Loading… when the initial settings fetch rejects", async () => {
