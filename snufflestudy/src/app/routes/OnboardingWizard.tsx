@@ -3,6 +3,7 @@ import type { TrackingTier } from "../../domain/settings/userSettings";
 import { PRESSURE_PROFILES } from "../../domain/pressure/pressureProfiles";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import { requestDetailedTrackingPermission } from "../../infrastructure/browser/permissionsApi";
+import { registerOverlayContentScript } from "../../background/contentScriptRegistration";
 
 interface OnboardingWizardProps {
   onComplete: () => void;
@@ -31,7 +32,21 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
       let finalTrackingTier = trackingTier;
       if (trackingTier === "detailed") {
         const granted = await requestDetailedTrackingPermission();
-        if (!granted) finalTrackingTier = "activity-only";
+        if (granted) {
+          try {
+            await registerOverlayContentScript();
+          } catch (err) {
+            // Registering the dynamic overlay content script (chrome.scripting.
+            // registerContentScripts) is best-effort: onboarding completion (the part the
+            // user actually asked for) should still go through even if this fails. A failure
+            // here just means the Snuffles overlay won't appear until it's retried later
+            // (e.g. from the options page) — not worth blocking onboarding over, so it's
+            // logged rather than surfaced as `finishError`.
+            console.error("Failed to register overlay content script", err);
+          }
+        } else {
+          finalTrackingTier = "activity-only";
+        }
       }
 
       await sendMessage({

@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { OptionsApp } from "./OptionsApp";
 import * as messenger from "../infrastructure/messaging/extensionMessenger";
 import * as permissionsApi from "../infrastructure/browser/permissionsApi";
+import * as contentScriptRegistration from "../background/contentScriptRegistration";
 import { DEFAULT_USER_SETTINGS } from "../domain/settings/userSettings";
 
 beforeEach(() => {
@@ -22,6 +23,67 @@ describe("OptionsApp", () => {
     fireEvent.click(screen.getByLabelText("Detailed site tracking"));
 
     await waitFor(() => expect(requestSpy).toHaveBeenCalled());
+  });
+
+  it("registers the overlay content script after detailed tracking permission is granted", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
+    vi.spyOn(permissionsApi, "requestDetailedTrackingPermission").mockResolvedValue(true);
+    const registerSpy = vi
+      .spyOn(contentScriptRegistration, "registerOverlayContentScript")
+      .mockResolvedValue(undefined);
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Detailed site tracking"));
+
+    fireEvent.click(screen.getByLabelText("Detailed site tracking"));
+
+    await waitFor(() => expect(registerSpy).toHaveBeenCalled());
+  });
+
+  it("unregisters the overlay content script when switching back to activity-only", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({
+      ok: true,
+      settings: { ...DEFAULT_USER_SETTINGS, trackingTier: "detailed" },
+    });
+    vi.spyOn(permissionsApi, "revokeDetailedTrackingPermission").mockResolvedValue(true);
+    const unregisterSpy = vi
+      .spyOn(contentScriptRegistration, "unregisterOverlayContentScript")
+      .mockResolvedValue(undefined);
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Activity-only"));
+
+    fireEvent.click(screen.getByLabelText("Activity-only"));
+
+    await waitFor(() => expect(unregisterSpy).toHaveBeenCalled());
+  });
+
+  it("still saves the tracking tier even if registering the overlay content script fails", async () => {
+    // registerOverlayContentScript (chrome.scripting.registerContentScripts) failing is a
+    // best-effort/non-critical failure — it must not roll back or block the tier change the
+    // user actually asked for and already granted the permission dialog for.
+    const sendMessageSpy = vi
+      .spyOn(messenger, "sendMessage")
+      .mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
+    vi.spyOn(permissionsApi, "requestDetailedTrackingPermission").mockResolvedValue(true);
+    vi.spyOn(contentScriptRegistration, "registerOverlayContentScript").mockRejectedValue(
+      new Error("scripting.registerContentScripts not implemented")
+    );
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Detailed site tracking"));
+
+    fireEvent.click(screen.getByLabelText("Detailed site tracking"));
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "SETTINGS_SAVE",
+        payload: { ...DEFAULT_USER_SETTINGS, trackingTier: "detailed" },
+      })
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
   it("saves a hard-block passcode", async () => {

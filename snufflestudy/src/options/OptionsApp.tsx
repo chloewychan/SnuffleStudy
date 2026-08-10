@@ -5,6 +5,10 @@ import {
   requestDetailedTrackingPermission,
   revokeDetailedTrackingPermission,
 } from "../infrastructure/browser/permissionsApi";
+import {
+  registerOverlayContentScript,
+  unregisterOverlayContentScript,
+} from "../background/contentScriptRegistration";
 
 export function OptionsApp() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -80,8 +84,26 @@ export function OptionsApp() {
       if (tier === "detailed") {
         const granted = await requestDetailedTrackingPermission();
         if (!granted) return;
+        try {
+          await registerOverlayContentScript();
+        } catch (err) {
+          // Registering the dynamic overlay content script (chrome.scripting.
+          // registerContentScripts) is best-effort: the permission grant and tier switch
+          // below are the part the user actually asked for and should still go through even
+          // if this fails. A failure here just means the Snuffles overlay won't appear until
+          // it's retried (e.g. toggling the tier again) — not worth rolling back the whole
+          // change or blocking the save over, so it's logged rather than surfaced as
+          // `saveError`.
+          console.error("Failed to register overlay content script", err);
+        }
       } else {
         await revokeDetailedTrackingPermission();
+        try {
+          await unregisterOverlayContentScript();
+        } catch (err) {
+          // Same best-effort rationale as registerOverlayContentScript above.
+          console.error("Failed to unregister overlay content script", err);
+        }
       }
       await updateSettings({ trackingTier: tier });
     } catch (err) {
