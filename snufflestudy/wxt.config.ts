@@ -13,7 +13,15 @@ export default defineConfig({
   manifest: {
     name: "SnuffleStudy",
     description: "A consensual peer-pressure study accountability companion.",
-    permissions: ["storage", "alarms", "notifications", "idle", "scripting", "declarativeNetRequest"],
+    permissions: [
+      "storage",
+      "alarms",
+      "notifications",
+      "idle",
+      "scripting",
+      "declarativeNetRequest",
+      "sidePanel",
+    ],
     optional_host_permissions: ["*://*/*"],
     side_panel: {
       default_path: "sidepanel.html",
