@@ -3,6 +3,7 @@ import { ChromeStorageRepository } from "../infrastructure/storage/chromeStorage
 import { IndexedDbSessionRepository } from "../infrastructure/storage/indexedDbRepository";
 import * as machine from "../domain/session/sessionMachine";
 import { showNotification } from "../infrastructure/browser/notificationsApi";
+import { clearHardBlockRules } from "../infrastructure/browser/declarativeNetRequestApi";
 
 const settingsRepo = new ChromeStorageRepository();
 const historyRepo = new IndexedDbSessionRepository();
@@ -19,6 +20,7 @@ export async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
     const completed = machine.completeSession(session, now);
     await historyRepo.archive(completed);
     await settingsRepo.saveActiveSession(null);
+    await clearHardBlockRules();
     showNotification("session-complete", "Goal complete", `"${session.goal}" is done. Nice work.`);
     return;
   }

@@ -102,6 +102,12 @@ describe("messageRouter — full session lifecycle", () => {
     expect(right.ok).toBe(true);
   });
 
+  it("returns a graceful { ok: false, error } instead of throwing/rejecting when sessionId doesn't match an active session", async () => {
+    await expect(
+      handleMessage({ type: "SESSION_PAUSE", payload: { sessionId: "does-not-exist" } })
+    ).resolves.toEqual({ ok: false, error: expect.any(String) });
+  });
+
   it("saves and retrieves settings", async () => {
     const initial = (await handleMessage({ type: "SETTINGS_GET" })) as {
       settings: UserSettings;

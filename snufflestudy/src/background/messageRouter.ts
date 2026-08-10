@@ -26,6 +26,14 @@ async function requireActiveSession(sessionId: string) {
 export async function handleMessage(message: ExtensionMessage): Promise<unknown> {
   const now = Date.now();
 
+  try {
+    return await routeMessage(message, now);
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+async function routeMessage(message: ExtensionMessage, now: number): Promise<unknown> {
   switch (message.type) {
     case "SESSION_CREATE": {
       const validation = validateCreateSessionInput(message.payload);

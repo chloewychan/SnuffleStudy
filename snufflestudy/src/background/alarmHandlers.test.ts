@@ -64,4 +64,25 @@ describe("handleAlarm", () => {
     };
     expect(active.session.state).toBe("FOCUSING");
   });
+
+  it("clears hard-block DNR rules when a hard-mode session auto-completes via the alarm", async () => {
+    const created = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: { ...createInput, restrictedSites: ["youtube.com"], restrictionMode: "hard" },
+    })) as { session: { id: string } };
+
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    // SESSION_START's syncHardBlockRules should have installed a redirect rule.
+    const rulesAfterStart = await chrome.declarativeNetRequest.getDynamicRules();
+    expect(rulesAfterStart.length).toBeGreaterThan(0);
+
+    await handleAlarm({ name: "snufflestudy-session-timer" } as chrome.alarms.Alarm);
+
+    const rulesAfterComplete = await chrome.declarativeNetRequest.getDynamicRules();
+    expect(rulesAfterComplete).toEqual([]);
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
+    expect(active.session).toBeNull();
+  });
 });
