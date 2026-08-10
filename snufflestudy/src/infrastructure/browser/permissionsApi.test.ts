@@ -4,6 +4,7 @@ import {
   hasDetailedTrackingPermission,
   requestDetailedTrackingPermission,
   revokeDetailedTrackingPermission,
+  requestHardBlockHostPermission,
 } from "./permissionsApi";
 
 // The installed @webext-core/fake-browser version has no working
@@ -29,11 +30,14 @@ function createFakePermissions() {
   };
 }
 
+let fakePermissions: ReturnType<typeof createFakePermissions>;
+
 beforeEach(() => {
   fakeBrowser.reset();
   // Re-applied every test (rather than once at module scope) so each test gets
   // a fresh, empty `granted` set — fakeBrowser.reset() doesn't touch this stub.
-  vi.stubGlobal("chrome", { ...chrome, permissions: createFakePermissions() });
+  fakePermissions = createFakePermissions();
+  vi.stubGlobal("chrome", { ...chrome, permissions: fakePermissions });
 });
 
 describe("permissionsApi", () => {
@@ -50,5 +54,29 @@ describe("permissionsApi", () => {
     await requestDetailedTrackingPermission();
     await revokeDetailedTrackingPermission();
     expect(await hasDetailedTrackingPermission()).toBe(false);
+  });
+
+  it("requests host permission for every site's origins in a single call", async () => {
+    const granted = await requestHardBlockHostPermission(["youtube.com", "reddit.com"]);
+
+    expect(granted).toBe(true);
+    expect(fakePermissions.request).toHaveBeenCalledTimes(1);
+    expect(
+      await fakePermissions.contains({
+        origins: [
+          "*://youtube.com/*",
+          "*://*.youtube.com/*",
+          "*://reddit.com/*",
+          "*://*.reddit.com/*",
+        ],
+      })
+    ).toBe(true);
+  });
+
+  it("returns true without calling chrome.permissions.request for an empty hostname list", async () => {
+    const granted = await requestHardBlockHostPermission([]);
+
+    expect(granted).toBe(true);
+    expect(fakePermissions.request).not.toHaveBeenCalled();
   });
 });

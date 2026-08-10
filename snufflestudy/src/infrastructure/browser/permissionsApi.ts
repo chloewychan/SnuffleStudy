@@ -10,6 +10,8 @@ export async function revokeDetailedTrackingPermission(): Promise<boolean> {
   return chrome.permissions.remove({ origins: ["*://*/*"] });
 }
 
-export async function requestHardBlockHostPermission(hostname: string): Promise<boolean> {
-  return chrome.permissions.request({ origins: [`*://${hostname}/*`, `*://*.${hostname}/*`] });
+export async function requestHardBlockHostPermission(hostnames: string[]): Promise<boolean> {
+  if (hostnames.length === 0) return true;
+  const origins = hostnames.flatMap((hostname) => [`*://${hostname}/*`, `*://*.${hostname}/*`]);
+  return chrome.permissions.request({ origins });
 }

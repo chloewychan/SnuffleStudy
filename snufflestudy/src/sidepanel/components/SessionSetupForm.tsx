@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import type { UserSettings } from "../../domain/settings/userSettings";
 import { PRESSURE_PROFILES } from "../../domain/pressure/pressureProfiles";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
+import { requestHardBlockHostPermission } from "../../infrastructure/browser/permissionsApi";
 
 interface SessionSetupFormProps {
   settings: UserSettings;
@@ -21,6 +22,16 @@ export function SessionSetupForm({ settings }: SessionSetupFormProps) {
     setSubmitting(true);
 
     try {
+      if (restrictionMode === "hard" && settings.defaultRestrictedSites.length > 0) {
+        const granted = await requestHardBlockHostPermission(settings.defaultRestrictedSites);
+        if (!granted) {
+          setError(
+            "Hard-mode blocking needs permission to act on your restricted sites. Grant it to start a hard-restricted session, or switch to soft mode."
+          );
+          return;
+        }
+      }
+
       const createResponse = await sendMessage<{
         ok: boolean;
         session?: { id: string };
