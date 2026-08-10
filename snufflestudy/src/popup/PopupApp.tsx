@@ -36,16 +36,34 @@ export function PopupApp() {
       <TimerRing remainingSeconds={remainingSeconds(session, Date.now())} totalSeconds={totalSeconds} />
       <div className="popup-app__controls">
         {session.state === "FOCUSING" && (
-          <button onClick={() => sendMessage({ type: "SESSION_PAUSE", payload: { sessionId: session.id } })}>
+          <button
+            onClick={() =>
+              sendMessage({ type: "SESSION_PAUSE", payload: { sessionId: session.id } }).catch((err) =>
+                console.error("Failed to pause session", err)
+              )
+            }
+          >
             Pause
           </button>
         )}
         {session.state === "PAUSED" && (
-          <button onClick={() => sendMessage({ type: "SESSION_RESUME", payload: { sessionId: session.id } })}>
+          <button
+            onClick={() =>
+              sendMessage({ type: "SESSION_RESUME", payload: { sessionId: session.id } }).catch((err) =>
+                console.error("Failed to resume session", err)
+              )
+            }
+          >
             Resume
           </button>
         )}
-        <button onClick={() => sendMessage({ type: "SESSION_END", payload: { sessionId: session.id } })}>
+        <button
+          onClick={() =>
+            sendMessage({ type: "SESSION_END", payload: { sessionId: session.id } }).catch((err) =>
+              console.error("Failed to end session", err)
+            )
+          }
+        >
           End session
         </button>
       </div>

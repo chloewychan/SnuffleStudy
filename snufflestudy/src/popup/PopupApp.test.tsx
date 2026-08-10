@@ -53,4 +53,35 @@ describe("PopupApp", () => {
       })
     );
   });
+
+  it("stops loading and renders the idle view when the initial sendMessage rejects", async () => {
+    vi.spyOn(messenger, "sendMessage").mockRejectedValue(
+      new Error("Could not establish connection. Receiving end does not exist.")
+    );
+    render(<PopupApp />);
+
+    // Must not get stuck on the loading state forever.
+    await waitFor(() => expect(screen.queryByText("Loading…")).not.toBeInTheDocument());
+    expect(screen.getByText("No active session.")).toBeInTheDocument();
+  });
+
+  it("does not crash or leave an unhandled rejection when a button's sendMessage rejects", async () => {
+    const session = machine.startSession(machine.createSession(input, "session_1", 0), 0);
+    const sendMessageSpy = vi
+      .spyOn(messenger, "sendMessage")
+      .mockResolvedValueOnce({ ok: true, session })
+      .mockRejectedValueOnce(new Error("Could not establish connection. Receiving end does not exist."));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<PopupApp />);
+    await waitFor(() => screen.getByRole("button", { name: "Pause" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+
+    await waitFor(() => expect(sendMessageSpy).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(consoleErrorSpy).toHaveBeenCalled());
+
+    // Component survives the rejection instead of crashing/unmounting.
+    expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+  });
 });
