@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import "../styles/global.css";
 import type { UserSettings, TrackingTier } from "../domain/settings/userSettings";
 import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
 import {

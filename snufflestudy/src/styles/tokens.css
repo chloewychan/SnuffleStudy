@@ -1,0 +1,26 @@
+/* src/styles/tokens.css */
+:root {
+  --color-bg: #ffffff;
+  --color-surface: #f5f5f7;
+  --color-text: #1a1a1a;
+  --color-text-muted: #6b6b6b;
+  --color-primary: #6c4bd6;
+  --color-warning: #d64b4b;
+  --color-success: #2f9e5c;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+
+  --font-size-sm: 12px;
+  --font-size-md: 14px;
+  --font-size-lg: 20px;
+
+  --motion-duration-fast: 120ms;
+  --motion-duration-normal: 240ms;
+}

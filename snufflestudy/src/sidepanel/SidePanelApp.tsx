@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import "../styles/global.css";
 import { OnboardingWizard } from "../app/routes/OnboardingWizard";
 import { SessionSetupForm } from "./components/SessionSetupForm";
 import { SessionStatusCard } from "../shared/ui/SessionStatusCard";

@@ -1,3 +1,4 @@
+import "../styles/global.css";
 import { useActiveSession } from "./hooks/useActiveSession";
 import { TimerRing } from "../shared/ui/TimerRing";
 import { SessionStatusCard } from "../shared/ui/SessionStatusCard";
