@@ -21,29 +21,44 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
     "reddit.com",
     "tiktok.com",
   ]);
+  const [finishError, setFinishError] = useState<string | null>(null);
+  const [finishing, setFinishing] = useState(false);
 
   async function finish() {
-    let finalTrackingTier = trackingTier;
-    if (trackingTier === "detailed") {
-      const granted = await requestDetailedTrackingPermission();
-      if (!granted) finalTrackingTier = "activity-only";
+    setFinishing(true);
+    setFinishError(null);
+    try {
+      let finalTrackingTier = trackingTier;
+      if (trackingTier === "detailed") {
+        const granted = await requestDetailedTrackingPermission();
+        if (!granted) finalTrackingTier = "activity-only";
+      }
+
+      await sendMessage({
+        type: "SETTINGS_SAVE",
+        payload: {
+          pressureProfileId,
+          trackingTier: finalTrackingTier,
+          defaultFocusDurationSeconds: focusMinutes * 60,
+          defaultBreakDurationSeconds: 300,
+          defaultAllowedSites: [],
+          defaultRestrictedSites: finalTrackingTier === "detailed" ? restrictedSites : [],
+          defaultRestrictionMode: "soft",
+          onboardingCompleted: true,
+        },
+      });
+
+      onComplete();
+    } catch (err) {
+      // requestDetailedTrackingPermission (chrome.permissions.request) and sendMessage
+      // (chrome.runtime.sendMessage) can both reject — e.g. service-worker startup races
+      // or extension-context-invalidated. Surface it instead of leaving an unhandled
+      // rejection and a button that silently did nothing.
+      console.error("Failed to complete onboarding", err);
+      setFinishError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFinishing(false);
     }
-
-    await sendMessage({
-      type: "SETTINGS_SAVE",
-      payload: {
-        pressureProfileId,
-        trackingTier: finalTrackingTier,
-        defaultFocusDurationSeconds: focusMinutes * 60,
-        defaultBreakDurationSeconds: 300,
-        defaultAllowedSites: [],
-        defaultRestrictedSites: finalTrackingTier === "detailed" ? restrictedSites : [],
-        defaultRestrictionMode: "soft",
-        onboardingCompleted: true,
-      },
-    });
-
-    onComplete();
   }
 
   if (step === "name") {
@@ -135,7 +150,14 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
     <div className="onboarding-step">
       <h2>Ready to go</h2>
       <p>You can invite friends and set a hard-block passcode later in Settings.</p>
-      <button onClick={finish}>Start using SnuffleStudy</button>
+      {finishError && (
+        <p role="alert" className="onboarding-step__error">
+          Couldn't save your settings: {finishError}. Please try again.
+        </p>
+      )}
+      <button onClick={finish} disabled={finishing}>
+        {finishing ? "Starting…" : "Start using SnuffleStudy"}
+      </button>
     </div>
   );
 }

@@ -48,4 +48,34 @@ describe("OnboardingWizard", () => {
 
     expect(screen.getByText("Restricted sites")).toBeInTheDocument();
   });
+
+  it("surfaces an error and does not call onComplete when saving settings fails", async () => {
+    const sendMessageSpy = vi
+      .spyOn(messenger, "sendMessage")
+      .mockRejectedValue(new Error("Could not establish connection"));
+    const onComplete = vi.fn();
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<OnboardingWizard onComplete={onComplete} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // name -> pressure
+    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // pressure -> duration
+    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // duration -> tracking
+    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // tracking -> review
+
+    fireEvent.click(screen.getByRole("button", { name: "Start using SnuffleStudy" }));
+
+    await waitFor(() => expect(sendMessageSpy).toHaveBeenCalled());
+
+    // (a) no unhandled rejection surfaces / component doesn't crash — implied by these
+    // assertions succeeding, since vitest fails the test on unhandled rejections.
+    // (b) onComplete must not fire — the save failed.
+    await waitFor(() => expect(onComplete).not.toHaveBeenCalled());
+
+    // (c) an error indication is visible to the user.
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Could not establish connection/);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
 });
