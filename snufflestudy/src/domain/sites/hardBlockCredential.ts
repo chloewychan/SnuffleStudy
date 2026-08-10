@@ -45,7 +45,7 @@ async function hashPasscode(passcode: string, salt: string): Promise<string> {
     {
       name: "PBKDF2",
       hash: "SHA-256",
-      salt: saltBytes,
+      salt: saltBytes as BufferSource,
       iterations: PBKDF2_ITERATIONS,
     },
     key,

@@ -8,5 +8,5 @@ export function pickWarningMessage(
   const profile = getPressureProfile(pressureProfileId);
   const pool =
     interventionLevel === "escalated" ? profile.repeatedWarningMessages : profile.firstWarningMessages;
-  return pool[Math.floor(Math.random() * pool.length)];
+  return pool[Math.floor(Math.random() * pool.length)]!;
 }
