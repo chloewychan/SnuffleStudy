@@ -2,6 +2,7 @@ import "../styles/global.css";
 import { useActiveSession } from "./hooks/useActiveSession";
 import { TimerRing } from "../shared/ui/TimerRing";
 import { SessionStatusCard } from "../shared/ui/SessionStatusCard";
+import { EndSessionControl } from "../shared/ui/EndSessionControl";
 import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
 import { remainingSeconds } from "../domain/session/timer";
 
@@ -58,15 +59,7 @@ export function PopupApp() {
             Resume
           </button>
         )}
-        <button
-          onClick={() =>
-            sendMessage({ type: "SESSION_END", payload: { sessionId: session.id } }).catch((err) =>
-              console.error("Failed to end session", err)
-            )
-          }
-        >
-          End session
-        </button>
+        <EndSessionControl session={session} />
       </div>
     </div>
   );

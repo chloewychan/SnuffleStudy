@@ -95,6 +95,33 @@ async function routeMessage(message: ExtensionMessage, now: number): Promise<unk
       // current state (FOCUSING, PAUSED, BREAK, or SESSION_SETUP) —
       // abandonSession is valid from any non-terminal state.
       const session = await requireActiveSession(message.payload.sessionId);
+
+      // Hard-restricted sessions are meant to resist being ended on a whim, so
+      // "End session" is gated behind the same passcode as unlocking a hard-blocked
+      // site (HARD_BLOCK_VERIFY_PASSCODE below) — reusing verifyPasscode means failed
+      // attempts across both flows share the same rate-limit/lockout state, which is
+      // intentional. If restrictionMode is "hard" but no credential was ever
+      // configured (user picked hard mode without setting a passcode in Options),
+      // there's nothing to verify against, so ending proceeds freely rather than
+      // bricking the session until the timer naturally expires.
+      if (session.restrictionMode === "hard") {
+        const credential = await settingsRepo.getHardBlockCredential();
+        if (credential) {
+          const passcode = message.payload.passcode;
+          if (!passcode) {
+            return { ok: false, error: "Passcode required to end a hard-restricted session." };
+          }
+          const result = await verifyPasscode(credential, passcode, now);
+          await settingsRepo.saveHardBlockCredential(result.credential);
+          if (!result.success) {
+            return {
+              ok: false,
+              error: "Incorrect passcode, or temporarily locked after repeated attempts.",
+            };
+          }
+        }
+      }
+
       const ended = machine.abandonSession(session, now);
       await historyRepo.archive(ended);
       await settingsRepo.saveActiveSession(null);

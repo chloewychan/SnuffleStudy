@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { act } from "react";
 import { mount } from "./overlayHost";
 
@@ -42,5 +42,25 @@ describe("overlayHost mount", () => {
     // ...and is NOT present in host's light DOM (host itself stays an unstyled, childless-in-
     // light-DOM attachment point), confirming isolation from the host page.
     expect(host!.querySelector(".snuffles-overlay--warning")).toBeNull();
+  });
+
+  // content/index.ts (the only real caller of mount() in production) never passes
+  // `reducedMotion` explicitly, so this fallback branch — reading the live media query —
+  // is what actually runs on every real page load. The test above only covers the
+  // explicit-override path (reducedMotion: true), leaving this branch unexercised.
+  it("falls back to window.matchMedia('(prefers-reduced-motion: reduce)') when reducedMotion isn't passed explicitly", () => {
+    const matchMediaSpy = vi.fn().mockReturnValue({ matches: true } as MediaQueryList);
+    vi.stubGlobal("matchMedia", matchMediaSpy);
+
+    act(() => {
+      mount({ classification: "BLOCKED", sessionId: "session_1" });
+    });
+
+    expect(matchMediaSpy).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)");
+
+    const host = document.getElementById("snufflestudy-overlay-host");
+    expect(host!.shadowRoot!.textContent).toContain("That is not chemistry.");
+
+    vi.unstubAllGlobals();
   });
 });

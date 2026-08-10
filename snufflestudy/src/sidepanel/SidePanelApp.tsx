@@ -4,6 +4,7 @@ import { OnboardingWizard } from "../app/routes/OnboardingWizard";
 import { SessionSetupForm } from "./components/SessionSetupForm";
 import { SessionStatusCard } from "../shared/ui/SessionStatusCard";
 import { TimerRing } from "../shared/ui/TimerRing";
+import { EndSessionControl } from "../shared/ui/EndSessionControl";
 import { useActiveSession } from "../popup/hooks/useActiveSession";
 import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
 import { remainingSeconds } from "../domain/session/timer";
@@ -85,15 +86,7 @@ export function SidePanelApp() {
           <li key={site}>{site}</li>
         ))}
       </ul>
-      <button
-        onClick={() =>
-          sendMessage({ type: "SESSION_END", payload: { sessionId: session.id } }).catch((err) =>
-            console.error("Failed to end session", err)
-          )
-        }
-      >
-        End session
-      </button>
+      <EndSessionControl session={session} />
     </div>
   );
 }

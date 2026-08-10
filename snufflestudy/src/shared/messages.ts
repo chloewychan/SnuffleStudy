@@ -8,7 +8,7 @@ export type ExtensionMessage =
   | { type: "SESSION_RESUME"; payload: { sessionId: string } }
   | { type: "SESSION_START_BREAK"; payload: { sessionId: string } }
   | { type: "SESSION_END_BREAK"; payload: { sessionId: string } }
-  | { type: "SESSION_END"; payload: { sessionId: string; reason?: string } }
+  | { type: "SESSION_END"; payload: { sessionId: string; reason?: string; passcode?: string } }
   | { type: "SESSION_GET_ACTIVE" }
   | { type: "SITE_STATUS_REQUEST"; payload: { hostname: string | null } }
   | { type: "DISTRACTION_ATTEMPT"; payload: { sessionId: string; hostname: string } }

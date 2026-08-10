@@ -125,3 +125,99 @@ describe("messageRouter — full session lifecycle", () => {
     expect(updated.settings.onboardingCompleted).toBe(true);
   });
 });
+
+describe("messageRouter — SESSION_END hard-block enforcement", () => {
+  const hardInput: CreateSessionInput = {
+    ...createInput,
+    restrictionMode: "hard",
+  };
+
+  async function createAndStartHardSession(): Promise<string> {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: hardInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    return created.session.id;
+  }
+
+  it("ends a hard-mode session with a configured credential when given the correct passcode", async () => {
+    await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
+    const sessionId = await createAndStartHardSession();
+
+    const ended = (await handleMessage({
+      type: "SESSION_END",
+      payload: { sessionId, passcode: "1234" },
+    })) as { ok: boolean; session: { state: string } };
+
+    expect(ended.ok).toBe(true);
+    expect(ended.session.state).toBe("ABANDONED");
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
+    expect(active.session).toBeNull();
+  });
+
+  it("rejects SESSION_END on a hard-mode session with a configured credential when given an incorrect passcode, leaving the session active", async () => {
+    await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
+    const sessionId = await createAndStartHardSession();
+
+    const result = (await handleMessage({
+      type: "SESSION_END",
+      payload: { sessionId, passcode: "0000" },
+    })) as { ok: boolean };
+
+    expect(result.ok).toBe(false);
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { id: string; state: string } | null;
+    };
+    expect(active.session).not.toBeNull();
+    expect(active.session?.id).toBe(sessionId);
+    expect(active.session?.state).toBe("FOCUSING");
+  });
+
+  it("rejects SESSION_END on a hard-mode session with a configured credential when no passcode is supplied in the payload", async () => {
+    await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
+    const sessionId = await createAndStartHardSession();
+
+    const result = (await handleMessage({
+      type: "SESSION_END",
+      payload: { sessionId },
+    })) as { ok: boolean; error: string };
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/passcode required/i);
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
+    expect(active.session).not.toBeNull();
+  });
+
+  it("ends a hard-mode session with NO configured credential without requiring a passcode", async () => {
+    const sessionId = await createAndStartHardSession();
+
+    const ended = (await handleMessage({
+      type: "SESSION_END",
+      payload: { sessionId },
+    })) as { ok: boolean; session: { state: string } };
+
+    expect(ended.ok).toBe(true);
+    expect(ended.session.state).toBe("ABANDONED");
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
+    expect(active.session).toBeNull();
+  });
+
+  it("ends a soft-mode session normally regardless of whether a passcode field is present in the payload", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    const ended = (await handleMessage({
+      type: "SESSION_END",
+      payload: { sessionId: created.session.id, passcode: "irrelevant" },
+    })) as { ok: boolean; session: { state: string } };
+
+    expect(ended.ok).toBe(true);
+    expect(ended.session.state).toBe("ABANDONED");
+  });
+});
