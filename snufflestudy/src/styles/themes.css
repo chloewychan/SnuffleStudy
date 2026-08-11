@@ -1,0 +1,16 @@
+/* src/styles/themes.css */
+:root[data-theme="dark"] {
+  --color-bg: #17171a;
+  --color-surface: #232327;
+  --color-text: #f2f2f2;
+  --color-text-muted: #a3a3a3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #17171a;
+    --color-surface: #232327;
+    --color-text: #f2f2f2;
+    --color-text-muted: #a3a3a3;
+  }
+}
