@@ -6,6 +6,7 @@ import { validateCreateSessionInput } from "../domain/session/sessionValidation"
 import { classifySite } from "../domain/sites/siteRules";
 import { createHardBlockCredential, verifyPasscode } from "../domain/sites/hardBlockCredential";
 import { scheduleSessionAlarm, cancelSessionAlarm } from "../infrastructure/browser/alarmsApi";
+import { showNotification } from "../infrastructure/browser/notificationsApi";
 import {
   syncHardBlockRules,
   clearHardBlockRules,
@@ -27,17 +28,24 @@ async function requireActiveSession(sessionId: string) {
   return session;
 }
 
-export async function handleMessage(message: ExtensionMessage): Promise<unknown> {
+export async function handleMessage(
+  message: ExtensionMessage,
+  sender: chrome.runtime.MessageSender = {}
+): Promise<unknown> {
   const now = Date.now();
 
   try {
-    return await routeMessage(message, now);
+    return await routeMessage(message, now, sender);
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
-async function routeMessage(message: ExtensionMessage, now: number): Promise<unknown> {
+async function routeMessage(
+  message: ExtensionMessage,
+  now: number,
+  sender: chrome.runtime.MessageSender
+): Promise<unknown> {
   switch (message.type) {
     case "SESSION_CREATE": {
       const validation = validateCreateSessionInput(message.payload);
@@ -131,7 +139,17 @@ async function routeMessage(message: ExtensionMessage, now: number): Promise<unk
       await settingsRepo.saveActiveSession(null);
       cancelSessionAlarm();
       await clearHardBlockRules();
+      showNotification("session-abandoned", "Session ended", `"${session.goal}" was ended early.`);
       return { ok: true, session: ended };
+    }
+
+    case "SESSION_DISMISS_COMPLETED": {
+      const session = await requireActiveSession(message.payload.sessionId);
+      if (session.state !== "COMPLETED") {
+        return { ok: false, error: `Cannot dismiss a session in state ${session.state}` };
+      }
+      await settingsRepo.saveActiveSession(null);
+      return { ok: true };
     }
 
     case "SESSION_GET_ACTIVE": {
@@ -170,6 +188,19 @@ async function routeMessage(message: ExtensionMessage, now: number): Promise<unk
         hostname: message.payload.hostname,
       });
       return { ok: true, session: updated };
+    }
+
+    case "RETURN_TO_WORK_CLOSE_TAB": {
+      // Only reachable from the content-script overlay's "Return to work" button, and only
+      // when the restricted site was opened fresh (no document.referrer) - the tab has
+      // nothing to navigate back to, so closing it is the only way to actually return the
+      // user to their prior context (see SnufflesOverlay.tsx for the referrer branch).
+      const tabId = sender.tab?.id;
+      if (tabId === undefined) {
+        return { ok: false, error: "No tab to close." };
+      }
+      await chrome.tabs.remove(tabId);
+      return { ok: true };
     }
 
     case "HARD_BLOCK_SET_PASSCODE": {

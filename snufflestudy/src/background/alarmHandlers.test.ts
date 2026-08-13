@@ -23,7 +23,7 @@ const createInput: CreateSessionInput = {
 };
 
 describe("handleAlarm", () => {
-  it("auto-completes a FOCUSING session and archives it", async () => {
+  it("auto-completes a FOCUSING session, archives it, and keeps it active in COMPLETED state for the UI to acknowledge", async () => {
     const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
       session: { id: string };
     };
@@ -31,8 +31,12 @@ describe("handleAlarm", () => {
 
     await handleAlarm({ name: "snufflestudy-session-timer" } as chrome.alarms.Alarm);
 
-    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
-    expect(active.session).toBeNull();
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { id: string; state: string } | null;
+    };
+    expect(active.session).not.toBeNull();
+    expect(active.session!.state).toBe("COMPLETED");
+    expect(active.session!.id).toBe(created.session.id);
   });
 
   it("ignores alarms that aren't the session alarm", async () => {
@@ -82,7 +86,10 @@ describe("handleAlarm", () => {
     const rulesAfterComplete = await chrome.declarativeNetRequest.getDynamicRules();
     expect(rulesAfterComplete).toEqual([]);
 
-    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
-    expect(active.session).toBeNull();
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string } | null;
+    };
+    expect(active.session).not.toBeNull();
+    expect(active.session!.state).toBe("COMPLETED");
   });
 });

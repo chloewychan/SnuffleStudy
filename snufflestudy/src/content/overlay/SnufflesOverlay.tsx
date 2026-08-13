@@ -31,6 +31,23 @@ export function SnufflesOverlay({
     );
   }
 
+  function handleReturnToWork() {
+    setDismissed(true);
+    // document.referrer tells apart "reached this restricted site from another real page"
+    // (a link click, form submit, etc. - there's real navigation history to go back to) from
+    // "opened fresh" (new tab, typed URL, bookmark - referrer is empty, and history.back()
+    // would silently do nothing). In the first case, navigate the same tab back; in the
+    // second, closing the tab is the only way to actually return the user to their prior
+    // context, since there's nothing in this tab's history to return to.
+    if (document.referrer) {
+      window.history.back();
+    } else {
+      sendMessage({ type: "RETURN_TO_WORK_CLOSE_TAB" }).catch((err) =>
+        console.error("Failed to close tab", err)
+      );
+    }
+  }
+
   function handleMarkStudyRelated() {
     // Fire-and-forget from the UI's perspective, but a rejected sendMessage must not
     // become an unhandled promise rejection and must not dismiss the warning (that
@@ -47,7 +64,7 @@ export function SnufflesOverlay({
       <img src={imageSrc} alt="Snuffles" width={96} height={96} />
       <p>That is not chemistry.</p>
       <div className="snuffles-overlay__actions">
-        <button onClick={() => setDismissed(true)}>Return to work</button>
+        <button onClick={handleReturnToWork}>Return to work</button>
         <button onClick={handleMarkStudyRelated}>Mark this site as study-related</button>
       </div>
     </div>

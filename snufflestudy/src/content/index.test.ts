@@ -16,6 +16,7 @@ function fakeSession(overrides: Partial<StudySession> = {}): StudySession {
     goal: "Finish problem set",
     state: "FOCUSING",
     interventionLevel: "none",
+    activityState: "active",
     createdAt: Date.now(),
     focusDurationSeconds: 1500,
     breakDurationSeconds: 300,

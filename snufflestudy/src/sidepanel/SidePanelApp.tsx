@@ -5,7 +5,10 @@ import { SessionSetupForm } from "./components/SessionSetupForm";
 import { SessionStatusCard } from "../shared/ui/SessionStatusCard";
 import { TimerRing } from "../shared/ui/TimerRing";
 import { EndSessionControl } from "../shared/ui/EndSessionControl";
+import { PauseResumeControl } from "../shared/ui/PauseResumeControl";
+import { CompletionScreen } from "../shared/ui/CompletionScreen";
 import { useActiveSession } from "../popup/hooks/useActiveSession";
+import { useNow } from "../popup/hooks/useNow";
 import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
 import { remainingSeconds } from "../domain/session/timer";
 import type { UserSettings } from "../domain/settings/userSettings";
@@ -14,6 +17,7 @@ export function SidePanelApp() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const { session, loading } = useActiveSession();
+  const now = useNow();
 
   useEffect(() => {
     let cancelled = false;
@@ -74,19 +78,30 @@ export function SidePanelApp() {
     );
   }
 
+  if (session.state === "COMPLETED") {
+    return (
+      <div className="sidepanel-app">
+        <CompletionScreen session={session} />
+      </div>
+    );
+  }
+
   const totalSeconds =
     session.state === "BREAK" ? session.breakDurationSeconds : session.focusDurationSeconds;
 
   return (
     <div className="sidepanel-app">
       <SessionStatusCard session={session} />
-      <TimerRing remainingSeconds={remainingSeconds(session, Date.now())} totalSeconds={totalSeconds} />
+      <TimerRing remainingSeconds={remainingSeconds(session, now)} totalSeconds={totalSeconds} />
       <ul className="sidepanel-app__sites">
         {session.restrictedSites.map((site) => (
           <li key={site}>{site}</li>
         ))}
       </ul>
-      <EndSessionControl session={session} />
+      <div className="sidepanel-app__controls">
+        <PauseResumeControl session={session} />
+        <EndSessionControl session={session} />
+      </div>
     </div>
   );
 }

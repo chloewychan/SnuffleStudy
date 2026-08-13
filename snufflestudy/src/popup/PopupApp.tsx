@@ -1,9 +1,11 @@
 import "../styles/global.css";
 import { useActiveSession } from "./hooks/useActiveSession";
+import { useNow } from "./hooks/useNow";
 import { TimerRing } from "../shared/ui/TimerRing";
 import { SessionStatusCard } from "../shared/ui/SessionStatusCard";
 import { EndSessionControl } from "../shared/ui/EndSessionControl";
-import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
+import { PauseResumeControl } from "../shared/ui/PauseResumeControl";
+import { CompletionScreen } from "../shared/ui/CompletionScreen";
 import { remainingSeconds } from "../domain/session/timer";
 
 async function openSidePanel() {
@@ -17,6 +19,7 @@ async function openSidePanel() {
 
 export function PopupApp() {
   const { session, loading } = useActiveSession();
+  const now = useNow();
 
   if (loading) return <div className="popup-app">Loading…</div>;
 
@@ -29,36 +32,23 @@ export function PopupApp() {
     );
   }
 
+  if (session.state === "COMPLETED") {
+    return (
+      <div className="popup-app">
+        <CompletionScreen session={session} />
+      </div>
+    );
+  }
+
   const totalSeconds =
     session.state === "BREAK" ? session.breakDurationSeconds : session.focusDurationSeconds;
 
   return (
     <div className="popup-app">
       <SessionStatusCard session={session} />
-      <TimerRing remainingSeconds={remainingSeconds(session, Date.now())} totalSeconds={totalSeconds} />
+      <TimerRing remainingSeconds={remainingSeconds(session, now)} totalSeconds={totalSeconds} />
       <div className="popup-app__controls">
-        {session.state === "FOCUSING" && (
-          <button
-            onClick={() =>
-              sendMessage({ type: "SESSION_PAUSE", payload: { sessionId: session.id } }).catch((err) =>
-                console.error("Failed to pause session", err)
-              )
-            }
-          >
-            Pause
-          </button>
-        )}
-        {session.state === "PAUSED" && (
-          <button
-            onClick={() =>
-              sendMessage({ type: "SESSION_RESUME", payload: { sessionId: session.id } }).catch((err) =>
-                console.error("Failed to resume session", err)
-              )
-            }
-          >
-            Resume
-          </button>
-        )}
+        <PauseResumeControl session={session} />
         <EndSessionControl session={session} />
       </div>
     </div>

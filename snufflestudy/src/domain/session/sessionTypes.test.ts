@@ -12,6 +12,7 @@ describe("sessionTypes", () => {
       goal: "Finish 20 chemistry problems",
       state: "FOCUSING",
       interventionLevel: "none",
+      activityState: "active",
       createdAt: 1000,
       startedAt: 1000,
       plannedEndAt: 2000,

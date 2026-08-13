@@ -33,4 +33,26 @@ describe("SessionStatusCard", () => {
     render(<SessionStatusCard session={session} />);
     expect(screen.getByText("1 distraction attempt")).toBeInTheDocument();
   });
+
+  it("shows both indicators reflecting a fresh session's default state", () => {
+    const session = machine.createSession(input, "session_1", 0);
+    render(<SessionStatusCard session={session} />);
+    expect(screen.getByText("Activity: Active")).toBeInTheDocument();
+    expect(screen.getByText("Focus: On track")).toBeInTheDocument();
+  });
+
+  it("reflects an idle activityState independently of interventionLevel", () => {
+    const session = machine.setActivityState(machine.createSession(input, "session_1", 0), "idle");
+    render(<SessionStatusCard session={session} />);
+    expect(screen.getByText("Activity: Idle")).toBeInTheDocument();
+    // interventionLevel is untouched - the two indicators don't cross-wire.
+    expect(screen.getByText("Focus: On track")).toBeInTheDocument();
+  });
+
+  it("reflects an escalated interventionLevel independently of activityState", () => {
+    const session = machine.escalateSession(machine.createSession(input, "session_1", 0));
+    render(<SessionStatusCard session={session} />);
+    expect(screen.getByText("Focus: Escalated")).toBeInTheDocument();
+    expect(screen.getByText("Activity: Active")).toBeInTheDocument();
+  });
 });

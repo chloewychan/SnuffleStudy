@@ -10,6 +10,7 @@ export function createSession(
     goal: input.goal,
     state: "SESSION_SETUP",
     interventionLevel: "none",
+    activityState: "active",
     createdAt: now,
     focusDurationSeconds: input.focusDurationSeconds,
     breakDurationSeconds: input.breakDurationSeconds,
@@ -119,6 +120,13 @@ export function escalateSession(session: StudySession): StudySession {
 
 export function clearIntervention(session: StudySession): StudySession {
   return { ...session, interventionLevel: "none" };
+}
+
+export function setActivityState(
+  session: StudySession,
+  activityState: StudySession["activityState"]
+): StudySession {
+  return { ...session, activityState };
 }
 
 export function recordDistractionAttempt(session: StudySession): StudySession {

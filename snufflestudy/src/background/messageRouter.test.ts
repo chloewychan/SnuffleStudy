@@ -1,7 +1,8 @@
 import "fake-indexeddb/auto";
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import { handleMessage } from "./messageRouter";
+import { handleAlarm } from "./alarmHandlers";
 import { stubFakeDeclarativeNetRequest } from "./testSupport/fakeDeclarativeNetRequest";
 import type { CreateSessionInput } from "../domain/session/sessionTypes";
 import type { UserSettings } from "../domain/settings/userSettings";
@@ -60,6 +61,24 @@ describe("messageRouter — full session lifecycle", () => {
 
     const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
     expect(active.session).toBeNull();
+  });
+
+  it("shows a notification when a session is ended manually (abandoned)", async () => {
+    // Regression guard: natural completion already notified (alarmHandlers.ts), but ending
+    // early via SESSION_END was previously silent - "nothing happens" from the user's
+    // perspective either way, since a manually-ended session gave no feedback at all.
+    const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: created.session.id } });
+
+    expect(createNotificationSpy).toHaveBeenCalledWith(
+      "session-abandoned",
+      expect.objectContaining({ title: "Session ended" })
+    );
   });
 
   it("rejects an invalid SESSION_CREATE with validation errors", async () => {
@@ -356,5 +375,78 @@ describe("messageRouter — HARD_BLOCK_VERIFY_PASSCODE unlocks only the verified
     expect(rules.some((rule) => rule.condition.requestDomains?.includes("reddit.com"))).toBe(
       true
     );
+  });
+});
+
+describe("messageRouter — SESSION_DISMISS_COMPLETED", () => {
+  it("clears a COMPLETED session when dismissed", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleAlarm({ name: "snufflestudy-session-timer" } as chrome.alarms.Alarm);
+
+    const beforeDismiss = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string } | null;
+    };
+    expect(beforeDismiss.session?.state).toBe("COMPLETED");
+
+    const result = (await handleMessage({
+      type: "SESSION_DISMISS_COMPLETED",
+      payload: { sessionId: created.session.id },
+    })) as { ok: boolean };
+    expect(result.ok).toBe(true);
+
+    const afterDismiss = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
+    expect(afterDismiss.session).toBeNull();
+  });
+
+  it("rejects dismissing a session that is not COMPLETED, leaving it untouched", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    const result = (await handleMessage({
+      type: "SESSION_DISMISS_COMPLETED",
+      payload: { sessionId: created.session.id },
+    })) as { ok: boolean; error: string };
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/FOCUSING/);
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string } | null;
+    };
+    expect(active.session?.state).toBe("FOCUSING");
+  });
+});
+
+describe("messageRouter — RETURN_TO_WORK_CLOSE_TAB", () => {
+  it("closes the sender's tab when one is present", async () => {
+    const removeSpy = vi.spyOn(chrome.tabs, "remove").mockResolvedValue(undefined);
+
+    const result = (await handleMessage(
+      { type: "RETURN_TO_WORK_CLOSE_TAB" },
+      { tab: { id: 42 } } as chrome.runtime.MessageSender
+    )) as { ok: boolean };
+
+    expect(result.ok).toBe(true);
+    expect(removeSpy).toHaveBeenCalledWith(42);
+  });
+
+  it("returns a graceful error instead of throwing when there is no sender tab", async () => {
+    // messageRouter.test.ts doesn't restore mocks between tests, so an explicit mockClear()
+    // is needed here - otherwise this spy would still carry the call recorded by the
+    // previous test's own vi.spyOn on the same chrome.tabs.remove.
+    const removeSpy = vi.spyOn(chrome.tabs, "remove").mockClear();
+
+    const result = (await handleMessage({ type: "RETURN_TO_WORK_CLOSE_TAB" })) as {
+      ok: boolean;
+      error: string;
+    };
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/no tab/i);
+    expect(removeSpy).not.toHaveBeenCalled();
   });
 });

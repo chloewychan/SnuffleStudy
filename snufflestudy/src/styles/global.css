@@ -25,3 +25,70 @@ body {
   padding: var(--space-3);
   box-shadow: 0 4px 16px rgb(0 0 0 / 0.2);
 }
+
+.timer-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timer-ring svg {
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.timer-ring__track {
+  fill: none;
+  stroke: var(--color-surface);
+  stroke-width: 8;
+}
+
+.timer-ring__progress {
+  fill: none;
+  stroke: var(--color-primary);
+  stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dasharray var(--motion-duration-normal) linear;
+}
+
+.timer-ring__label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+.session-status-card__indicators {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.session-status-card__indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.session-status-card__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.session-status-card__dot[data-tier="ok"] {
+  background: var(--color-success);
+}
+
+.session-status-card__dot[data-tier="caution"] {
+  background: var(--color-caution);
+}
+
+.session-status-card__dot[data-tier="danger"] {
+  background: var(--color-warning);
+}

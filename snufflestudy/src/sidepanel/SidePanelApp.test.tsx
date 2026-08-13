@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import { SidePanelApp } from "./SidePanelApp";
 import * as messenger from "../infrastructure/messaging/extensionMessenger";
 import { DEFAULT_USER_SETTINGS } from "../domain/settings/userSettings";
@@ -64,6 +64,87 @@ describe("SidePanelApp", () => {
     render(<SidePanelApp />);
     await waitFor(() => expect(screen.getByText("Finish 20 chemistry problems")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument();
+  });
+
+  it("shows a Pause control while FOCUSING, and a Resume control while PAUSED", async () => {
+    // Regression guard: pause/resume previously only existed in PopupApp, never in
+    // SidePanelApp at all.
+    const focusing = machine.startSession(machine.createSession(input, "session_1", 0), 0);
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") {
+        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
+      }
+      if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session: focusing };
+      return { ok: true };
+    });
+
+    const { unmount } = render(<SidePanelApp />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument());
+    unmount();
+
+    const paused = machine.pauseSession(focusing, 100);
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") {
+        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
+      }
+      if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session: paused };
+      return { ok: true };
+    });
+
+    render(<SidePanelApp />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument());
+  });
+
+  it("shows the completion screen instead of the timer when the session is COMPLETED", async () => {
+    const completed = machine.completeSession(
+      machine.startSession(machine.createSession(input, "session_1", 0), 0),
+      100
+    );
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") {
+        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
+      }
+      if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session: completed };
+      return { ok: true };
+    });
+
+    render(<SidePanelApp />);
+
+    await waitFor(() => expect(screen.getByText("Goal complete!")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Start another session" })).toBeInTheDocument();
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+  });
+
+  it("ticks the countdown down every second while open, without needing to reopen the side panel", async () => {
+    const start = Date.now();
+    const session = machine.startSession(machine.createSession(input, "session_1", start), start);
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") {
+        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
+      }
+      if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session };
+      return { ok: true };
+    });
+
+    // See PopupApp.test.tsx's equivalent test for why fake timers must be installed
+    // before render (useNow's setInterval is registered on the first effect flush).
+    vi.useFakeTimers();
+    try {
+      render(<SidePanelApp />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const initialLabel = screen.getByRole("timer").textContent;
+
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      expect(screen.getByRole("timer").textContent).not.toBe(initialLabel);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("surfaces an error instead of hanging on Loading… when the initial settings fetch rejects", async () => {

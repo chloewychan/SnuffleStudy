@@ -9,6 +9,12 @@ export type SessionState =
 
 export type InterventionLevel = "none" | "warned" | "escalated";
 
+// Mirrors the browser idle-detection API's own state values exactly (a plain local union
+// rather than importing that API's type directly, to preserve this project's rule that
+// src/domain/ never depends on browser-extension APIs). Independent of interventionLevel by
+// design — this reflects system-wide keyboard/mouse activity, not distraction/warning level.
+export type ActivityState = "active" | "idle" | "locked";
+
 export type RestrictionMode = "soft" | "hard";
 
 export interface StudySession {
@@ -16,6 +22,7 @@ export interface StudySession {
   goal: string;
   state: SessionState;
   interventionLevel: InterventionLevel;
+  activityState: ActivityState;
 
   createdAt: number;
   startedAt?: number;

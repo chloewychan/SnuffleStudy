@@ -1,10 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SnufflesOverlay } from "./SnufflesOverlay";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 
 beforeEach(() => {
   vi.restoreAllMocks();
+});
+
+afterEach(() => {
+  // document.referrer isn't a vi.* mock, so vi.restoreAllMocks() (beforeEach) doesn't touch
+  // it - reset it explicitly so a value set by one test can't leak into the next.
+  Object.defineProperty(document, "referrer", { value: "", configurable: true });
 });
 
 describe("SnufflesOverlay", () => {
@@ -54,6 +60,72 @@ describe("SnufflesOverlay", () => {
       })
     );
     expect(screen.queryByText("That is not chemistry.")).not.toBeInTheDocument();
+  });
+
+  it("navigates the tab back when the restricted site was reached from another page", () => {
+    Object.defineProperty(document, "referrer", {
+      value: "https://example.com/article",
+      configurable: true,
+    });
+    const historyBackSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
+
+    render(
+      <SnufflesOverlay
+        classification="BLOCKED"
+        sessionId="session_1"
+        hostname="youtube.com"
+        reducedMotion={false}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Return to work" }));
+
+    expect(historyBackSpy).toHaveBeenCalled();
+    expect(sendMessageSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "RETURN_TO_WORK_CLOSE_TAB" })
+    );
+  });
+
+  it("closes the tab when the restricted site was opened fresh (no referrer)", async () => {
+    Object.defineProperty(document, "referrer", { value: "", configurable: true });
+    const historyBackSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
+
+    render(
+      <SnufflesOverlay
+        classification="BLOCKED"
+        sessionId="session_1"
+        hostname="youtube.com"
+        reducedMotion={false}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Return to work" }));
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({ type: "RETURN_TO_WORK_CLOSE_TAB" })
+    );
+    expect(historyBackSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not crash or leave an unhandled rejection when closing the tab fails", async () => {
+    Object.defineProperty(document, "referrer", { value: "", configurable: true });
+    const sendMessageSpy = vi
+      .spyOn(messenger, "sendMessage")
+      .mockRejectedValue(new Error("Could not establish connection. Receiving end does not exist."));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(
+      <SnufflesOverlay
+        classification="BLOCKED"
+        sessionId="session_1"
+        hostname="youtube.com"
+        reducedMotion={false}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Return to work" }));
+
+    await waitFor(() => expect(sendMessageSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(consoleErrorSpy).toHaveBeenCalled());
   });
 
   it("uses the staticFrame image when reducedMotion is true", () => {

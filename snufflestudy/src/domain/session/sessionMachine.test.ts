@@ -18,6 +18,17 @@ describe("sessionMachine", () => {
     expect(session.state).toBe("SESSION_SETUP");
     expect(session.interventionLevel).toBe("none");
     expect(session.distractionAttempts).toBe(0);
+    expect(session.activityState).toBe("active");
+  });
+
+  it("sets activityState independently of interventionLevel", () => {
+    const created = machine.createSession(input, "session_1", 1000);
+    const idle = machine.setActivityState(created, "idle");
+    expect(idle.activityState).toBe("idle");
+    expect(idle.interventionLevel).toBe("none");
+
+    const locked = machine.setActivityState(idle, "locked");
+    expect(locked.activityState).toBe("locked");
   });
 
   it("starts a session and computes plannedEndAt", () => {
