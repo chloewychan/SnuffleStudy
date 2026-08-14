@@ -49,6 +49,12 @@ export interface StudySession {
   distractionAttempts: number;
   recoveries: number;
   friendNudges: number;
+
+  // Set when this session was started from a Task Vault breakdown item (app/routes/
+  // TaskVaultPage.tsx via SessionSetupForm) - lets messageRouter's SESSION_END handler mark
+  // that item's completedAt. Purely additive/optional so it doesn't affect sessions started
+  // any other way.
+  taskBreakdownItemId?: string;
 }
 
 export interface CreateSessionInput {
@@ -60,6 +66,7 @@ export interface CreateSessionInput {
   restrictedSites: string[];
   restrictionMode: RestrictionMode;
   siteRestrictionOverrides?: Record<string, RestrictionMode>;
+  taskBreakdownItemId?: string;
 }
 
 export type SessionEventType =

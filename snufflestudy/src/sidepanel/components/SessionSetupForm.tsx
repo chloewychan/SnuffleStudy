@@ -6,10 +6,15 @@ import { requestHardBlockHostPermission } from "../../infrastructure/browser/per
 
 interface SessionSetupFormProps {
   settings: UserSettings;
+  // Set by SidePanelApp when the user picked "Start a session from this" on a Task Vault
+  // breakdown item (app/routes/TaskVaultPage.tsx) - pre-fills the goal field with that item's
+  // description, but the field stays freely editable afterward (it's only the initial value).
+  initialGoal?: string;
+  taskBreakdownItemId?: string;
 }
 
-export function SessionSetupForm({ settings }: SessionSetupFormProps) {
-  const [goal, setGoal] = useState("");
+export function SessionSetupForm({ settings, initialGoal, taskBreakdownItemId }: SessionSetupFormProps) {
+  const [goal, setGoal] = useState(initialGoal ?? "");
   const [focusMinutes, setFocusMinutes] = useState(settings.defaultFocusDurationSeconds / 60);
   const [pressureProfileId, setPressureProfileId] = useState(settings.pressureProfileId);
   const [restrictionMode, setRestrictionMode] = useState(settings.defaultRestrictionMode);
@@ -46,6 +51,7 @@ export function SessionSetupForm({ settings }: SessionSetupFormProps) {
           allowedSites: settings.defaultAllowedSites,
           restrictedSites: settings.defaultRestrictedSites,
           restrictionMode,
+          taskBreakdownItemId,
         },
       });
 

@@ -1,6 +1,8 @@
 import type { ExtensionMessage } from "../shared/messages";
+import type { Task } from "../domain/tasks/taskTypes";
 import { ChromeStorageRepository } from "../infrastructure/storage/chromeStorageRepository";
 import { IndexedDbSessionRepository } from "../infrastructure/storage/indexedDbRepository";
+import { IndexedDbTaskRepository } from "../infrastructure/storage/taskRepository";
 import * as machine from "../domain/session/sessionMachine";
 import { validateCreateSessionInput } from "../domain/session/sessionValidation";
 import { classifySite } from "../domain/sites/siteRules";
@@ -15,9 +17,28 @@ import {
 
 const settingsRepo = new ChromeStorageRepository();
 const historyRepo = new IndexedDbSessionRepository();
+const taskRepo = new IndexedDbTaskRepository();
 
 function newId(): string {
   return crypto.randomUUID();
+}
+
+// SESSION_END side effect (Task 4): when the ending session was started from a Task Vault
+// breakdown item, mark that item done. TaskRepository has no "find task by breakdown item id"
+// lookup (its interface is fixed to create/update/delete/list/addBreakdownItem per the brief),
+// so this scans list() for the owning task rather than adding a new repository method.
+// Best-effort within the same try/catch as SESSION_END's other side effects - if it throws,
+// SESSION_END reports { ok: false } same as any other failure there.
+async function markBreakdownItemCompleted(taskBreakdownItemId: string, now: number): Promise<void> {
+  const tasks = await taskRepo.list();
+  const task = tasks.find((t) => t.breakdown.some((item) => item.id === taskBreakdownItemId));
+  if (!task) return;
+  await taskRepo.update({
+    ...task,
+    breakdown: task.breakdown.map((item) =>
+      item.id === taskBreakdownItemId ? { ...item, completedAt: now } : item
+    ),
+  });
 }
 
 async function requireActiveSession(sessionId: string) {
@@ -139,6 +160,9 @@ async function routeMessage(
       await settingsRepo.saveActiveSession(null);
       cancelSessionAlarm();
       await clearHardBlockRules();
+      if (ended.taskBreakdownItemId) {
+        await markBreakdownItemCompleted(ended.taskBreakdownItemId, now);
+      }
       showNotification("session-abandoned", "Session ended", `"${session.goal}" was ended early.`);
       return { ok: true, session: ended };
     }
@@ -260,6 +284,39 @@ async function routeMessage(
 
     case "SESSION_LIST_EVENTS": {
       return { ok: true, events: await historyRepo.listEvents(message.payload.sessionId) };
+    }
+
+    case "TASK_CREATE": {
+      const task: Task = {
+        id: newId(),
+        title: message.payload.title,
+        createdAt: now,
+        breakdown: [],
+      };
+      await taskRepo.create(task);
+      return { ok: true, task };
+    }
+
+    case "TASK_UPDATE": {
+      await taskRepo.update(message.payload);
+      return { ok: true, task: message.payload };
+    }
+
+    case "TASK_DELETE": {
+      await taskRepo.delete(message.payload.taskId);
+      return { ok: true };
+    }
+
+    case "TASK_LIST": {
+      return { ok: true, tasks: await taskRepo.list() };
+    }
+
+    case "TASK_ADD_BREAKDOWN_ITEM": {
+      const task = await taskRepo.addBreakdownItem(
+        message.payload.taskId,
+        message.payload.description
+      );
+      return { ok: true, task };
     }
 
     default:

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import "../styles/global.css";
 import { OnboardingWizard } from "../app/routes/OnboardingWizard";
+import { TaskVaultPage } from "../app/routes/TaskVaultPage";
 import { SessionSetupForm } from "./components/SessionSetupForm";
 import { SessionStatusCard } from "../shared/ui/SessionStatusCard";
 import { TimerRing } from "../shared/ui/TimerRing";
@@ -13,11 +14,30 @@ import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
 import { remainingSeconds } from "../domain/session/timer";
 import type { UserSettings } from "../domain/settings/userSettings";
 
+type SidePanelView = "setup" | "taskVault";
+
 export function SidePanelApp() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const { session, loading } = useActiveSession();
   const now = useNow();
+
+  const [view, setView] = useState<SidePanelView>("setup");
+  const [sessionPrefill, setSessionPrefill] = useState<{
+    goal?: string;
+    taskBreakdownItemId?: string;
+  }>({});
+
+  // Once a session actually starts, drop back to a clean "setup" view/no-prefill state for
+  // next time - otherwise a stale goal/taskBreakdownItemId from a Task Vault pick would
+  // silently resurface in SessionSetupForm the next time this session ends (SessionSetupForm
+  // only reads initialGoal on mount, and this component doesn't unmount between sessions).
+  useEffect(() => {
+    if (session) {
+      setView("setup");
+      setSessionPrefill({});
+    }
+  }, [session]);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,9 +91,30 @@ export function SidePanelApp() {
   }
 
   if (!session) {
+    if (view === "taskVault") {
+      return (
+        <div className="sidepanel-app">
+          <TaskVaultPage
+            onClose={() => setView("setup")}
+            onStartSessionFromBreakdownItem={({ goal, taskBreakdownItemId }) => {
+              setSessionPrefill({ goal, taskBreakdownItemId });
+              setView("setup");
+            }}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="sidepanel-app">
-        <SessionSetupForm settings={settings} />
+        <button type="button" onClick={() => setView("taskVault")}>
+          Task Vault
+        </button>
+        <SessionSetupForm
+          settings={settings}
+          initialGoal={sessionPrefill.goal}
+          taskBreakdownItemId={sessionPrefill.taskBreakdownItemId}
+        />
       </div>
     );
   }

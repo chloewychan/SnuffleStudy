@@ -21,6 +21,20 @@ describe("sessionMachine", () => {
     expect(session.activityState).toBe("active");
   });
 
+  it("carries taskBreakdownItemId through from CreateSessionInput when present", () => {
+    const withItem = machine.createSession(
+      { ...input, taskBreakdownItemId: "item_1" },
+      "session_1",
+      1000
+    );
+    expect(withItem.taskBreakdownItemId).toBe("item_1");
+  });
+
+  it("leaves taskBreakdownItemId undefined when not provided", () => {
+    const session = machine.createSession(input, "session_1", 1000);
+    expect(session.taskBreakdownItemId).toBeUndefined();
+  });
+
   it("sets activityState independently of interventionLevel", () => {
     const created = machine.createSession(input, "session_1", 1000);
     const idle = machine.setActivityState(created, "idle");

@@ -6,11 +6,13 @@ import { handleAlarm } from "./alarmHandlers";
 import { stubFakeDeclarativeNetRequest } from "./testSupport/fakeDeclarativeNetRequest";
 import type { CreateSessionInput } from "../domain/session/sessionTypes";
 import type { UserSettings } from "../domain/settings/userSettings";
+import type { Task } from "../domain/tasks/taskTypes";
 
 beforeEach(() => {
   fakeBrowser.reset();
   stubFakeDeclarativeNetRequest();
   indexedDB.deleteDatabase("snufflestudy");
+  indexedDB.deleteDatabase("snufflestudy-tasks");
 });
 
 const createInput: CreateSessionInput = {
@@ -513,5 +515,129 @@ describe("messageRouter — SESSION_LIST_HISTORY / SESSION_LIST_EVENTS", () => {
 
     expect(result.ok).toBe(true);
     expect(result.events).toEqual([]);
+  });
+});
+
+describe("messageRouter — TASK_CREATE / TASK_UPDATE / TASK_DELETE / TASK_LIST / TASK_ADD_BREAKDOWN_ITEM", () => {
+  it("creates a task and lists it", async () => {
+    const created = (await handleMessage({
+      type: "TASK_CREATE",
+      payload: { title: "STAT231" },
+    })) as { ok: boolean; task: { id: string; title: string; breakdown: unknown[] } };
+
+    expect(created.ok).toBe(true);
+    expect(created.task.title).toBe("STAT231");
+    expect(created.task.breakdown).toEqual([]);
+
+    const listed = (await handleMessage({ type: "TASK_LIST" })) as {
+      ok: boolean;
+      tasks: { id: string }[];
+    };
+    expect(listed.tasks.map((t) => t.id)).toContain(created.task.id);
+  });
+
+  it("adds a breakdown item to a task via TASK_ADD_BREAKDOWN_ITEM", async () => {
+    const created = (await handleMessage({
+      type: "TASK_CREATE",
+      payload: { title: "STAT231" },
+    })) as { task: { id: string } };
+
+    const result = (await handleMessage({
+      type: "TASK_ADD_BREAKDOWN_ITEM",
+      payload: { taskId: created.task.id, description: "Chapter 6 of STAT231" },
+    })) as { ok: boolean; task: { breakdown: { id: string; description: string }[] } };
+
+    expect(result.ok).toBe(true);
+    expect(result.task.breakdown).toHaveLength(1);
+    expect(result.task.breakdown[0]!.description).toBe("Chapter 6 of STAT231");
+  });
+
+  it("updates a task via TASK_UPDATE", async () => {
+    const created = (await handleMessage({
+      type: "TASK_CREATE",
+      payload: { title: "STAT231" },
+    })) as { task: Task };
+
+    await handleMessage({
+      type: "TASK_UPDATE",
+      payload: { ...created.task, title: "STAT231 (renamed)" },
+    });
+
+    const listed = (await handleMessage({ type: "TASK_LIST" })) as {
+      tasks: { id: string; title: string }[];
+    };
+    expect(listed.tasks.find((t) => t.id === created.task.id)?.title).toBe("STAT231 (renamed)");
+  });
+
+  it("deletes a task via TASK_DELETE", async () => {
+    const created = (await handleMessage({
+      type: "TASK_CREATE",
+      payload: { title: "STAT231" },
+    })) as { task: { id: string } };
+
+    const result = (await handleMessage({
+      type: "TASK_DELETE",
+      payload: { taskId: created.task.id },
+    })) as { ok: boolean };
+    expect(result.ok).toBe(true);
+
+    const listed = (await handleMessage({ type: "TASK_LIST" })) as { tasks: { id: string }[] };
+    expect(listed.tasks.map((t) => t.id)).not.toContain(created.task.id);
+  });
+});
+
+describe("messageRouter — SESSION_END marks a linked task breakdown item's completedAt", () => {
+  it("marks the breakdown item complete when the ending session has a taskBreakdownItemId", async () => {
+    const createdTask = (await handleMessage({
+      type: "TASK_CREATE",
+      payload: { title: "STAT231" },
+    })) as { task: { id: string } };
+    const withItem = (await handleMessage({
+      type: "TASK_ADD_BREAKDOWN_ITEM",
+      payload: { taskId: createdTask.task.id, description: "Chapter 6 of STAT231" },
+    })) as { task: { breakdown: { id: string }[] } };
+    const breakdownItemId = withItem.task.breakdown[0]!.id;
+
+    const createdSession = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: { ...createInput, goal: "Chapter 6 of STAT231", taskBreakdownItemId: breakdownItemId },
+    })) as { session: { id: string } };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: createdSession.session.id } });
+
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: createdSession.session.id } });
+
+    const listed = (await handleMessage({ type: "TASK_LIST" })) as {
+      tasks: { id: string; breakdown: { id: string; completedAt?: number }[] }[];
+    };
+    const item = listed.tasks
+      .find((t) => t.id === createdTask.task.id)
+      ?.breakdown.find((i) => i.id === breakdownItemId);
+    expect(item?.completedAt).toEqual(expect.any(Number));
+  });
+
+  it("does not touch any task when the ending session has no taskBreakdownItemId", async () => {
+    const createdTask = (await handleMessage({
+      type: "TASK_CREATE",
+      payload: { title: "STAT231" },
+    })) as { task: { id: string } };
+    const withItem = (await handleMessage({
+      type: "TASK_ADD_BREAKDOWN_ITEM",
+      payload: { taskId: createdTask.task.id, description: "Chapter 6 of STAT231" },
+    })) as { task: { breakdown: { id: string }[] } };
+
+    const createdSession = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: createInput,
+    })) as { session: { id: string } };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: createdSession.session.id } });
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: createdSession.session.id } });
+
+    const listed = (await handleMessage({ type: "TASK_LIST" })) as {
+      tasks: { id: string; breakdown: { id: string; completedAt?: number }[] }[];
+    };
+    const item = listed.tasks
+      .find((t) => t.id === createdTask.task.id)
+      ?.breakdown.find((i) => i.id === withItem.task.breakdown[0]!.id);
+    expect(item?.completedAt).toBeUndefined();
   });
 });
