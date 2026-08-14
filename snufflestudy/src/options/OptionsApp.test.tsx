@@ -5,6 +5,7 @@ import * as messenger from "../infrastructure/messaging/extensionMessenger";
 import * as permissionsApi from "../infrastructure/browser/permissionsApi";
 import * as contentScriptRegistration from "../background/contentScriptRegistration";
 import { DEFAULT_USER_SETTINGS } from "../domain/settings/userSettings";
+import { HISTORY_LIST_LIMIT } from "./pages/HistoryPage";
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -291,7 +292,7 @@ describe("OptionsApp", () => {
     await waitFor(() =>
       expect(messenger.sendMessage).toHaveBeenCalledWith({
         type: "SESSION_LIST_HISTORY",
-        payload: {},
+        payload: { limit: HISTORY_LIST_LIMIT },
       })
     );
 

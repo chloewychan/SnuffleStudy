@@ -5,6 +5,14 @@ import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 type ArchivedState = "COMPLETED" | "ABANDONED";
 type StateFilter = ArchivedState | "";
 
+// Without a "From" date (the default on page load, and after clearing the filter), an unbounded
+// HistoryQuery would fetch every archived session from IndexedDB and send them all over the
+// extension message channel on every load/filter change, only to trim the result client-side
+// for the "To" date. HistoryQuery.limit already exists for exactly this - 500 sessions is a
+// generous bound for "every session run since install is browsable" (multiple sessions a day
+// for well over a year) while keeping each query response bounded.
+export const HISTORY_LIST_LIMIT = 500;
+
 const EVENT_LABELS: Record<SessionEventType, string> = {
   SESSION_CREATED: "Session created",
   SESSION_STARTED: "Session started",
@@ -65,7 +73,7 @@ export function HistoryPage() {
     setSessions(null);
     setLoadError(null);
 
-    const query: HistoryQuery = {};
+    const query: HistoryQuery = { limit: HISTORY_LIST_LIMIT };
     const since = startOfDayTimestamp(sinceDate);
     if (since !== undefined) query.since = since;
     if (stateFilter) query.state = stateFilter;

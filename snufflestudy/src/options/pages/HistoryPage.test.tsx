@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { HistoryPage } from "./HistoryPage";
+import { HistoryPage, HISTORY_LIST_LIMIT } from "./HistoryPage";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 import type { StudySession, SessionEvent } from "../../domain/session/sessionTypes";
 
@@ -44,8 +44,23 @@ describe("HistoryPage", () => {
     expect(await screen.findByText("Finish 20 chemistry problems")).toBeInTheDocument();
     expect(messenger.sendMessage).toHaveBeenCalledWith({
       type: "SESSION_LIST_HISTORY",
-      payload: {},
+      payload: { limit: HISTORY_LIST_LIMIT },
     });
+  });
+
+  it("bounds the query with a default limit so an unfiltered load doesn't fetch the entire history", async () => {
+    // Regression guard for the review finding: without a "From" date, the query must stay
+    // bounded (HistoryQuery.limit) rather than fetching every archived session on every load.
+    const sendMessageSpy = vi
+      .spyOn(messenger, "sendMessage")
+      .mockResolvedValue({ ok: true, sessions: [buildSession()] });
+
+    render(<HistoryPage />);
+    await screen.findByText("Finish 20 chemistry problems");
+
+    const call = sendMessageSpy.mock.calls[0]![0] as { payload: { limit?: number } };
+    expect(call.payload.limit).toBe(HISTORY_LIST_LIMIT);
+    expect(call.payload.limit).toBeGreaterThan(0);
   });
 
   it("shows a message when no sessions match the filters", async () => {
@@ -81,7 +96,7 @@ describe("HistoryPage", () => {
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith({
         type: "SESSION_LIST_HISTORY",
-        payload: { state: "COMPLETED" },
+        payload: { state: "COMPLETED", limit: HISTORY_LIST_LIMIT },
       })
     );
   });
