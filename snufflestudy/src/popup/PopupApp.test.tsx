@@ -79,6 +79,20 @@ describe("PopupApp", () => {
     expect(screen.queryByRole("timer")).not.toBeInTheDocument();
   });
 
+  it("shows the abandoned screen instead of the timer when the session is ABANDONED", async () => {
+    const abandoned = machine.abandonSession(
+      machine.startSession(machine.createSession(input, "session_1", 0), 0),
+      100
+    );
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, session: abandoned, sessions: [] });
+
+    render(<PopupApp />);
+
+    await waitFor(() => expect(screen.getByText("Session ended early")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Start another session" })).toBeInTheDocument();
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+  });
+
   it("ticks the countdown down every second while open, without needing to reopen the popup", async () => {
     // Regression guard: remainingSeconds used to be computed once at render time from
     // Date.now(), and nothing forced a re-render on a plain tick (only chrome.storage.onChanged

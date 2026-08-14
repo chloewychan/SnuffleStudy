@@ -23,24 +23,6 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
-// SESSION_END side effect (Task 4): when the ending session was started from a Task Vault
-// breakdown item, mark that item done. TaskRepository has no "find task by breakdown item id"
-// lookup (its interface is fixed to create/update/delete/list/addBreakdownItem per the brief),
-// so this scans list() for the owning task rather than adding a new repository method.
-// Best-effort within the same try/catch as SESSION_END's other side effects - if it throws,
-// SESSION_END reports { ok: false } same as any other failure there.
-async function markBreakdownItemCompleted(taskBreakdownItemId: string, now: number): Promise<void> {
-  const tasks = await taskRepo.list();
-  const task = tasks.find((t) => t.breakdown.some((item) => item.id === taskBreakdownItemId));
-  if (!task) return;
-  await taskRepo.update({
-    ...task,
-    breakdown: task.breakdown.map((item) =>
-      item.id === taskBreakdownItemId ? { ...item, completedAt: now } : item
-    ),
-  });
-}
-
 async function requireActiveSession(sessionId: string) {
   const session = await settingsRepo.getActiveSession();
   if (!session || session.id !== sessionId) {
@@ -71,7 +53,14 @@ async function routeMessage(
     case "SESSION_CREATE": {
       const validation = validateCreateSessionInput(message.payload);
       if (!validation.valid) return { ok: false, errors: validation.errors };
-      const session = machine.createSession(message.payload, newId(), now);
+      // taskBreakdownItemId lives on the SESSION_CREATE message payload, not on
+      // CreateSessionInput (sessionTypes.ts permits only two additive changes across v2, and
+      // this isn't one of them) - so it's merged onto the StudySession here rather than
+      // threaded through machine.createSession.
+      const session = {
+        ...machine.createSession(message.payload, newId(), now),
+        taskBreakdownItemId: message.payload.taskBreakdownItemId,
+      };
       await settingsRepo.saveActiveSession(session);
       return { ok: true, session };
     }
@@ -157,12 +146,17 @@ async function routeMessage(
 
       const ended = machine.abandonSession(session, now);
       await historyRepo.archive(ended);
-      await settingsRepo.saveActiveSession(null);
+      // Keep the ABANDONED session as the active session rather than clearing it immediately -
+      // mirrors alarmHandlers.ts's COMPLETED handling (see its comment) so the UI gets a
+      // chance to render an acknowledgment screen (AbandonedScreen) instead of snapping
+      // straight back to idle/setup. It's cleared once the user acknowledges it via
+      // SESSION_DISMISS_ABANDONED below. Note: breakdown-item completion (Task 4) is NOT a
+      // side effect here - a manually/early-ended session should not mark its linked
+      // TaskBreakdownItem done; that only happens on natural completion
+      // (alarmHandlers.ts's handleAlarm).
+      await settingsRepo.saveActiveSession(ended);
       cancelSessionAlarm();
       await clearHardBlockRules();
-      if (ended.taskBreakdownItemId) {
-        await markBreakdownItemCompleted(ended.taskBreakdownItemId, now);
-      }
       showNotification("session-abandoned", "Session ended", `"${session.goal}" was ended early.`);
       return { ok: true, session: ended };
     }
@@ -170,6 +164,15 @@ async function routeMessage(
     case "SESSION_DISMISS_COMPLETED": {
       const session = await requireActiveSession(message.payload.sessionId);
       if (session.state !== "COMPLETED") {
+        return { ok: false, error: `Cannot dismiss a session in state ${session.state}` };
+      }
+      await settingsRepo.saveActiveSession(null);
+      return { ok: true };
+    }
+
+    case "SESSION_DISMISS_ABANDONED": {
+      const session = await requireActiveSession(message.payload.sessionId);
+      if (session.state !== "ABANDONED") {
         return { ok: false, error: `Cannot dismiss a session in state ${session.state}` };
       }
       await settingsRepo.saveActiveSession(null);

@@ -8,6 +8,7 @@ import { TimerRing } from "../shared/ui/TimerRing";
 import { EndSessionControl } from "../shared/ui/EndSessionControl";
 import { PauseResumeControl } from "../shared/ui/PauseResumeControl";
 import { CompletionScreen } from "../shared/ui/CompletionScreen";
+import { AbandonedScreen } from "../shared/ui/AbandonedScreen";
 import { useActiveSession } from "../popup/hooks/useActiveSession";
 import { useNow } from "../popup/hooks/useNow";
 import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
@@ -123,6 +124,14 @@ export function SidePanelApp() {
     return (
       <div className="sidepanel-app">
         <CompletionScreen session={session} />
+      </div>
+    );
+  }
+
+  if (session.state === "ABANDONED") {
+    return (
+      <div className="sidepanel-app">
+        <AbandonedScreen session={session} />
       </div>
     );
   }

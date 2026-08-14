@@ -21,16 +21,7 @@ describe("sessionMachine", () => {
     expect(session.activityState).toBe("active");
   });
 
-  it("carries taskBreakdownItemId through from CreateSessionInput when present", () => {
-    const withItem = machine.createSession(
-      { ...input, taskBreakdownItemId: "item_1" },
-      "session_1",
-      1000
-    );
-    expect(withItem.taskBreakdownItemId).toBe("item_1");
-  });
-
-  it("leaves taskBreakdownItemId undefined when not provided", () => {
+  it("never sets taskBreakdownItemId itself - messageRouter.ts's SESSION_CREATE handler merges it in from the message payload, since CreateSessionInput doesn't carry it", () => {
     const session = machine.createSession(input, "session_1", 1000);
     expect(session.taskBreakdownItemId).toBeUndefined();
   });

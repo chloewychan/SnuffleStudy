@@ -51,9 +51,15 @@ export interface StudySession {
   friendNudges: number;
 
   // Set when this session was started from a Task Vault breakdown item (app/routes/
-  // TaskVaultPage.tsx via SessionSetupForm) - lets messageRouter's SESSION_END handler mark
-  // that item's completedAt. Purely additive/optional so it doesn't affect sessions started
-  // any other way.
+  // TaskVaultPage.tsx via SessionSetupForm) - lets alarmHandlers.ts's natural-completion
+  // branch mark that item's completedAt. Purely additive/optional so it doesn't affect
+  // sessions started any other way. Deliberately NOT mirrored onto CreateSessionInput below -
+  // this file permits only two additive changes across v2 (SessionEventType in Task 2, this
+  // field in Task 4), so messageRouter.ts's SESSION_CREATE handler reads
+  // taskBreakdownItemId off the SESSION_CREATE message payload (shared/messages.ts, which
+  // has no such restriction) and merges it onto the StudySession that
+  // sessionMachine.createSession returns, rather than threading it through
+  // CreateSessionInput.
   taskBreakdownItemId?: string;
 }
 
@@ -66,7 +72,6 @@ export interface CreateSessionInput {
   restrictedSites: string[];
   restrictionMode: RestrictionMode;
   siteRestrictionOverrides?: Record<string, RestrictionMode>;
-  taskBreakdownItemId?: string;
 }
 
 export type SessionEventType =

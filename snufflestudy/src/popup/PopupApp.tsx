@@ -6,6 +6,7 @@ import { SessionStatusCard } from "../shared/ui/SessionStatusCard";
 import { EndSessionControl } from "../shared/ui/EndSessionControl";
 import { PauseResumeControl } from "../shared/ui/PauseResumeControl";
 import { CompletionScreen } from "../shared/ui/CompletionScreen";
+import { AbandonedScreen } from "../shared/ui/AbandonedScreen";
 import { remainingSeconds } from "../domain/session/timer";
 
 async function openSidePanel() {
@@ -36,6 +37,14 @@ export function PopupApp() {
     return (
       <div className="popup-app">
         <CompletionScreen session={session} />
+      </div>
+    );
+  }
+
+  if (session.state === "ABANDONED") {
+    return (
+      <div className="popup-app">
+        <AbandonedScreen session={session} />
       </div>
     );
   }

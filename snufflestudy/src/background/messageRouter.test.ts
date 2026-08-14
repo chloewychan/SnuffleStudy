@@ -61,8 +61,15 @@ describe("messageRouter — full session lifecycle", () => {
     })) as { session: { state: string } };
     expect(ended.session.state).toBe("ABANDONED");
 
-    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
-    expect(active.session).toBeNull();
+    // The ABANDONED session is kept as the active session (mirrors alarmHandlers.ts's
+    // COMPLETED handling) so the UI can render AbandonedScreen - it isn't cleared until
+    // SESSION_DISMISS_ABANDONED.
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { id: string; state: string } | null;
+    };
+    expect(active.session).not.toBeNull();
+    expect(active.session?.id).toBe(sessionId);
+    expect(active.session?.state).toBe("ABANDONED");
   });
 
   it("shows a notification when a session is ended manually (abandoned)", async () => {
@@ -173,8 +180,12 @@ describe("messageRouter — SESSION_END hard-block enforcement", () => {
     expect(ended.ok).toBe(true);
     expect(ended.session.state).toBe("ABANDONED");
 
-    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
-    expect(active.session).toBeNull();
+    // Kept active (as ABANDONED) rather than cleared - see the full-lifecycle test above.
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string } | null;
+    };
+    expect(active.session).not.toBeNull();
+    expect(active.session?.state).toBe("ABANDONED");
   });
 
   it("rejects SESSION_END on a hard-mode session with a configured credential when given an incorrect passcode, leaving the session active", async () => {
@@ -223,8 +234,12 @@ describe("messageRouter — SESSION_END hard-block enforcement", () => {
     expect(ended.ok).toBe(true);
     expect(ended.session.state).toBe("ABANDONED");
 
-    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
-    expect(active.session).toBeNull();
+    // Kept active (as ABANDONED) rather than cleared - see the full-lifecycle test above.
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string } | null;
+    };
+    expect(active.session).not.toBeNull();
+    expect(active.session?.state).toBe("ABANDONED");
   });
 
   it("ends a soft-mode session normally regardless of whether a passcode field is present in the payload", async () => {
@@ -423,6 +438,49 @@ describe("messageRouter — SESSION_DISMISS_COMPLETED", () => {
   });
 });
 
+describe("messageRouter — SESSION_DISMISS_ABANDONED", () => {
+  it("clears an ABANDONED session when dismissed", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: created.session.id } });
+
+    const beforeDismiss = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string } | null;
+    };
+    expect(beforeDismiss.session?.state).toBe("ABANDONED");
+
+    const result = (await handleMessage({
+      type: "SESSION_DISMISS_ABANDONED",
+      payload: { sessionId: created.session.id },
+    })) as { ok: boolean };
+    expect(result.ok).toBe(true);
+
+    const afterDismiss = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
+    expect(afterDismiss.session).toBeNull();
+  });
+
+  it("rejects dismissing a session that is not ABANDONED, leaving it untouched", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    const result = (await handleMessage({
+      type: "SESSION_DISMISS_ABANDONED",
+      payload: { sessionId: created.session.id },
+    })) as { ok: boolean; error: string };
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/FOCUSING/);
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string } | null;
+    };
+    expect(active.session?.state).toBe("FOCUSING");
+  });
+});
+
 describe("messageRouter — RETURN_TO_WORK_CLOSE_TAB", () => {
   it("closes the sender's tab when one is present", async () => {
     const removeSpy = vi.spyOn(chrome.tabs, "remove").mockResolvedValue(undefined);
@@ -586,8 +644,12 @@ describe("messageRouter — TASK_CREATE / TASK_UPDATE / TASK_DELETE / TASK_LIST 
   });
 });
 
-describe("messageRouter — SESSION_END marks a linked task breakdown item's completedAt", () => {
-  it("marks the breakdown item complete when the ending session has a taskBreakdownItemId", async () => {
+describe("messageRouter — SESSION_END does NOT mark a linked task breakdown item complete", () => {
+  // Fix round 1: breakdown-item completion only happens on natural completion
+  // (alarmHandlers.test.ts's "handleAlarm marks a linked task breakdown item's completedAt"
+  // block covers that path) - SESSION_END always represents an early/manual end (see that
+  // handler's own comment in messageRouter.ts) and must never mark anything done.
+  it("leaves the breakdown item's completedAt unset when a session with a taskBreakdownItemId is ended early via SESSION_END", async () => {
     const createdTask = (await handleMessage({
       type: "TASK_CREATE",
       payload: { title: "STAT231" },
@@ -601,7 +663,8 @@ describe("messageRouter — SESSION_END marks a linked task breakdown item's com
     const createdSession = (await handleMessage({
       type: "SESSION_CREATE",
       payload: { ...createInput, goal: "Chapter 6 of STAT231", taskBreakdownItemId: breakdownItemId },
-    })) as { session: { id: string } };
+    })) as { session: { id: string; taskBreakdownItemId?: string } };
+    expect(createdSession.session.taskBreakdownItemId).toBe(breakdownItemId);
     await handleMessage({ type: "SESSION_START", payload: { sessionId: createdSession.session.id } });
 
     await handleMessage({ type: "SESSION_END", payload: { sessionId: createdSession.session.id } });
@@ -612,32 +675,6 @@ describe("messageRouter — SESSION_END marks a linked task breakdown item's com
     const item = listed.tasks
       .find((t) => t.id === createdTask.task.id)
       ?.breakdown.find((i) => i.id === breakdownItemId);
-    expect(item?.completedAt).toEqual(expect.any(Number));
-  });
-
-  it("does not touch any task when the ending session has no taskBreakdownItemId", async () => {
-    const createdTask = (await handleMessage({
-      type: "TASK_CREATE",
-      payload: { title: "STAT231" },
-    })) as { task: { id: string } };
-    const withItem = (await handleMessage({
-      type: "TASK_ADD_BREAKDOWN_ITEM",
-      payload: { taskId: createdTask.task.id, description: "Chapter 6 of STAT231" },
-    })) as { task: { breakdown: { id: string }[] } };
-
-    const createdSession = (await handleMessage({
-      type: "SESSION_CREATE",
-      payload: createInput,
-    })) as { session: { id: string } };
-    await handleMessage({ type: "SESSION_START", payload: { sessionId: createdSession.session.id } });
-    await handleMessage({ type: "SESSION_END", payload: { sessionId: createdSession.session.id } });
-
-    const listed = (await handleMessage({ type: "TASK_LIST" })) as {
-      tasks: { id: string; breakdown: { id: string; completedAt?: number }[] }[];
-    };
-    const item = listed.tasks
-      .find((t) => t.id === createdTask.task.id)
-      ?.breakdown.find((i) => i.id === withItem.task.breakdown[0]!.id);
     expect(item?.completedAt).toBeUndefined();
   });
 });

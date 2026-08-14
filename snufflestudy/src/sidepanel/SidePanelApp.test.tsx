@@ -117,6 +117,26 @@ describe("SidePanelApp", () => {
     expect(screen.queryByRole("timer")).not.toBeInTheDocument();
   });
 
+  it("shows the abandoned screen instead of the timer when the session is ABANDONED", async () => {
+    const abandoned = machine.abandonSession(
+      machine.startSession(machine.createSession(input, "session_1", 0), 0),
+      100
+    );
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") {
+        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
+      }
+      if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session: abandoned };
+      return { ok: true };
+    });
+
+    render(<SidePanelApp />);
+
+    await waitFor(() => expect(screen.getByText("Session ended early")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Start another session" })).toBeInTheDocument();
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+  });
+
   it("ticks the countdown down every second while open, without needing to reopen the side panel", async () => {
     const start = Date.now();
     const session = machine.startSession(machine.createSession(input, "session_1", start), start);

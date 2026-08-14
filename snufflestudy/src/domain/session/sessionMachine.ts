@@ -23,7 +23,6 @@ export function createSession(
     distractionAttempts: 0,
     recoveries: 0,
     friendNudges: 0,
-    taskBreakdownItemId: input.taskBreakdownItemId,
   };
 }
 
