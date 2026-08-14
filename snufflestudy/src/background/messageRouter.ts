@@ -254,6 +254,14 @@ async function routeMessage(
       return { ok: true };
     }
 
+    case "SESSION_LIST_HISTORY": {
+      return { ok: true, sessions: await historyRepo.listHistory(message.payload) };
+    }
+
+    case "SESSION_LIST_EVENTS": {
+      return { ok: true, events: await historyRepo.listEvents(message.payload.sessionId) };
+    }
+
     default:
       return { ok: false, error: "Unknown message type" };
   }

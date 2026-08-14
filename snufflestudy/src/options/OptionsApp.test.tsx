@@ -270,4 +270,32 @@ describe("OptionsApp", () => {
     expect(screen.getByTestId("passcode-input")).toHaveValue("1234");
     expect(screen.getByRole("button", { name: "Save passcode" })).not.toBeDisabled();
   });
+
+  it("defaults to the Settings view and switches to History when its nav button is clicked", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") return { ok: true, settings: DEFAULT_USER_SETTINGS };
+      if (message.type === "SESSION_LIST_HISTORY") return { ok: true, sessions: [] };
+      return { ok: true };
+    });
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Detailed site tracking"));
+
+    // Settings content is visible by default, and History's data hasn't been requested yet.
+    expect(screen.queryByText("Session history")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+
+    expect(await screen.findByText("Session history")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Detailed site tracking")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(messenger.sendMessage).toHaveBeenCalledWith({
+        type: "SESSION_LIST_HISTORY",
+        payload: {},
+      })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(await screen.findByLabelText("Detailed site tracking")).toBeInTheDocument();
+  });
 });

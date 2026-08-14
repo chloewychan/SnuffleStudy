@@ -1,4 +1,4 @@
-import type { CreateSessionInput } from "../domain/session/sessionTypes";
+import type { CreateSessionInput, HistoryQuery } from "../domain/session/sessionTypes";
 import type { UserSettings } from "../domain/settings/userSettings";
 
 export type ExtensionMessage =
@@ -18,4 +18,6 @@ export type ExtensionMessage =
   | { type: "HARD_BLOCK_SET_PASSCODE"; payload: { passcode: string; oldPasscode?: string } }
   | { type: "HARD_BLOCK_VERIFY_PASSCODE"; payload: { passcode: string; hostname: string } }
   | { type: "SETTINGS_GET" }
-  | { type: "SETTINGS_SAVE"; payload: UserSettings };
+  | { type: "SETTINGS_SAVE"; payload: UserSettings }
+  | { type: "SESSION_LIST_HISTORY"; payload: HistoryQuery }
+  | { type: "SESSION_LIST_EVENTS"; payload: { sessionId: string } };

@@ -10,8 +10,12 @@ import {
   registerOverlayContentScript,
   unregisterOverlayContentScript,
 } from "../background/contentScriptRegistration";
+import { HistoryPage } from "./pages/HistoryPage";
+
+type OptionsView = "settings" | "history";
 
 export function OptionsApp() {
+  const [view, setView] = useState<OptionsView>("settings");
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -151,77 +155,102 @@ export function OptionsApp() {
 
   return (
     <div className="options-app">
-      <section>
-        <h2>Tracking</h2>
-        <label>
-          <input
-            type="radio"
-            checked={settings.trackingTier === "activity-only"}
-            onChange={() => handleTrackingTierChange("activity-only")}
-            disabled={trackingChanging}
-          />
-          Activity-only
-        </label>
-        <label>
-          <input
-            type="radio"
-            checked={settings.trackingTier === "detailed"}
-            onChange={() => handleTrackingTierChange("detailed")}
-            disabled={trackingChanging}
-          />
-          Detailed site tracking
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={settings.activityTrackingEnabled}
-            disabled={settings.trackingTier !== "activity-only"}
-            onChange={(e) => updateSettings({ activityTrackingEnabled: e.target.checked })}
-          />
-          Track idle/active status during focus sessions
-        </label>
-      </section>
-
-      <section>
-        <h2>Default restricted sites</h2>
-        <textarea
-          aria-label="Default restricted sites"
-          value={settings.defaultRestrictedSites.join("\n")}
-          onChange={(e) =>
-            updateSettings({ defaultRestrictedSites: e.target.value.split("\n").filter(Boolean) })
-          }
-        />
-      </section>
-
-      {saveError && (
-        <p role="alert">Couldn't save your changes: {saveError}. Please try again.</p>
-      )}
-
-      <section>
-        <h2>Hard-block passcode</h2>
-        <p>Share this with a friend, not with yourself. Setting a new passcode replaces the old one.</p>
-        <input
-          data-testid="old-passcode-input"
-          type="password"
-          placeholder="Current passcode (leave blank if you've never set one)"
-          value={oldPasscode}
-          onChange={(e) => setOldPasscode(e.target.value)}
-        />
-        <input
-          data-testid="passcode-input"
-          type="password"
-          placeholder="Passcode"
-          value={passcode}
-          onChange={(e) => setPasscode(e.target.value)}
-        />
-        <button onClick={handleSavePasscode} disabled={passcode.length < 4 || passcodeSaving}>
-          {passcodeSaving ? "Saving…" : "Save passcode"}
+      <nav className="options-app__nav">
+        <button
+          type="button"
+          aria-current={view === "settings" ? "page" : undefined}
+          disabled={view === "settings"}
+          onClick={() => setView("settings")}
+        >
+          Settings
         </button>
-        {passcodeError && (
-          <p role="alert">Couldn't save your passcode: {passcodeError}. Please try again.</p>
-        )}
-        {passcodeSaved && <p>Passcode saved.</p>}
-      </section>
+        <button
+          type="button"
+          aria-current={view === "history" ? "page" : undefined}
+          disabled={view === "history"}
+          onClick={() => setView("history")}
+        >
+          History
+        </button>
+      </nav>
+
+      {view === "history" && <HistoryPage />}
+
+      {view === "settings" && (
+        <>
+          <section>
+            <h2>Tracking</h2>
+            <label>
+              <input
+                type="radio"
+                checked={settings.trackingTier === "activity-only"}
+                onChange={() => handleTrackingTierChange("activity-only")}
+                disabled={trackingChanging}
+              />
+              Activity-only
+            </label>
+            <label>
+              <input
+                type="radio"
+                checked={settings.trackingTier === "detailed"}
+                onChange={() => handleTrackingTierChange("detailed")}
+                disabled={trackingChanging}
+              />
+              Detailed site tracking
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={settings.activityTrackingEnabled}
+                disabled={settings.trackingTier !== "activity-only"}
+                onChange={(e) => updateSettings({ activityTrackingEnabled: e.target.checked })}
+              />
+              Track idle/active status during focus sessions
+            </label>
+          </section>
+
+          <section>
+            <h2>Default restricted sites</h2>
+            <textarea
+              aria-label="Default restricted sites"
+              value={settings.defaultRestrictedSites.join("\n")}
+              onChange={(e) =>
+                updateSettings({ defaultRestrictedSites: e.target.value.split("\n").filter(Boolean) })
+              }
+            />
+          </section>
+
+          {saveError && (
+            <p role="alert">Couldn't save your changes: {saveError}. Please try again.</p>
+          )}
+
+          <section>
+            <h2>Hard-block passcode</h2>
+            <p>Share this with a friend, not with yourself. Setting a new passcode replaces the old one.</p>
+            <input
+              data-testid="old-passcode-input"
+              type="password"
+              placeholder="Current passcode (leave blank if you've never set one)"
+              value={oldPasscode}
+              onChange={(e) => setOldPasscode(e.target.value)}
+            />
+            <input
+              data-testid="passcode-input"
+              type="password"
+              placeholder="Passcode"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+            />
+            <button onClick={handleSavePasscode} disabled={passcode.length < 4 || passcodeSaving}>
+              {passcodeSaving ? "Saving…" : "Save passcode"}
+            </button>
+            {passcodeError && (
+              <p role="alert">Couldn't save your passcode: {passcodeError}. Please try again.</p>
+            )}
+            {passcodeSaved && <p>Passcode saved.</p>}
+          </section>
+        </>
+      )}
     </div>
   );
 }

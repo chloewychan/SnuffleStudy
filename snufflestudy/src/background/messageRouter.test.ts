@@ -450,3 +450,68 @@ describe("messageRouter — RETURN_TO_WORK_CLOSE_TAB", () => {
     expect(removeSpy).not.toHaveBeenCalled();
   });
 });
+
+describe("messageRouter — SESSION_LIST_HISTORY / SESSION_LIST_EVENTS", () => {
+  it("lists an abandoned session via SESSION_LIST_HISTORY, newest first", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: created.session.id } });
+
+    const result = (await handleMessage({
+      type: "SESSION_LIST_HISTORY",
+      payload: {},
+    })) as { ok: boolean; sessions: { id: string; state: string }[] };
+
+    expect(result.ok).toBe(true);
+    expect(result.sessions.map((s) => s.id)).toContain(created.session.id);
+    expect(result.sessions.find((s) => s.id === created.session.id)?.state).toBe("ABANDONED");
+  });
+
+  it("filters SESSION_LIST_HISTORY by state, passing the HistoryQuery payload through directly", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: created.session.id } });
+
+    const result = (await handleMessage({
+      type: "SESSION_LIST_HISTORY",
+      payload: { state: "COMPLETED" },
+    })) as { ok: boolean; sessions: { id: string }[] };
+
+    expect(result.ok).toBe(true);
+    expect(result.sessions.map((s) => s.id)).not.toContain(created.session.id);
+  });
+
+  it("lists a session's recorded events via SESSION_LIST_EVENTS", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleMessage({
+      type: "DISTRACTION_ATTEMPT",
+      payload: { sessionId: created.session.id, hostname: "youtube.com" },
+    });
+
+    const result = (await handleMessage({
+      type: "SESSION_LIST_EVENTS",
+      payload: { sessionId: created.session.id },
+    })) as { ok: boolean; events: { type: string; hostname?: string }[] };
+
+    expect(result.ok).toBe(true);
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toMatchObject({ type: "DISTRACTION_ATTEMPT", hostname: "youtube.com" });
+  });
+
+  it("returns an empty list from SESSION_LIST_EVENTS for a session with no recorded events", async () => {
+    const result = (await handleMessage({
+      type: "SESSION_LIST_EVENTS",
+      payload: { sessionId: "nonexistent-session" },
+    })) as { ok: boolean; events: unknown[] };
+
+    expect(result.ok).toBe(true);
+    expect(result.events).toEqual([]);
+  });
+});
