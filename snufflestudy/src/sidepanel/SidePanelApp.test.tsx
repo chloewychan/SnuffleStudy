@@ -33,7 +33,9 @@ describe("SidePanelApp", () => {
     });
 
     render(<SidePanelApp />);
-    await waitFor(() => expect(screen.getByText("Meet Snuffles")).toBeInTheDocument());
+    // A fresh install (onboardingCompleted: false) shows OnboardingWizard's welcome screen
+    // first, before its "name" step ("Meet Snuffles").
+    await waitFor(() => expect(screen.getByText("Welcome to SnuffleStudy")).toBeInTheDocument());
   });
 
   it("shows the session setup form when onboarding is complete and there is no active session", async () => {

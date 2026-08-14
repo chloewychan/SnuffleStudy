@@ -4,14 +4,16 @@ import { PRESSURE_PROFILES } from "../../domain/pressure/pressureProfiles";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import { requestDetailedTrackingPermission } from "../../infrastructure/browser/permissionsApi";
 import { registerOverlayContentScript } from "../../background/contentScriptRegistration";
+import { WelcomeScreen } from "./WelcomeScreen";
 
 interface OnboardingWizardProps {
   onComplete: () => void;
 }
 
-type Step = "name" | "pressure" | "duration" | "tracking" | "sites" | "review";
+type Step = "name" | "pressure" | "duration" | "tracking" | "sites" | "passcode" | "review";
 
 export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
+  const [showWelcome, setShowWelcome] = useState(true);
   const [step, setStep] = useState<Step>("name");
   // PRESSURE_PROFILES is a non-empty constant array defined in the domain module.
   const [pressureProfileId, setPressureProfileId] = useState(PRESSURE_PROFILES[0]!.id);
@@ -22,8 +24,39 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
     "reddit.com",
     "tiktok.com",
   ]);
+  const [passcode, setPasscode] = useState("");
+  const [passcodeError, setPasscodeError] = useState<string | null>(null);
+  const [passcodeSaving, setPasscodeSaving] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
+
+  async function setPasscodeAndContinue() {
+    setPasscodeSaving(true);
+    setPasscodeError(null);
+    try {
+      // First-time setup during onboarding never has an existing credential to prove
+      // knowledge of first, so no oldPasscode is sent — same as OptionsApp's first-time-setup
+      // path (see messageRouter's HARD_BLOCK_SET_PASSCODE handler).
+      const response = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "HARD_BLOCK_SET_PASSCODE",
+        payload: { passcode },
+      });
+      if (!response.ok) {
+        setPasscodeError(response.error ?? "Couldn't save your passcode.");
+        return;
+      }
+      setStep("review");
+    } catch (err) {
+      // sendMessage (chrome.runtime.sendMessage) can reject — e.g. "Could not establish
+      // connection. Receiving end does not exist." during service-worker startup races,
+      // or extension-context-invalidated. Surface it so the user isn't left unsure whether
+      // their passcode actually saved, and don't advance past a step that may not have taken.
+      console.error("Failed to save hard-block passcode during onboarding", err);
+      setPasscodeError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPasscodeSaving(false);
+    }
+  }
 
   async function finish() {
     setFinishing(true);
@@ -74,6 +107,10 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
     } finally {
       setFinishing(false);
     }
+  }
+
+  if (showWelcome) {
+    return <WelcomeScreen onContinue={() => setShowWelcome(false)} />;
   }
 
   if (step === "name") {
@@ -141,7 +178,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
           />
           Detailed site tracking — lets Snuffles tell allowed sites from restricted ones
         </label>
-        <button onClick={() => setStep(trackingTier === "detailed" ? "sites" : "review")}>
+        <button onClick={() => setStep(trackingTier === "detailed" ? "sites" : "passcode")}>
           Continue
         </button>
       </div>
@@ -156,7 +193,43 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
           value={restrictedSites.join("\n")}
           onChange={(e) => setRestrictedSites(e.target.value.split("\n").filter(Boolean))}
         />
-        <button onClick={() => setStep("review")}>Continue</button>
+        <button onClick={() => setStep("passcode")}>Continue</button>
+      </div>
+    );
+  }
+
+  if (step === "passcode") {
+    return (
+      <div className="onboarding-step">
+        <h2>Set a hard-block passcode (optional)</h2>
+        <p>
+          Give this to a friend, not to yourself — they'll need it to unlock a hard-blocked site
+          or end a hard-block session early. No one to share it with yet? Skip this and set one
+          later in Settings.
+        </p>
+        {passcodeError && (
+          <p role="alert" className="onboarding-step__error">
+            Couldn't save your passcode: {passcodeError}. Please try again.
+          </p>
+        )}
+        <input
+          data-testid="onboarding-passcode-input"
+          type="password"
+          placeholder="Passcode"
+          value={passcode}
+          onChange={(e) => setPasscode(e.target.value)}
+        />
+        <div className="onboarding-step__actions">
+          <button onClick={() => setStep("review")} disabled={passcodeSaving}>
+            Skip for now
+          </button>
+          <button
+            onClick={setPasscodeAndContinue}
+            disabled={passcode.length < 4 || passcodeSaving}
+          >
+            {passcodeSaving ? "Saving…" : "Set passcode"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -164,7 +237,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   return (
     <div className="onboarding-step">
       <h2>Ready to go</h2>
-      <p>You can invite friends and set a hard-block passcode later in Settings.</p>
+      <p>You can invite friends, and manage your hard-block passcode, later in Settings.</p>
       {finishError && (
         <p role="alert" className="onboarding-step__error">
           Couldn't save your settings: {finishError}. Please try again.
