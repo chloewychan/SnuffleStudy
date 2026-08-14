@@ -86,6 +86,38 @@ describe("OptionsApp", () => {
     expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
+  it("shows the activity-tracking toggle enabled by default and saves it when turned off", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Track idle/active status during focus sessions"));
+
+    const toggle = screen.getByLabelText("Track idle/active status during focus sessions");
+    expect(toggle).toBeChecked();
+
+    fireEvent.click(toggle);
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "SETTINGS_SAVE",
+        payload: { ...DEFAULT_USER_SETTINGS, activityTrackingEnabled: false },
+      })
+    );
+  });
+
+  it("disables the activity-tracking toggle while the detailed tier is selected", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({
+      ok: true,
+      settings: { ...DEFAULT_USER_SETTINGS, trackingTier: "detailed" },
+    });
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Track idle/active status during focus sessions"));
+
+    expect(screen.getByLabelText("Track idle/active status during focus sessions")).toBeDisabled();
+  });
+
   it("saves a hard-block passcode", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage");

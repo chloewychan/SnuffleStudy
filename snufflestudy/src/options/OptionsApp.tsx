@@ -171,6 +171,15 @@ export function OptionsApp() {
           />
           Detailed site tracking
         </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={settings.activityTrackingEnabled}
+            disabled={settings.trackingTier !== "activity-only"}
+            onChange={(e) => updateSettings({ activityTrackingEnabled: e.target.checked })}
+          />
+          Track idle/active status during focus sessions
+        </label>
       </section>
 
       <section>

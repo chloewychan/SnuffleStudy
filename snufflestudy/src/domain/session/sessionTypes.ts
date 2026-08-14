@@ -74,7 +74,12 @@ export type SessionEventType =
   | "HARD_BLOCK_UNLOCK"
   | "RECOVERY"
   | "SESSION_COMPLETED"
-  | "SESSION_ABANDONED";
+  | "SESSION_ABANDONED"
+  // Activity-only tracking tier (v2 Decision 3): logged data points, never an auto-pause -
+  // auto-pausing would remove user agency and repeat the "claims to know if you're really
+  // studying" mistake the product already avoids.
+  | "USER_WENT_IDLE"
+  | "USER_RETURNED_FROM_IDLE";
 
 export interface SessionEvent {
   id: string;

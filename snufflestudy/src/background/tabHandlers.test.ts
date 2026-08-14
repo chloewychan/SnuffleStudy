@@ -46,6 +46,7 @@ describe("handleTabUpdate", () => {
       payload: {
         pressureProfileId: "strict-coach",
         trackingTier: "detailed",
+        activityTrackingEnabled: true,
         defaultFocusDurationSeconds: 1500,
         defaultBreakDurationSeconds: 300,
         defaultAllowedSites: [],
@@ -77,6 +78,7 @@ describe("handleTabUpdate", () => {
       payload: {
         pressureProfileId: "strict-coach",
         trackingTier: "detailed",
+        activityTrackingEnabled: true,
         defaultFocusDurationSeconds: 1500,
         defaultBreakDurationSeconds: 300,
         defaultAllowedSites: [],
@@ -113,6 +115,7 @@ describe("handleTabUpdate", () => {
       payload: {
         pressureProfileId: "strict-coach",
         trackingTier: "detailed",
+        activityTrackingEnabled: true,
         defaultFocusDurationSeconds: 1500,
         defaultBreakDurationSeconds: 300,
         defaultAllowedSites: [],

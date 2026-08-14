@@ -87,6 +87,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
         payload: {
           pressureProfileId,
           trackingTier: finalTrackingTier,
+          activityTrackingEnabled: true,
           defaultFocusDurationSeconds: focusMinutes * 60,
           defaultBreakDurationSeconds: 300,
           defaultAllowedSites: [],
