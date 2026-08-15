@@ -197,6 +197,45 @@ describe("UnlockRequestPanel — friend side", () => {
     expect(screen.queryByText(/wants to unlock reddit\.com/)).not.toBeInTheDocument();
   });
 
+  it("never shows the viewer's own pending request in the friend-approval list, even if the requests fetch resolves before the self-identity fetch (fix round 1 regression)", async () => {
+    // Deliberately makes AUTH_GET_SESSION resolve AFTER UNLOCK_REQUESTS_FETCH, reproducing the
+    // race loadSelf()/loadRequests() run under in the real effect (both fire together, no
+    // sequencing). Before the fix, pendingFromOthers was computed by comparing
+    // `requesterUserId !== selfUserId` against a still-null selfUserId, which spuriously passed
+    // for the viewer's own request and rendered Approve/Deny on it until loadSelf() caught up.
+    let resolveSelf: (value: unknown) => void = () => {};
+    const selfPromise = new Promise((resolve) => {
+      resolveSelf = resolve;
+    });
+
+    vi.spyOn(messenger, "sendMessage").mockImplementation((msg: ExtensionMessage) => {
+      if (msg.type === "AUTH_GET_SESSION") return selfPromise as Promise<unknown>;
+      if (msg.type === "UNLOCK_REQUESTS_FETCH") {
+        return Promise.resolve({ ok: true, requests: [pendingFromFriend, myOwnPendingRequest] });
+      }
+      return Promise.resolve({ ok: true, events: [] });
+    });
+
+    render(<UnlockRequestPanel session={null} onClose={() => {}} />);
+
+    // The requests fetch resolves first (self-identity still unresolved): the pending-from-
+    // others list must render as empty (not the pre-fix behavior of transiently including the
+    // viewer's own request), so neither request - friend's or the viewer's own - appears yet.
+    await waitFor(() =>
+      expect(screen.getByText("No pending unlock requests from friends.")).toBeInTheDocument()
+    );
+    expect(screen.queryByText(/wants to unlock instagram\.com/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/wants to unlock reddit\.com/)).not.toBeInTheDocument();
+
+    // Now let self-identity resolve: the friend's request should appear, but the viewer's own
+    // pending request must never appear in this list.
+    resolveSelf({ ok: true, session: { user: { id: "user-self" } } });
+    await waitFor(() =>
+      expect(screen.getByText(/user-friend wants to unlock instagram\.com/)).toBeInTheDocument()
+    );
+    expect(screen.queryByText(/wants to unlock reddit\.com/)).not.toBeInTheDocument();
+  });
+
   it("shows a no-pending-requests message when there is nothing to review", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
 

@@ -193,9 +193,17 @@ export function UnlockRequestPanel({ session, onClose }: UnlockRequestPanelProps
   const myRequestsForThisSession = (requests ?? []).filter(
     (r) => session && r.sessionId === session.id && r.requesterUserId === selfUserId
   );
-  const pendingFromOthers = (requests ?? []).filter(
-    (r) => r.status === "pending" && r.requesterUserId !== selfUserId
-  );
+  // Guarded on selfUserId !== null (not just "falsy"): until loadSelf()'s AUTH_GET_SESSION
+  // round trip resolves, who-am-I is genuinely unknown, not "no self". Comparing
+  // `r.requesterUserId !== selfUserId` against a still-null selfUserId would spuriously pass for
+  // every request (including the viewer's own), so if loadRequests() resolves first, this would
+  // transiently render Approve/Deny buttons on the viewer's own pending request until loadSelf()
+  // catches up. Returning an empty list while self-identity is still unknown avoids that flicker
+  // entirely rather than racing the two fetches against each other.
+  const pendingFromOthers =
+    selfUserId === null
+      ? []
+      : (requests ?? []).filter((r) => r.status === "pending" && r.requesterUserId !== selfUserId);
 
   return (
     <div className="unlock-request-panel">

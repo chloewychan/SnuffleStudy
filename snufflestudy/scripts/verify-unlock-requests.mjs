@@ -37,8 +37,15 @@
 //      longer SELECT it once it's resolved (matches Task 5's original guarantee, which this
 //      task's migration comment promises to preserve). A (the requester) can still read it and
 //      confirms status = denied.
-//   6. Cleans up every row it created and all four test accounts via the service-role client.
-//   7. Prints a pass/fail summary and exits non-zero if anything failed.
+//   6. Case 5 (fix round 1 - immutable-column trigger, migration 20260815000009): A creates a
+//      pending request R5. B and D each attempt to resolve it while ALSO rewriting one of
+//      hostname/session_id/requester_user_id in the same UPDATE call - each is rejected by the
+//      BEFORE UPDATE trigger 20260815000009 added, and R5 is left completely unaffected
+//      (still pending, original hostname) after each rejected attempt. A final well-formed
+//      resolve (no pinned-column changes) from B still succeeds normally, proving the trigger
+//      rejects only actual changes to the pinned columns, not resolves in general.
+//   7. Cleans up every row it created and all four test accounts via the service-role client.
+//   8. Prints a pass/fail summary and exits non-zero if anything failed.
 
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
@@ -315,6 +322,96 @@ async function main() {
           "Case 4: A sees R4's status=denied",
           rereadR4ByA.status === "denied",
           `got status=${rereadR4ByA.status}`
+        );
+      }
+    }
+
+    // --- Case 5 (fix round 1): immutable-column trigger blocks a resolve that also rewrites
+    // hostname/session_id/requester_user_id ---
+    // Covers the gap 20260815000008's WITH CHECK left open: it constrains only resolved_by/
+    // status, so nothing in RLS itself stopped a resolving group member from ALSO rewriting
+    // hostname/session_id/requester_user_id in the same UPDATE - which alarmHandlers.ts's
+    // applyApprovedUnlockRequest would then trust blindly, letting a rogue/compromised group
+    // member silently whitelist an arbitrary hostname in the requester's session. Migration
+    // 20260815000009 closes this with a BEFORE UPDATE trigger that raises if any of those three
+    // columns differ from OLD, independent of which RLS policy authorized the UPDATE attempt.
+    const r5 = await expectOk("Case 5: A creates a fifth pending unlock request (R5)", () =>
+      createRequestAs(clientA, userA.id, sessionId, "tiktok.com")
+    );
+
+    if (r5) {
+      await expectDenied(
+        "Case 5: B (group-mate) resolving R5 while ALSO rewriting hostname is rejected by the immutable-column trigger",
+        () =>
+          clientB
+            .from("unlock_requests")
+            .update({
+              status: "approved",
+              resolved_at: new Date().toISOString(),
+              resolved_by: userB.id,
+              hostname: "attacker-chosen.com",
+            })
+            .eq("id", r5.id)
+            .select()
+            .single()
+      );
+
+      // The trigger must have aborted the entire statement, not partially applied it - R5 should
+      // still be pending, untouched, and still readable/resolvable normally afterward.
+      const rereadR5 = await expectOk("Case 5: R5 is unaffected - still pending with its original hostname", () =>
+        clientA.from("unlock_requests").select().eq("id", r5.id).single()
+      );
+      if (rereadR5) {
+        record(
+          "Case 5: R5's hostname/status were not changed by the rejected update",
+          rereadR5.status === "pending" && rereadR5.hostname === "tiktok.com",
+          `got status=${rereadR5.status}, hostname=${rereadR5.hostname}`
+        );
+      }
+
+      await expectDenied(
+        "Case 5: D (group-mate) resolving R5 while ALSO rewriting session_id is rejected by the immutable-column trigger",
+        () =>
+          clientD
+            .from("unlock_requests")
+            .update({
+              status: "denied",
+              resolved_at: new Date().toISOString(),
+              resolved_by: userD.id,
+              session_id: `${sessionId}-hijacked`,
+            })
+            .eq("id", r5.id)
+            .select()
+            .single()
+      );
+
+      await expectDenied(
+        "Case 5: B resolving R5 while ALSO rewriting requester_user_id is rejected by the immutable-column trigger",
+        () =>
+          clientB
+            .from("unlock_requests")
+            .update({
+              status: "approved",
+              resolved_at: new Date().toISOString(),
+              resolved_by: userB.id,
+              requester_user_id: userB.id,
+            })
+            .eq("id", r5.id)
+            .select()
+            .single()
+      );
+
+      // A normal, well-formed resolve (no immutable-column changes) must still succeed - the
+      // trigger should reject ONLY updates that actually change the pinned columns, not resolves
+      // in general.
+      const resolvedR5 = await expectOk("Case 5: B resolves R5 normally (no pinned-column changes) - still allowed", () =>
+        resolveRequestAs(clientB, userB.id, r5.id, "approved")
+      );
+      if (resolvedR5) {
+        record(
+          "Case 5: resolved R5 has status=approved, hostname unchanged",
+          resolvedR5.status === "approved" && resolvedR5.hostname === "tiktok.com",
+          `got status=${resolvedR5.status}, hostname=${resolvedR5.hostname}`
         );
       }
     }
