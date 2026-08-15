@@ -122,6 +122,19 @@ describe("FriendGroupPanel — friend activity (pre-existing behavior)", () => {
     await waitFor(() => expect(callsOfType(sendMessageSpy, "FRIEND_EVENTS_FETCH")).toHaveLength(2));
   });
 
+  // Fix round 1: Refresh previously only re-triggered FRIEND_EVENTS_FETCH, so a user manually
+  // refreshing wouldn't pick up new nudges without closing/reopening the panel.
+  it("also refetches incoming nudges via NUDGES_FETCH when the Refresh button is clicked", async () => {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+    await waitFor(() => expect(callsOfType(sendMessageSpy, "NUDGES_FETCH")).toHaveLength(1));
+
+    fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
+
+    await waitFor(() => expect(callsOfType(sendMessageSpy, "NUDGES_FETCH")).toHaveLength(2));
+  });
+
   it("calls onClose when Close is clicked", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
     const onClose = vi.fn();

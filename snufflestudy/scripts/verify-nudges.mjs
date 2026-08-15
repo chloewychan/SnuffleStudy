@@ -17,16 +17,24 @@
 //      every write below goes through the same RLS-bound client nudgeApi.ts's sendNudge() would
 //      use.
 //   2. Case 1 (positive): S enables send_live_nudges toward R, R enables receive_live_nudges
-//      toward S with a short cooldown (2s, so this script never needs to sleep for the real
-//      default of 300s) - a nudge from S to R succeeds.
+//      toward S with a shortened cooldown (COOLDOWN_SECONDS below, so this script never needs to
+//      sleep for the real default of 300s) - a nudge from S to R succeeds.
 //   3. Case 2: R turns receive_live_nudges off - the next nudge from S to R is rejected.
 //   4. Case 3: R turns receive_live_nudges back on, S turns send_live_nudges off - the next
 //      nudge from S to R is rejected.
 //   5. Case 4: S turns send_live_nudges back on - a second nudge sent immediately (within the
-//      2s cooldown window) is rejected.
-//   6. Case 5: the service-role client rewrites that nudge's sent_at to 3s in the past (simulated
-//      elapsed time, per this task's instruction to avoid actually sleeping in the script) - a
-//      subsequent nudge from S to R now succeeds.
+//      cooldown window) is rejected. Fix round 1: this case runs after ~7 sequential network
+//      round trips of setup/assertion following case 1's nudge insert, so COOLDOWN_SECONDS must
+//      stay comfortably larger than that cumulative round-trip latency against a real hosted
+//      Supabase instance, or this case can intermittently false-pass (the window elapses before
+//      the assertion runs, so the second send wrongly succeeds instead of being rejected) for
+//      reasons that have nothing to do with whether the underlying SQL is actually correct. The
+//      elapsed wall-clock time since case 1's insert is logged right before this case's
+//      assertion specifically so a future flake here is diagnosable rather than silently
+//      misleading.
+//   6. Case 5: the service-role client rewrites that nudge's sent_at to (COOLDOWN_SECONDS + 1)s
+//      in the past (simulated elapsed time, per this task's instruction to avoid actually
+//      sleeping in the script) - a subsequent nudge from S to R now succeeds.
 //   7. Cleans up every row it created and both test accounts via the service-role client.
 //   8. Prints a pass/fail summary and exits non-zero if anything failed.
 
@@ -53,8 +61,17 @@ const RUN_ID = Date.now();
 const PASSWORD = `Verify-Nudges-${crypto.randomUUID()}!`;
 // Short enough that this script never needs to actually sleep to observe cooldown expiry (case
 // 5 rewrites sent_at directly instead), long enough that case 4's immediate second send is
-// unambiguously still inside the window.
-const COOLDOWN_SECONDS = 2;
+// unambiguously still inside the window even accounting for real network latency.
+//
+// Fix round 1: originally 2s, which a code review correctly flagged as too thin a margin - case
+// 4 runs after ~7 sequential network round trips of setup/assertion following case 1's insert
+// (toggle flips + restores + case 4's own send), and against a real hosted Supabase instance
+// with ~100-400ms round-trip latency, cumulative elapsed time could approach or exceed a 2s
+// window before case 4 even executes, causing an intermittent false pass unrelated to whether
+// the underlying SQL is correct. Widened to 20s - comfortably larger than any plausible
+// cumulative round-trip latency for 7 calls - and case 4 now logs the actual elapsed wall-clock
+// time since case 1's insert so a future flake is diagnosable instead of silently misleading.
+const COOLDOWN_SECONDS = 20;
 
 const results = [];
 function record(name, pass, detail) {
@@ -152,6 +169,9 @@ async function main() {
       userR.id,
       "keep-going"
     );
+    // Fix round 1: wall-clock reference point for case 4's elapsed-time diagnostic below - see
+    // COOLDOWN_SECONDS's comment for why this matters.
+    const case1SentAtMs = Date.now();
     record(
       "Case 1: nudge succeeds when both toggles are on and no recent nudge exists",
       !firstErr && !!firstNudge,
@@ -217,9 +237,24 @@ async function main() {
       .eq("friend_user_id", userR.id);
 
     // --- Case 4: second nudge within the cooldown window -> rejected ---
-    // firstNudge (case 1) is still the most recent nudge from S to R and was sent moments ago,
-    // well inside COOLDOWN_SECONDS - this send should be rejected purely on cooldown grounds,
-    // both toggles being on.
+    // firstNudge (case 1) is still the most recent nudge from S to R - this send should be
+    // rejected purely on cooldown grounds, both toggles being on. Fix round 1: log the actual
+    // elapsed wall-clock time since case 1's insert (not just assume it's "moments ago") so a
+    // future flake here - the window elapsing before this assertion runs, due to real network
+    // latency across the ~7 round trips since case 1 - is diagnosable rather than silently
+    // misleading. Warn loudly (without failing the run) if the margin looks thin, since that's a
+    // sign COOLDOWN_SECONDS may need widening further on whatever environment this ran in.
+    const elapsedSinceCase1Ms = Date.now() - case1SentAtMs;
+    const marginRatio = elapsedSinceCase1Ms / (COOLDOWN_SECONDS * 1000);
+    console.log(
+      `  (elapsed since case 1's nudge: ${elapsedSinceCase1Ms}ms of a ${COOLDOWN_SECONDS * 1000}ms cooldown window - ${(marginRatio * 100).toFixed(1)}% consumed)`
+    );
+    if (marginRatio > 0.5) {
+      console.warn(
+        `  WARNING: case 4 consumed over half the cooldown window before its assertion ran - COOLDOWN_SECONDS may need widening further on this environment.`
+      );
+    }
+
     const { data: blockedByCooldown, error: cooldownErr } = await sendNudgeAs(
       clientS,
       userS.id,

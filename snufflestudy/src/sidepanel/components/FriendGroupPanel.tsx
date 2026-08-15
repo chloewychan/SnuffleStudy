@@ -311,7 +311,17 @@ export function FriendGroupPanel({ onClose }: FriendGroupPanelProps) {
         )}
       </section>
 
-      <button type="button" onClick={loadEvents} disabled={loading}>
+      <button
+        type="button"
+        onClick={() => {
+          // Fix round 1: Refresh previously only re-triggered FRIEND_EVENTS_FETCH, so a user
+          // manually refreshing wouldn't pick up new nudges without closing/reopening the panel
+          // - both fetches now run together, matching what "Refresh" implies.
+          loadEvents();
+          loadNudges();
+        }}
+        disabled={loading}
+      >
         {loading ? "Refreshing…" : "Refresh"}
       </button>
 
