@@ -107,6 +107,29 @@ describe("OptionsApp", () => {
     );
   });
 
+  it("shows the friend-sync toggle off by default and saves it when turned on", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Share session activity with my friend group"));
+
+    const toggle = screen.getByLabelText("Share session activity with my friend group");
+    // v2 Task 6: friendSyncEnabled defaults to false (unlike activityTrackingEnabled's
+    // true-by-default) - it syncs to a remote friend group's backend, the more
+    // privacy-sensitive of the two, so it's opt-in.
+    expect(toggle).not.toBeChecked();
+
+    fireEvent.click(toggle);
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "SETTINGS_SAVE",
+        payload: { ...DEFAULT_USER_SETTINGS, friendSyncEnabled: true },
+      })
+    );
+  });
+
   it("disables the activity-tracking toggle while the detailed tier is selected", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({
       ok: true,

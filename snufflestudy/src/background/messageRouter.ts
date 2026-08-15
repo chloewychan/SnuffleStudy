@@ -7,7 +7,12 @@ import * as machine from "../domain/session/sessionMachine";
 import { validateCreateSessionInput } from "../domain/session/sessionValidation";
 import { classifySite } from "../domain/sites/siteRules";
 import { createHardBlockCredential, verifyPasscode } from "../domain/sites/hardBlockCredential";
-import { scheduleSessionAlarm, cancelSessionAlarm } from "../infrastructure/browser/alarmsApi";
+import {
+  scheduleSessionAlarm,
+  cancelSessionAlarm,
+  scheduleFriendPollAlarm,
+  cancelFriendPollAlarm,
+} from "../infrastructure/browser/alarmsApi";
 import { showNotification } from "../infrastructure/browser/notificationsApi";
 import {
   syncHardBlockRules,
@@ -16,10 +21,29 @@ import {
 } from "../infrastructure/browser/declarativeNetRequestApi";
 import { supabase } from "../infrastructure/backend/supabaseClient";
 import * as friendGroupApi from "../infrastructure/backend/friendGroupApi";
+import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
+import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
 const historyRepo = new IndexedDbSessionRepository();
 const taskRepo = new IndexedDbTaskRepository();
+
+// Starts the friend-poll alarm (v2 Task 6) when a session becomes active, but only if it's
+// actually worth running: signed in + friend-sync enabled (currentFriendSyncUserId) AND a
+// member of at least one group (isInAnyGroup) - being opted in with no group yet has nothing to
+// poll for. Fire-and-forget/best-effort like recordFriendStatusEvent (see friendSync.ts): the
+// group-membership check is a network call, so this must never block SESSION_START's own
+// response on it.
+function maybeStartFriendPoll(): void {
+  currentFriendSyncUserId()
+    .then(async (userId) => {
+      if (!userId) return;
+      if (await isInAnyGroup(userId)) {
+        scheduleFriendPollAlarm();
+      }
+    })
+    .catch((err) => console.error("Failed to evaluate friend-poll alarm eligibility", err));
+}
 
 function newId(): string {
   return crypto.randomUUID();
@@ -75,6 +99,8 @@ async function routeMessage(
       if (started.restrictionMode === "hard") {
         await syncHardBlockRules(started.restrictedSites);
       }
+      recordFriendStatusEvent("SESSION_STARTED", started.id, "started a focus session");
+      maybeStartFriendPoll();
       return { ok: true, session: started };
     }
 
@@ -83,6 +109,7 @@ async function routeMessage(
       const paused = machine.pauseSession(session, now);
       await settingsRepo.saveActiveSession(paused);
       cancelSessionAlarm();
+      recordFriendStatusEvent("SESSION_PAUSED", paused.id, "paused their session");
       return { ok: true, session: paused };
     }
 
@@ -91,6 +118,7 @@ async function routeMessage(
       const resumed = machine.resumeSession(session, now);
       await settingsRepo.saveActiveSession(resumed);
       scheduleSessionAlarm(resumed.plannedEndAt!);
+      recordFriendStatusEvent("SESSION_RESUMED", resumed.id, "resumed their session");
       return { ok: true, session: resumed };
     }
 
@@ -99,6 +127,7 @@ async function routeMessage(
       const onBreak = machine.startBreak(session, now);
       await settingsRepo.saveActiveSession(onBreak);
       scheduleSessionAlarm(onBreak.breakEndsAt!);
+      recordFriendStatusEvent("SESSION_BREAK_STARTED", onBreak.id, "took a break");
       return { ok: true, session: onBreak };
     }
 
@@ -107,6 +136,7 @@ async function routeMessage(
       const focusing = machine.endBreak(session, now);
       await settingsRepo.saveActiveSession(focusing);
       scheduleSessionAlarm(focusing.plannedEndAt!);
+      recordFriendStatusEvent("SESSION_BREAK_ENDED", focusing.id, "ended their break");
       return { ok: true, session: focusing };
     }
 
@@ -158,6 +188,12 @@ async function routeMessage(
       // (alarmHandlers.ts's handleAlarm).
       await settingsRepo.saveActiveSession(ended);
       cancelSessionAlarm();
+      // This is the only path that produces an abandoned session (see this case's own comment
+      // above) - the session is ending, so stop polling for friend events same as natural
+      // completion does (alarmHandlers.ts). Recording SESSION_ABANDONED itself is
+      // fire-and-forget/gated (friendSync.ts).
+      cancelFriendPollAlarm();
+      recordFriendStatusEvent("SESSION_ABANDONED", ended.id, "ended their session early");
       await clearHardBlockRules();
       showNotification("session-abandoned", "Session ended", `"${session.goal}" was ended early.`);
       return { ok: true, session: ended };
@@ -169,6 +205,10 @@ async function routeMessage(
         return { ok: false, error: `Cannot dismiss a session in state ${session.state}` };
       }
       await settingsRepo.saveActiveSession(null);
+      // Safety net in case the friend-poll alarm wasn't already cleared (e.g. a service-worker
+      // restart between natural completion and this dismiss) - cancelling an alarm that's
+      // already stopped is a harmless no-op.
+      cancelFriendPollAlarm();
       return { ok: true };
     }
 
@@ -178,6 +218,8 @@ async function routeMessage(
         return { ok: false, error: `Cannot dismiss a session in state ${session.state}` };
       }
       await settingsRepo.saveActiveSession(null);
+      // Same safety-net rationale as SESSION_DISMISS_COMPLETED above.
+      cancelFriendPollAlarm();
       return { ok: true };
     }
 
@@ -202,6 +244,11 @@ async function routeMessage(
         occurredAt: now,
         hostname: message.payload.hostname,
       });
+      // displayLabel is deliberately generic - never the hostname the distraction event itself
+      // carries (see session_status_events' display_label column comment in the schema
+      // migration: "never the raw hostname unless the sender explicitly opted in", which Task
+      // 10 will build the opt-in for).
+      recordFriendStatusEvent("DISTRACTION_ATTEMPT", session.id, "got distracted");
       return { ok: true, session: updated };
     }
 
@@ -376,6 +423,16 @@ async function routeMessage(
     case "GROUP_LIST_MEMBERS": {
       const members = await friendGroupApi.listMembers(message.payload.groupId);
       return { ok: true, members };
+    }
+
+    case "FRIEND_EVENTS_FETCH": {
+      // fetchNewEventsForFriends already degrades to [] (never throws) when signed out - see
+      // sessionStatusSyncApi.ts - so FriendGroupPanel.tsx always gets an ok:true response, even
+      // with nothing to show.
+      const events = await sessionStatusSyncApi.fetchNewEventsForFriends(
+        message.payload.sinceTimestamp
+      );
+      return { ok: true, events };
     }
 
     default:

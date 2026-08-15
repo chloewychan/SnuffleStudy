@@ -3,6 +3,7 @@ import "../styles/global.css";
 import { OnboardingWizard } from "../app/routes/OnboardingWizard";
 import { TaskVaultPage } from "../app/routes/TaskVaultPage";
 import { SessionSetupForm } from "./components/SessionSetupForm";
+import { FriendGroupPanel } from "./components/FriendGroupPanel";
 import { SessionStatusCard } from "../shared/ui/SessionStatusCard";
 import { TimerRing } from "../shared/ui/TimerRing";
 import { EndSessionControl } from "../shared/ui/EndSessionControl";
@@ -15,7 +16,7 @@ import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
 import { remainingSeconds } from "../domain/session/timer";
 import type { UserSettings } from "../domain/settings/userSettings";
 
-type SidePanelView = "setup" | "taskVault";
+type SidePanelView = "setup" | "taskVault" | "friends";
 
 export function SidePanelApp() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -106,10 +107,21 @@ export function SidePanelApp() {
       );
     }
 
+    if (view === "friends") {
+      return (
+        <div className="sidepanel-app">
+          <FriendGroupPanel onClose={() => setView("setup")} />
+        </div>
+      );
+    }
+
     return (
       <div className="sidepanel-app">
         <button type="button" onClick={() => setView("taskVault")}>
           Task Vault
+        </button>
+        <button type="button" onClick={() => setView("friends")}>
+          Friend activity
         </button>
         <SessionSetupForm
           settings={settings}

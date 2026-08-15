@@ -45,4 +45,10 @@ export type ExtensionMessage =
   | { type: "GROUP_CREATE"; payload: { name: string } }
   | { type: "GROUP_GENERATE_INVITE_CODE"; payload: { groupId: string } }
   | { type: "GROUP_JOIN"; payload: { code: string } }
-  | { type: "GROUP_LIST_MEMBERS"; payload: { groupId: string } };
+  | { type: "GROUP_LIST_MEMBERS"; payload: { groupId: string } }
+  // v2 Task 6: routes to sessionStatusSyncApi.fetchNewEventsForFriends via messageRouter.ts -
+  // used by both alarmHandlers.ts's friend-poll alarm (indirectly, via a direct function call
+  // since that's background-side code, not a message) and FriendGroupPanel.tsx (this message,
+  // since UI components never import infrastructure/backend/* directly - see messageRouter.ts's
+  // architecture note).
+  | { type: "FRIEND_EVENTS_FETCH"; payload: { sinceTimestamp: number } };

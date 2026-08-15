@@ -221,6 +221,23 @@ export function OptionsApp() {
           </section>
 
           <section>
+            <h2>Friends</h2>
+            <label>
+              <input
+                type="checkbox"
+                checked={settings.friendSyncEnabled}
+                onChange={(e) => updateSettings({ friendSyncEnabled: e.target.checked })}
+              />
+              Share session activity with my friend group
+            </label>
+            <p>
+              When on, generic session events (started, paused, distracted, completed, etc — never
+              a site name or your goal text) sync to your friend group, and the extension polls
+              for their activity while a session is active. Off by default.
+            </p>
+          </section>
+
+          <section>
             <h2>Default restricted sites</h2>
             <textarea
               aria-label="Default restricted sites"

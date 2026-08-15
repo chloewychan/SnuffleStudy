@@ -53,6 +53,7 @@ describe("handleTabUpdate", () => {
         defaultRestrictedSites: [],
         defaultRestrictionMode: "soft",
         onboardingCompleted: true,
+        friendSyncEnabled: false,
       },
     });
     const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
@@ -85,6 +86,7 @@ describe("handleTabUpdate", () => {
         defaultRestrictedSites: [],
         defaultRestrictionMode: "soft",
         onboardingCompleted: true,
+        friendSyncEnabled: false,
       },
     });
     const created = (await handleMessage({
@@ -122,6 +124,7 @@ describe("handleTabUpdate", () => {
         defaultRestrictedSites: [],
         defaultRestrictionMode: "soft",
         onboardingCompleted: true,
+        friendSyncEnabled: false,
       },
     });
     const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {

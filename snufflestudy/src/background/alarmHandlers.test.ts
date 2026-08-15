@@ -5,6 +5,11 @@ import { handleAlarm } from "./alarmHandlers";
 import { handleMessage } from "./messageRouter";
 import { stubFakeDeclarativeNetRequest } from "./testSupport/fakeDeclarativeNetRequest";
 import { IndexedDbTaskRepository } from "../infrastructure/storage/taskRepository";
+import { ChromeStorageRepository } from "../infrastructure/storage/chromeStorageRepository";
+import { DEFAULT_USER_SETTINGS } from "../domain/settings/userSettings";
+import { supabase } from "../infrastructure/backend/supabaseClient";
+import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
+import { getLastFriendPollAt } from "../infrastructure/storage/friendPollState";
 import type { CreateSessionInput } from "../domain/session/sessionTypes";
 
 beforeEach(() => {
@@ -12,6 +17,11 @@ beforeEach(() => {
   stubFakeDeclarativeNetRequest();
   indexedDB.deleteDatabase("snufflestudy");
   indexedDB.deleteDatabase("snufflestudy-tasks");
+  // Added alongside the friend-poll alarm tests below, which spy on the supabaseClient
+  // singleton - restoring between tests keeps that isolated to the test that set it up rather
+  // than leaking into later tests in this file (mirrors friendGroupApi.test.ts's/
+  // messageRouterAccountability.test.ts's beforeEach convention).
+  vi.restoreAllMocks();
 });
 
 const createInput: CreateSessionInput = {
@@ -188,5 +198,141 @@ describe("handleAlarm marks a linked task breakdown item's completedAt on natura
       "session-complete",
       expect.objectContaining({ title: "Goal complete" })
     );
+  });
+});
+
+describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
+  const settingsRepo = new ChromeStorageRepository();
+
+  it("dispatches the friend-poll alarm to fetchNewEventsForFriends without touching session state, and never falls through to the session-alarm branch", async () => {
+    const fetchSpy = vi.spyOn(sessionStatusSyncApi, "fetchNewEventsForFriends").mockResolvedValue([]);
+
+    await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    // No active session exists in this test - if the friend-poll branch fell through into the
+    // session-alarm logic below it, getActiveSession()/completeSession() etc. would have to run
+    // against a null session, which handleAlarm already guards against returning early on - so
+    // this assertion is really just confirming fetchNewEventsForFriends is the only thing that
+    // ran.
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
+    expect(active.session).toBeNull();
+  });
+
+  it("shows a chrome.notifications toast for each new friend event, using its displayLabel", async () => {
+    vi.spyOn(sessionStatusSyncApi, "fetchNewEventsForFriends").mockResolvedValue([
+      {
+        id: "event-1",
+        userId: "user-a",
+        sessionId: "session-1",
+        type: "SESSION_STARTED",
+        displayLabel: "started a focus session",
+        occurredAt: Date.now(),
+      },
+      {
+        id: "event-2",
+        userId: "user-a",
+        sessionId: "session-1",
+        type: "DISTRACTION_ATTEMPT",
+        displayLabel: "got distracted",
+        occurredAt: Date.now(),
+      },
+    ]);
+    const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+    await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+    expect(createNotificationSpy).toHaveBeenCalledWith(
+      "friend-event-event-1",
+      expect.objectContaining({ message: "started a focus session" })
+    );
+    expect(createNotificationSpy).toHaveBeenCalledWith(
+      "friend-event-event-2",
+      expect.objectContaining({ message: "got distracted" })
+    );
+  });
+
+  it("persists the poll timestamp so a subsequent poll uses it as the new 'since' bound (survives a simulated service-worker restart)", async () => {
+    const fetchSpy = vi.spyOn(sessionStatusSyncApi, "fetchNewEventsForFriends").mockResolvedValue([]);
+    expect(await getLastFriendPollAt()).toBeNull();
+
+    await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+    const persisted = await getLastFriendPollAt();
+    expect(persisted).toEqual(expect.any(Number));
+
+    await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+    // Second call's "since" argument should be the timestamp persisted by the first call, not
+    // some other fallback (e.g. the epoch, or a freshly-computed lookback window) - proving the
+    // persisted cursor is actually read back, not just written.
+    expect(fetchSpy).toHaveBeenLastCalledWith(persisted);
+  });
+
+  it("still ignores an unrelated alarm name (the friend-poll branch does not swallow this case)", async () => {
+    const fetchSpy = vi.spyOn(sessionStatusSyncApi, "fetchNewEventsForFriends");
+
+    await handleAlarm({ name: "some-other-alarm" } as chrome.alarms.Alarm);
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("cancels the friend-poll alarm and records a gated SESSION_COMPLETED event on natural completion", async () => {
+    await settingsRepo.saveSettings({ ...DEFAULT_USER_SETTINGS, friendSyncEnabled: true });
+    vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
+      data: { session: { user: { id: "user-a" } } },
+      error: null,
+    } as never);
+    // messageRouter.ts's SESSION_START also evaluates whether to start the friend-poll alarm
+    // (currentFriendSyncUserId + isInAnyGroup, from friendSync.ts) - isInAnyGroup queries
+    // group_memberships directly against the supabase singleton, so it's stubbed here to look
+    // like the user belongs to a group, letting SESSION_START's own wiring start the alarm
+    // rather than needing a manual scheduleFriendPollAlarm() call to simulate it.
+    vi.spyOn(supabase, "from").mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [{ group_id: "group-1" }], error: null }),
+    } as never);
+    const recordSpy = vi
+      .spyOn(sessionStatusSyncApi, "recordStatusEvent")
+      .mockResolvedValue(undefined);
+
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    // SESSION_START's friend-poll-alarm decision is fire-and-forget (see messageRouter.ts's
+    // maybeStartFriendPoll) - give its promise chain a tick to resolve before asserting.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await chrome.alarms.get("snufflestudy-friend-poll")).toBeDefined();
+
+    await handleAlarm({ name: "snufflestudy-session-timer" } as chrome.alarms.Alarm);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(await chrome.alarms.get("snufflestudy-friend-poll")).toBeUndefined();
+    expect(recordSpy).toHaveBeenCalledWith({
+      type: "SESSION_COMPLETED",
+      sessionId: created.session.id,
+      displayLabel: "completed a focus session",
+    });
+  });
+
+  it("does not record SESSION_COMPLETED when friendSyncEnabled is off, but still completes the session normally", async () => {
+    await settingsRepo.saveSettings(DEFAULT_USER_SETTINGS);
+    const recordSpy = vi.spyOn(sessionStatusSyncApi, "recordStatusEvent");
+
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    await handleAlarm({ name: "snufflestudy-session-timer" } as chrome.alarms.Alarm);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(recordSpy).not.toHaveBeenCalled();
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string };
+    };
+    expect(active.session.state).toBe("COMPLETED");
   });
 });

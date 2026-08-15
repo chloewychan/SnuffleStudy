@@ -13,6 +13,14 @@ export interface UserSettings {
   defaultRestrictedSites: string[];
   defaultRestrictionMode: "soft" | "hard";
   onboardingCompleted: boolean;
+  // v2 Task 6: gates whether session lifecycle transitions get synced to session_status_events
+  // at all (messageRouter.ts's recordFriendStatusEvent / alarmHandlers.ts's natural-completion
+  // path check this before ever touching Supabase). Defaults to false, unlike
+  // activityTrackingEnabled's true-by-default: that flag only affects local chrome.idle
+  // wiring, while this one syncs session activity to a remote backend readable by an entire
+  // friend group (subject to session_status_events' RLS visibility rules) - the more
+  // privacy-sensitive of the two, so it's opt-in rather than on-by-default.
+  friendSyncEnabled: boolean;
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
@@ -25,4 +33,5 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   defaultRestrictedSites: [],
   defaultRestrictionMode: "soft",
   onboardingCompleted: false,
+  friendSyncEnabled: false,
 };

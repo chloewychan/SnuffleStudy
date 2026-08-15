@@ -94,6 +94,10 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
           defaultRestrictedSites: finalTrackingTier === "detailed" ? restrictedSites : [],
           defaultRestrictionMode: "soft",
           onboardingCompleted: true,
+          // Friend sync (v2 Task 6) is opt-in and configured separately from the options page's
+          // "Friends" section, not part of the onboarding flow - defaults off, same as
+          // DEFAULT_USER_SETTINGS.
+          friendSyncEnabled: false,
         },
       });
 
