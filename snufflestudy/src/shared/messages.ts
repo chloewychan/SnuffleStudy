@@ -46,9 +46,24 @@ export type ExtensionMessage =
   | { type: "GROUP_GENERATE_INVITE_CODE"; payload: { groupId: string } }
   | { type: "GROUP_JOIN"; payload: { code: string } }
   | { type: "GROUP_LIST_MEMBERS"; payload: { groupId: string } }
+  // v2 Task 7: routes to friendGroupApi.listMyGroups() - lets FriendGroupPanel.tsx discover
+  // which group(s) the current user is in (so it can then GROUP_LIST_MEMBERS per group) without
+  // the user having to paste a groupId in, unlike AccountPage.tsx's manual-entry flow.
+  | { type: "GROUP_LIST_MINE" }
   // v2 Task 6: routes to sessionStatusSyncApi.fetchNewEventsForFriends via messageRouter.ts -
   // used by both alarmHandlers.ts's friend-poll alarm (indirectly, via a direct function call
   // since that's background-side code, not a message) and FriendGroupPanel.tsx (this message,
   // since UI components never import infrastructure/backend/* directly - see messageRouter.ts's
   // architecture note).
-  | { type: "FRIEND_EVENTS_FETCH"; payload: { sinceTimestamp: number } };
+  | { type: "FRIEND_EVENTS_FETCH"; payload: { sinceTimestamp: number } }
+  // v2 Task 7: routes to nudgeApi.sendNudge - the toggle/cooldown rejection happens entirely
+  // server-side (see supabase/migrations/20260815000007_v2_nudges.sql's can_send_nudge()); this
+  // handler is a thin pass-through, same convention as every other message case in
+  // messageRouter.ts.
+  | { type: "NUDGE_SEND"; payload: { friendUserId: string; messageId: string } }
+  // v2 Task 7: routes to nudgeApi.fetchIncomingNudges - the on-demand counterpart to
+  // FRIEND_EVENTS_FETCH above, used by FriendGroupPanel.tsx to render incoming nudges. The
+  // background's alarm-driven poll (alarmHandlers.ts) calls nudgeApi.pollIncomingNudges directly
+  // rather than through this message, mirroring FRIEND_EVENTS_FETCH/pollNewEventsForFriends's
+  // split.
+  | { type: "NUDGES_FETCH"; payload: { sinceTimestamp: number } };

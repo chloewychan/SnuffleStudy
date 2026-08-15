@@ -6,7 +6,14 @@ import * as machine from "../domain/session/sessionMachine";
 import { showNotification } from "../infrastructure/browser/notificationsApi";
 import { clearHardBlockRules } from "../infrastructure/browser/declarativeNetRequestApi";
 import { pollNewEventsForFriends } from "../infrastructure/backend/sessionStatusSyncApi";
-import { getLastFriendPollAt, setLastFriendPollAt } from "../infrastructure/storage/friendPollState";
+import { pollIncomingNudges } from "../infrastructure/backend/nudgeApi";
+import { nudgeMessageText } from "../domain/accountability/nudgeMessages";
+import {
+  getLastFriendPollAt,
+  setLastFriendPollAt,
+  getLastNudgePollAt,
+  setLastNudgePollAt,
+} from "../infrastructure/storage/friendPollState";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
@@ -17,33 +24,22 @@ const taskRepo = new IndexedDbTaskRepository();
 // caller (messageRouter.ts) - this file's handleAlarm is the only place SESSION_COMPLETED can
 // be recorded from (v1 Task 4's markBreakdownItemCompleted needed the exact same relocation for
 // the exact same reason - see this file's own comment on that function). Look-back window for
-// the very first poll after friend-sync is enabled/a session starts, before any
-// getLastFriendPollAt() value has ever been persisted - 5 minutes is comfortably wider than one
-// alarm interval (1 minute) so a friend's event from just before this device started polling
-// still surfaces once, without dredging up an unbounded historical backlog.
+// the very first poll of either stream, before any cursor (getLastFriendPollAt/
+// getLastNudgePollAt) has ever been persisted for it - 5 minutes is comfortably wider than one
+// alarm interval (1 minute) so an event/nudge from just before this device started polling still
+// surfaces once, without dredging up an unbounded historical backlog. Shared between
+// pollSessionEventUpdates and pollNudgeUpdates below since both cursors have the identical
+// "never persisted yet" bootstrap problem.
 const FIRST_POLL_LOOKBACK_MS = 5 * 60 * 1000;
 
-// Fetches new friend events since the last poll and shows a chrome.notifications toast for each
-// (per docs/Draft1_Architecture_Overview.md's Phase 1 "polling" friend-event delivery plan).
-// Best-effort throughout: pollNewEventsForFriends already never throws (see
-// sessionStatusSyncApi.ts), but this is wrapped anyway so a chrome.storage failure while
-// reading/writing the last-checked timestamp can't take down the alarm listener.
-async function handleFriendPollAlarm(): Promise<void> {
+// Polls session_status_events for new friend activity and shows a chrome.notifications toast for
+// each (per docs/Draft1_Architecture_Overview.md's Phase 1 "polling" friend-event delivery plan).
+// Split out from handleFriendPollAlarm (v2 Task 7) so this stream's own try/catch and cursor
+// (friendPollState.ts's getLastFriendPollAt/setLastFriendPollAt) stay fully independent of
+// pollNudgeUpdates below - the two are logically separate streams delivered by the same alarm
+// tick, and a failure in one must never block or corrupt the other's progress.
+async function pollSessionEventUpdates(): Promise<void> {
   try {
-    // Re-check eligibility on every tick (fix round 1), not just once at alarm-start time
-    // (messageRouter.ts's maybeStartFriendPoll runs this same pair of checks, but only when the
-    // alarm is first scheduled). friendSyncEnabled can be toggled off, or the user can leave
-    // their last group, mid-session without anything telling this already-running alarm to stop
-    // - without re-checking here, it would keep polling Supabase every minute regardless,
-    // contradicting the architecture doc's "keep backend load and battery use proportional to
-    // actual usage" directive. Skips the events fetch entirely (no network call against
-    // session_status_events) when either check fails now; does not reactively cancel the alarm
-    // itself here (that's a nice-to-have, not required - the alarm's own stop points are still
-    // messageRouter.ts's SESSION_END/SESSION_DISMISS_* and this file's natural-completion path).
-    const userId = await currentFriendSyncUserId();
-    if (!userId) return;
-    if (!(await isInAnyGroup(userId))) return;
-
     const now = Date.now();
     const since = (await getLastFriendPollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
     const result = await pollNewEventsForFriends(since);
@@ -60,6 +56,67 @@ async function handleFriendPollAlarm(): Promise<void> {
       showNotification(`friend-event-${event.id}`, "Friend activity", event.displayLabel);
     }
     await setLastFriendPollAt(now);
+  } catch (err) {
+    console.error("Failed to poll friend session events", err);
+  }
+}
+
+// Polls nudges for new incoming nudges addressed to the current user, and shows a
+// chrome.notifications toast for each (v2 Task 7, reusing Task 6's alarm/notification path per
+// this task's brief - "not building a parallel one"). Notification content deliberately differs
+// from pollSessionEventUpdates's ("Nudge from a friend" + the actual message text and sender,
+// rather than "Friend activity" + a generic displayLabel) so the two never read as
+// indistinguishable generic copy. Same "only advance the cursor on confirmed success" discipline
+// as pollSessionEventUpdates, using its own independent cursor
+// (getLastNudgePollAt/setLastNudgePollAt) so a failure fetching nudges never affects, and is
+// never affected by, the session-events cursor above.
+async function pollNudgeUpdates(): Promise<void> {
+  try {
+    const now = Date.now();
+    const since = (await getLastNudgePollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
+    const result = await pollIncomingNudges(since);
+    if (!result.ok) {
+      // Same rationale as pollSessionEventUpdates's identical branch: leave the persisted cursor
+      // untouched on a failed fetch so the next tick retries this exact window instead of
+      // silently losing whatever nudges arrived during the outage.
+      return;
+    }
+    for (const nudge of result.nudges) {
+      const messageText = nudgeMessageText(nudge.messageId) ?? "sent you a nudge";
+      showNotification(
+        `friend-nudge-${nudge.id}`,
+        "Nudge from a friend",
+        `${messageText} — from ${nudge.senderUserId}`
+      );
+    }
+    await setLastNudgePollAt(now);
+  } catch (err) {
+    console.error("Failed to poll friend nudges", err);
+  }
+}
+
+// Runs both poll streams (session-status events and nudges) on every friend-poll alarm tick.
+// Best-effort throughout: neither pollSessionEventUpdates nor pollNudgeUpdates ever throws (each
+// wraps its own body), but this outer try/catch stays as a last-resort safety net so nothing
+// here can take down the alarm listener.
+async function handleFriendPollAlarm(): Promise<void> {
+  try {
+    // Re-check eligibility on every tick (fix round 1), not just once at alarm-start time
+    // (messageRouter.ts's maybeStartFriendPoll runs this same pair of checks, but only when the
+    // alarm is first scheduled). friendSyncEnabled can be toggled off, or the user can leave
+    // their last group, mid-session without anything telling this already-running alarm to stop
+    // - without re-checking here, it would keep polling Supabase every minute regardless,
+    // contradicting the architecture doc's "keep backend load and battery use proportional to
+    // actual usage" directive. Skips both fetches entirely (no network call against either
+    // table) when either check fails now; does not reactively cancel the alarm itself here
+    // (that's a nice-to-have, not required - the alarm's own stop points are still
+    // messageRouter.ts's SESSION_END/SESSION_DISMISS_* and this file's natural-completion path).
+    const userId = await currentFriendSyncUserId();
+    if (!userId) return;
+    if (!(await isInAnyGroup(userId))) return;
+
+    await pollSessionEventUpdates();
+    await pollNudgeUpdates();
   } catch (err) {
     console.error("Failed to poll friend events", err);
   }

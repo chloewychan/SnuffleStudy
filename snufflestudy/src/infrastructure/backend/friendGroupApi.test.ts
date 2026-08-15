@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { supabase } from "./supabaseClient";
-import { createGroup, generateInviteCode, joinGroup, listMembers } from "./friendGroupApi";
+import { createGroup, generateInviteCode, joinGroup, listMembers, listMyGroups } from "./friendGroupApi";
 
 // Spies on the supabaseClient module's exported singleton (the actual boundary friendGroupApi.ts
 // talks to in this codebase - mirrors this repo's existing style of vi.spyOn-ing an imported
@@ -342,5 +342,54 @@ describe("friendGroupApi.listMembers", () => {
     );
 
     await expect(listMembers("group-1")).rejects.toThrow("boom");
+  });
+});
+
+describe("friendGroupApi.listMyGroups", () => {
+  it("selects group_memberships filtered by the current user's id and maps rows to camelCase", async () => {
+    vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
+      data: { user: { id: "user-a" } },
+      error: null,
+    } as never);
+    const builder = makeBuilder({
+      data: [
+        { group_id: "group-1", user_id: "user-a", joined_at: "2026-01-01T00:00:00Z" },
+        { group_id: "group-2", user_id: "user-a", joined_at: "2026-01-02T00:00:00Z" },
+      ],
+      error: null,
+    });
+    const fromSpy = vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+
+    const result = await listMyGroups();
+
+    expect(fromSpy).toHaveBeenCalledWith("group_memberships");
+    expect(builder.eq).toHaveBeenCalledWith("user_id", "user-a");
+    expect(result).toEqual([
+      { groupId: "group-1", userId: "user-a", joinedAt: "2026-01-01T00:00:00Z" },
+      { groupId: "group-2", userId: "user-a", joinedAt: "2026-01-02T00:00:00Z" },
+    ]);
+  });
+
+  it("throws when not signed in, without touching the database", async () => {
+    vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
+      data: { user: null },
+      error: null,
+    } as never);
+    const fromSpy = vi.spyOn(supabase, "from");
+
+    await expect(listMyGroups()).rejects.toThrow("Not signed in.");
+    expect(fromSpy).not.toHaveBeenCalled();
+  });
+
+  it("throws on a query error", async () => {
+    vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
+      data: { user: { id: "user-a" } },
+      error: null,
+    } as never);
+    vi.spyOn(supabase, "from").mockReturnValue(
+      makeBuilder({ data: null, error: { message: "boom" } }) as never
+    );
+
+    await expect(listMyGroups()).rejects.toThrow("boom");
   });
 });

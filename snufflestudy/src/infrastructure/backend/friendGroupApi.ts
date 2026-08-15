@@ -222,3 +222,28 @@ export async function listMembers(groupId: string): Promise<GroupMembership[]> {
     joinedAt: row.joined_at,
   }));
 }
+
+// v2 Task 7: same query shape as friendSync.ts's isInAnyGroup() (group_memberships filtered by
+// user_id, satisfiable under "members can read memberships of their own groups" RLS without any
+// special-cased policy), but returning the full rows instead of a boolean - needed by
+// FriendGroupPanel.tsx to discover which group(s) the current user is in at all, so it can then
+// call listMembers() per group to build a nudge-target list. Neither AccountPage.tsx nor any
+// other existing code fetches "all of the current user's groups" today (AccountPage.tsx only
+// ever remembers the single group it just created/joined, in local component state) - this is a
+// small, natural extension of listMembers()'s existing pattern, not a rebuild of it.
+export async function listMyGroups(): Promise<GroupMembership[]> {
+  const userId = await requireUserId();
+  const { data, error } = await supabase
+    .from("group_memberships")
+    .select()
+    .eq("user_id", userId);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((row: { group_id: string; user_id: string; joined_at: string }) => ({
+    groupId: row.group_id,
+    userId: row.user_id,
+    joinedAt: row.joined_at,
+  }));
+}

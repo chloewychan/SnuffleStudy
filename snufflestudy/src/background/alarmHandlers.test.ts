@@ -9,8 +9,9 @@ import { ChromeStorageRepository } from "../infrastructure/storage/chromeStorage
 import { DEFAULT_USER_SETTINGS } from "../domain/settings/userSettings";
 import { supabase } from "../infrastructure/backend/supabaseClient";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
+import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import * as friendSync from "./friendSync";
-import { getLastFriendPollAt } from "../infrastructure/storage/friendPollState";
+import { getLastFriendPollAt, getLastNudgePollAt } from "../infrastructure/storage/friendPollState";
 import type { CreateSessionInput } from "../domain/session/sessionTypes";
 
 beforeEach(() => {
@@ -205,6 +206,16 @@ describe("handleAlarm marks a linked task breakdown item's completedAt on natura
 describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
   const settingsRepo = new ChromeStorageRepository();
 
+  // v2 Task 7: handleFriendPollAlarm now also polls nudges on every tick
+  // (pollNudgeUpdates, alongside the pre-existing pollSessionEventUpdates). Defaulted to a
+  // clean "no new nudges" result here so every pre-existing test in this describe block (which
+  // only cares about the session-events half) never exercises nudgeApi's real
+  // supabase.auth.getSession() call. The dedicated "nudge poll" tests further below override
+  // this per-test.
+  beforeEach(() => {
+    vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
+  });
+
   // handleFriendPollAlarm now re-checks friend-sync eligibility on every tick (fix round 1) -
   // spying directly on friendSync.ts's exports (rather than settings+supabase, like the
   // natural-completion test further below does) keeps these tests focused on
@@ -354,6 +365,165 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     await handleAlarm({ name: "some-other-alarm" } as chrome.alarms.Alarm);
 
     expect(pollSpy).not.toHaveBeenCalled();
+  });
+
+  describe("nudge polling (v2 Task 7 - reuses this same alarm, not a parallel one)", () => {
+    it("dispatches to pollIncomingNudges when eligible, in the same tick as the session-events poll", async () => {
+      mockFriendSyncEligible();
+      const nudgePollSpy = vi
+        .spyOn(nudgeApi, "pollIncomingNudges")
+        .mockResolvedValue({ ok: true, nudges: [] });
+      const eventPollSpy = vi
+        .spyOn(sessionStatusSyncApi, "pollNewEventsForFriends")
+        .mockResolvedValue({ ok: true, events: [] });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(nudgePollSpy).toHaveBeenCalledTimes(1);
+      expect(eventPollSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows a chrome.notifications toast for each new nudge, distinct in content from a session-event toast (message text + sender, not the generic 'Friend activity' copy)", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+        ok: true,
+        events: [],
+      });
+      vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({
+        ok: true,
+        nudges: [
+          {
+            id: "nudge-1",
+            senderUserId: "user-b",
+            recipientUserId: "user-a",
+            messageId: "keep-going",
+            sentAt: Date.now(),
+          },
+        ],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "friend-nudge-nudge-1",
+        expect.objectContaining({
+          title: "Nudge from a friend",
+          message: expect.stringContaining("Thinking of you"),
+        })
+      );
+      const calls = createNotificationSpy.mock.calls as unknown as unknown[][];
+      const call = calls.find((args) => args[0] === "friend-nudge-nudge-1");
+      const options = call?.[1] as { title?: string; message?: string } | undefined;
+      expect(options?.title).not.toBe("Friend activity");
+      expect(options?.message).toContain("user-b");
+    });
+
+    it("persists the nudge-poll timestamp only on a successful poll, independently of the session-events cursor", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+        ok: true,
+        events: [],
+      });
+      const nudgePollSpy = vi
+        .spyOn(nudgeApi, "pollIncomingNudges")
+        .mockResolvedValue({ ok: true, nudges: [] });
+      expect(await getLastNudgePollAt()).toBeNull();
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      const persisted = await getLastNudgePollAt();
+      expect(persisted).toEqual(expect.any(Number));
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(nudgePollSpy).toHaveBeenLastCalledWith(persisted);
+    });
+
+    // Mirrors Task 6 fix round 1's session-events guarantee: a failed nudge poll must not
+    // advance the cursor, or nudges sent during the outage would be permanently lost once the
+    // next tick starts counting from `now` instead of retrying the same window.
+    it("does NOT advance the persisted nudge cursor when the nudge poll fails (ok: false), so the next tick retries the same window", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+        ok: true,
+        events: [],
+      });
+      const nudgePollSpy = vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: false });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+      expect(await getLastNudgePollAt()).toBeNull();
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+      expect(await getLastNudgePollAt()).toBeNull();
+
+      expect(nudgePollSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("a failed session-events poll does not prevent the nudge poll's cursor from advancing, and vice versa (the two streams are fully independent)", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+        ok: false,
+        events: [],
+      });
+      vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(await getLastFriendPollAt()).toBeNull();
+      expect(await getLastNudgePollAt()).toEqual(expect.any(Number));
+    });
+
+    it("does not show any nudge notifications when the nudge poll fails", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+        ok: true,
+        events: [],
+      });
+      vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: false });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).not.toHaveBeenCalled();
+    });
+
+    it("skips the nudge fetch entirely when friend-sync is no longer enabled/signed-in (same eligibility gate as the session-events poll)", async () => {
+      vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue(null);
+      const nudgePollSpy = vi.spyOn(nudgeApi, "pollIncomingNudges");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(nudgePollSpy).not.toHaveBeenCalled();
+    });
+
+    it("falls back to a generic message when a nudge's messageId isn't in the predefined catalog", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+        ok: true,
+        events: [],
+      });
+      vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({
+        ok: true,
+        nudges: [
+          {
+            id: "nudge-2",
+            senderUserId: "user-b",
+            recipientUserId: "user-a",
+            messageId: "some-future-message-id",
+            sentAt: Date.now(),
+          },
+        ],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "friend-nudge-nudge-2",
+        expect.objectContaining({ message: expect.stringContaining("sent you a nudge") })
+      );
+    });
   });
 
   it("cancels the friend-poll alarm and records a gated SESSION_COMPLETED event on natural completion", async () => {

@@ -22,6 +22,7 @@ import {
 import { supabase } from "../infrastructure/backend/supabaseClient";
 import * as friendGroupApi from "../infrastructure/backend/friendGroupApi";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
+import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
@@ -425,6 +426,11 @@ async function routeMessage(
       return { ok: true, members };
     }
 
+    case "GROUP_LIST_MINE": {
+      const memberships = await friendGroupApi.listMyGroups();
+      return { ok: true, memberships };
+    }
+
     case "FRIEND_EVENTS_FETCH": {
       // fetchNewEventsForFriends already degrades to [] (never throws) when signed out - see
       // sessionStatusSyncApi.ts - so FriendGroupPanel.tsx always gets an ok:true response, even
@@ -433,6 +439,21 @@ async function routeMessage(
         message.payload.sinceTimestamp
       );
       return { ok: true, events };
+    }
+
+    case "NUDGE_SEND": {
+      // sendNudge already translates a server-side (RLS/can_send_nudge()) rejection into
+      // { ok: false, error } - see nudgeApi.ts - never throws for that case, so this stays a
+      // thin pass-through like every other case here.
+      return nudgeApi.sendNudge(message.payload.friendUserId, message.payload.messageId);
+    }
+
+    case "NUDGES_FETCH": {
+      // fetchIncomingNudges already degrades to [] (never throws) when signed out or on a
+      // transient failure - see nudgeApi.ts - so FriendGroupPanel.tsx always gets an ok:true
+      // response, even with nothing to show.
+      const nudges = await nudgeApi.fetchIncomingNudges(message.payload.sinceTimestamp);
+      return { ok: true, nudges };
     }
 
     default:

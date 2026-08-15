@@ -10,6 +10,8 @@ import { handleMessage } from "./messageRouter";
 import { supabase } from "../infrastructure/backend/supabaseClient";
 import * as friendGroupApi from "../infrastructure/backend/friendGroupApi";
 import type { FriendGroup, GroupMembership, InviteCode } from "../infrastructure/backend/friendGroupApi";
+import * as nudgeApi from "../infrastructure/backend/nudgeApi";
+import type { FriendNudge } from "../infrastructure/backend/nudgeApi";
 
 beforeEach(() => {
   fakeBrowser.reset();
@@ -180,5 +182,82 @@ describe("messageRouter — GROUP_*", () => {
 
     expect(spy).toHaveBeenCalledWith("group-1");
     expect(result).toEqual({ ok: true, members });
+  });
+
+  it("GROUP_LIST_MINE calls friendGroupApi.listMyGroups", async () => {
+    const memberships: GroupMembership[] = [
+      { groupId: "group-1", userId: "user-a", joinedAt: "2026-01-01T00:00:00Z" },
+      { groupId: "group-2", userId: "user-a", joinedAt: "2026-01-02T00:00:00Z" },
+    ];
+    const spy = vi.spyOn(friendGroupApi, "listMyGroups").mockResolvedValue(memberships);
+
+    const result = (await handleMessage({ type: "GROUP_LIST_MINE" })) as {
+      ok: boolean;
+      memberships: GroupMembership[];
+    };
+
+    expect(spy).toHaveBeenCalled();
+    expect(result).toEqual({ ok: true, memberships });
+  });
+
+  it("GROUP_LIST_MINE propagates a thrown error as ok:false (outer handleMessage catch)", async () => {
+    vi.spyOn(friendGroupApi, "listMyGroups").mockRejectedValue(new Error("Not signed in."));
+
+    const result = (await handleMessage({ type: "GROUP_LIST_MINE" })) as {
+      ok: boolean;
+      error?: string;
+    };
+
+    expect(result).toEqual({ ok: false, error: "Not signed in." });
+  });
+});
+
+describe("messageRouter — NUDGE_*", () => {
+  it("NUDGE_SEND calls nudgeApi.sendNudge with the given friendUserId/messageId and returns its result verbatim", async () => {
+    const spy = vi.spyOn(nudgeApi, "sendNudge").mockResolvedValue({ ok: true });
+
+    const result = (await handleMessage({
+      type: "NUDGE_SEND",
+      payload: { friendUserId: "user-r", messageId: "keep-going" },
+    })) as { ok: boolean };
+
+    expect(spy).toHaveBeenCalledWith("user-r", "keep-going");
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("NUDGE_SEND passes through a server-side rejection (ok:false + error) without throwing", async () => {
+    vi.spyOn(nudgeApi, "sendNudge").mockResolvedValue({
+      ok: false,
+      error: "Couldn't send that nudge — this friend may have nudges turned off, or you're on cooldown.",
+    });
+
+    const result = (await handleMessage({
+      type: "NUDGE_SEND",
+      payload: { friendUserId: "user-r", messageId: "keep-going" },
+    })) as { ok: boolean; error?: string };
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("cooldown");
+  });
+
+  it("NUDGES_FETCH calls nudgeApi.fetchIncomingNudges with the given sinceTimestamp", async () => {
+    const nudges: FriendNudge[] = [
+      {
+        id: "nudge-1",
+        senderUserId: "user-s",
+        recipientUserId: "user-r",
+        messageId: "keep-going",
+        sentAt: Date.now(),
+      },
+    ];
+    const spy = vi.spyOn(nudgeApi, "fetchIncomingNudges").mockResolvedValue(nudges);
+
+    const result = (await handleMessage({
+      type: "NUDGES_FETCH",
+      payload: { sinceTimestamp: 12345 },
+    })) as { ok: boolean; nudges: FriendNudge[] };
+
+    expect(spy).toHaveBeenCalledWith(12345);
+    expect(result).toEqual({ ok: true, nudges });
   });
 });
