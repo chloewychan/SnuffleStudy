@@ -3,8 +3,10 @@
 // nothing." A mocked unit test (see src/infrastructure/backend/digestApi.test.ts) can only prove
 // fetchDigestForDate/pollNewDigests call the right table/columns - it can't prove the live
 // database's RLS policy + friend_has_granted_digest_visibility()/compute_daily_digests()
-// (supabase/migrations/20260815000010_v2_daily_digests.sql) actually aggregate and gate access
-// the way they claim to. This script proves that against the live project.
+// (supabase/migrations/20260815000010_v2_daily_digests.sql, tightened by
+// 20260815000011_v2_daily_digests_require_shared_group.sql - fix round 1, see Case 2b below)
+// actually aggregate and gate access the way they claim to. This script proves that against the
+// live project.
 //
 // Standalone Node script (same style/conventions as scripts/verify-unlock-requests.mjs, the most
 // recent/closest in shape - reuses its test-account helpers) - reads .env via dotenv/config, not
@@ -17,36 +19,49 @@
 // data an aggregation can actually consume, not just a domain-level unit test in isolation.
 //
 // What it does:
-//   1. Creates three ephemeral, auto-confirmed accounts via the service-role admin API: S
-//      (subject - the person being digested about), F (friend who opts INTO
-//      receive_daily_digest toward S), N (friend who does NOT opt in). Signs in as each via the
-//      anon-key client (password auth), so every read below goes through the same RLS-bound
-//      client digestApi.ts's fetchDigestForDate() would use.
-//   2. Seeds session_status_events rows directly (service-role, bypassing RLS - the insert path
+//   1. Creates ephemeral, auto-confirmed accounts via the service-role admin API: S (subject -
+//      the person being digested about), F (friend who opts INTO receive_daily_digest toward S
+//      AND shares a group with S), N (friend who does NOT opt in at all), G (friend who opts
+//      INTO receive_daily_digest toward S but does NOT share a group with S - fix round 1's new
+//      case, see below), S2 (a second subject, for the zero-distraction case). Signs in as each
+//      via the anon-key client (password auth), so every read below goes through the same
+//      RLS-bound client digestApi.ts's fetchDigestForDate() would use.
+//   2. Fix round 1: creates a friend_groups/group_memberships row for S and F (mirrors
+//      scripts/verify-unlock-requests.mjs's createGroupWithMembers shortcut - the invite-code
+//      join flow itself is already proven by verify-rls.mjs). G is deliberately left OUT of any
+//      group with S - that's the whole point of Case 2b below.
+//   3. Seeds session_status_events rows directly (service-role, bypassing RLS - the insert path
 //      itself is already proven by scripts/verify-friend-sync.mjs; this script's focus is
 //      aggregation + digest visibility) for S on DATE_A with known counts: 2 SESSION_COMPLETED,
 //      1 SESSION_ABANDONED, 3 DISTRACTION_ATTEMPT, 2 RECOVERY - so recovery_rate should compute
 //      to 2/3.
-//   3. Case 1: F sets friendship_settings (user_id=F, friend_user_id=S, receive_daily_digest=
-//      true) - opts in. Calls compute_daily_digests(DATE_A) via the service-role RPC. F can then
-//      SELECT the resulting daily_digests row for S/DATE_A and sees the exact seeded counts.
-//   4. Case 2: N has NO friendship_settings row toward S at all (the default "opted out" state -
+//   4. Case 1: F sets friendship_settings (user_id=F, friend_user_id=S, receive_daily_digest=
+//      true) - opts in, AND shares a group with S. Calls compute_daily_digests(DATE_A) via the
+//      service-role RPC. F can then SELECT the resulting daily_digests row for S/DATE_A and sees
+//      the exact seeded counts.
+//   5. Case 2: N has NO friendship_settings row toward S at all (the default "opted out" state -
 //      supabase/migrations/20260815000007_v2_nudges.sql's can_send_nudge() comment documents
 //      this codebase's "no row = not opted in" convention, which this migration's
 //      friend_has_granted_digest_visibility() follows identically). N attempts to SELECT the same
 //      row and sees nothing.
-//   5. Case 3: compute_daily_digests(DATE_B) - a second date with zero seeded events for S - is
+//   6. Case 2b (fix round 1 - the privacy gap this round closes): G opts INTO receive_daily_digest
+//      toward S (same as F), but does NOT share a group membership with S. G attempts to SELECT
+//      S's digest and is denied - proving daily_digests' SELECT policy now requires a shared
+//      group membership in addition to the opt-in, matching session_status_events'/
+//      unlock_requests' precedent, and closing the "any stranger can unilaterally opt into
+//      reading anyone's digest" gap the original policy (20260815000010) had.
+//   7. Case 3: compute_daily_digests(DATE_B) - a second date with zero seeded events for S - is
 //      called. F queries daily_digests filtered to DATE_B and gets nothing back (not stale data
 //      carried over from DATE_A).
-//   6. Case 4: compute_daily_digests(DATE_A) is called a SECOND time (simulating a re-run of the
+//   8. Case 4: compute_daily_digests(DATE_A) is called a SECOND time (simulating a re-run of the
 //      same day, e.g. a retried cron tick) - S's row is upserted (same primary key), not
 //      duplicated, and the values are unchanged. A raw admin count confirms exactly one row still
 //      exists for (S, DATE_A).
-//   7. Case 5: seeds a second subject S2 with ZERO DISTRACTION_ATTEMPT events that day (only one
+//   9. Case 5: seeds a second subject S2 with ZERO DISTRACTION_ATTEMPT events that day (only one
 //      SESSION_COMPLETED) and computes their digest - confirms the zero-distraction convention
 //      documented in the migration (recovery_rate = 1.0, not NaN/0/error).
-//   8. Cleans up every row it created and all test accounts via the service-role client.
-//   9. Prints a pass/fail summary and exits non-zero if anything failed.
+//  10. Cleans up every row it created and all test accounts via the service-role client.
+//  11. Prints a pass/fail summary and exits non-zero if anything failed.
 
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
@@ -181,6 +196,27 @@ async function computeDigests(targetDate) {
   return admin.rpc("compute_daily_digests", { target_date: targetDate });
 }
 
+// Fix round 1: direct admin group setup, mirrored exactly from
+// scripts/verify-unlock-requests.mjs's createGroupWithMembers (same shortcut/rationale - the
+// invite-code join flow itself is already proven by verify-rls.mjs, so this script starts from
+// "accounts already share (or don't share) a group" and focuses entirely on daily_digests' own
+// RLS policy). `memberIds` is every member INCLUDING the owner - see that script's comment on why
+// omitting the owner from group_memberships breaks the group-visibility check.
+async function createGroupWithMembers(ownerId, memberIds, name) {
+  const groupId = crypto.randomUUID();
+  const { error: groupErr } = await admin
+    .from("friend_groups")
+    .insert({ id: groupId, name, owner_user_id: ownerId });
+  if (groupErr) throw new Error(`Failed to create group ${name}: ${groupErr.message}`);
+  for (const userId of memberIds) {
+    const { error: memErr } = await admin
+      .from("group_memberships")
+      .insert({ group_id: groupId, user_id: userId });
+    if (memErr) throw new Error(`Failed to add ${userId} to group ${name}: ${memErr.message}`);
+  }
+  return groupId;
+}
+
 async function cleanup(userIds) {
   console.log("\nCleaning up test data...");
   // Dependency order matters: FKs have no ON DELETE CASCADE (same note as verify-rls.mjs/
@@ -190,6 +226,12 @@ async function cleanup(userIds) {
   await admin.from("session_status_events").delete().in("user_id", userIds);
   await admin.from("friendship_settings").delete().in("user_id", userIds);
   await admin.from("friendship_settings").delete().in("friend_user_id", userIds);
+  // Fix round 1: the new group_memberships/friend_groups rows created for Case 1's shared-group
+  // setup also need cleaning up - S is used as the owner (see main()), so filtering
+  // group_memberships by user_id and friend_groups by owner_user_id (both already scoped to
+  // userIds) covers everything this script creates.
+  await admin.from("group_memberships").delete().in("user_id", userIds);
+  await admin.from("friend_groups").delete().in("owner_user_id", userIds);
 
   for (const id of userIds) {
     const { error } = await admin.auth.admin.deleteUser(id);
@@ -199,18 +241,28 @@ async function cleanup(userIds) {
 }
 
 async function main() {
-  console.log("Creating ephemeral test accounts (S = subject, F = opted-in friend, N = opted-out friend)...");
+  console.log(
+    "Creating ephemeral test accounts (S = subject, F = opted-in group-mate, N = opted-out, G = opted-in but NOT a group-mate)..."
+  );
   const userS = await createTestUser("s");
   const userF = await createTestUser("f");
   const userN = await createTestUser("n");
+  const userG = await createTestUser("g");
   const userS2 = await createTestUser("s2");
-  const userIds = [userS.id, userF.id, userN.id, userS2.id];
+  const userIds = [userS.id, userF.id, userN.id, userG.id, userS2.id];
 
   try {
     const clientF = await signInAs(userF.email);
     const clientN = await signInAs(userN.email);
+    const clientG = await signInAs(userG.email);
     await signInAs(userS.email); // Not used directly below, but confirms S can sign in.
-    record("Setup: S, F, N signed in via anon-key client", true);
+    record("Setup: S, F, N, G signed in via anon-key client", true);
+
+    // Fix round 1: S and F share a group - required for Case 1 to pass under the tightened
+    // policy (20260815000011_v2_daily_digests_require_shared_group.sql). G is deliberately left
+    // out of any group with S (Case 2b below).
+    await createGroupWithMembers(userS.id, [userS.id, userF.id], `Verify Digest G1 ${RUN_ID}`);
+    record("Setup: S and F share a group; G shares no group with S", true);
 
     // --- Seed S's session_status_events for DATE_A: 2 completed, 1 abandoned, 3 distractions,
     // 2 recoveries -> recovery_rate should compute to 2/3 ---
@@ -228,7 +280,8 @@ async function main() {
     await seedEvent(userS.id, sessionId, "RECOVERY", DATE_A, 10);
     record("Setup: seeded S's session_status_events for DATE_A (2 completed, 1 abandoned, 3 distractions, 2 recoveries)", true);
 
-    // --- Case 1: F opts in, compute_daily_digests(DATE_A), F sees the correct aggregated numbers ---
+    // --- Case 1: F (shares a group with S) opts in, compute_daily_digests(DATE_A), F sees the
+    // correct aggregated numbers ---
     const { error: fOptInErr } = await clientF
       .from("friendship_settings")
       .insert({ user_id: userF.id, friend_user_id: userS.id, receive_daily_digest: true });
@@ -262,6 +315,23 @@ async function main() {
     // --- Case 2: N (opted out - no friendship_settings row at all) sees nothing for S ---
     await expectDenied("Case 2: N (opted out, no friendship_settings row toward S) cannot read S's digest for DATE_A", () =>
       clientN.from("daily_digests").select().eq("subject_user_id", userS.id).eq("digest_date", DATE_A).single()
+    );
+
+    // --- Case 2b (fix round 1 - the privacy gap this round closes): G opts in via
+    // receive_daily_digest (same as F), but shares NO group with S - must still be denied. This
+    // is the exact scenario the original policy (20260815000010) got wrong: a unilateral opt-in
+    // with zero group relationship was previously sufficient to read a stranger's digest. ---
+    const { error: gOptInErr } = await clientG
+      .from("friendship_settings")
+      .insert({ user_id: userG.id, friend_user_id: userS.id, receive_daily_digest: true });
+    record(
+      "Setup: G opts into receive_daily_digest toward S (but shares no group with S)",
+      !gOptInErr,
+      gOptInErr?.message
+    );
+    await expectDenied(
+      "Case 2b: G (opted in via receive_daily_digest, but NOT a group-mate of S) cannot read S's digest for DATE_A",
+      () => clientG.from("daily_digests").select().eq("subject_user_id", userS.id).eq("digest_date", DATE_A).single()
     );
 
     // --- Case 3: a second date with no seeded events returns nothing (not stale DATE_A data) ---
