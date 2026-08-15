@@ -11,6 +11,7 @@ import {
   pollRelevantUnlockRequests,
   type UnlockRequest,
 } from "../infrastructure/backend/unlockRequestApi";
+import { pollNewDigests } from "../infrastructure/backend/digestApi";
 import { nudgeMessageText } from "../domain/accountability/nudgeMessages";
 import {
   getLastFriendPollAt,
@@ -19,6 +20,8 @@ import {
   setLastNudgePollAt,
   getLastUnlockPollAt,
   setLastUnlockPollAt,
+  getLastDigestPollAt,
+  setLastDigestPollAt,
 } from "../infrastructure/storage/friendPollState";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
@@ -192,11 +195,60 @@ async function pollUnlockRequestUpdates(userId: string): Promise<void> {
   }
 }
 
-// Runs all three poll streams (session-status events, nudges, unlock requests) on every
-// friend-poll alarm tick. Best-effort throughout: none of pollSessionEventUpdates/
-// pollNudgeUpdates/pollUnlockRequestUpdates ever throws (each wraps its own body), but this
-// outer try/catch stays as a last-resort safety net so nothing here can take down the alarm
-// listener.
+// v2 Task 9, Part D: fourth stream on this same alarm - daily digests. Reuses Task 6's
+// alarm/notification path per this task's brief ("Tasks 7, 8, 9, and 14 all share the one
+// alarm"), not a new one. Same "only advance the cursor on confirmed success" discipline as the
+// other three streams, using its own independent cursor (getLastDigestPollAt/setLastDigestPollAt)
+// so a failure here never affects, and is never affected by, the other three cursors.
+//
+// Cursor is compared against daily_digests.computed_at (not digest_date) - mirrors how the other
+// streams use occurred_at/sent_at as their timestamp cursor (see friendPollState.ts and
+// digestApi.ts's pollNewDigests). Since compute_daily_digests() (supabase/migrations/
+// 20260815000010_v2_daily_digests.sql) upserts exactly one row per (subject_user_id,
+// digest_date) - never one row per session - this cursor mechanism alone is what satisfies this
+// task's DoD ("a friend ... sees one summary per day, not per session"): a friend's digest row
+// for a given day only ever crosses the cursor once (the first poll tick after it's computed),
+// regardless of how many sessions fed into it.
+//
+// The caller's own digest row (digest.friendUserId === userId, i.e. a digest about the current
+// user's own activity, which RLS also legitimately returns) is intentionally skipped here - a
+// user doesn't need a chrome.notifications toast about their own stats; this stream exists to
+// tell a friend about someone ELSE's digest.
+async function pollDigestUpdates(userId: string): Promise<void> {
+  try {
+    const now = Date.now();
+    const since = (await getLastDigestPollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
+    const result = await pollNewDigests(since);
+    if (!result.ok) {
+      // Same rationale as the other three poll functions' identical branch: leave the persisted
+      // cursor untouched on a failed fetch so the next tick retries this exact window instead of
+      // silently losing whatever digest(s) were computed during the outage.
+      return;
+    }
+    for (const digest of result.digests) {
+      if (digest.friendUserId === userId) continue;
+      // Copy deliberately distinct from the other three streams' notification titles/bodies
+      // ("Friend activity" / "Nudge from a friend" / "Unlock request"...), and echoes the
+      // architecture overview's own example phrasing ("Bob was really locked in today") - no
+      // display-name lookup exists anywhere in this codebase yet (FriendGroupPanel.tsx has the
+      // identical limitation - no `profiles` table), so "A friend" stands in for a real name.
+      showNotification(
+        `friend-digest-${digest.friendUserId}-${digest.digestDate}`,
+        "Daily digest",
+        `A friend was really locked in today — ${digest.completedSessions} session${digest.completedSessions === 1 ? "" : "s"} completed, ${digest.distractionCount} distraction${digest.distractionCount === 1 ? "" : "s"}.`
+      );
+    }
+    await setLastDigestPollAt(now);
+  } catch (err) {
+    console.error("Failed to poll friend digests", err);
+  }
+}
+
+// Runs all four poll streams (session-status events, nudges, unlock requests, daily digests) on
+// every friend-poll alarm tick. Best-effort throughout: none of pollSessionEventUpdates/
+// pollNudgeUpdates/pollUnlockRequestUpdates/pollDigestUpdates ever throws (each wraps its own
+// body), but this outer try/catch stays as a last-resort safety net so nothing here can take down
+// the alarm listener.
 async function handleFriendPollAlarm(): Promise<void> {
   try {
     // Re-check eligibility on every tick (fix round 1), not just once at alarm-start time
@@ -216,6 +268,7 @@ async function handleFriendPollAlarm(): Promise<void> {
     await pollSessionEventUpdates();
     await pollNudgeUpdates();
     await pollUnlockRequestUpdates(userId);
+    await pollDigestUpdates(userId);
   } catch (err) {
     console.error("Failed to poll friend events", err);
   }

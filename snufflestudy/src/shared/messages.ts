@@ -85,4 +85,10 @@ export type ExtensionMessage =
   // FRIEND_EVENTS_FETCH/NUDGES_FETCH's identical split). A single query covers both this panel's
   // needs: the requester's own requests (any status) and pending requests from anyone sharing a
   // group with the current user - see unlockRequestApi.ts's queryRelevantSince comment.
-  | { type: "UNLOCK_REQUESTS_FETCH"; payload: { sinceTimestamp: number } };
+  | { type: "UNLOCK_REQUESTS_FETCH"; payload: { sinceTimestamp: number } }
+  // v2 Task 9: routes to digestApi.fetchDigestForDate - the on-demand counterpart to the
+  // background's alarm-driven poll (alarmHandlers.ts calls digestApi.pollNewDigests directly,
+  // mirroring FRIEND_EVENTS_FETCH/NUDGES_FETCH/UNLOCK_REQUESTS_FETCH's identical split). `date`
+  // is a YYYY-MM-DD calendar date (daily_digests.digest_date's type); FriendGroupPanel.tsx picks
+  // which date to request (see that file's own comment on why it defaults to yesterday).
+  | { type: "DIGEST_FETCH"; payload: { date: string } };

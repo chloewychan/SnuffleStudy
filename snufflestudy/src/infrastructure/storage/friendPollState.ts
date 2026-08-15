@@ -59,3 +59,29 @@ export async function getLastUnlockPollAt(): Promise<number | null> {
 export async function setLastUnlockPollAt(timestamp: number): Promise<void> {
   await chrome.storage.local.set({ [LAST_UNLOCK_POLL_KEY]: timestamp });
 }
+
+// v2 Task 9: a fourth, independent cursor for the daily-digest stream polled by the same alarm
+// tick (handleFriendPollAlarm in alarmHandlers.ts) - reuses Task 6's alarm per this task's brief
+// ("Tasks 7, 8, 9, and 14 all reuse this exact poll/notification path"), not a new alarm. Same
+// get/set shape and the same "only advance on confirmed success" discipline as the three cursors
+// above, for the identical reason: session-status events, nudges, unlock requests, and daily
+// digests are four logically separate streams delivered by the same chrome.alarms entry, so each
+// needs its own "last checked" bookmark that advances independently of the others' success/
+// failure on any given tick.
+//
+// Compared against daily_digests.computed_at (see digestApi.ts's pollNewDigests), not
+// digest_date - this is what makes "one summary per day, not per session" fall out of the cursor
+// alone: compute_daily_digests() upserts exactly one row per (subject_user_id, digest_date), so a
+// given day's row only ever crosses this cursor once (the first poll after it's computed).
+const LAST_DIGEST_POLL_KEY = "snufflestudy.friendPollLastDigestCheckedAt";
+
+export async function getLastDigestPollAt(): Promise<number | null> {
+  const result = await chrome.storage.local.get<Record<typeof LAST_DIGEST_POLL_KEY, number>>(
+    LAST_DIGEST_POLL_KEY
+  );
+  return result[LAST_DIGEST_POLL_KEY] ?? null;
+}
+
+export async function setLastDigestPollAt(timestamp: number): Promise<void> {
+  await chrome.storage.local.set({ [LAST_DIGEST_POLL_KEY]: timestamp });
+}

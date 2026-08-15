@@ -14,6 +14,8 @@ import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import type { FriendNudge } from "../infrastructure/backend/nudgeApi";
 import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
 import type { UnlockRequest } from "../infrastructure/backend/unlockRequestApi";
+import * as digestApi from "../infrastructure/backend/digestApi";
+import type { DigestSummary } from "../infrastructure/backend/digestApi";
 
 beforeEach(() => {
   fakeBrowser.reset();
@@ -337,5 +339,39 @@ describe("messageRouter — UNLOCK_REQUEST_*", () => {
 
     expect(spy).toHaveBeenCalledWith(12345);
     expect(result).toEqual({ ok: true, requests: [sampleRequest] });
+  });
+});
+
+describe("messageRouter — DIGEST_FETCH (v2 Task 9)", () => {
+  it("calls digestApi.fetchDigestForDate with the given date", async () => {
+    const digests: DigestSummary[] = [
+      {
+        friendUserId: "user-friend",
+        completedSessions: 2,
+        abandonedSessions: 0,
+        distractionCount: 1,
+        recoveryRate: 1,
+      },
+    ];
+    const spy = vi.spyOn(digestApi, "fetchDigestForDate").mockResolvedValue(digests);
+
+    const result = (await handleMessage({
+      type: "DIGEST_FETCH",
+      payload: { date: "2026-08-14" },
+    })) as { ok: boolean; digests: DigestSummary[] };
+
+    expect(spy).toHaveBeenCalledWith("2026-08-14");
+    expect(result).toEqual({ ok: true, digests });
+  });
+
+  it("returns ok:true with an empty digests array when fetchDigestForDate resolves to []  (signed out / nothing for that date - never throws)", async () => {
+    vi.spyOn(digestApi, "fetchDigestForDate").mockResolvedValue([]);
+
+    const result = (await handleMessage({
+      type: "DIGEST_FETCH",
+      payload: { date: "2026-08-14" },
+    })) as { ok: boolean; digests: DigestSummary[] };
+
+    expect(result).toEqual({ ok: true, digests: [] });
   });
 });

@@ -4,6 +4,7 @@ import { FriendGroupPanel } from "./FriendGroupPanel";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 import type { FriendEvent } from "../../infrastructure/backend/sessionStatusSyncApi";
 import type { FriendNudge } from "../../infrastructure/backend/nudgeApi";
+import type { DigestSummary } from "../../infrastructure/backend/digestApi";
 import type { ExtensionMessage } from "../../shared/messages";
 
 beforeEach(() => {
@@ -27,13 +28,21 @@ const sampleNudge: FriendNudge = {
   sentAt: new Date("2026-01-01T12:05:00Z").getTime(),
 };
 
+const sampleDigest: DigestSummary = {
+  friendUserId: "user-friend",
+  completedSessions: 3,
+  abandonedSessions: 1,
+  distractionCount: 2,
+  recoveryRate: 0.5,
+};
+
 // On mount, FriendGroupPanel now fires several independent sendMessage calls (v2 Task 7:
 // FRIEND_EVENTS_FETCH, AUTH_GET_SESSION, GROUP_LIST_MINE -> GROUP_LIST_MEMBERS per group,
-// NUDGES_FETCH) - a single blanket `mockResolvedValue` (this file's pre-Task-7 style) would
-// route the same response to every one of them, which breaks the moment any of them need
-// different shapes. This router lets each test override only the message types it cares about;
-// everything else gets a healthy, empty-but-ok default so unrelated sections of the panel render
-// their "nothing here" state instead of an error.
+// NUDGES_FETCH; v2 Task 9: DIGEST_FETCH) - a single blanket `mockResolvedValue` (this file's
+// pre-Task-7 style) would route the same response to every one of them, which breaks the moment
+// any of them need different shapes. This router lets each test override only the message types
+// it cares about; everything else gets a healthy, empty-but-ok default so unrelated sections of
+// the panel render their "nothing here" state instead of an error.
 type Handler = (msg: ExtensionMessage) => unknown;
 
 function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
@@ -44,6 +53,7 @@ function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Ha
     GROUP_LIST_MEMBERS: () => ({ ok: true, members: [] }),
     NUDGES_FETCH: () => ({ ok: true, nudges: [] }),
     NUDGE_SEND: () => ({ ok: true }),
+    DIGEST_FETCH: () => ({ ok: true, digests: [] }),
   };
   return (msg: ExtensionMessage) => {
     const handler = overrides[msg.type] ?? defaults[msg.type];
@@ -294,5 +304,78 @@ describe("FriendGroupPanel — incoming nudges (v2 Task 7)", () => {
     await waitFor(() => screen.getByText("No recent friend activity."));
 
     expect(document.querySelector(".snuffles-overlay")).not.toBeInTheDocument();
+  });
+});
+
+describe("FriendGroupPanel — daily digest (v2 Task 9)", () => {
+  it("fetches the digest for yesterday's date on mount via DIGEST_FETCH and renders it in approachable copy", async () => {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ DIGEST_FETCH: () => ({ ok: true, digests: [sampleDigest] }) })
+    );
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "DIGEST_FETCH",
+        payload: { date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) },
+      })
+    );
+    // Approachable copy, not raw field names (completedSessions/abandonedSessions/etc never
+    // appear verbatim) - per this task's brief ("Bob was really locked in today").
+    await waitFor(() =>
+      expect(screen.getByText(/was really locked in today/)).toBeInTheDocument()
+    );
+    expect(screen.getByText(/3 sessions completed/)).toBeInTheDocument();
+    expect(screen.getByText(/50% recovered/)).toBeInTheDocument();
+    expect(screen.queryByText(/completedSessions/)).not.toBeInTheDocument();
+  });
+
+  it("filters out the caller's own digest row (this panel is the friend-activity view)", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        AUTH_GET_SESSION: () => ({ ok: true, session: { user: { id: "user-self" } } }),
+        DIGEST_FETCH: () => ({
+          ok: true,
+          digests: [sampleDigest, { ...sampleDigest, friendUserId: "user-self" }],
+        }),
+      })
+    );
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+
+    await waitFor(() => expect(screen.getByText(/Friend user-friend/)).toBeInTheDocument());
+    expect(screen.queryByText(/Friend user-self/)).not.toBeInTheDocument();
+  });
+
+  it("shows a friendly empty state when there is no digest yet", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+
+    await waitFor(() => expect(screen.getByText(/No digest yet for yesterday/)).toBeInTheDocument());
+  });
+
+  it("shows an error message when the digest fetch response is ok:false", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ DIGEST_FETCH: () => ({ ok: false, error: "Not signed in." }) })
+    );
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/Couldn't load the daily digest/)).toHaveTextContent("Not signed in.")
+    );
+  });
+
+  it("also refetches the digest via DIGEST_FETCH when the Refresh button is clicked", async () => {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+    await waitFor(() => expect(callsOfType(sendMessageSpy, "DIGEST_FETCH")).toHaveLength(1));
+
+    fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
+
+    await waitFor(() => expect(callsOfType(sendMessageSpy, "DIGEST_FETCH")).toHaveLength(2));
   });
 });

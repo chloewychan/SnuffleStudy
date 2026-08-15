@@ -3,6 +3,7 @@ import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { FriendEvent } from "../../infrastructure/backend/sessionStatusSyncApi";
 import type { FriendNudge } from "../../infrastructure/backend/nudgeApi";
 import type { GroupMembership } from "../../infrastructure/backend/friendGroupApi";
+import type { DigestSummary } from "../../infrastructure/backend/digestApi";
 import { NUDGE_MESSAGES, nudgeMessageText } from "../../domain/accountability/nudgeMessages";
 import { getAnimationAsset } from "../../content/overlay/animationRegistry";
 
@@ -25,6 +26,36 @@ interface AuthUser {
 }
 interface AuthSession {
   user: AuthUser;
+}
+
+// v2 Task 9: yesterday's UTC calendar date, formatted as daily_digests.digest_date expects
+// (YYYY-MM-DD). compute_daily_digests() (supabase/migrations/20260815000010_v2_daily_digests.sql)
+// defaults to aggregating `current_date - 1` on its once-daily schedule, so "yesterday" is the
+// most recent date a digest row can realistically exist for by the time a user opens this panel -
+// the brief's "'today' (or the most recent available date)" wording is satisfied by picking that
+// date directly rather than trying "today" first and falling back (which would almost always miss
+// on the first attempt and add a second round trip for no benefit).
+function yesterdayDateString(): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// Renders one friend's digest summary in approachable copy (not raw field names) - per this
+// task's brief ("Bob was really locked in today"). No display-name source exists anywhere in this
+// codebase yet (same limitation FriendGroupPanel's event list and friendGroupApi.ts's
+// listMembers() already have - no `profiles` table), so the friend is identified by their raw
+// user id, consistent with how this panel already renders friend ids elsewhere.
+function DigestCard({ digest }: { digest: DigestSummary }) {
+  const recoveryPercent = Math.round(digest.recoveryRate * 100);
+  return (
+    <li>
+      <strong>Friend {digest.friendUserId}</strong> was really locked in today —{" "}
+      {digest.completedSessions} session{digest.completedSessions === 1 ? "" : "s"} completed,{" "}
+      {digest.abandonedSessions} abandoned, {digest.distractionCount} distraction
+      {digest.distractionCount === 1 ? "" : "s"}, {recoveryPercent}% recovered.
+    </li>
+  );
 }
 
 // Renders one incoming nudge using the exact same visual pattern v1's SnufflesOverlay warning
@@ -100,6 +131,9 @@ export function FriendGroupPanel({ onClose }: FriendGroupPanelProps) {
   const [nudgesError, setNudgesError] = useState<string | null>(null);
   const [dismissedNudgeIds, setDismissedNudgeIds] = useState<Set<string>>(new Set());
 
+  const [digests, setDigests] = useState<DigestSummary[] | null>(null);
+  const [digestsError, setDigestsError] = useState<string | null>(null);
+
   function loadEvents() {
     setLoading(true);
     setError(null);
@@ -140,6 +174,25 @@ export function FriendGroupPanel({ onClose }: FriendGroupPanelProps) {
       .catch((err) => {
         console.error("Failed to fetch incoming nudges", err);
         setNudgesError(err instanceof Error ? err.message : String(err));
+      });
+  }
+
+  function loadDigests() {
+    setDigestsError(null);
+    sendMessage<{ ok: boolean; digests?: DigestSummary[]; error?: string }>({
+      type: "DIGEST_FETCH",
+      payload: { date: yesterdayDateString() },
+    })
+      .then((res) => {
+        if (!res.ok) {
+          setDigestsError(res.error ?? "Could not load the daily digest.");
+          return;
+        }
+        setDigests(res.digests ?? []);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch daily digest", err);
+        setDigestsError(err instanceof Error ? err.message : String(err));
       });
   }
 
@@ -209,6 +262,7 @@ export function FriendGroupPanel({ onClose }: FriendGroupPanelProps) {
     loadEvents();
     loadFriends();
     loadNudges();
+    loadDigests();
   }, []);
 
   // The friend the picker targets: whatever the user explicitly picked, defaulting to the first
@@ -252,6 +306,12 @@ export function FriendGroupPanel({ onClose }: FriendGroupPanelProps) {
   }
 
   const visibleNudge = incomingNudges?.find((n) => !dismissedNudgeIds.has(n.id)) ?? null;
+
+  // digestApi.fetchDigestForDate deliberately does NOT filter out the caller's own row (see that
+  // file's own comment) - this panel is specifically the "friend activity" view, so it filters
+  // self out here at display time rather than showing a user a card about their own stats
+  // alongside their friends'.
+  const friendDigests = digests?.filter((d) => d.friendUserId !== selfUserId) ?? null;
 
   return (
     <div className="friend-group-panel">
@@ -311,14 +371,33 @@ export function FriendGroupPanel({ onClose }: FriendGroupPanelProps) {
         )}
       </section>
 
+      <section className="friend-group-panel__digest">
+        <h3>Daily digest</h3>
+        {digestsError && (
+          <p role="alert">Couldn't load the daily digest: {digestsError}. Please try again.</p>
+        )}
+        {friendDigests && friendDigests.length === 0 && !digestsError && (
+          <p>No digest yet for yesterday — check back once a friend has completed a session.</p>
+        )}
+        {friendDigests && friendDigests.length > 0 && (
+          <ul className="friend-group-panel__digests">
+            {friendDigests.map((digest) => (
+              <DigestCard key={digest.friendUserId} digest={digest} />
+            ))}
+          </ul>
+        )}
+      </section>
+
       <button
         type="button"
         onClick={() => {
           // Fix round 1: Refresh previously only re-triggered FRIEND_EVENTS_FETCH, so a user
           // manually refreshing wouldn't pick up new nudges without closing/reopening the panel
-          // - both fetches now run together, matching what "Refresh" implies.
+          // - both fetches now run together, matching what "Refresh" implies. v2 Task 9: the
+          // daily digest fetch joins the same "Refresh means refresh everything" convention.
           loadEvents();
           loadNudges();
+          loadDigests();
         }}
         disabled={loading}
       >

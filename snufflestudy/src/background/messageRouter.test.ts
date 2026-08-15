@@ -511,6 +511,136 @@ describe("messageRouter — RETURN_TO_WORK_CLOSE_TAB", () => {
   });
 });
 
+describe("messageRouter — MARK_SITE_STUDY_RELATED", () => {
+  it("allowlists the hostname for the rest of the session", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    const result = (await handleMessage({
+      type: "MARK_SITE_STUDY_RELATED",
+      payload: { sessionId: created.session.id, hostname: "youtube.com" },
+    })) as { ok: boolean; session: { allowedSites: string[] } };
+
+    expect(result.ok).toBe(true);
+    expect(result.session.allowedSites).toContain("youtube.com");
+  });
+
+  // v2 Task 9, Part B: sessionMachine.recordRecovery existed since v1 but was never wired into
+  // any message handler - this is one of the two resolution paths that now call it (the other is
+  // RETURN_TO_WORK_CLOSE_TAB below). Only counts as a genuine recovery when there was an active
+  // warning (interventionLevel !== "none") at the time - DISTRACTION_ATTEMPT (via
+  // machine.warnSession) is what puts a session into that state.
+  it("records a recovery (increments recoveries, clears interventionLevel, logs a RECOVERY event) when there was an active warning", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleMessage({
+      type: "DISTRACTION_ATTEMPT",
+      payload: { sessionId: created.session.id, hostname: "youtube.com" },
+    });
+
+    const result = (await handleMessage({
+      type: "MARK_SITE_STUDY_RELATED",
+      payload: { sessionId: created.session.id, hostname: "youtube.com" },
+    })) as { ok: boolean; session: { recoveries: number; interventionLevel: string } };
+
+    expect(result.ok).toBe(true);
+    expect(result.session.recoveries).toBe(1);
+    expect(result.session.interventionLevel).toBe("none");
+
+    const events = (await handleMessage({
+      type: "SESSION_LIST_EVENTS",
+      payload: { sessionId: created.session.id },
+    })) as { events: { type: string }[] };
+    expect(events.events.map((e) => e.type)).toContain("RECOVERY");
+  });
+
+  it("does NOT record a recovery when there was no active warning (guards against inflating the count on routine use)", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    const result = (await handleMessage({
+      type: "MARK_SITE_STUDY_RELATED",
+      payload: { sessionId: created.session.id, hostname: "youtube.com" },
+    })) as { ok: boolean; session: { recoveries: number } };
+
+    expect(result.ok).toBe(true);
+    expect(result.session.recoveries).toBe(0);
+
+    const events = (await handleMessage({
+      type: "SESSION_LIST_EVENTS",
+      payload: { sessionId: created.session.id },
+    })) as { events: { type: string }[] };
+    expect(events.events.map((e) => e.type)).not.toContain("RECOVERY");
+  });
+});
+
+describe("messageRouter — RETURN_TO_WORK_CLOSE_TAB records a recovery when appropriate (v2 Task 9, Part B)", () => {
+  it("records a recovery when the active session has an active warning", async () => {
+    vi.spyOn(chrome.tabs, "remove").mockResolvedValue(undefined);
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleMessage({
+      type: "DISTRACTION_ATTEMPT",
+      payload: { sessionId: created.session.id, hostname: "youtube.com" },
+    });
+
+    const result = (await handleMessage(
+      { type: "RETURN_TO_WORK_CLOSE_TAB" },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender
+    )) as { ok: boolean };
+    expect(result.ok).toBe(true);
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { recoveries: number; interventionLevel: string };
+    };
+    expect(active.session.recoveries).toBe(1);
+    expect(active.session.interventionLevel).toBe("none");
+
+    const events = (await handleMessage({
+      type: "SESSION_LIST_EVENTS",
+      payload: { sessionId: created.session.id },
+    })) as { events: { type: string }[] };
+    expect(events.events.map((e) => e.type)).toContain("RECOVERY");
+  });
+
+  it("does NOT record a recovery when there was no active warning", async () => {
+    vi.spyOn(chrome.tabs, "remove").mockResolvedValue(undefined);
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    await handleMessage(
+      { type: "RETURN_TO_WORK_CLOSE_TAB" },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender
+    );
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { recoveries: number };
+    };
+    expect(active.session.recoveries).toBe(0);
+  });
+
+  it("does NOT throw when there is no active session at all (e.g. a stale/duplicate message)", async () => {
+    vi.spyOn(chrome.tabs, "remove").mockResolvedValue(undefined);
+
+    await expect(
+      handleMessage(
+        { type: "RETURN_TO_WORK_CLOSE_TAB" },
+        { tab: { id: 7 } } as chrome.runtime.MessageSender
+      )
+    ).resolves.toEqual({ ok: true });
+  });
+});
+
 describe("messageRouter — SESSION_LIST_HISTORY / SESSION_COUNT_BY_STATE / SESSION_LIST_EVENTS", () => {
   it("lists an abandoned session via SESSION_LIST_HISTORY, newest first", async () => {
     const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {

@@ -12,11 +12,14 @@ import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSy
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
 import type { UnlockRequest } from "../infrastructure/backend/unlockRequestApi";
+import * as digestApi from "../infrastructure/backend/digestApi";
+import type { FriendDigest } from "../infrastructure/backend/digestApi";
 import * as friendSync from "./friendSync";
 import {
   getLastFriendPollAt,
   getLastNudgePollAt,
   getLastUnlockPollAt,
+  getLastDigestPollAt,
 } from "../infrastructure/storage/friendPollState";
 import { classifySite } from "../domain/sites/siteRules";
 import type { CreateSessionInput, StudySession } from "../domain/session/sessionTypes";
@@ -222,12 +225,18 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
   //
   // v2 Task 8: same treatment for the third stream, unlock requests (pollUnlockRequestUpdates) -
   // defaulted to a clean "no new/resolved requests" result for the identical reason.
+  //
+  // v2 Task 9: same treatment for the fourth stream, daily digests (pollDigestUpdates) -
+  // defaulted to a clean "no new digests" result so every pre-existing test in this describe
+  // block (which predates Task 9) never exercises digestApi's real supabase.auth.getSession()
+  // call. The dedicated "digest poll" tests further below override this per-test.
   beforeEach(() => {
     vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
     vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
       ok: true,
       requests: [],
     });
+    vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({ ok: true, digests: [] });
   });
 
   // handleFriendPollAlarm now re-checks friend-sync eligibility on every tick (fix round 1) -
@@ -828,6 +837,162 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       expect(await getLastFriendPollAt()).toBeNull();
       expect(await getLastNudgePollAt()).toBeNull();
       expect(await getLastUnlockPollAt()).toEqual(expect.any(Number));
+    });
+  });
+
+  describe("digest polling (v2 Task 9 - reuses this same alarm, not a parallel one)", () => {
+    function sampleDigest(overrides: Partial<FriendDigest> = {}): FriendDigest {
+      return {
+        friendUserId: "user-b",
+        completedSessions: 3,
+        abandonedSessions: 1,
+        distractionCount: 2,
+        recoveryRate: 0.5,
+        digestDate: "2026-08-14",
+        computedAt: Date.now(),
+        ...overrides,
+      };
+    }
+
+    it("dispatches to pollNewDigests when eligible, in the same tick as the other three streams", async () => {
+      mockFriendSyncEligible();
+      const digestPollSpy = vi
+        .spyOn(digestApi, "pollNewDigests")
+        .mockResolvedValue({ ok: true, digests: [] });
+      const eventPollSpy = vi
+        .spyOn(sessionStatusSyncApi, "pollNewEventsForFriends")
+        .mockResolvedValue({ ok: true, events: [] });
+      const nudgePollSpy = vi
+        .spyOn(nudgeApi, "pollIncomingNudges")
+        .mockResolvedValue({ ok: true, nudges: [] });
+      const unlockPollSpy = vi
+        .spyOn(unlockRequestApi, "pollRelevantUnlockRequests")
+        .mockResolvedValue({ ok: true, requests: [] });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(digestPollSpy).toHaveBeenCalledTimes(1);
+      expect(eventPollSpy).toHaveBeenCalledTimes(1);
+      expect(nudgePollSpy).toHaveBeenCalledTimes(1);
+      expect(unlockPollSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows a chrome.notifications toast, distinct from the other three streams' copy, for a friend's new digest", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({
+        ok: true,
+        digests: [sampleDigest({ friendUserId: "user-b", completedSessions: 4, distractionCount: 1 })],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "friend-digest-user-b-2026-08-14",
+        expect.objectContaining({
+          title: "Daily digest",
+          message: expect.stringContaining("4 sessions completed"),
+        })
+      );
+    });
+
+    // This task's DoD: "a friend who opted into digests ... sees one summary per day, not per
+    // session." The current user's OWN digest row (RLS legitimately returns it too - see
+    // digestApi.ts) must never generate a notification - that stream exists to tell a friend
+    // about someone ELSE's digest, not to tell a user about their own stats.
+    it("does NOT notify about the current user's own digest row", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({
+        ok: true,
+        digests: [sampleDigest({ friendUserId: "user-a" })],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).not.toHaveBeenCalled();
+    });
+
+    it("persists the digest-poll timestamp only on a successful poll, independently of the other three cursors", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+        ok: true,
+        events: [],
+      });
+      vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
+      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+        ok: true,
+        requests: [],
+      });
+      const digestPollSpy = vi
+        .spyOn(digestApi, "pollNewDigests")
+        .mockResolvedValue({ ok: true, digests: [] });
+      expect(await getLastDigestPollAt()).toBeNull();
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      const persisted = await getLastDigestPollAt();
+      expect(persisted).toEqual(expect.any(Number));
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(digestPollSpy).toHaveBeenLastCalledWith(persisted);
+    });
+
+    // Mirrors Task 6/7/8's identical guarantee: a failed digest poll must not advance the
+    // cursor, or a digest computed during the outage would be permanently lost once the next
+    // tick starts counting from `now` instead of retrying the same window.
+    it("does NOT advance the persisted digest cursor when the poll fails (ok: false), so the next tick retries the same window", async () => {
+      mockFriendSyncEligible();
+      const digestPollSpy = vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({ ok: false });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+      expect(await getLastDigestPollAt()).toBeNull();
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+      expect(await getLastDigestPollAt()).toBeNull();
+
+      expect(digestPollSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not show any digest notifications when the poll fails", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({ ok: false });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).not.toHaveBeenCalled();
+    });
+
+    it("skips the digest fetch entirely when friend-sync is no longer enabled/signed-in (same eligibility gate as the other three polls)", async () => {
+      vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue(null);
+      const digestPollSpy = vi.spyOn(digestApi, "pollNewDigests");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(digestPollSpy).not.toHaveBeenCalled();
+    });
+
+    it("only notifies once for the same digest row across repeated ticks (one summary per day, not per session) - a re-poll after the cursor advances past it does not re-notify", async () => {
+      mockFriendSyncEligible("user-a");
+      const digest = sampleDigest({ friendUserId: "user-b" });
+      const digestPollSpy = vi.spyOn(digestApi, "pollNewDigests");
+      digestPollSpy.mockResolvedValueOnce({ ok: true, digests: [digest] });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+      expect(createNotificationSpy).toHaveBeenCalledTimes(1);
+      const cursorAfterTick1 = await getLastDigestPollAt();
+
+      // Second tick: pollNewDigests is called with the now-advanced cursor - a real backend
+      // would no longer return this same row (its computed_at no longer exceeds the cursor), so
+      // the mock reflects that here rather than re-returning the same digest.
+      digestPollSpy.mockResolvedValueOnce({ ok: true, digests: [] });
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledTimes(1);
+      expect(digestPollSpy).toHaveBeenLastCalledWith(cursorAfterTick1);
     });
   });
 

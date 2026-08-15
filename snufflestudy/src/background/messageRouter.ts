@@ -24,6 +24,7 @@ import * as friendGroupApi from "../infrastructure/backend/friendGroupApi";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
+import * as digestApi from "../infrastructure/backend/digestApi";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
@@ -255,8 +256,22 @@ async function routeMessage(
     }
 
     case "MARK_SITE_STUDY_RELATED": {
+      // v2 Task 9, Part B: this is one of the two resolution paths for an active distraction
+      // warning (the other is RETURN_TO_WORK_CLOSE_TAB below) - see SnufflesOverlay.tsx's
+      // handleMarkStudyRelated. sessionMachine.recordRecovery existed since v1 but was never
+      // called from anywhere (verified via grep - zero call sites outside sessionMachine.ts's
+      // own tests), which left RECOVERY permanently unreachable and recoveryRate fabricated
+      // for every user - a real gap this task's DigestSummary.recoveryRate field would
+      // otherwise just report as 0 forever. Only counts as a genuine recovery if there was
+      // actually an active warning to recover from (interventionLevel !== "none" at the time),
+      // so routinely pre-allowlisting a site with no prior warning doesn't inflate the count.
       const session = await requireActiveSession(message.payload.sessionId);
-      const updated = { ...session, allowedSites: [...session.allowedSites, message.payload.hostname] };
+      const hadActiveWarning = session.interventionLevel !== "none";
+      const withAllowedSite = {
+        ...session,
+        allowedSites: [...session.allowedSites, message.payload.hostname],
+      };
+      const updated = hadActiveWarning ? machine.recordRecovery(withAllowedSite) : withAllowedSite;
       await settingsRepo.saveActiveSession(updated);
       await historyRepo.recordEvent({
         id: newId(),
@@ -265,6 +280,20 @@ async function routeMessage(
         occurredAt: now,
         hostname: message.payload.hostname,
       });
+      if (hadActiveWarning) {
+        // Dual-write, mirroring DISTRACTION_ATTEMPT's existing local+remote pattern above: a
+        // local historyRepo event (History/Review consistency) plus a best-effort/gated remote
+        // sync (friendSync.ts). displayLabel is generic, never the hostname - same convention
+        // DISTRACTION_ATTEMPT's own comment documents.
+        await historyRepo.recordEvent({
+          id: newId(),
+          sessionId: session.id,
+          type: "RECOVERY",
+          occurredAt: now,
+          hostname: message.payload.hostname,
+        });
+        recordFriendStatusEvent("RECOVERY", session.id, "got back on track");
+      }
       return { ok: true, session: updated };
     }
 
@@ -273,6 +302,25 @@ async function routeMessage(
       // when the restricted site was opened fresh (no document.referrer) - the tab has
       // nothing to navigate back to, so closing it is the only way to actually return the
       // user to their prior context (see SnufflesOverlay.tsx for the referrer branch).
+      //
+      // v2 Task 9, Part B: this message carries no sessionId (see shared/messages.ts - its
+      // payload is empty), so recordRecovery below reads the active session directly via
+      // settingsRepo rather than requireActiveSession. Same "only counts if there was an
+      // active warning" guard as MARK_SITE_STUDY_RELATED above - see that case's comment for
+      // the full rationale (recordRecovery was previously wired up nowhere at all).
+      const session = await settingsRepo.getActiveSession();
+      if (session && session.interventionLevel !== "none") {
+        const updated = machine.recordRecovery(session);
+        await settingsRepo.saveActiveSession(updated);
+        await historyRepo.recordEvent({
+          id: newId(),
+          sessionId: session.id,
+          type: "RECOVERY",
+          occurredAt: now,
+        });
+        recordFriendStatusEvent("RECOVERY", session.id, "got back on track");
+      }
+
       const tabId = sender.tab?.id;
       if (tabId === undefined) {
         return { ok: false, error: "No tab to close." };
@@ -488,6 +536,14 @@ async function routeMessage(
         message.payload.sinceTimestamp
       );
       return { ok: true, requests };
+    }
+
+    case "DIGEST_FETCH": {
+      // fetchDigestForDate already degrades to [] (never throws) when signed out or on a
+      // transient failure - see digestApi.ts - so FriendGroupPanel.tsx always gets an ok:true
+      // response, even with nothing to show for that date.
+      const digests = await digestApi.fetchDigestForDate(message.payload.date);
+      return { ok: true, digests };
     }
 
     default:
