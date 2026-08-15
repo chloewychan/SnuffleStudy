@@ -35,9 +35,13 @@ describe("overlayHost mount", () => {
     expect(styleEl!.textContent).toContain("--color-surface");
     expect(styleEl!.textContent).toContain(".snuffles-overlay--warning");
 
-    // The rendered overlay lives inside the shadow tree...
+    // The rendered overlay lives inside the shadow tree... This test never mocks sendMessage, so
+    // SnufflesOverlay's SESSION_GET_ACTIVE fetch (v2 Task 11) has no listener to answer it and
+    // fails - the overlay degrades gracefully to its generic fallback message rather than a
+    // profile-specific pickWarningMessage() line, which is the correct, tested behavior for that
+    // case (see SnufflesOverlay.test.tsx's own dedicated graceful-degradation tests).
     expect(shadowRoot!.querySelector(".snuffles-overlay--warning")).not.toBeNull();
-    expect(shadowRoot!.textContent).toContain("That is not chemistry.");
+    expect(shadowRoot!.textContent).toContain("You're supposed to be studying right now.");
 
     // ...and is NOT present in host's light DOM (host itself stays an unstyled, childless-in-
     // light-DOM attachment point), confirming isolation from the host page.
@@ -59,7 +63,9 @@ describe("overlayHost mount", () => {
     expect(matchMediaSpy).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)");
 
     const host = document.getElementById("snufflestudy-overlay-host");
-    expect(host!.shadowRoot!.textContent).toContain("That is not chemistry.");
+    // Generic fallback (not a profile-specific pickWarningMessage() line) for the same reason as
+    // the test above - no sendMessage listener is registered here, so SESSION_GET_ACTIVE fails.
+    expect(host!.shadowRoot!.textContent).toContain("You're supposed to be studying right now.");
 
     vi.unstubAllGlobals();
   });
