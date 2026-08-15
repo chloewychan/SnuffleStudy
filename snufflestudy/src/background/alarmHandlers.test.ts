@@ -10,9 +10,16 @@ import { DEFAULT_USER_SETTINGS } from "../domain/settings/userSettings";
 import { supabase } from "../infrastructure/backend/supabaseClient";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
+import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
+import type { UnlockRequest } from "../infrastructure/backend/unlockRequestApi";
 import * as friendSync from "./friendSync";
-import { getLastFriendPollAt, getLastNudgePollAt } from "../infrastructure/storage/friendPollState";
-import type { CreateSessionInput } from "../domain/session/sessionTypes";
+import {
+  getLastFriendPollAt,
+  getLastNudgePollAt,
+  getLastUnlockPollAt,
+} from "../infrastructure/storage/friendPollState";
+import { classifySite } from "../domain/sites/siteRules";
+import type { CreateSessionInput, StudySession } from "../domain/session/sessionTypes";
 
 beforeEach(() => {
   fakeBrowser.reset();
@@ -212,8 +219,15 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
   // only cares about the session-events half) never exercises nudgeApi's real
   // supabase.auth.getSession() call. The dedicated "nudge poll" tests further below override
   // this per-test.
+  //
+  // v2 Task 8: same treatment for the third stream, unlock requests (pollUnlockRequestUpdates) -
+  // defaulted to a clean "no new/resolved requests" result for the identical reason.
   beforeEach(() => {
     vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
+    vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+      ok: true,
+      requests: [],
+    });
   });
 
   // handleFriendPollAlarm now re-checks friend-sync eligibility on every tick (fix round 1) -
@@ -523,6 +537,297 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
         "friend-nudge-nudge-2",
         expect.objectContaining({ message: expect.stringContaining("sent you a nudge") })
       );
+    });
+  });
+
+  describe("unlock-request polling (v2 Task 8 - reuses this same alarm, not a parallel one)", () => {
+    function sampleRequest(overrides: Partial<UnlockRequest> = {}): UnlockRequest {
+      return {
+        id: "req-1",
+        sessionId: "session-1",
+        requesterUserId: "user-b",
+        hostname: "youtube.com",
+        status: "pending",
+        requestedAt: Date.now(),
+        resolvedAt: null,
+        resolvedBy: null,
+        ...overrides,
+      };
+    }
+
+    it("dispatches to pollRelevantUnlockRequests when eligible, in the same tick as the other two streams", async () => {
+      mockFriendSyncEligible();
+      const unlockPollSpy = vi
+        .spyOn(unlockRequestApi, "pollRelevantUnlockRequests")
+        .mockResolvedValue({ ok: true, requests: [] });
+      const eventPollSpy = vi
+        .spyOn(sessionStatusSyncApi, "pollNewEventsForFriends")
+        .mockResolvedValue({ ok: true, events: [] });
+      const nudgePollSpy = vi
+        .spyOn(nudgeApi, "pollIncomingNudges")
+        .mockResolvedValue({ ok: true, nudges: [] });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(unlockPollSpy).toHaveBeenCalledTimes(1);
+      expect(eventPollSpy).toHaveBeenCalledTimes(1);
+      expect(nudgePollSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows a chrome.notifications toast when a friend (someone else) has a new pending request in a shared group", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+        ok: true,
+        requests: [sampleRequest({ requesterUserId: "user-b", status: "pending" })],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "unlock-request-pending-req-1",
+        expect.objectContaining({
+          title: "Unlock request",
+          message: expect.stringContaining("youtube.com"),
+        })
+      );
+    });
+
+    it("does NOT notify about the current user's own still-pending request (they already know they just created it)", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+        ok: true,
+        requests: [sampleRequest({ requesterUserId: "user-a", status: "pending" })],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).not.toHaveBeenCalled();
+    });
+
+    it("notifies with distinct copy when the current user's own request was approved, and merges the hostname into the active session's allowedSites", async () => {
+      mockFriendSyncEligible("user-a");
+      const created = (await handleMessage({
+        type: "SESSION_CREATE",
+        payload: { ...createInput, restrictedSites: ["youtube.com"] },
+      })) as { session: { id: string } };
+      await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleRequest({
+            sessionId: created.session.id,
+            requesterUserId: "user-a",
+            status: "approved",
+            resolvedBy: "user-b",
+          }),
+        ],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "unlock-request-req-1",
+        expect.objectContaining({
+          title: "Unlock request approved",
+          message: expect.stringContaining("youtube.com"),
+        })
+      );
+
+      const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+        session: { allowedSites: string[] };
+      };
+      expect(active.session.allowedSites).toContain("youtube.com");
+
+      // The DoD-critical assertion (per this task's brief): classifySite must now return ALLOWED
+      // for the unlocked hostname on this session - this is the actual mechanism that makes
+      // tabHandlers.ts's warning path never trigger for it (see that file's early return on
+      // anything classifySite doesn't call BLOCKED), independent of siteRestrictionOverrides
+      // (which this task deliberately does not use - see this task's report).
+      const activeSession = (
+        (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: StudySession }
+      ).session;
+      expect(classifySite(activeSession, "youtube.com")).toBe("ALLOWED");
+    });
+
+    it("notifies with distinct copy when the current user's own request was denied, and does NOT touch allowedSites", async () => {
+      mockFriendSyncEligible("user-a");
+      const created = (await handleMessage({
+        type: "SESSION_CREATE",
+        payload: { ...createInput, restrictedSites: ["youtube.com"] },
+      })) as { session: { id: string } };
+      await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleRequest({
+            sessionId: created.session.id,
+            requesterUserId: "user-a",
+            status: "denied",
+            resolvedBy: "user-b",
+          }),
+        ],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "unlock-request-req-1",
+        expect.objectContaining({
+          title: "Unlock request denied",
+          message: expect.stringContaining("youtube.com"),
+        })
+      );
+
+      const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+        session: { allowedSites: string[] };
+      };
+      expect(active.session.allowedSites).not.toContain("youtube.com");
+    });
+
+    it("does NOT apply the allowedSites merge when the approval's sessionId no longer matches the active session (stale approval guard)", async () => {
+      mockFriendSyncEligible("user-a");
+      const created = (await handleMessage({
+        type: "SESSION_CREATE",
+        payload: { ...createInput, restrictedSites: ["youtube.com"] },
+      })) as { session: { id: string } };
+      await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleRequest({
+            sessionId: "some-other-stale-session-id",
+            requesterUserId: "user-a",
+            status: "approved",
+            resolvedBy: "user-b",
+          }),
+        ],
+      });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+        session: { allowedSites: string[] };
+      };
+      expect(active.session.allowedSites).not.toContain("youtube.com");
+    });
+
+    it("does NOT apply the allowedSites merge when there is no active session at all", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleRequest({
+            sessionId: "session-1",
+            requesterUserId: "user-a",
+            status: "approved",
+            resolvedBy: "user-b",
+          }),
+        ],
+      });
+
+      // Should not throw even though getActiveSession() returns null.
+      await expect(
+        handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm)
+      ).resolves.not.toThrow();
+
+      const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
+      expect(active.session).toBeNull();
+    });
+
+    it("persists the unlock-request-poll timestamp only on a successful poll, independently of the other two cursors", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+        ok: true,
+        events: [],
+      });
+      vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
+      const unlockPollSpy = vi
+        .spyOn(unlockRequestApi, "pollRelevantUnlockRequests")
+        .mockResolvedValue({ ok: true, requests: [] });
+      expect(await getLastUnlockPollAt()).toBeNull();
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      const persisted = await getLastUnlockPollAt();
+      expect(persisted).toEqual(expect.any(Number));
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(unlockPollSpy).toHaveBeenLastCalledWith(persisted);
+    });
+
+    // Mirrors Task 6 fix round 1's session-events guarantee (and Task 7's identical nudge
+    // guarantee): a failed unlock-request poll must not advance the cursor, or a pending
+    // request/resolution that arrived during the outage would be permanently lost once the next
+    // tick starts counting from `now` instead of retrying the same window.
+    it("does NOT advance the persisted unlock-request cursor when the poll fails (ok: false), so the next tick retries the same window", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+        ok: true,
+        events: [],
+      });
+      vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
+      const unlockPollSpy = vi
+        .spyOn(unlockRequestApi, "pollRelevantUnlockRequests")
+        .mockResolvedValue({ ok: false });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+      expect(await getLastUnlockPollAt()).toBeNull();
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+      expect(await getLastUnlockPollAt()).toBeNull();
+
+      expect(unlockPollSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not show any unlock-request notifications when the poll fails", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+        ok: true,
+        events: [],
+      });
+      vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
+      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({ ok: false });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).not.toHaveBeenCalled();
+    });
+
+    it("skips the unlock-request fetch entirely when friend-sync is no longer enabled/signed-in (same eligibility gate as the other two polls)", async () => {
+      vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue(null);
+      const unlockPollSpy = vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(unlockPollSpy).not.toHaveBeenCalled();
+    });
+
+    it("a failed session-events or nudge poll does not prevent the unlock-request cursor from advancing (the three streams are fully independent)", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+        ok: false,
+        events: [],
+      });
+      vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: false });
+      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+        ok: true,
+        requests: [],
+      });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(await getLastFriendPollAt()).toBeNull();
+      expect(await getLastNudgePollAt()).toBeNull();
+      expect(await getLastUnlockPollAt()).toEqual(expect.any(Number));
     });
   });
 

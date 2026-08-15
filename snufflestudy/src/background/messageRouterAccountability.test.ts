@@ -12,6 +12,8 @@ import * as friendGroupApi from "../infrastructure/backend/friendGroupApi";
 import type { FriendGroup, GroupMembership, InviteCode } from "../infrastructure/backend/friendGroupApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import type { FriendNudge } from "../infrastructure/backend/nudgeApi";
+import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
+import type { UnlockRequest } from "../infrastructure/backend/unlockRequestApi";
 
 beforeEach(() => {
   fakeBrowser.reset();
@@ -259,5 +261,81 @@ describe("messageRouter — NUDGE_*", () => {
 
     expect(spy).toHaveBeenCalledWith(12345);
     expect(result).toEqual({ ok: true, nudges });
+  });
+});
+
+describe("messageRouter — UNLOCK_REQUEST_*", () => {
+  const sampleRequest: UnlockRequest = {
+    id: "req-1",
+    sessionId: "session-1",
+    requesterUserId: "user-a",
+    hostname: "youtube.com",
+    status: "pending",
+    requestedAt: Date.now(),
+    resolvedAt: null,
+    resolvedBy: null,
+  };
+
+  it("UNLOCK_REQUEST_CREATE calls unlockRequestApi.createRequest with the given sessionId/hostname", async () => {
+    const spy = vi.spyOn(unlockRequestApi, "createRequest").mockResolvedValue(sampleRequest);
+
+    const result = (await handleMessage({
+      type: "UNLOCK_REQUEST_CREATE",
+      payload: { sessionId: "session-1", hostname: "youtube.com" },
+    })) as { ok: boolean; request: UnlockRequest };
+
+    expect(spy).toHaveBeenCalledWith("session-1", "youtube.com");
+    expect(result).toEqual({ ok: true, request: sampleRequest });
+  });
+
+  it("UNLOCK_REQUEST_CREATE propagates a thrown error as ok:false (outer handleMessage catch)", async () => {
+    vi.spyOn(unlockRequestApi, "createRequest").mockRejectedValue(new Error("Not signed in."));
+
+    const result = (await handleMessage({
+      type: "UNLOCK_REQUEST_CREATE",
+      payload: { sessionId: "session-1", hostname: "youtube.com" },
+    })) as { ok: boolean; error?: string };
+
+    expect(result).toEqual({ ok: false, error: "Not signed in." });
+  });
+
+  it("UNLOCK_REQUEST_RESOLVE calls unlockRequestApi.resolveRequest with the given requestId/decision", async () => {
+    const spy = vi.spyOn(unlockRequestApi, "resolveRequest").mockResolvedValue(undefined);
+
+    const result = (await handleMessage({
+      type: "UNLOCK_REQUEST_RESOLVE",
+      payload: { requestId: "req-1", decision: "approved" },
+    })) as { ok: boolean };
+
+    expect(spy).toHaveBeenCalledWith("req-1", "approved");
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("UNLOCK_REQUEST_RESOLVE propagates a thrown error as ok:false (e.g. first-responder-wins denial)", async () => {
+    vi.spyOn(unlockRequestApi, "resolveRequest").mockRejectedValue(
+      new Error("Could not resolve this request — it may already have been resolved.")
+    );
+
+    const result = (await handleMessage({
+      type: "UNLOCK_REQUEST_RESOLVE",
+      payload: { requestId: "req-1", decision: "approved" },
+    })) as { ok: boolean; error?: string };
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("already have been resolved");
+  });
+
+  it("UNLOCK_REQUESTS_FETCH calls unlockRequestApi.fetchRelevantUnlockRequests with the given sinceTimestamp", async () => {
+    const spy = vi
+      .spyOn(unlockRequestApi, "fetchRelevantUnlockRequests")
+      .mockResolvedValue([sampleRequest]);
+
+    const result = (await handleMessage({
+      type: "UNLOCK_REQUESTS_FETCH",
+      payload: { sinceTimestamp: 12345 },
+    })) as { ok: boolean; requests: UnlockRequest[] };
+
+    expect(spy).toHaveBeenCalledWith(12345);
+    expect(result).toEqual({ ok: true, requests: [sampleRequest] });
   });
 });

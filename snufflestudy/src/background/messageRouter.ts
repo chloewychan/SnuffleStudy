@@ -23,6 +23,7 @@ import { supabase } from "../infrastructure/backend/supabaseClient";
 import * as friendGroupApi from "../infrastructure/backend/friendGroupApi";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
+import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
@@ -454,6 +455,39 @@ async function routeMessage(
       // response, even with nothing to show.
       const nudges = await nudgeApi.fetchIncomingNudges(message.payload.sinceTimestamp);
       return { ok: true, nudges };
+    }
+
+    case "UNLOCK_REQUEST_CREATE": {
+      // createRequest throws (not signed in, insert error) rather than returning ok:false - the
+      // outer handleMessage try/catch (top of this file) turns that into { ok: false, error },
+      // same convention as GROUP_CREATE/GROUP_JOIN above.
+      const request = await unlockRequestApi.createRequest(
+        message.payload.sessionId,
+        message.payload.hostname
+      );
+      return { ok: true, request };
+    }
+
+    case "UNLOCK_REQUEST_RESOLVE": {
+      // resolveRequest throws on a denied/failed resolve (including the "first responder wins"
+      // race - see unlockRequestApi.ts's own comment) - same outer-catch convention as above.
+      // Applying the approved hostname to the requester's own active session does NOT happen
+      // here: this message runs on the RESOLVING FRIEND's device, which has no access to the
+      // requester's local session state - that side effect only happens on the requester's own
+      // device, via alarmHandlers.ts's friend-poll alarm noticing their own request resolved
+      // (see that file's pollUnlockRequestUpdates/applyApprovedUnlockRequest).
+      await unlockRequestApi.resolveRequest(message.payload.requestId, message.payload.decision);
+      return { ok: true };
+    }
+
+    case "UNLOCK_REQUESTS_FETCH": {
+      // fetchRelevantUnlockRequests already degrades to [] (never throws) when signed out or on
+      // a transient failure - see unlockRequestApi.ts - so UnlockRequestPanel.tsx always gets an
+      // ok:true response, even with nothing to show.
+      const requests = await unlockRequestApi.fetchRelevantUnlockRequests(
+        message.payload.sinceTimestamp
+      );
+      return { ok: true, requests };
     }
 
     default:

@@ -38,3 +38,24 @@ export async function getLastNudgePollAt(): Promise<number | null> {
 export async function setLastNudgePollAt(timestamp: number): Promise<void> {
   await chrome.storage.local.set({ [LAST_NUDGE_POLL_KEY]: timestamp });
 }
+
+// v2 Task 8: a third, independent cursor for the unlock-request stream polled by the same alarm
+// tick (handleFriendPollAlarm in alarmHandlers.ts) - reuses Task 6's alarm per this task's brief
+// ("Tasks 7, 8, 9, and 14 all reuse this exact poll/notification path"), not a new alarm. Same
+// get/set shape and the same "only advance on confirmed success" discipline as
+// getLastFriendPollAt/getLastNudgePollAt above, for the identical reason: session-status events,
+// nudges, and unlock requests are three logically separate streams delivered by the same
+// chrome.alarms entry, so each needs its own "last checked" bookmark that advances independently
+// of the others' success/failure on any given tick.
+const LAST_UNLOCK_POLL_KEY = "snufflestudy.friendPollLastUnlockCheckedAt";
+
+export async function getLastUnlockPollAt(): Promise<number | null> {
+  const result = await chrome.storage.local.get<Record<typeof LAST_UNLOCK_POLL_KEY, number>>(
+    LAST_UNLOCK_POLL_KEY
+  );
+  return result[LAST_UNLOCK_POLL_KEY] ?? null;
+}
+
+export async function setLastUnlockPollAt(timestamp: number): Promise<void> {
+  await chrome.storage.local.set({ [LAST_UNLOCK_POLL_KEY]: timestamp });
+}

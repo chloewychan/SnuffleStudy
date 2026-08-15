@@ -4,6 +4,7 @@ import { OnboardingWizard } from "../app/routes/OnboardingWizard";
 import { TaskVaultPage } from "../app/routes/TaskVaultPage";
 import { SessionSetupForm } from "./components/SessionSetupForm";
 import { FriendGroupPanel } from "./components/FriendGroupPanel";
+import { UnlockRequestPanel } from "./components/UnlockRequestPanel";
 import { SessionStatusCard } from "../shared/ui/SessionStatusCard";
 import { TimerRing } from "../shared/ui/TimerRing";
 import { EndSessionControl } from "../shared/ui/EndSessionControl";
@@ -16,7 +17,7 @@ import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
 import { remainingSeconds } from "../domain/session/timer";
 import type { UserSettings } from "../domain/settings/userSettings";
 
-type SidePanelView = "setup" | "taskVault" | "friends";
+type SidePanelView = "setup" | "taskVault" | "friends" | "unlockRequests";
 
 export function SidePanelApp() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -29,6 +30,11 @@ export function SidePanelApp() {
     goal?: string;
     taskBreakdownItemId?: string;
   }>({});
+  // v2 Task 8: whether the active-session view is showing UnlockRequestPanel instead of its
+  // normal timer/controls. Separate from `view` above - `view` only governs the no-active-session
+  // branch's routing (setup/taskVault/friends/unlockRequests), while a running session has its
+  // own dedicated render branch further below that doesn't go through `view` at all.
+  const [showUnlockPanel, setShowUnlockPanel] = useState(false);
 
   // Once a session actually starts, drop back to a clean "setup" view/no-prefill state for
   // next time - otherwise a stale goal/taskBreakdownItemId from a Task Vault pick would
@@ -38,6 +44,8 @@ export function SidePanelApp() {
     if (session) {
       setView("setup");
       setSessionPrefill({});
+      // A fresh session should never inherit a panel left open from a previous one.
+      setShowUnlockPanel(false);
     }
   }, [session]);
 
@@ -115,6 +123,14 @@ export function SidePanelApp() {
       );
     }
 
+    if (view === "unlockRequests") {
+      return (
+        <div className="sidepanel-app">
+          <UnlockRequestPanel session={null} onClose={() => setView("setup")} />
+        </div>
+      );
+    }
+
     return (
       <div className="sidepanel-app">
         <button type="button" onClick={() => setView("taskVault")}>
@@ -122,6 +138,9 @@ export function SidePanelApp() {
         </button>
         <button type="button" onClick={() => setView("friends")}>
           Friend activity
+        </button>
+        <button type="button" onClick={() => setView("unlockRequests")}>
+          Unlock requests
         </button>
         <SessionSetupForm
           settings={settings}
@@ -148,6 +167,19 @@ export function SidePanelApp() {
     );
   }
 
+  // v2 Task 8: the requester-side "request an unlock for a hostname" UI only makes sense while
+  // a session is actually running - reachable from a button in this active-session view (unlike
+  // FriendGroupPanel, which is only reachable from the no-session setup view above). Replaces
+  // this view's normal contents rather than overlaying them, same pattern as the
+  // COMPLETED/ABANDONED branches above swapping in a different screen entirely.
+  if (showUnlockPanel) {
+    return (
+      <div className="sidepanel-app">
+        <UnlockRequestPanel session={session} onClose={() => setShowUnlockPanel(false)} />
+      </div>
+    );
+  }
+
   const totalSeconds =
     session.state === "BREAK" ? session.breakDurationSeconds : session.focusDurationSeconds;
 
@@ -163,6 +195,9 @@ export function SidePanelApp() {
       <div className="sidepanel-app__controls">
         <PauseResumeControl session={session} />
         <EndSessionControl session={session} />
+        <button type="button" onClick={() => setShowUnlockPanel(true)}>
+          Unlock requests
+        </button>
       </div>
     </div>
   );

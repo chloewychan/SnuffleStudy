@@ -66,4 +66,23 @@ export type ExtensionMessage =
   // background's alarm-driven poll (alarmHandlers.ts) calls nudgeApi.pollIncomingNudges directly
   // rather than through this message, mirroring FRIEND_EVENTS_FETCH/pollNewEventsForFriends's
   // split.
-  | { type: "NUDGES_FETCH"; payload: { sinceTimestamp: number } };
+  | { type: "NUDGES_FETCH"; payload: { sinceTimestamp: number } }
+  // v2 Task 8: routes to unlockRequestApi.createRequest - UnlockRequestPanel.tsx's requester
+  // side. sessionId is the currently active session the requested hostname should be unlocked
+  // for; unlockRequestApi.createRequest throws on failure (not signed in, insert error), which
+  // messageRouter.ts's outer handleMessage try/catch turns into ok:false, same convention as
+  // GROUP_CREATE/GROUP_JOIN.
+  | { type: "UNLOCK_REQUEST_CREATE"; payload: { sessionId: string; hostname: string } }
+  // v2 Task 8: routes to unlockRequestApi.resolveRequest - UnlockRequestPanel.tsx's friend
+  // (approve/deny) side. "First responder wins" is enforced server-side (RLS - see
+  // supabase/migrations/20260815000008_v2_unlock_request_group_visibility.sql), not by this
+  // message or unlockRequestApi.ts pre-checking anything client-side - a second friend's resolve
+  // attempt on an already-resolved request throws, surfaced the same ok:false way.
+  | { type: "UNLOCK_REQUEST_RESOLVE"; payload: { requestId: string; decision: "approved" | "denied" } }
+  // v2 Task 8: routes to unlockRequestApi.fetchRelevantUnlockRequests - the on-demand
+  // counterpart to the background's alarm-driven poll (alarmHandlers.ts calls
+  // unlockRequestApi.pollRelevantUnlockRequests directly, mirroring
+  // FRIEND_EVENTS_FETCH/NUDGES_FETCH's identical split). A single query covers both this panel's
+  // needs: the requester's own requests (any status) and pending requests from anyone sharing a
+  // group with the current user - see unlockRequestApi.ts's queryRelevantSince comment.
+  | { type: "UNLOCK_REQUESTS_FETCH"; payload: { sinceTimestamp: number } };

@@ -7,12 +7,18 @@ import { showNotification } from "../infrastructure/browser/notificationsApi";
 import { clearHardBlockRules } from "../infrastructure/browser/declarativeNetRequestApi";
 import { pollNewEventsForFriends } from "../infrastructure/backend/sessionStatusSyncApi";
 import { pollIncomingNudges } from "../infrastructure/backend/nudgeApi";
+import {
+  pollRelevantUnlockRequests,
+  type UnlockRequest,
+} from "../infrastructure/backend/unlockRequestApi";
 import { nudgeMessageText } from "../domain/accountability/nudgeMessages";
 import {
   getLastFriendPollAt,
   setLastFriendPollAt,
   getLastNudgePollAt,
   setLastNudgePollAt,
+  getLastUnlockPollAt,
+  setLastUnlockPollAt,
 } from "../infrastructure/storage/friendPollState";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
@@ -95,10 +101,102 @@ async function pollNudgeUpdates(): Promise<void> {
   }
 }
 
-// Runs both poll streams (session-status events and nudges) on every friend-poll alarm tick.
-// Best-effort throughout: neither pollSessionEventUpdates nor pollNudgeUpdates ever throws (each
-// wraps its own body), but this outer try/catch stays as a last-resort safety net so nothing
-// here can take down the alarm listener.
+// v2 Task 8, Part B of this task's brief: applies an approved unlock request to the affected
+// LOCAL session. This can only run on the *requester's* device (the resolving friend's device
+// has no access to, and no business mutating, the requester's chrome.storage.local session
+// state) - which is exactly why this is only ever called from pollUnlockRequestUpdates below,
+// gated on `req.requesterUserId === userId` (the current device's own signed-in user).
+//
+// The plan's literal wording ("reuse the siteRestrictionOverrides mechanism from v1's
+// StudySession") is NOT what this does - see this task's report for the full trace, but in
+// short: siteRestrictionOverrides only ever changes a BLOCKED site's severity (soft vs. hard),
+// it is never consulted by classifySite() at all, and tabHandlers.ts's warning path already
+// returns early for anything classifySite() doesn't call BLOCKED - so a hostname could never
+// stop being blocked, or stop warning, via that mechanism. allowedSites IS what classifySite()
+// checks first (src/domain/sites/siteRules.ts) and returns ALLOWED immediately on a match - the
+// same mechanism MARK_SITE_STUDY_RELATED already uses in messageRouter.ts - so this reuses that
+// existing, already-proven path instead.
+//
+// Guards against a stale/mismatched approval: the request's session_id must match the CURRENTLY
+// active session's id (the user could have ended that session and started a new one, or ended
+// it entirely, before a friend got around to approving), and the session must not already be in
+// a terminal state (COMPLETED/ABANDONED) - mutating allowedSites on a session that's already
+// over would be a silent no-op at best and confusing at worst. Idempotent: if the hostname is
+// already in allowedSites (e.g. a re-poll after a service-worker restart re-delivers the same
+// approval, or the user separately used MARK_SITE_STUDY_RELATED for it), this is a no-op rather
+// than writing a duplicate entry.
+async function applyApprovedUnlockRequest(req: UnlockRequest): Promise<void> {
+  const session = await settingsRepo.getActiveSession();
+  if (!session || session.id !== req.sessionId) return;
+  if (session.state === "COMPLETED" || session.state === "ABANDONED") return;
+  if (session.allowedSites.includes(req.hostname)) return;
+
+  const updated = { ...session, allowedSites: [...session.allowedSites, req.hostname] };
+  await settingsRepo.saveActiveSession(updated);
+}
+
+// Polls unlock_requests for two distinct things relevant to the current user (v2 Task 8, reusing
+// Task 6's alarm/notification path per this task's brief), both delivered by the same
+// pollRelevantUnlockRequests query (see unlockRequestApi.ts's comment on why one query covers
+// both):
+//   (a) the requester's OWN request just got resolved (approved/denied) - apply the
+//       allowedSites change on approval, then notify either way, with copy distinct from both
+//       pollSessionEventUpdates's and pollNudgeUpdates's;
+//   (b) a NEW pending request from someone else sharing a group with the current user - notify
+//       so the friend knows to open the panel and review it.
+// A row that's the current user's own STILL-pending request (they just created it themselves) is
+// intentionally skipped - they already know, no notification needed. Same "only advance the
+// cursor on confirmed success" discipline as the two poll functions above, using its own
+// independent cursor (getLastUnlockPollAt/setLastUnlockPollAt) so a failure here never affects,
+// and is never affected by, the session-events or nudge cursors.
+async function pollUnlockRequestUpdates(userId: string): Promise<void> {
+  try {
+    const now = Date.now();
+    const since = (await getLastUnlockPollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
+    const result = await pollRelevantUnlockRequests(since);
+    if (!result.ok) {
+      // Same rationale as the other two poll functions' identical branch: leave the persisted
+      // cursor untouched on a failed fetch so the next tick retries this exact window instead of
+      // silently losing whatever pending requests/resolutions arrived during the outage.
+      return;
+    }
+    for (const req of result.requests) {
+      if (req.requesterUserId === userId) {
+        if (req.status === "approved") {
+          await applyApprovedUnlockRequest(req);
+          showNotification(
+            `unlock-request-${req.id}`,
+            "Unlock request approved",
+            `${req.hostname} is now allowed for the rest of this session.`
+          );
+        } else if (req.status === "denied") {
+          showNotification(
+            `unlock-request-${req.id}`,
+            "Unlock request denied",
+            `Your request to unlock ${req.hostname} was denied.`
+          );
+        }
+        // status === "pending" here means it's the requester's own still-unanswered request -
+        // nothing to do, they already know they just created it.
+      } else if (req.status === "pending") {
+        showNotification(
+          `unlock-request-pending-${req.id}`,
+          "Unlock request",
+          `A friend wants to unlock ${req.hostname} — open the panel to review.`
+        );
+      }
+    }
+    await setLastUnlockPollAt(now);
+  } catch (err) {
+    console.error("Failed to poll unlock requests", err);
+  }
+}
+
+// Runs all three poll streams (session-status events, nudges, unlock requests) on every
+// friend-poll alarm tick. Best-effort throughout: none of pollSessionEventUpdates/
+// pollNudgeUpdates/pollUnlockRequestUpdates ever throws (each wraps its own body), but this
+// outer try/catch stays as a last-resort safety net so nothing here can take down the alarm
+// listener.
 async function handleFriendPollAlarm(): Promise<void> {
   try {
     // Re-check eligibility on every tick (fix round 1), not just once at alarm-start time
@@ -107,16 +205,17 @@ async function handleFriendPollAlarm(): Promise<void> {
     // their last group, mid-session without anything telling this already-running alarm to stop
     // - without re-checking here, it would keep polling Supabase every minute regardless,
     // contradicting the architecture doc's "keep backend load and battery use proportional to
-    // actual usage" directive. Skips both fetches entirely (no network call against either
-    // table) when either check fails now; does not reactively cancel the alarm itself here
-    // (that's a nice-to-have, not required - the alarm's own stop points are still
-    // messageRouter.ts's SESSION_END/SESSION_DISMISS_* and this file's natural-completion path).
+    // actual usage" directive. Skips every fetch entirely (no network call against any table)
+    // when either check fails now; does not reactively cancel the alarm itself here (that's a
+    // nice-to-have, not required - the alarm's own stop points are still messageRouter.ts's
+    // SESSION_END/SESSION_DISMISS_* and this file's natural-completion path).
     const userId = await currentFriendSyncUserId();
     if (!userId) return;
     if (!(await isInAnyGroup(userId))) return;
 
     await pollSessionEventUpdates();
     await pollNudgeUpdates();
+    await pollUnlockRequestUpdates(userId);
   } catch (err) {
     console.error("Failed to poll friend events", err);
   }
