@@ -435,8 +435,17 @@ async function main() {
 
     // === (a) Group-membership floor: G has every one of the five toggles ON toward S, but does
     // NOT share a group with S - every read must still be denied. ===
+    // v2 Task 10 fix round 1 (supabase/migrations/20260815000013_v2_tighten_friendship_settings_insert.sql):
+    // friendship_settings' own INSERT policy now requires users_share_a_group(user_id,
+    // friend_user_id), so S's own client can no longer create this row via a normal write at all
+    // - S and G share no group. Seeded via the service-role client instead (bypasses RLS
+    // entirely, same pattern verify-digest.mjs's Case 2b setup now also uses for the identical
+    // reason) so this floor test still exercises what it always meant to: a row in this exact
+    // (every toggle on, no shared group) state, however it came to exist, must still be denied on
+    // every READ path below - defense-in-depth, independent of whether the write path that could
+    // produce this state even exists anymore.
     await expectOk("Setup: S grants G every one of the five new toggles (but G shares no group with S)", () =>
-      clientS.from("friendship_settings").upsert(
+      admin.from("friendship_settings").upsert(
         {
           user_id: userS.id,
           friend_user_id: userG.id,

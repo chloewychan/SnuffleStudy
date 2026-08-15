@@ -12,17 +12,28 @@
 // directly: node scripts/verify-nudges.mjs
 //
 // What it does:
-//   1. Creates two ephemeral, auto-confirmed accounts S (sender) and R (recipient) via the
+//   1. Creates three ephemeral, auto-confirmed accounts S (sender), R (recipient), and C (a
+//      stranger S shares no group with - fix round 1's addition, see step 2 below) via the
 //      service-role admin API, signs in as each via the anon-key client (password auth), so
 //      every write below goes through the same RLS-bound client nudgeApi.ts's sendNudge() would
 //      use.
-//   2. Case 1 (positive): S enables send_live_nudges toward R, R enables receive_live_nudges
+//   2. Fix round 1 (v2 Task 10 fix round 1, supabase/migrations/
+//      20260815000013_v2_tighten_friendship_settings_insert.sql): before any group is created,
+//      confirms S cannot INSERT a friendship_settings row toward C, a stranger they share no
+//      group with - the negative case for that migration's tightened INSERT policy. Then creates
+//      a shared group for S and R (mirroring scripts/verify-rls.mjs's/verify-friend-sync.mjs's/
+//      verify-digest.mjs's identical adaptation to migration 20260815000012's auto-create
+//      trigger) - required for every write below this point, since the trigger now auto-creates
+//      both directions of the (S, R) settings row the instant they share a group, and the
+//      tightened INSERT policy means a plain `.insert()` toward R would otherwise be denied
+//      outright (not just collide with the trigger's row).
+//   4. Case 1 (positive): S enables send_live_nudges toward R, R enables receive_live_nudges
 //      toward S with a shortened cooldown (COOLDOWN_SECONDS below, so this script never needs to
 //      sleep for the real default of 300s) - a nudge from S to R succeeds.
-//   3. Case 2: R turns receive_live_nudges off - the next nudge from S to R is rejected.
-//   4. Case 3: R turns receive_live_nudges back on, S turns send_live_nudges off - the next
+//   5. Case 2: R turns receive_live_nudges off - the next nudge from S to R is rejected.
+//   6. Case 3: R turns receive_live_nudges back on, S turns send_live_nudges off - the next
 //      nudge from S to R is rejected.
-//   5. Case 4: S turns send_live_nudges back on - a second nudge sent immediately (within the
+//   7. Case 4: S turns send_live_nudges back on - a second nudge sent immediately (within the
 //      cooldown window) is rejected. Fix round 1: this case runs after ~7 sequential network
 //      round trips of setup/assertion following case 1's nudge insert, so COOLDOWN_SECONDS must
 //      stay comfortably larger than that cumulative round-trip latency against a real hosted
@@ -32,11 +43,11 @@
 //      elapsed wall-clock time since case 1's insert is logged right before this case's
 //      assertion specifically so a future flake here is diagnosable rather than silently
 //      misleading.
-//   6. Case 5: the service-role client rewrites that nudge's sent_at to (COOLDOWN_SECONDS + 1)s
+//   8. Case 5: the service-role client rewrites that nudge's sent_at to (COOLDOWN_SECONDS + 1)s
 //      in the past (simulated elapsed time, per this task's instruction to avoid actually
 //      sleeping in the script) - a subsequent nudge from S to R now succeeds.
-//   7. Cleans up every row it created and both test accounts via the service-role client.
-//   8. Prints a pass/fail summary and exits non-zero if anything failed.
+//   9. Cleans up every row it created and all three test accounts via the service-role client.
+//  10. Prints a pass/fail summary and exits non-zero if anything failed.
 
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
@@ -101,6 +112,26 @@ async function signInAs(email) {
   return client;
 }
 
+// Fix round 1: direct admin group setup, mirrored exactly from scripts/verify-digest.mjs's/
+// scripts/verify-unlock-requests.mjs's createGroupWithMembers (same shortcut/rationale - the
+// invite-code join flow itself is already proven by verify-rls.mjs). `memberIds` is every member
+// INCLUDING the owner - see those scripts' comments on why omitting the owner from
+// group_memberships breaks the group-visibility check.
+async function createGroupWithMembers(ownerId, memberIds, name) {
+  const groupId = crypto.randomUUID();
+  const { error: groupErr } = await admin
+    .from("friend_groups")
+    .insert({ id: groupId, name, owner_user_id: ownerId });
+  if (groupErr) throw new Error(`Failed to create group ${name}: ${groupErr.message}`);
+  for (const userId of memberIds) {
+    const { error: memErr } = await admin
+      .from("group_memberships")
+      .insert({ group_id: groupId, user_id: userId });
+    if (memErr) throw new Error(`Failed to add ${userId} to group ${name}: ${memErr.message}`);
+  }
+  return groupId;
+}
+
 // Mirrors nudgeApi.ts's sendNudge() insert exactly (same table/columns) - the thing under test
 // is whether the *database* (RLS + can_send_nudge()) gates this the way the real client code
 // would, not whether this script re-derives its own logic.
@@ -120,6 +151,12 @@ async function cleanup(userIds) {
   await admin.from("nudges").delete().in("recipient_user_id", userIds);
   await admin.from("friendship_settings").delete().in("user_id", userIds);
   await admin.from("friendship_settings").delete().in("friend_user_id", userIds);
+  // Fix round 1: the new group_memberships/friend_groups rows created for S/R's shared-group
+  // setup also need cleaning up - S is used as the owner (see main()), so filtering
+  // group_memberships by user_id and friend_groups by owner_user_id (both already scoped to
+  // userIds) covers everything this script now creates.
+  await admin.from("group_memberships").delete().in("user_id", userIds);
+  await admin.from("friend_groups").delete().in("owner_user_id", userIds);
 
   for (const id of userIds) {
     const { error } = await admin.auth.admin.deleteUser(id);
@@ -129,33 +166,70 @@ async function cleanup(userIds) {
 }
 
 async function main() {
-  console.log("Creating ephemeral test accounts (S = sender, R = recipient)...");
+  console.log("Creating ephemeral test accounts (S = sender, R = recipient, C = stranger)...");
   const userS = await createTestUser("s");
   const userR = await createTestUser("r");
-  const userIds = [userS.id, userR.id];
+  const userC = await createTestUser("c");
+  const userIds = [userS.id, userR.id, userC.id];
 
   try {
     const clientS = await signInAs(userS.email);
     await signInAs(userR.email); // Not used to send/receive directly, but confirms R can sign in.
-    record("Setup: S and R signed in via anon-key client", true);
+    await signInAs(userC.email); // Not used beyond the negative case below.
+    record("Setup: S, R, and C signed in via anon-key client", true);
 
-    // S declares "I may nudge R" - written as S's own authenticated insert (friendship_settings'
-    // "users manage only their own settings rows" RLS policy requires user_id = auth.uid()).
+    // Fix round 1 (v2 Task 10 fix round 1, supabase/migrations/
+    // 20260815000013_v2_tighten_friendship_settings_insert.sql): S and C share no group at all -
+    // S's own INSERT toward C must now be denied outright, proving the tightened
+    // friendship_settings INSERT policy's group-membership floor holds. Run BEFORE any group
+    // exists for S, so this is unambiguously "no shared group anywhere", not just "no shared
+    // group with THIS specific friend".
+    const { data: deniedInsert, error: deniedInsertErr } = await clientS
+      .from("friendship_settings")
+      .insert({ user_id: userS.id, friend_user_id: userC.id, send_live_nudges: true });
+    record(
+      "Fix round 1: S cannot INSERT a friendship_settings row toward C (no shared group)",
+      !!deniedInsertErr && !deniedInsert,
+      deniedInsertErr ? undefined : "insert unexpectedly succeeded"
+    );
+
+    // Fix round 1: S and R must share a group before any further friendship_settings write below
+    // - migration 20260815000012's trigger auto-creates both directions of the (S, R) row the
+    // instant they do, and migration 20260815000013's tightened INSERT policy means a plain
+    // `.insert()` toward a non-group-mate (like the negative case just above) is now denied
+    // outright rather than merely colliding with the trigger's row.
+    await createGroupWithMembers(userS.id, [userS.id, userR.id], `Verify Nudges G1 ${RUN_ID}`);
+    record("Setup: S and R share a group (C does not)", true);
+
+    // S declares "I may nudge R" - written as S's own authenticated write (friendship_settings'
+    // policies require user_id = auth.uid() for every operation). `.upsert()` (fix round 1, not
+    // `.insert()`): the trigger above already auto-created this exact (S, R) row - with
+    // send_live_nudges already true by its own column default - the moment R joined the group, so
+    // a plain `.insert()` here would now fail with a duplicate-key error.
     const { error: sSettingsErr } = await clientS
       .from("friendship_settings")
-      .insert({ user_id: userS.id, friend_user_id: userR.id, send_live_nudges: true });
+      .upsert(
+        { user_id: userS.id, friend_user_id: userR.id, send_live_nudges: true },
+        { onConflict: "user_id,friend_user_id" }
+      );
     record("Setup: S enables send_live_nudges toward R", !sSettingsErr, sSettingsErr?.message);
 
-    // R declares "S may nudge me, with a short cooldown" - as an admin insert here rather than
+    // R declares "S may nudge me, with a short cooldown" - as an admin write here rather than
     // R's own client, purely so this script doesn't need to keep a second signed-in client
     // around; friendship_settings' RLS is not the thing under test on R's side (can_send_nudge()
-    // reads this row via SECURITY DEFINER regardless of who wrote it).
-    const { error: rSettingsErr } = await admin.from("friendship_settings").insert({
-      user_id: userR.id,
-      friend_user_id: userS.id,
-      receive_live_nudges: true,
-      nudge_cooldown_seconds: COOLDOWN_SECONDS,
-    });
+    // reads this row via SECURITY DEFINER regardless of who wrote it). `.upsert()` for the same
+    // trigger-already-created-this-row reason as S's write above (the service-role client
+    // bypasses RLS entirely, but NOT the underlying primary-key uniqueness constraint, so a plain
+    // `.insert()` would still fail with a duplicate-key error regardless of role).
+    const { error: rSettingsErr } = await admin.from("friendship_settings").upsert(
+      {
+        user_id: userR.id,
+        friend_user_id: userS.id,
+        receive_live_nudges: true,
+        nudge_cooldown_seconds: COOLDOWN_SECONDS,
+      },
+      { onConflict: "user_id,friend_user_id" }
+    );
     record(
       "Setup: R enables receive_live_nudges toward S with a short cooldown",
       !rSettingsErr,

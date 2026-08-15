@@ -329,8 +329,19 @@ async function main() {
     // --- Case 2b (fix round 1 - the privacy gap this round closes): G opts in via
     // receive_daily_digest (same as F), but shares NO group with S - must still be denied. This
     // is the exact scenario the original policy (20260815000010) got wrong: a unilateral opt-in
-    // with zero group relationship was previously sufficient to read a stranger's digest. ---
-    const { error: gOptInErr } = await clientG
+    // with zero group relationship was previously sufficient to read a stranger's digest.
+    //
+    // v2 Task 10 fix round 1 (supabase/migrations/20260815000013_v2_tighten_friendship_settings_insert.sql):
+    // friendship_settings' own INSERT policy now requires users_share_a_group(user_id,
+    // friend_user_id), so G's own client can no longer even create this row at all (the write
+    // path itself is now closed, not just the read path this case exists to test). Seeded via the
+    // service-role client instead (bypasses RLS entirely, same pattern every other verify-*.mjs
+    // script already uses for setup rows that wouldn't otherwise satisfy RLS) so this case still
+    // exercises what it always meant to test: a row in this exact (opted-in, no-shared-group)
+    // state, however it came to exist, must still be denied on the READ side by daily_digests'
+    // group-membership floor - defense-in-depth, independent of whether the write path that could
+    // produce this state even exists anymore.
+    const { error: gOptInErr } = await admin
       .from("friendship_settings")
       .insert({ user_id: userG.id, friend_user_id: userS.id, receive_daily_digest: true });
     record(
