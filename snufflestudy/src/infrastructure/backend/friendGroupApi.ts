@@ -67,6 +67,21 @@ export async function createGroup(name: string): Promise<FriendGroup> {
   // whole insert is rolled back - a chicken-and-egg RLS failure. Knowing the id up front breaks
   // the cycle: insert the group (no RETURNING needed), insert the owner's membership row using
   // that known id, and only then fetch the group back (now readable).
+  //
+  // Order also matters for a second reason since fix round 1: group_memberships' INSERT policy
+  // (supabase/migrations/20260815000005_v2_gate_group_membership_on_invite.sql) requires either
+  // a redeemed invite code OR that the friend_groups row already exists with this user as
+  // owner_user_id (via the is_group_owner() helper) - so the friend_groups insert below must
+  // happen first, or the owner's own membership insert would have nothing to satisfy that check
+  // against either.
+  //
+  // Not atomic (no RPC/transaction wraps the two inserts below) - if the membership insert
+  // fails after the friend_groups insert succeeds, the result is an orphaned friend_groups row
+  // that's permanently unreadable (no membership row ever satisfies its SELECT policy) and this
+  // function still throws, so the caller sees a failure either way; it just doesn't clean up
+  // the orphan. A real fix would need a SECURITY DEFINER Postgres function called via .rpc() to
+  // wrap both inserts in one transaction - noted here, not built, since it's a low-probability
+  // partial-failure edge case rather than a correctness or security gap.
   const id = crypto.randomUUID();
 
   const { error: groupError } = await supabase
@@ -142,6 +157,34 @@ export async function joinGroup(code: string): Promise<GroupMembership> {
     throw new Error("Invite code not found, expired, or already used.");
   }
 
+  // Redeem the code BEFORE inserting the membership row - order matters, not just bookkeeping.
+  // group_memberships' INSERT policy (supabase/migrations/
+  // 20260815000005_v2_gate_group_membership_on_invite.sql) requires a matching invite_codes row
+  // with used_by = auth.uid() to ALREADY exist for this group, specifically so membership can
+  // never be granted by just knowing/guessing a group_id (invite_codes rows are broadly
+  // readable to any authenticated user per the plan's own spec, so a raw group_id is not a
+  // secret - only a *redeemed* code proves this user was actually invited). Redeeming first is
+  // what makes that check satisfiable; the original insert-then-redeem order left the check
+  // with nothing to find.
+  //
+  // This must run as the joining user's own authenticated session (never service-role) -
+  // invite_codes' "unused unexpired codes can be redeemed once" RLS policy's WITH CHECK
+  // requires used_by = auth.uid(), so a service-role write (which has no auth.uid()) would fail
+  // this check, and a different user's session couldn't satisfy it either.
+  //
+  // Not atomic with the membership insert below (no RPC/transaction wraps both) - if the
+  // membership insert fails after this succeeds, the code is burned with no membership granted.
+  // Same class of gap as createGroup()'s two inserts; a real fix would need a
+  // SECURITY DEFINER Postgres function called via .rpc() to wrap both in one transaction,
+  // which is beyond what this fix round asked for.
+  const { error: updateError } = await supabase
+    .from("invite_codes")
+    .update({ used_by: userId })
+    .eq("code", code);
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
   const { data: membership, error: membershipError } = await supabase
     .from("group_memberships")
     .insert({ group_id: invite.group_id, user_id: userId })
@@ -149,19 +192,6 @@ export async function joinGroup(code: string): Promise<GroupMembership> {
     .single();
   if (membershipError || !membership) {
     throw new Error(membershipError?.message ?? "Failed to join group.");
-  }
-
-  // Marks the code redeemed. This must run as the joining user's own authenticated session
-  // (never service-role) - invite_codes' "unused unexpired codes can be redeemed once" RLS
-  // policy's WITH CHECK requires used_by = auth.uid(), so a service-role write (which has no
-  // auth.uid()) would fail this check, and a different user's session couldn't satisfy it
-  // either.
-  const { error: updateError } = await supabase
-    .from("invite_codes")
-    .update({ used_by: userId })
-    .eq("code", code);
-  if (updateError) {
-    throw new Error(updateError.message);
   }
 
   return {

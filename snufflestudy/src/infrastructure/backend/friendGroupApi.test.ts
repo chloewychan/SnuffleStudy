@@ -219,7 +219,7 @@ describe("friendGroupApi.generateInviteCode", () => {
 });
 
 describe("friendGroupApi.joinGroup", () => {
-  it("looks up the invite code, inserts a membership row, then marks the code used by the joining user", async () => {
+  it("looks up the invite code, redeems it, THEN inserts the membership row (in that order)", async () => {
     vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
       data: { user: { id: "user-b" } },
       error: null,
@@ -233,18 +233,38 @@ describe("friendGroupApi.joinGroup", () => {
       error: null,
     });
     const updateBuilder = makeBuilder({ data: null, error: null });
+    // Tracks the order tables were touched in, so the test can assert redemption happens
+    // BEFORE the membership insert - not just that both happened. This order is load-bearing
+    // (fix round 1): group_memberships' INSERT policy (supabase/migrations/
+    // 20260815000005_v2_gate_group_membership_on_invite.sql) requires a matching invite_codes
+    // row with used_by = auth.uid() to already exist, so redeeming after inserting membership
+    // would leave that check with nothing to find.
+    const callOrder: string[] = [];
     let inviteCodesCallCount = 0;
     vi.spyOn(supabase, "from").mockImplementation(((table: string) => {
       if (table === "invite_codes") {
         inviteCodesCallCount += 1;
-        return inviteCodesCallCount === 1 ? lookupBuilder : updateBuilder;
+        if (inviteCodesCallCount === 1) {
+          callOrder.push("invite_codes:lookup");
+          return lookupBuilder;
+        }
+        callOrder.push("invite_codes:redeem");
+        return updateBuilder;
       }
-      if (table === "group_memberships") return insertBuilder;
+      if (table === "group_memberships") {
+        callOrder.push("group_memberships:insert");
+        return insertBuilder;
+      }
       throw new Error(`unexpected table ${table}`);
     }) as never);
 
     const result = await joinGroup("CODE1234");
 
+    expect(callOrder).toEqual([
+      "invite_codes:lookup",
+      "invite_codes:redeem",
+      "group_memberships:insert",
+    ]);
     expect(lookupBuilder.eq).toHaveBeenCalledWith("code", "CODE1234");
     expect(insertBuilder.insert).toHaveBeenCalledWith({ group_id: "group-1", user_id: "user-b" });
     // Redeeming must run as the joining user's own session - invite_codes' "unused unexpired
@@ -256,6 +276,30 @@ describe("friendGroupApi.joinGroup", () => {
       userId: "user-b",
       joinedAt: "2026-01-02T00:00:00Z",
     });
+  });
+
+  it("throws when redeeming the code fails, without attempting the membership insert", async () => {
+    vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
+      data: { user: { id: "user-b" } },
+      error: null,
+    } as never);
+    const lookupBuilder = makeBuilder({
+      data: { code: "CODE1234", group_id: "group-1" },
+      error: null,
+    });
+    const updateBuilder = makeBuilder({ data: null, error: { message: "redeem failed" } });
+    const insertBuilder = makeBuilder({ data: null, error: null });
+    let inviteCodesCallCount = 0;
+    const fromSpy = vi.spyOn(supabase, "from").mockImplementation(((table: string) => {
+      if (table === "invite_codes") {
+        inviteCodesCallCount += 1;
+        return inviteCodesCallCount === 1 ? lookupBuilder : updateBuilder;
+      }
+      return insertBuilder;
+    }) as never);
+
+    await expect(joinGroup("CODE1234")).rejects.toThrow("redeem failed");
+    expect(fromSpy).not.toHaveBeenCalledWith("group_memberships");
   });
 
   it("throws a clear error when the code isn't found (covers not-found, expired, and already-used - RLS filters all three identically)", async () => {

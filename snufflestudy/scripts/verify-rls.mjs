@@ -51,9 +51,18 @@ function record(name, pass, detail) {
 
 // Asserts that `fn()` (an async supabase-js call) was denied by RLS. Treats an explicit
 // PostgREST error as the primary success signal (what `.single()` gives us for both SELECT and
-// UPDATE...select() chains when RLS filters the target row to zero rows) - falls back to
-// "empty/null data with no error" as a weaker but still valid denial signal for chains that
-// don't use `.single()`. Only a genuinely non-empty result counts as a FAIL.
+// UPDATE...select() chains when RLS filters the target row to zero rows, and what a bare INSERT
+// always gets when its WITH CHECK fails) - falls back to "empty/null data with no error" as a
+// weaker signal for chains that don't force an error (e.g. a plain multi-row SELECT with no
+// `.single()`, where RLS silently filters rather than erroring). Only a genuinely non-empty
+// result counts as a FAIL.
+//
+// TRAP for future checks added to this script: the DoD requires the request to "fail, not just
+// return an empty/filtered result" - the weaker empty-data fallback above technically satisfies
+// this function's contract but is a strictly weaker proof than an explicit error, since an
+// empty array can't be distinguished from "the row doesn't exist" vs "RLS hid it." Every check
+// in this file today goes through the strong path (`.single()` or a WITH CHECK-violating
+// INSERT) - if you add a new check, prefer the same rather than leaning on the fallback.
 async function expectDenied(name, fn) {
   try {
     const { data, error } = await fn();
@@ -204,13 +213,18 @@ async function main() {
         if (lookupErr || !lookup) {
           record("Functional: B looks up the invite code", false, lookupErr?.message);
         } else {
-          const { error: joinErr } = await clientB
-            .from("group_memberships")
-            .insert({ group_id: lookup.group_id, user_id: userB.id });
+          // Redeem BEFORE inserting membership - mirrors friendGroupApi.ts's joinGroup() order
+          // (fix round 1). group_memberships' INSERT policy (supabase/migrations/
+          // 20260815000005_v2_gate_group_membership_on_invite.sql) requires a matching
+          // invite_codes row with used_by = auth.uid() to already exist, so redemption must
+          // happen first or the membership insert's WITH CHECK has nothing to find.
           const { error: markErr } = await clientB
             .from("invite_codes")
             .update({ used_by: userB.id })
             .eq("code", inviteCode);
+          const { error: joinErr } = await clientB
+            .from("group_memberships")
+            .insert({ group_id: lookup.group_id, user_id: userB.id });
           record(
             "Functional: B joins the group via the invite code and redeems it",
             !joinErr && !markErr,
@@ -265,6 +279,55 @@ async function main() {
           "group_memberships: B cannot read the membership rows of a group they're not in",
           () => clientB.from("group_memberships").select().eq("group_id", privateGroupId).eq("user_id", userA.id).single()
         );
+
+        // Privilege-escalation check (fix round 1): group_memberships' original INSERT policy
+        // only checked user_id = auth.uid() - it never verified an actual invite-code
+        // redemption, so any authenticated user who merely *learned* a group_id (never given a
+        // code, never invited) could grant themselves membership directly via the REST API,
+        // bypassing friendGroupApi.ts's joinGroup() entirely. Reproduces the exact discovery
+        // path too: A generates a code for the private group that's never handed to B, but
+        // invite_codes' "unexpired unused codes are readable" policy lets *any* authenticated
+        // user read it (and thus learn group_id) before it's redeemed - proving the group_id
+        // alone was never secret, only a *redeemed* code should grant membership.
+        const undisclosedCode = generateInviteCodeString();
+        const { error: undisclosedCodeErr } = await clientA.from("invite_codes").insert({
+          code: undisclosedCode,
+          group_id: privateGroupId,
+          created_by: userA.id,
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        });
+        if (undisclosedCodeErr) {
+          record(
+            "group_memberships: B cannot self-insert membership without redeeming an invite code",
+            false,
+            `setup failed: ${undisclosedCodeErr.message}`
+          );
+        } else {
+          const { data: discovered, error: discoverErr } = await clientB
+            .from("invite_codes")
+            .select()
+            .eq("code", undisclosedCode)
+            .single();
+          if (discoverErr || !discovered) {
+            record(
+              "group_memberships: B cannot self-insert membership without redeeming an invite code",
+              false,
+              `expected B to be able to read the unredeemed code's group_id (proving it isn't secret) - ${discoverErr?.message}`
+            );
+          } else {
+            // B never redeemed `undisclosedCode` - just read its group_id off it - then
+            // attempts to grant themselves membership directly. An INSERT whose WITH CHECK
+            // fails always throws an explicit RLS-violation error (unlike SELECT's silent
+            // filtering), so this is a hard "must fail" assertion by construction.
+            await expectDenied(
+              "group_memberships: B cannot self-insert membership without redeeming an invite code",
+              () =>
+                clientB
+                  .from("group_memberships")
+                  .insert({ group_id: discovered.group_id, user_id: userB.id })
+            );
+          }
+        }
       }
     }
 
