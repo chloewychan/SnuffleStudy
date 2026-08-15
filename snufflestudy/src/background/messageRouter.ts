@@ -25,6 +25,7 @@ import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSy
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
 import * as digestApi from "../infrastructure/backend/digestApi";
+import * as friendshipSettingsApi from "../infrastructure/backend/friendshipSettingsApi";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
@@ -102,7 +103,13 @@ async function routeMessage(
       if (started.restrictionMode === "hard") {
         await syncHardBlockRules(started.restrictedSites);
       }
-      recordFriendStatusEvent("SESSION_STARTED", started.id, "started a focus session");
+      // v2 Task 10: goalText is StudySession.goal, already a local field on `started` - the
+      // first time it's synced anywhere (session-start time is where the brief calls out goal
+      // text as "available", so this is the one recordFriendStatusEvent call site that passes
+      // it - see friendSync.ts's comment on why every other call site's shape is unchanged).
+      recordFriendStatusEvent("SESSION_STARTED", started.id, "started a focus session", {
+        goalText: started.goal,
+      });
       maybeStartFriendPoll();
       return { ok: true, session: started };
     }
@@ -249,9 +256,14 @@ async function routeMessage(
       });
       // displayLabel is deliberately generic - never the hostname the distraction event itself
       // carries (see session_status_events' display_label column comment in the schema
-      // migration: "never the raw hostname unless the sender explicitly opted in", which Task
-      // 10 will build the opt-in for).
-      recordFriendStatusEvent("DISTRACTION_ATTEMPT", session.id, "got distracted");
+      // migration: "never the raw hostname unless the sender explicitly opted in"). v2 Task 10
+      // builds that opt-in: the REAL hostname is now written to the new, separate `hostname`
+      // column (never into displayLabel) - read-side visibility is gated entirely by
+      // share_current_domain via friend_has_granted_domain_visibility/fetch_friend_event_details
+      // (supabase/migrations/20260815000012_v2_privacy_controls.sql), not by withholding it here.
+      recordFriendStatusEvent("DISTRACTION_ATTEMPT", session.id, "got distracted", {
+        hostname: message.payload.hostname,
+      });
       return { ok: true, session: updated };
     }
 
@@ -544,6 +556,24 @@ async function routeMessage(
       // response, even with nothing to show for that date.
       const digests = await digestApi.fetchDigestForDate(message.payload.date);
       return { ok: true, digests };
+    }
+
+    case "FRIENDSHIP_SETTINGS_LIST": {
+      // listMyFriendshipSettings throws (not signed in, query error) rather than returning
+      // ok:false - the outer handleMessage try/catch turns that into { ok: false, error }, same
+      // convention as GROUP_CREATE/GROUP_JOIN/UNLOCK_REQUEST_CREATE above.
+      const settings = await friendshipSettingsApi.listMyFriendshipSettings();
+      return { ok: true, settings };
+    }
+
+    case "FRIENDSHIP_SETTINGS_UPDATE": {
+      // updateFriendshipSettings throws on failure (not signed in, no row exists for this
+      // friend yet, update error) - same outer-catch convention as above.
+      const settings = await friendshipSettingsApi.updateFriendshipSettings(
+        message.payload.friendUserId,
+        message.payload.patch
+      );
+      return { ok: true, settings };
     }
 
     default:

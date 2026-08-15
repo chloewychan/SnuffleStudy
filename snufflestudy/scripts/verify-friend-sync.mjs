@@ -155,11 +155,20 @@ async function main() {
       [groupErr, memAErr, memBErr].filter(Boolean).map((e) => e.message).join("; ") || undefined
     );
 
-    // A grants B visibility - written as A's own authenticated insert (friendship_settings'
+    // A grants B visibility - written as A's own authenticated write (friendship_settings'
     // "users manage only their own settings rows" RLS policy requires user_id = auth.uid()).
+    //
+    // v2 Task 10: A and B already share a group by this point (set up just above), so migration
+    // 20260815000012's group_memberships_create_friendship_settings trigger already auto-created
+    // this exact (A, B) row - with send_live_nudges already true by its own column default - the
+    // moment B joined. A plain `.insert()` here would now fail with a duplicate-key error;
+    // `.upsert()` is robust to the row already existing while still proving A can write it.
     const { error: enableErr } = await clientA
       .from("friendship_settings")
-      .insert({ user_id: userA.id, friend_user_id: userB.id, send_live_nudges: true });
+      .upsert(
+        { user_id: userA.id, friend_user_id: userB.id, send_live_nudges: true },
+        { onConflict: "user_id,friend_user_id" }
+      );
     record("Setup: A enables send_live_nudges toward B", !enableErr, enableErr?.message);
 
     // --- Positive case ---

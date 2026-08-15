@@ -334,10 +334,19 @@ async function main() {
     // --- Guarantee 2 (friendship_settings): B cannot read or write the row where
     // user_id = A, friend_user_id = B - that row is A's control over the relationship, not
     // B's. ---
+    //
+    // v2 Task 10: A and B already share a group by this point (the "Functional" join above), so
+    // migration 20260815000012's group_memberships_create_friendship_settings trigger has
+    // already auto-created this exact (A, B) row (with every column at its default) the moment B
+    // joined - a plain `.insert()` here would now fail with a duplicate-key error. `.upsert()`
+    // with the composite primary key as the conflict target is robust either way (works whether
+    // the trigger already created the row, or - in some future world without it - this is a
+    // genuine first insert) and preserves this check's actual intent: a row exists, controlled by
+    // A, that B cannot read or write.
     {
       const { error: settingsErr } = await clientA
         .from("friendship_settings")
-        .insert({ user_id: userA.id, friend_user_id: userB.id });
+        .upsert({ user_id: userA.id, friend_user_id: userB.id }, { onConflict: "user_id,friend_user_id" });
       if (settingsErr) {
         record("friendship_settings: A creates a settings row about B", false, settingsErr.message);
       } else {

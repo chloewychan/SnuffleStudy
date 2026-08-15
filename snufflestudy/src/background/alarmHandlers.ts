@@ -13,6 +13,7 @@ import {
 } from "../infrastructure/backend/unlockRequestApi";
 import { pollNewDigests } from "../infrastructure/backend/digestApi";
 import { nudgeMessageText } from "../domain/accountability/nudgeMessages";
+import { isWithinQuietHours } from "../domain/settings/userSettings";
 import {
   getLastFriendPollAt,
   setLastFriendPollAt,
@@ -79,6 +80,13 @@ async function pollSessionEventUpdates(): Promise<void> {
 // as pollSessionEventUpdates, using its own independent cursor
 // (getLastNudgePollAt/setLastNudgePollAt) so a failure fetching nudges never affects, and is
 // never affected by, the session-events cursor above.
+// v2 Task 10, Part C: `liveNudgesNotificationsEnabled`/quietHours gate ONLY whether a toast is
+// shown - the fetch/cursor-advancement above (and below) runs exactly as before, unaffected,
+// consistent with how this alarm's other streams already separate "did the fetch succeed" from
+// "should the user be shown something" (see pollUnlockRequestUpdates' pending-vs-own-request
+// branching for the same kind of separation). Computed once per tick from the current settings
+// snapshot - deliberately NOT a per-nudge check, since quiet-hours status can't meaningfully
+// change within the few milliseconds it takes to loop over one poll's results.
 async function pollNudgeUpdates(): Promise<void> {
   try {
     const now = Date.now();
@@ -90,7 +98,11 @@ async function pollNudgeUpdates(): Promise<void> {
       // silently losing whatever nudges arrived during the outage.
       return;
     }
+    const settings = await settingsRepo.getSettings();
+    const suppressToast =
+      !settings.liveNudgesNotificationsEnabled || isWithinQuietHours(settings.quietHours);
     for (const nudge of result.nudges) {
+      if (suppressToast) continue;
       const messageText = nudgeMessageText(nudge.messageId) ?? "sent you a nudge";
       showNotification(
         `friend-nudge-${nudge.id}`,
@@ -214,6 +226,12 @@ async function pollUnlockRequestUpdates(userId: string): Promise<void> {
 // user's own activity, which RLS also legitimately returns) is intentionally skipped here - a
 // user doesn't need a chrome.notifications toast about their own stats; this stream exists to
 // tell a friend about someone ELSE's digest.
+// v2 Task 10, Part C: same "gate only the toast, never the fetch/cursor" discipline as
+// pollNudgeUpdates above, using `digestNotificationsEnabled`/quietHours instead of
+// `liveNudgesNotificationsEnabled`. Deliberately does NOT gate pollSessionEventUpdates or
+// pollUnlockRequestUpdates - the brief's Part C is explicit that only "live nudges" and "digest"
+// get a global toggle (plus quiet hours layered on both); friend-activity and unlock-request
+// toasts are unaffected by this task, a deliberate scope boundary, not an oversight.
 async function pollDigestUpdates(userId: string): Promise<void> {
   try {
     const now = Date.now();
@@ -225,8 +243,12 @@ async function pollDigestUpdates(userId: string): Promise<void> {
       // silently losing whatever digest(s) were computed during the outage.
       return;
     }
+    const settings = await settingsRepo.getSettings();
+    const suppressToast =
+      !settings.digestNotificationsEnabled || isWithinQuietHours(settings.quietHours);
     for (const digest of result.digests) {
       if (digest.friendUserId === userId) continue;
+      if (suppressToast) continue;
       // Copy deliberately distinct from the other three streams' notification titles/bodies
       // ("Friend activity" / "Nudge from a friend" / "Unlock request"...), and echoes the
       // architecture overview's own example phrasing ("Bob was really locked in today") - no

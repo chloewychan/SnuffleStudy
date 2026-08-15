@@ -193,6 +193,14 @@ async function cleanup(userIds) {
   // verify-friend-sync.mjs / verify-nudges.mjs), so referencing rows must go before the rows/
   // users they reference.
   await admin.from("unlock_requests").delete().in("requester_user_id", userIds);
+  // v2 Task 10: this script's G1 group has three members (A, B, D) - migration 20260815000012's
+  // group_memberships_create_friendship_settings trigger now auto-creates a friendship_settings
+  // row for every ordered pair among them the moment each member joins (six rows total here).
+  // Those rows didn't exist before this migration, so this delete wasn't needed until now -
+  // without it, the deleteUser() loop below would fail on the FK from friendship_settings to
+  // auth.users (no ON DELETE CASCADE, same as every other table here).
+  await admin.from("friendship_settings").delete().in("user_id", userIds);
+  await admin.from("friendship_settings").delete().in("friend_user_id", userIds);
   await admin.from("group_memberships").delete().in("user_id", userIds);
   await admin.from("friend_groups").delete().in("owner_user_id", userIds);
 

@@ -12,8 +12,9 @@ import {
 } from "../background/contentScriptRegistration";
 import { HistoryPage } from "./pages/HistoryPage";
 import { AccountPage } from "./pages/AccountPage";
+import { FriendsPage } from "./pages/FriendsPage";
 
-type OptionsView = "settings" | "history" | "account";
+type OptionsView = "settings" | "history" | "account" | "friends";
 
 export function OptionsApp() {
   const [view, setView] = useState<OptionsView>("settings");
@@ -181,11 +182,21 @@ export function OptionsApp() {
         >
           Account
         </button>
+        <button
+          type="button"
+          aria-current={view === "friends" ? "page" : undefined}
+          disabled={view === "friends"}
+          onClick={() => setView("friends")}
+        >
+          Friends
+        </button>
       </nav>
 
       {view === "history" && <HistoryPage />}
 
       {view === "account" && <AccountPage />}
+
+      {view === "friends" && <FriendsPage />}
 
       {view === "settings" && (
         <>
@@ -235,6 +246,80 @@ export function OptionsApp() {
               a site name or your goal text) sync to your friend group, and the extension polls
               for their activity while a session is active. Off by default.
             </p>
+          </section>
+
+          <section>
+            <h2>Notifications</h2>
+            <p>
+              These only control whether THIS device shows a notification toast for friend
+              activity it has already received — they don't change what any friend can see. For
+              per-friend visibility controls, see the Friends page.
+            </p>
+            <label>
+              <input
+                type="checkbox"
+                checked={settings.liveNudgesNotificationsEnabled}
+                onChange={(e) =>
+                  updateSettings({ liveNudgesNotificationsEnabled: e.target.checked })
+                }
+              />
+              Show a notification when a friend sends me a live nudge
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={settings.digestNotificationsEnabled}
+                onChange={(e) => updateSettings({ digestNotificationsEnabled: e.target.checked })}
+              />
+              Show a notification for a friend's daily digest
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={settings.quietHours !== null}
+                onChange={(e) =>
+                  updateSettings({
+                    quietHours: e.target.checked ? { startHour: 22, endHour: 7 } : null,
+                  })
+                }
+              />
+              Quiet hours (suppress notification toasts during a window)
+            </label>
+            {settings.quietHours && (
+              <>
+                <label>
+                  Quiet hours start (0-23, local time)
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={settings.quietHours.startHour}
+                    onChange={(e) =>
+                      updateSettings({
+                        quietHours: {
+                          ...settings.quietHours!,
+                          startHour: Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  Quiet hours end (0-23, local time)
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={settings.quietHours.endHour}
+                    onChange={(e) =>
+                      updateSettings({
+                        quietHours: { ...settings.quietHours!, endHour: Number(e.target.value) },
+                      })
+                    }
+                  />
+                </label>
+              </>
+            )}
           </section>
 
           <section>

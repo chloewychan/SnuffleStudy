@@ -282,9 +282,18 @@ async function main() {
 
     // --- Case 1: F (shares a group with S) opts in, compute_daily_digests(DATE_A), F sees the
     // correct aggregated numbers ---
+    //
+    // v2 Task 10: F and S already share a group (set up just above), so migration
+    // 20260815000012's group_memberships_create_friendship_settings trigger already auto-created
+    // this exact (F, S) row - with receive_daily_digest already true by its own column default -
+    // the moment F joined. A plain `.insert()` here would now fail with a duplicate-key error;
+    // `.upsert()` is robust to the row already existing while still proving F can write it.
     const { error: fOptInErr } = await clientF
       .from("friendship_settings")
-      .insert({ user_id: userF.id, friend_user_id: userS.id, receive_daily_digest: true });
+      .upsert(
+        { user_id: userF.id, friend_user_id: userS.id, receive_daily_digest: true },
+        { onConflict: "user_id,friend_user_id" }
+      );
     record("Setup: F opts into receive_daily_digest toward S", !fOptInErr, fOptInErr?.message);
 
     const computeOk1 = await expectOkVoid("Case 1: compute_daily_digests(DATE_A) succeeds", () =>

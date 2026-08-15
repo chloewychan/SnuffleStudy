@@ -64,6 +64,9 @@ describe("handleTabUpdate", () => {
         defaultRestrictionMode: "soft",
         onboardingCompleted: true,
         friendSyncEnabled: false,
+        liveNudgesNotificationsEnabled: true,
+        digestNotificationsEnabled: true,
+        quietHours: null,
       },
     });
     const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
@@ -97,6 +100,9 @@ describe("handleTabUpdate", () => {
         defaultRestrictionMode: "soft",
         onboardingCompleted: true,
         friendSyncEnabled: false,
+        liveNudgesNotificationsEnabled: true,
+        digestNotificationsEnabled: true,
+        quietHours: null,
       },
     });
     const created = (await handleMessage({
@@ -135,6 +141,9 @@ describe("handleTabUpdate", () => {
         defaultRestrictionMode: "soft",
         onboardingCompleted: true,
         friendSyncEnabled: false,
+        liveNudgesNotificationsEnabled: true,
+        digestNotificationsEnabled: true,
+        quietHours: null,
       },
     });
     const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
@@ -179,6 +188,9 @@ describe("handleTabUpdate", () => {
         defaultRestrictionMode: "soft",
         onboardingCompleted: true,
         friendSyncEnabled: false,
+        liveNudgesNotificationsEnabled: true,
+        digestNotificationsEnabled: true,
+        quietHours: null,
       },
     });
     const created = (await handleMessage({

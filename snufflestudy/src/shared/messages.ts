@@ -1,6 +1,7 @@
 import type { CreateSessionInput, HistoryQuery, SessionState } from "../domain/session/sessionTypes";
 import type { UserSettings } from "../domain/settings/userSettings";
 import type { Task } from "../domain/tasks/taskTypes";
+import type { FriendshipSettingsPatch } from "../infrastructure/backend/friendshipSettingsApi";
 
 export type ExtensionMessage =
   // taskBreakdownItemId lives here (not on CreateSessionInput itself - see sessionTypes.ts's
@@ -91,4 +92,18 @@ export type ExtensionMessage =
   // mirroring FRIEND_EVENTS_FETCH/NUDGES_FETCH/UNLOCK_REQUESTS_FETCH's identical split). `date`
   // is a YYYY-MM-DD calendar date (daily_digests.digest_date's type); FriendGroupPanel.tsx picks
   // which date to request (see that file's own comment on why it defaults to yesterday).
-  | { type: "DIGEST_FETCH"; payload: { date: string } };
+  | { type: "DIGEST_FETCH"; payload: { date: string } }
+  // v2 Task 10, Part A: routes to friendshipSettingsApi.listMyFriendshipSettings() - the new
+  // Friends section in OptionsApp.tsx uses this to enumerate the current user's settings row
+  // toward every friend they share a group with (all eight boolean columns: the three
+  // pre-existing plus Task 10's five new share_* toggles).
+  | { type: "FRIENDSHIP_SETTINGS_LIST" }
+  // v2 Task 10, Part A: routes to friendshipSettingsApi.updateFriendshipSettings() - a single
+  // field (or several) at a time, keyed by which friend the change applies to. Throws on failure
+  // (e.g. no row exists yet because the two users don't actually share a group), which
+  // messageRouter.ts's outer handleMessage try/catch turns into ok:false, same convention as
+  // GROUP_CREATE/GROUP_JOIN/UNLOCK_REQUEST_CREATE.
+  | {
+      type: "FRIENDSHIP_SETTINGS_UPDATE";
+      payload: { friendUserId: string; patch: FriendshipSettingsPatch };
+    };

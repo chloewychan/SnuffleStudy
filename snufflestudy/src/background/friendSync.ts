@@ -59,15 +59,30 @@ export async function isInAnyGroup(userId: string): Promise<boolean> {
 // non-identifying string - never a raw hostname/goal text (see session_status_events'
 // display_label column comment in the schema migration; per-field privacy opt-in is Task 10's
 // scope, not built yet).
+// v2 Task 10: `extra` optionally carries the real hostname (DISTRACTION_ATTEMPT's call site in
+// messageRouter.ts) and/or goal text (SESSION_STARTED's call site) - see
+// sessionStatusSyncApi.ts's recordStatusEvent for why these are always written when available
+// rather than withheld client-side (the read-side RLS/RPC redaction is the actual enforcement
+// boundary). Keys are only spread onto the object passed to recordStatusEvent when actually
+// provided, so every OTHER existing call site (which never passes `extra`) sends the exact same
+// `{ type, sessionId, displayLabel }` shape it always has - see friendSync.test.ts's exact-object
+// assertions, none of which needed to change for this addition.
 export function recordFriendStatusEvent(
   type: SessionEventType,
   sessionId: string,
-  displayLabel: string
+  displayLabel: string,
+  extra?: { hostname?: string; goalText?: string }
 ): void {
   currentFriendSyncUserId()
     .then((userId) => {
       if (!userId) return undefined;
-      return sessionStatusSyncApi.recordStatusEvent({ type, sessionId, displayLabel });
+      return sessionStatusSyncApi.recordStatusEvent({
+        type,
+        sessionId,
+        displayLabel,
+        ...(extra?.hostname !== undefined ? { hostname: extra.hostname } : {}),
+        ...(extra?.goalText !== undefined ? { goalText: extra.goalText } : {}),
+      });
     })
     .catch((err) => console.error("Failed to sync session status event to friends", err));
 }

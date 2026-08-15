@@ -323,6 +323,104 @@ describe("OptionsApp", () => {
     expect(await screen.findByLabelText("Detailed site tracking")).toBeInTheDocument();
   });
 
+  it("switches to the Friends view (v2 Task 10)", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") return { ok: true, settings: DEFAULT_USER_SETTINGS };
+      if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
+      return { ok: true };
+    });
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Detailed site tracking"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Friends" }));
+
+    expect(await screen.findByRole("heading", { name: "Friends" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Detailed site tracking")).not.toBeInTheDocument();
+  });
+
+  describe("Notifications (v2 Task 10 Part C - local, not server-enforced)", () => {
+    it("shows live-nudge and digest notification toggles enabled by default, and saves when turned off", async () => {
+      vi.spyOn(messenger, "sendMessage").mockResolvedValue({
+        ok: true,
+        settings: DEFAULT_USER_SETTINGS,
+      });
+      const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
+
+      render(<OptionsApp />);
+      await waitFor(() =>
+        screen.getByLabelText("Show a notification when a friend sends me a live nudge")
+      );
+
+      const liveNudgeToggle = screen.getByLabelText(
+        "Show a notification when a friend sends me a live nudge"
+      );
+      const digestToggle = screen.getByLabelText("Show a notification for a friend's daily digest");
+      expect(liveNudgeToggle).toBeChecked();
+      expect(digestToggle).toBeChecked();
+
+      fireEvent.click(liveNudgeToggle);
+
+      await waitFor(() =>
+        expect(sendMessageSpy).toHaveBeenCalledWith({
+          type: "SETTINGS_SAVE",
+          payload: { ...DEFAULT_USER_SETTINGS, liveNudgesNotificationsEnabled: false },
+        })
+      );
+    });
+
+    it("quiet hours are off by default; enabling shows start/end inputs and saves a default window", async () => {
+      vi.spyOn(messenger, "sendMessage").mockResolvedValue({
+        ok: true,
+        settings: DEFAULT_USER_SETTINGS,
+      });
+      const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
+
+      render(<OptionsApp />);
+      await waitFor(() =>
+        screen.getByLabelText("Quiet hours (suppress notification toasts during a window)")
+      );
+
+      const quietHoursToggle = screen.getByLabelText(
+        "Quiet hours (suppress notification toasts during a window)"
+      );
+      expect(quietHoursToggle).not.toBeChecked();
+      expect(screen.queryByLabelText(/Quiet hours start/)).not.toBeInTheDocument();
+
+      fireEvent.click(quietHoursToggle);
+
+      await waitFor(() =>
+        expect(sendMessageSpy).toHaveBeenCalledWith({
+          type: "SETTINGS_SAVE",
+          payload: { ...DEFAULT_USER_SETTINGS, quietHours: { startHour: 22, endHour: 7 } },
+        })
+      );
+    });
+
+    it("editing the quiet-hours start/end inputs saves the updated window", async () => {
+      vi.spyOn(messenger, "sendMessage").mockResolvedValue({
+        ok: true,
+        settings: { ...DEFAULT_USER_SETTINGS, quietHours: { startHour: 22, endHour: 7 } },
+      });
+      const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
+
+      render(<OptionsApp />);
+      await waitFor(() => screen.getByLabelText(/Quiet hours start/));
+
+      fireEvent.change(screen.getByLabelText(/Quiet hours start/), { target: { value: "21" } });
+
+      await waitFor(() =>
+        expect(sendMessageSpy).toHaveBeenCalledWith({
+          type: "SETTINGS_SAVE",
+          payload: {
+            ...DEFAULT_USER_SETTINGS,
+            quietHours: { startHour: 21, endHour: 7 },
+          },
+        })
+      );
+    });
+  });
+
   it("switches to the Account view and requests the current auth session", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "SETTINGS_GET") return { ok: true, settings: DEFAULT_USER_SETTINGS };

@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { supabase } from "./supabaseClient";
-import { recordStatusEvent, fetchNewEventsForFriends, pollNewEventsForFriends } from "./sessionStatusSyncApi";
+import {
+  recordStatusEvent,
+  fetchNewEventsForFriends,
+  pollNewEventsForFriends,
+  fetchFriendEventDetails,
+  fetchFriendInterventionCount,
+  fetchFriendFullHistory,
+} from "./sessionStatusSyncApi";
 
 // Spies on the supabaseClient module's exported singleton, same boundary/style as
 // friendGroupApi.test.ts - nothing here ever lets the real client make a network call.
@@ -73,6 +80,49 @@ describe("sessionStatusSyncApi.recordStatusEvent", () => {
     // occurred_at is a client-set timestamptz (no DB default - see the schema migration).
     expect(() => new Date(insertArg.occurred_at).toISOString()).not.toThrow();
     expect(new Date(insertArg.occurred_at).getTime()).not.toBeNaN();
+  });
+
+  // v2 Task 10: hostname/goalText are optional and additive - when provided, they're written to
+  // their own new columns (never into display_label - see the migration's comment on why
+  // display_label stays generic).
+  it("writes hostname/goal_text when provided (v2 Task 10)", async () => {
+    mockSignedIn("user-a");
+    const builder = makeBuilder({ data: null, error: null });
+    vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+
+    await recordStatusEvent({
+      type: "DISTRACTION_ATTEMPT",
+      sessionId: "session-1",
+      displayLabel: "got distracted",
+      hostname: "youtube.com",
+      goalText: "Finish chapter 6",
+    });
+
+    const insertArg = builder.insert.mock.calls[0]![0] as {
+      hostname: string | null;
+      goal_text: string | null;
+    };
+    expect(insertArg.hostname).toBe("youtube.com");
+    expect(insertArg.goal_text).toBe("Finish chapter 6");
+  });
+
+  it("writes hostname/goal_text as null when not provided", async () => {
+    mockSignedIn("user-a");
+    const builder = makeBuilder({ data: null, error: null });
+    vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+
+    await recordStatusEvent({
+      type: "SESSION_STARTED",
+      sessionId: "session-1",
+      displayLabel: "started a focus session",
+    });
+
+    const insertArg = builder.insert.mock.calls[0]![0] as {
+      hostname: string | null;
+      goal_text: string | null;
+    };
+    expect(insertArg.hostname).toBeNull();
+    expect(insertArg.goal_text).toBeNull();
   });
 
   it("is a no-op when there is no authenticated session (never touches the database)", async () => {
@@ -255,5 +305,149 @@ describe("sessionStatusSyncApi.pollNewEventsForFriends", () => {
     // conflated with the ok:true/no-session case above, and must not proceed to query the table.
     expect(result).toEqual({ ok: false, events: [] });
     expect(fromSpy).not.toHaveBeenCalled();
+  });
+
+  // v2 Task 10 regression test: proves the baseline friend-events fetch never requests
+  // hostname/goal_text, regardless of any friendship_settings toggle's state - this is a
+  // client-side proof to go alongside verify-privacy-controls.mjs's live proof that a bare
+  // `.select()` would silently leak these two fields to everyone who can see the row at all,
+  // bypassing the new per-field toggles entirely (see BASELINE_EVENT_COLUMNS's comment in
+  // sessionStatusSyncApi.ts).
+  it("never requests hostname/goal_text - selects only the fixed baseline column list, regardless of toggle state", async () => {
+    mockSignedIn("user-b");
+    const builder = makeBuilder({ data: [], error: null });
+    vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+
+    await pollNewEventsForFriends(0);
+
+    expect(builder.select).toHaveBeenCalledTimes(1);
+    const selectArg = builder.select.mock.calls[0]![0] as string;
+    expect(selectArg).toBe("id, user_id, session_id, type, display_label, occurred_at");
+    expect(selectArg).not.toContain("hostname");
+    expect(selectArg).not.toContain("goal_text");
+  });
+});
+
+describe("sessionStatusSyncApi.fetchFriendEventDetails (v2 Task 10)", () => {
+  it("calls the fetch_friend_event_details RPC with the given event ids and maps the result to camelCase", async () => {
+    const rpcSpy = vi.spyOn(supabase, "rpc").mockResolvedValue({
+      data: [{ id: "event-1", hostname: "youtube.com", goal_text: "Finish chapter 6" }],
+      error: null,
+    } as never);
+
+    const result = await fetchFriendEventDetails(["event-1"]);
+
+    expect(rpcSpy).toHaveBeenCalledWith("fetch_friend_event_details", {
+      p_event_ids: ["event-1"],
+    });
+    expect(result).toEqual([
+      { id: "event-1", hostname: "youtube.com", goalText: "Finish chapter 6" },
+    ]);
+  });
+
+  it("returns [] without calling the RPC when given an empty id list", async () => {
+    const rpcSpy = vi.spyOn(supabase, "rpc");
+
+    const result = await fetchFriendEventDetails([]);
+
+    expect(rpcSpy).not.toHaveBeenCalled();
+    expect(result).toEqual([]);
+  });
+
+  it("returns [] (does not throw) when the RPC errors", async () => {
+    vi.spyOn(supabase, "rpc").mockResolvedValue({ data: null, error: { message: "boom" } } as never);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await fetchFriendEventDetails(["event-1"]);
+
+    expect(result).toEqual([]);
+  });
+});
+
+describe("sessionStatusSyncApi.fetchFriendInterventionCount (v2 Task 10)", () => {
+  it("calls the fetch_friend_intervention_count RPC and returns the count", async () => {
+    const rpcSpy = vi.spyOn(supabase, "rpc").mockResolvedValue({ data: 3, error: null } as never);
+
+    const result = await fetchFriendInterventionCount("user-a");
+
+    expect(rpcSpy).toHaveBeenCalledWith("fetch_friend_intervention_count", {
+      p_subject_user_id: "user-a",
+      p_since: null,
+    });
+    expect(result).toBe(3);
+  });
+
+  it("passes `since` as an ISO timestamp when given", async () => {
+    const rpcSpy = vi.spyOn(supabase, "rpc").mockResolvedValue({ data: 0, error: null } as never);
+    const since = new Date("2026-01-01T00:00:00.000Z").getTime();
+
+    await fetchFriendInterventionCount("user-a", since);
+
+    expect(rpcSpy).toHaveBeenCalledWith("fetch_friend_intervention_count", {
+      p_subject_user_id: "user-a",
+      p_since: new Date(since).toISOString(),
+    });
+  });
+
+  it("returns null (not 0, not throw) when the RPC denies/errors - distinguishable from a real zero count", async () => {
+    vi.spyOn(supabase, "rpc").mockResolvedValue({
+      data: null,
+      error: { message: "Not authorized to view this user's intervention count" },
+    } as never);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await fetchFriendInterventionCount("user-a");
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("sessionStatusSyncApi.fetchFriendFullHistory (v2 Task 10)", () => {
+  it("calls the fetch_friend_full_history RPC and maps every row to camelCase", async () => {
+    const rpcSpy = vi.spyOn(supabase, "rpc").mockResolvedValue({
+      data: [
+        {
+          id: "event-1",
+          user_id: "user-a",
+          session_id: "session-1",
+          type: "SESSION_STARTED",
+          display_label: "started a focus session",
+          hostname: null,
+          goal_text: "Finish chapter 6",
+          occurred_at: "2026-01-01T00:00:05.000Z",
+        },
+      ],
+      error: null,
+    } as never);
+
+    const result = await fetchFriendFullHistory("user-a");
+
+    expect(rpcSpy).toHaveBeenCalledWith("fetch_friend_full_history", {
+      p_subject_user_id: "user-a",
+    });
+    expect(result).toEqual([
+      {
+        id: "event-1",
+        userId: "user-a",
+        sessionId: "session-1",
+        type: "SESSION_STARTED",
+        displayLabel: "started a focus session",
+        hostname: null,
+        goalText: "Finish chapter 6",
+        occurredAt: new Date("2026-01-01T00:00:05.000Z").getTime(),
+      },
+    ]);
+  });
+
+  it("returns [] (does not throw) when the RPC denies/errors", async () => {
+    vi.spyOn(supabase, "rpc").mockResolvedValue({
+      data: null,
+      error: { message: "Not authorized to view this user's full session history" },
+    } as never);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await fetchFriendFullHistory("user-a");
+
+    expect(result).toEqual([]);
   });
 });

@@ -98,6 +98,12 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
           // "Friends" section, not part of the onboarding flow - defaults off, same as
           // DEFAULT_USER_SETTINGS.
           friendSyncEnabled: false,
+          // v2 Task 10 Part C: notification preferences are configured separately from the
+          // options page's "Notifications" section, not part of onboarding - defaults match
+          // DEFAULT_USER_SETTINGS exactly.
+          liveNudgesNotificationsEnabled: true,
+          digestNotificationsEnabled: true,
+          quietHours: null,
         },
       });
 

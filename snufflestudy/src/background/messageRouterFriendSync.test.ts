@@ -110,7 +110,7 @@ describe("messageRouter — recordFriendStatusEvent wiring at each lifecycle tra
     mockSignedInWithNoGroups();
   });
 
-  it("SESSION_START records SESSION_STARTED with a generic displayLabel", async () => {
+  it("SESSION_START records SESSION_STARTED with a generic displayLabel, plus the real goal text (v2 Task 10)", async () => {
     const recordSpy = vi
       .spyOn(sessionStatusSyncApi, "recordStatusEvent")
       .mockResolvedValue(undefined);
@@ -121,6 +121,7 @@ describe("messageRouter — recordFriendStatusEvent wiring at each lifecycle tra
       type: "SESSION_STARTED",
       sessionId,
       displayLabel: "started a focus session",
+      goalText: createInput.goal,
     });
   });
 
@@ -170,7 +171,7 @@ describe("messageRouter — recordFriendStatusEvent wiring at each lifecycle tra
     });
   });
 
-  it("DISTRACTION_ATTEMPT records DISTRACTION_ATTEMPT with a generic displayLabel (never the hostname)", async () => {
+  it("DISTRACTION_ATTEMPT records DISTRACTION_ATTEMPT with a generic displayLabel (never the hostname), and the real hostname in its own field (v2 Task 10)", async () => {
     const recordSpy = vi
       .spyOn(sessionStatusSyncApi, "recordStatusEvent")
       .mockResolvedValue(undefined);
@@ -186,9 +187,11 @@ describe("messageRouter — recordFriendStatusEvent wiring at each lifecycle tra
       type: "DISTRACTION_ATTEMPT",
       sessionId,
       displayLabel: "got distracted",
+      hostname: "youtube.com",
     });
     // The privacy rule this call site is required to follow (session_status_events'
-    // display_label column comment) - the hostname must never leak into the synced label.
+    // display_label column comment) - the hostname must never leak into the synced label, even
+    // though (v2 Task 10) it's now also written to its own, separately-gated column.
     const call = recordSpy.mock.calls.find((c) => c[0].type === "DISTRACTION_ATTEMPT");
     expect(call?.[0].displayLabel).not.toContain("youtube.com");
   });

@@ -547,6 +547,86 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
         expect.objectContaining({ message: expect.stringContaining("sent you a nudge") })
       );
     });
+
+    describe("v2 Task 10 Part C: local notification-preference gating (does not affect the fetch/cursor)", () => {
+      function sampleNudge() {
+        return {
+          id: "nudge-3",
+          senderUserId: "user-b",
+          recipientUserId: "user-a",
+          messageId: "keep-going",
+          sentAt: Date.now(),
+        };
+      }
+
+      it("suppresses the nudge toast when liveNudgesNotificationsEnabled is false, but still advances the cursor", async () => {
+        await settingsRepo.saveSettings({
+          ...DEFAULT_USER_SETTINGS,
+          liveNudgesNotificationsEnabled: false,
+        });
+        mockFriendSyncEligible();
+        vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+          ok: true,
+          events: [],
+        });
+        vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({
+          ok: true,
+          nudges: [sampleNudge()],
+        });
+        const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+        await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+        expect(createNotificationSpy).not.toHaveBeenCalled();
+        expect(await getLastNudgePollAt()).toEqual(expect.any(Number));
+      });
+
+      it("suppresses the nudge toast during configured quiet hours, but still advances the cursor", async () => {
+        await settingsRepo.saveSettings({
+          ...DEFAULT_USER_SETTINGS,
+          quietHours: { startHour: 0, endHour: 23 },
+        });
+        mockFriendSyncEligible();
+        vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+          ok: true,
+          events: [],
+        });
+        vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({
+          ok: true,
+          nudges: [sampleNudge()],
+        });
+        const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+        await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+        // 0-23 covers every hour of the day except the tiny sliver at hour 23, which is
+        // vanishingly unlikely to be the exact moment this test runs - a same-day, wide window
+        // is deterministic enough here without needing to fake the system clock.
+        expect(createNotificationSpy).not.toHaveBeenCalled();
+        expect(await getLastNudgePollAt()).toEqual(expect.any(Number));
+      });
+
+      it("still shows the nudge toast when notifications are enabled and no quiet hours are configured (unaffected by this task)", async () => {
+        await settingsRepo.saveSettings(DEFAULT_USER_SETTINGS);
+        mockFriendSyncEligible();
+        vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
+          ok: true,
+          events: [],
+        });
+        vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({
+          ok: true,
+          nudges: [sampleNudge()],
+        });
+        const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+        await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+        expect(createNotificationSpy).toHaveBeenCalledWith(
+          "friend-nudge-nudge-3",
+          expect.objectContaining({ title: "Nudge from a friend" })
+        );
+      });
+    });
   });
 
   describe("unlock-request polling (v2 Task 8 - reuses this same alarm, not a parallel one)", () => {
@@ -993,6 +1073,61 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
 
       expect(createNotificationSpy).toHaveBeenCalledTimes(1);
       expect(digestPollSpy).toHaveBeenLastCalledWith(cursorAfterTick1);
+    });
+
+    describe("v2 Task 10 Part C: local notification-preference gating (does not affect the fetch/cursor)", () => {
+      it("suppresses the digest toast when digestNotificationsEnabled is false, but still advances the cursor", async () => {
+        await settingsRepo.saveSettings({
+          ...DEFAULT_USER_SETTINGS,
+          digestNotificationsEnabled: false,
+        });
+        mockFriendSyncEligible("user-a");
+        vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({
+          ok: true,
+          digests: [sampleDigest({ friendUserId: "user-b" })],
+        });
+        const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+        await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+        expect(createNotificationSpy).not.toHaveBeenCalled();
+        expect(await getLastDigestPollAt()).toEqual(expect.any(Number));
+      });
+
+      it("suppresses the digest toast during configured quiet hours, but still advances the cursor", async () => {
+        await settingsRepo.saveSettings({
+          ...DEFAULT_USER_SETTINGS,
+          quietHours: { startHour: 0, endHour: 23 },
+        });
+        mockFriendSyncEligible("user-a");
+        vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({
+          ok: true,
+          digests: [sampleDigest({ friendUserId: "user-b" })],
+        });
+        const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+        await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+        expect(createNotificationSpy).not.toHaveBeenCalled();
+        expect(await getLastDigestPollAt()).toEqual(expect.any(Number));
+      });
+
+      it("still shows the digest toast when notifications are enabled and no quiet hours are configured (unaffected by this task)", async () => {
+        await settingsRepo.saveSettings(DEFAULT_USER_SETTINGS);
+        mockFriendSyncEligible("user-a");
+        vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({
+          ok: true,
+          digests: [sampleDigest({ friendUserId: "user-b" })],
+        });
+        const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+        await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+        expect(createNotificationSpy).toHaveBeenCalledWith(
+          "friend-digest-user-b-2026-08-14",
+          expect.objectContaining({ title: "Daily digest" })
+        );
+      });
     });
   });
 
