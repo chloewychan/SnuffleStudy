@@ -5,9 +5,9 @@ import { IndexedDbTaskRepository } from "../infrastructure/storage/taskRepositor
 import * as machine from "../domain/session/sessionMachine";
 import { showNotification } from "../infrastructure/browser/notificationsApi";
 import { clearHardBlockRules } from "../infrastructure/browser/declarativeNetRequestApi";
-import { fetchNewEventsForFriends } from "../infrastructure/backend/sessionStatusSyncApi";
+import { pollNewEventsForFriends } from "../infrastructure/backend/sessionStatusSyncApi";
 import { getLastFriendPollAt, setLastFriendPollAt } from "../infrastructure/storage/friendPollState";
-import { recordFriendStatusEvent } from "./friendSync";
+import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
 const historyRepo = new IndexedDbSessionRepository();
@@ -25,15 +25,38 @@ const FIRST_POLL_LOOKBACK_MS = 5 * 60 * 1000;
 
 // Fetches new friend events since the last poll and shows a chrome.notifications toast for each
 // (per docs/Draft1_Architecture_Overview.md's Phase 1 "polling" friend-event delivery plan).
-// Best-effort throughout: fetchNewEventsForFriends already never throws (see
+// Best-effort throughout: pollNewEventsForFriends already never throws (see
 // sessionStatusSyncApi.ts), but this is wrapped anyway so a chrome.storage failure while
 // reading/writing the last-checked timestamp can't take down the alarm listener.
 async function handleFriendPollAlarm(): Promise<void> {
   try {
+    // Re-check eligibility on every tick (fix round 1), not just once at alarm-start time
+    // (messageRouter.ts's maybeStartFriendPoll runs this same pair of checks, but only when the
+    // alarm is first scheduled). friendSyncEnabled can be toggled off, or the user can leave
+    // their last group, mid-session without anything telling this already-running alarm to stop
+    // - without re-checking here, it would keep polling Supabase every minute regardless,
+    // contradicting the architecture doc's "keep backend load and battery use proportional to
+    // actual usage" directive. Skips the events fetch entirely (no network call against
+    // session_status_events) when either check fails now; does not reactively cancel the alarm
+    // itself here (that's a nice-to-have, not required - the alarm's own stop points are still
+    // messageRouter.ts's SESSION_END/SESSION_DISMISS_* and this file's natural-completion path).
+    const userId = await currentFriendSyncUserId();
+    if (!userId) return;
+    if (!(await isInAnyGroup(userId))) return;
+
     const now = Date.now();
     const since = (await getLastFriendPollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
-    const events = await fetchNewEventsForFriends(since);
-    for (const event of events) {
+    const result = await pollNewEventsForFriends(since);
+    if (!result.ok) {
+      // The fetch itself failed (network/query/auth error - distinct from "genuinely no new
+      // events", see pollNewEventsForFriends's own comment). Leave the persisted cursor where it
+      // was so the next tick retries this exact window, rather than silently advancing past
+      // friend events that occurred during the outage (fix round 1 - previously this branch
+      // didn't exist, so any silent failure still advanced the cursor to `now`, permanently
+      // losing whatever happened during the outage window).
+      return;
+    }
+    for (const event of result.events) {
       showNotification(`friend-event-${event.id}`, "Friend activity", event.displayLabel);
     }
     await setLastFriendPollAt(now);

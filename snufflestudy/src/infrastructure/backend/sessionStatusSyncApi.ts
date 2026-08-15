@@ -34,16 +34,36 @@ interface SessionStatusEventRow {
 // functions below are called from v1's session lifecycle hot path (messageRouter.ts /
 // alarmHandlers.ts, on every start/pause/resume/break/end/complete), where the Task 6 brief
 // requires a signed-out user to pay "zero network cost" rather than merely catching a resulting
-// error. Returns null (never throws) so callers can treat "not signed in" as a plain no-op.
-async function currentUserId(): Promise<string | null> {
+// error.
+//
+// `ok: false` (fix round 1) means the auth check itself failed - getSession() threw or returned
+// an explicit error - as opposed to `ok: true, userId: null`, which means the check ran cleanly
+// and simply found no session (a legitimate, expected "signed out" state). This distinction only
+// matters to queryEventsSince/pollNewEventsForFriends below (which need to tell a real failure
+// apart from "nothing to do" so alarmHandlers.ts's friend-poll alarm doesn't advance its cursor
+// past a failure) - recordStatusEvent/fetchNewEventsForFriends still collapse both into a single
+// no-op via currentUserId() below, since neither has a cursor to protect.
+async function checkAuth(): Promise<{ ok: true; userId: string | null } | { ok: false }> {
   try {
     const { data, error } = await supabase.auth.getSession();
-    if (error || !data.session) return null;
-    return data.session.user.id;
+    if (error) {
+      console.error("Failed to read Supabase auth session", error);
+      return { ok: false };
+    }
+    return { ok: true, userId: data.session?.user.id ?? null };
   } catch (err) {
     console.error("Failed to read Supabase auth session", err);
-    return null;
+    return { ok: false };
   }
+}
+
+// Returns null (never throws) so callers can treat "not signed in" - and, per this function's
+// contract, "the auth check itself failed" too - as a plain no-op. Used by recordStatusEvent and
+// fetchNewEventsForFriends, neither of which needs to distinguish those two cases (see
+// checkAuth's comment above).
+async function currentUserId(): Promise<string | null> {
+  const result = await checkAuth();
+  return result.ok ? result.userId : null;
 }
 
 function toFriendEvent(row: SessionStatusEventRow): FriendEvent {
@@ -86,16 +106,28 @@ export async function recordStatusEvent(event: {
   }
 }
 
-// Fetches session_status_events rows newer than sinceTimestamp. Deliberately unfiltered beyond
-// the timestamp bound - server-side RLS (supabase/migrations/20260815000002_v2_rls_policies.sql,
-// "own session events always readable" + "group members can read visible friend session
-// events") already restricts the result to the caller's own rows plus rows from group-mates who
-// have send_live_nudges = true toward the caller, so the client trusts whatever comes back
-// rather than re-deriving that visibility logic here.
-export async function fetchNewEventsForFriends(sinceTimestamp: number): Promise<FriendEvent[]> {
+// Shared implementation behind fetchNewEventsForFriends/pollNewEventsForFriends below.
+// Deliberately unfiltered beyond the timestamp bound - server-side RLS (supabase/migrations/
+// 20260815000002_v2_rls_policies.sql, "own session events always readable" + "group members can
+// read visible friend session events") already restricts the result to the caller's own rows
+// plus rows from group-mates who have send_live_nudges = true toward the caller, so the client
+// trusts whatever comes back rather than re-deriving that visibility logic here.
+//
+// `ok` distinguishes "the check/query itself failed" (auth error, network error, query error -
+// events is always [] in this case) from "it ran cleanly and found nothing new" - a cleanly
+// resolved signed-out state is treated as the latter (ok: true, events: []): it's a legitimate,
+// expected state for this function's direct callers (messageRouter.ts's FRIEND_EVENTS_FETCH,
+// FriendGroupPanel.tsx), not a failure to retry. An auth check that itself failed (checkAuth's
+// `ok: false`) is treated as a real failure, not "signed out" - collapsing those two would have
+// hidden exactly the class of failure pollNewEventsForFriends's caller (alarmHandlers.ts's
+// friend-poll alarm, fix round 1) needs to notice so it doesn't advance its cursor past it.
+async function queryEventsSince(
+  sinceTimestamp: number
+): Promise<{ ok: boolean; events: FriendEvent[] }> {
   try {
-    const userId = await currentUserId();
-    if (!userId) return []; // Not signed in - nothing to fetch, no-op rather than an error.
+    const auth = await checkAuth();
+    if (!auth.ok) return { ok: false, events: [] }; // The auth check itself failed - a real failure.
+    if (!auth.userId) return { ok: true, events: [] }; // Cleanly signed out - nothing to fetch, no-op.
 
     const { data, error } = await supabase
       .from("session_status_events")
@@ -104,11 +136,36 @@ export async function fetchNewEventsForFriends(sinceTimestamp: number): Promise<
       .order("occurred_at", { ascending: true });
     if (error || !data) {
       console.error("Failed to fetch friend session events", error);
-      return [];
+      return { ok: false, events: [] };
     }
-    return (data as SessionStatusEventRow[]).map(toFriendEvent);
+    return { ok: true, events: (data as SessionStatusEventRow[]).map(toFriendEvent) };
   } catch (err) {
     console.error("Failed to fetch friend session events", err);
-    return [];
+    return { ok: false, events: [] };
   }
+}
+
+// Fetches session_status_events rows newer than sinceTimestamp. Never throws, and collapses the
+// ok/events distinction above into a plain array (query failure and "no new events" both read as
+// [] here) - this is the simpler contract this function's callers (messageRouter.ts's
+// FRIEND_EVENTS_FETCH case, FriendGroupPanel.tsx) actually need: an on-demand UI fetch has no
+// persisted cursor to protect from advancing incorrectly, so there's nothing for it to do
+// differently on failure vs. "nothing new" - both just render as an empty/unchanged list.
+export async function fetchNewEventsForFriends(sinceTimestamp: number): Promise<FriendEvent[]> {
+  const result = await queryEventsSince(sinceTimestamp);
+  return result.events;
+}
+
+// Poll-specific variant (v2 Task 6 fix round 1). alarmHandlers.ts's friend-poll alarm persists a
+// "last checked" cursor (friendPollState.ts) and must only advance it on a *confirmed successful*
+// poll - fetchNewEventsForFriends's plain `[]` return is indistinguishable between "genuinely no
+// new events" and "the fetch itself failed" (network/query/auth error), and advancing the cursor
+// on a silent failure would permanently lose any friend events that occurred during that outage
+// window (the next poll would start counting from `now`, not from before the failure). Returning
+// `ok` lets the caller leave the cursor untouched on failure so the next tick retries the same
+// window instead.
+export async function pollNewEventsForFriends(
+  sinceTimestamp: number
+): Promise<{ ok: boolean; events: FriendEvent[] }> {
+  return queryEventsSince(sinceTimestamp);
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { supabase } from "./supabaseClient";
-import { recordStatusEvent, fetchNewEventsForFriends } from "./sessionStatusSyncApi";
+import { recordStatusEvent, fetchNewEventsForFriends, pollNewEventsForFriends } from "./sessionStatusSyncApi";
 
 // Spies on the supabaseClient module's exported singleton, same boundary/style as
 // friendGroupApi.test.ts - nothing here ever lets the real client make a network call.
@@ -167,5 +167,93 @@ describe("sessionStatusSyncApi.fetchNewEventsForFriends", () => {
 
     expect(result).toEqual([]);
     expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+});
+
+// Fix round 1: alarmHandlers.ts's friend-poll alarm needs to distinguish "the fetch failed" from
+// "genuinely no new events" so it only advances its persisted last-checked cursor on confirmed
+// success (see that file's handleFriendPollAlarm) - fetchNewEventsForFriends's plain `[]` return
+// can't make that distinction, which is exactly why this richer-return variant exists.
+describe("sessionStatusSyncApi.pollNewEventsForFriends", () => {
+  it("returns ok: true with the mapped events on a successful query", async () => {
+    mockSignedIn("user-b");
+    const builder = makeBuilder({
+      data: [
+        {
+          id: "event-1",
+          user_id: "user-a",
+          session_id: "session-1",
+          type: "SESSION_STARTED",
+          display_label: "started a focus session",
+          occurred_at: "2026-01-01T00:00:05.000Z",
+        },
+      ],
+      error: null,
+    });
+    vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+
+    const result = await pollNewEventsForFriends(0);
+
+    expect(result).toEqual({
+      ok: true,
+      events: [
+        {
+          id: "event-1",
+          userId: "user-a",
+          sessionId: "session-1",
+          type: "SESSION_STARTED",
+          displayLabel: "started a focus session",
+          occurredAt: new Date("2026-01-01T00:00:05.000Z").getTime(),
+        },
+      ],
+    });
+  });
+
+  it("returns ok: true with events: [] when there is no authenticated session (a legitimate empty state, not a failure to retry)", async () => {
+    mockSignedOut();
+    const fromSpy = vi.spyOn(supabase, "from");
+
+    const result = await pollNewEventsForFriends(0);
+
+    expect(fromSpy).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: true, events: [] });
+  });
+
+  it("returns ok: false (distinct from a genuine empty result) on a query error, and does not throw", async () => {
+    mockSignedIn("user-b");
+    vi.spyOn(supabase, "from").mockReturnValue(
+      makeBuilder({ data: null, error: { message: "boom" } }) as never
+    );
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await pollNewEventsForFriends(0);
+
+    expect(result).toEqual({ ok: false, events: [] });
+    expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  it("returns ok: false when getSession itself throws, and does not throw", async () => {
+    vi.spyOn(supabase.auth, "getSession").mockRejectedValue(new Error("network down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await pollNewEventsForFriends(0);
+
+    expect(result).toEqual({ ok: false, events: [] });
+  });
+
+  it("returns ok: false when getSession resolves with an explicit error (not thrown)", async () => {
+    vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
+      data: { session: null },
+      error: { message: "invalid refresh token" },
+    } as never);
+    const fromSpy = vi.spyOn(supabase, "from");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await pollNewEventsForFriends(0);
+
+    // An explicit auth error is a real failure, not "cleanly signed out" - must not be
+    // conflated with the ok:true/no-session case above, and must not proceed to query the table.
+    expect(result).toEqual({ ok: false, events: [] });
+    expect(fromSpy).not.toHaveBeenCalled();
   });
 });
