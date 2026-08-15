@@ -40,21 +40,21 @@ describe("CompletionScreen", () => {
     );
   });
 
-  it("fetches and displays the count of past completed sessions via SESSION_LIST_HISTORY", async () => {
+  it("fetches and displays the count of past completed sessions via SESSION_COUNT_BY_STATE", async () => {
     const completed = machine.completeSession(
       machine.startSession(machine.createSession(input, "session_1", 0), 0),
       100
     );
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({
       ok: true,
-      sessions: [{}, {}],
+      count: 2,
     });
 
     render(<CompletionScreen session={completed} />);
 
     expect(await screen.findByText("This is your 2nd completed session.")).toBeInTheDocument();
     expect(sendMessageSpy).toHaveBeenCalledWith({
-      type: "SESSION_LIST_HISTORY",
+      type: "SESSION_COUNT_BY_STATE",
       payload: { state: "COMPLETED" },
     });
   });
@@ -88,8 +88,9 @@ describe("CompletionScreen", () => {
     render(<CompletionScreen session={completed} />);
     fireEvent.click(screen.getByRole("button", { name: "Start another session" }));
 
-    // Two calls now: the mount-time SESSION_LIST_HISTORY count fetch, plus the dismiss click's
-    // SESSION_DISMISS_COMPLETED - both reject here, and neither should crash the component.
+    // Two calls now: the mount-time SESSION_COUNT_BY_STATE count fetch, plus the dismiss
+    // click's SESSION_DISMISS_COMPLETED - both reject here, and neither should crash the
+    // component.
     await waitFor(() => expect(sendMessageSpy).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(consoleErrorSpy).toHaveBeenCalled());
 

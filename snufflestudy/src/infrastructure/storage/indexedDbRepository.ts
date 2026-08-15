@@ -1,5 +1,10 @@
 import { openDB, type IDBPDatabase } from "idb";
-import type { StudySession, SessionEvent, HistoryQuery } from "../../domain/session/sessionTypes";
+import type {
+  StudySession,
+  SessionEvent,
+  HistoryQuery,
+  SessionState,
+} from "../../domain/session/sessionTypes";
 
 const DB_NAME = "snufflestudy";
 const DB_VERSION = 1;
@@ -9,6 +14,7 @@ const EVENTS_STORE = "events";
 export interface SessionRepository {
   archive(session: StudySession): Promise<void>;
   listHistory(options?: HistoryQuery): Promise<StudySession[]>;
+  countByState(state: SessionState): Promise<number>;
   recordEvent(event: SessionEvent): Promise<void>;
   listEvents(sessionId: string): Promise<SessionEvent[]>;
 }
@@ -59,6 +65,19 @@ export class IndexedDbSessionRepository implements SessionRepository {
       sessions = sessions.slice(0, options.limit);
     }
     return sessions;
+  }
+
+  // Uses the sessions store's existing (previously unused) "by-state" index for an O(matching
+  // rows) IndexedDB count - no full session records are fetched into memory. This backs the
+  // CompletionScreen/AbandonedScreen ordinal counts (Task 4 fix round 2), which fire on every
+  // single session end, not just on-demand history-page opens like listHistory does.
+  async countByState(state: SessionState): Promise<number> {
+    const db = await getDb();
+    try {
+      return await db.countFromIndex(SESSIONS_STORE, "by-state", state);
+    } finally {
+      db.close();
+    }
   }
 
   async recordEvent(event: SessionEvent): Promise<void> {

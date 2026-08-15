@@ -1,4 +1,4 @@
-import type { CreateSessionInput, HistoryQuery } from "../domain/session/sessionTypes";
+import type { CreateSessionInput, HistoryQuery, SessionState } from "../domain/session/sessionTypes";
 import type { UserSettings } from "../domain/settings/userSettings";
 import type { Task } from "../domain/tasks/taskTypes";
 
@@ -26,6 +26,7 @@ export type ExtensionMessage =
   | { type: "SETTINGS_GET" }
   | { type: "SETTINGS_SAVE"; payload: UserSettings }
   | { type: "SESSION_LIST_HISTORY"; payload: HistoryQuery }
+  | { type: "SESSION_COUNT_BY_STATE"; payload: { state: SessionState } }
   | { type: "SESSION_LIST_EVENTS"; payload: { sessionId: string } }
   | { type: "TASK_CREATE"; payload: { title: string } }
   | { type: "TASK_UPDATE"; payload: Task }

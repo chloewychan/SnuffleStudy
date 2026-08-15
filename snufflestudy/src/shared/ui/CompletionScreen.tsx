@@ -17,15 +17,19 @@ export function CompletionScreen({ session }: CompletionScreenProps) {
   useEffect(() => {
     let cancelled = false;
 
-    // Lightweight: a single SESSION_LIST_HISTORY call (Task 3) filtered by state, no new
-    // persistence/counter subsystem. Best-effort - if this fails, the count line just
-    // doesn't render; it isn't load-bearing for the dismiss flow below.
-    sendMessage<{ ok: boolean; sessions?: StudySession[] }>({
-      type: "SESSION_LIST_HISTORY",
+    // Lightweight: a single SESSION_COUNT_BY_STATE call (Task 4 fix round 2), backed by an
+    // indexed count (countByState / the sessions store's "by-state" index) rather than a
+    // fetch-everything-and-measure-.length call - this fires on every single session end (not
+    // just when a user opens a history page), so an unbounded fetch of the full matching
+    // history here would have been a hot-path cost that grows with install age. No new
+    // persistence/counter subsystem. Best-effort - if this fails, the count line just doesn't
+    // render; it isn't load-bearing for the dismiss flow below.
+    sendMessage<{ ok: boolean; count?: number }>({
+      type: "SESSION_COUNT_BY_STATE",
       payload: { state: "COMPLETED" },
     })
       .then((res) => {
-        if (!cancelled && res.ok && res.sessions) setCompletedCount(res.sessions.length);
+        if (!cancelled && res.ok && res.count !== undefined) setCompletedCount(res.count);
       })
       .catch((err) => console.error("Failed to load completed session count", err));
 

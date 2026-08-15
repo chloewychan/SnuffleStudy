@@ -27,7 +27,7 @@ describe("AbandonedScreen", () => {
     );
     const sendMessageSpy = vi
       .spyOn(messenger, "sendMessage")
-      .mockResolvedValue({ ok: true, sessions: [] });
+      .mockResolvedValue({ ok: true, count: 0 });
 
     render(<AbandonedScreen session={abandoned} />);
     expect(screen.getByText("Finish 20 chemistry problems")).toBeInTheDocument();
@@ -47,7 +47,7 @@ describe("AbandonedScreen", () => {
       machine.startSession(machine.createSession(input, "session_1", 0), 0),
       100
     );
-    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, sessions: [] });
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, count: 0 });
 
     const { container } = render(<AbandonedScreen session={abandoned} />);
 
@@ -55,21 +55,21 @@ describe("AbandonedScreen", () => {
     expect(text).not.toMatch(/distract|fail|guilt|shame|weak|blew it/i);
   });
 
-  it("fetches and displays the count of past abandoned sessions via SESSION_LIST_HISTORY", async () => {
+  it("fetches and displays the count of past abandoned sessions via SESSION_COUNT_BY_STATE", async () => {
     const abandoned = machine.abandonSession(
       machine.startSession(machine.createSession(input, "session_1", 0), 0),
       100
     );
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({
       ok: true,
-      sessions: [{}, {}, {}],
+      count: 3,
     });
 
     render(<AbandonedScreen session={abandoned} />);
 
     expect(await screen.findByText("This is your 3rd session ended early.")).toBeInTheDocument();
     expect(sendMessageSpy).toHaveBeenCalledWith({
-      type: "SESSION_LIST_HISTORY",
+      type: "SESSION_COUNT_BY_STATE",
       payload: { state: "ABANDONED" },
     });
   });
@@ -97,7 +97,7 @@ describe("AbandonedScreen", () => {
     );
     const sendMessageSpy = vi
       .spyOn(messenger, "sendMessage")
-      .mockResolvedValueOnce({ ok: true, sessions: [] })
+      .mockResolvedValueOnce({ ok: true, count: 0 })
       .mockRejectedValueOnce(new Error("Could not establish connection. Receiving end does not exist."));
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 

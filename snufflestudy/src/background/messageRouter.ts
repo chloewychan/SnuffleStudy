@@ -285,6 +285,10 @@ async function routeMessage(
       return { ok: true, sessions: await historyRepo.listHistory(message.payload) };
     }
 
+    case "SESSION_COUNT_BY_STATE": {
+      return { ok: true, count: await historyRepo.countByState(message.payload.state) };
+    }
+
     case "SESSION_LIST_EVENTS": {
       return { ok: true, events: await historyRepo.listEvents(message.payload.sessionId) };
     }

@@ -73,6 +73,23 @@ describe("IndexedDbSessionRepository", () => {
     expect(history).toHaveLength(2);
   });
 
+  it("counts sessions by state using the by-state index", async () => {
+    const repo = new IndexedDbSessionRepository();
+    await repo.archive(buildSession("session_1", 1000, "COMPLETED"));
+    await repo.archive(buildSession("session_2", 2000, "COMPLETED"));
+    await repo.archive(buildSession("session_3", 3000, "ABANDONED"));
+
+    expect(await repo.countByState("COMPLETED")).toBe(2);
+    expect(await repo.countByState("ABANDONED")).toBe(1);
+  });
+
+  it("returns 0 from countByState when no sessions match", async () => {
+    const repo = new IndexedDbSessionRepository();
+    await repo.archive(buildSession("session_1", 1000, "COMPLETED"));
+
+    expect(await repo.countByState("ABANDONED")).toBe(0);
+  });
+
   it("records and lists events for a session", async () => {
     const repo = new IndexedDbSessionRepository();
     await repo.recordEvent({

@@ -511,7 +511,7 @@ describe("messageRouter — RETURN_TO_WORK_CLOSE_TAB", () => {
   });
 });
 
-describe("messageRouter — SESSION_LIST_HISTORY / SESSION_LIST_EVENTS", () => {
+describe("messageRouter — SESSION_LIST_HISTORY / SESSION_COUNT_BY_STATE / SESSION_LIST_EVENTS", () => {
   it("lists an abandoned session via SESSION_LIST_HISTORY, newest first", async () => {
     const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
       session: { id: string };
@@ -543,6 +543,36 @@ describe("messageRouter — SESSION_LIST_HISTORY / SESSION_LIST_EVENTS", () => {
 
     expect(result.ok).toBe(true);
     expect(result.sessions.map((s) => s.id)).not.toContain(created.session.id);
+  });
+
+  it("counts sessions by state via SESSION_COUNT_BY_STATE", async () => {
+    const abandonedSession = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: createInput,
+    })) as { session: { id: string } };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: abandonedSession.session.id } });
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: abandonedSession.session.id } });
+
+    const result = (await handleMessage({
+      type: "SESSION_COUNT_BY_STATE",
+      payload: { state: "ABANDONED" },
+    })) as { ok: boolean; count: number };
+
+    expect(result.ok).toBe(true);
+    expect(result.count).toBeGreaterThanOrEqual(1);
+  });
+
+  it("returns 0 from SESSION_COUNT_BY_STATE for a state with no matching sessions", async () => {
+    // beforeEach deletes the "snufflestudy" database, so this test starts from an empty store;
+    // no COMPLETED session has ever been archived here (SESSION_END always produces ABANDONED,
+    // never COMPLETED - see that handler's own comment in messageRouter.ts).
+    const result = (await handleMessage({
+      type: "SESSION_COUNT_BY_STATE",
+      payload: { state: "COMPLETED" },
+    })) as { ok: boolean; count: number };
+
+    expect(result.ok).toBe(true);
+    expect(result.count).toBe(0);
   });
 
   it("lists a session's recorded events via SESSION_LIST_EVENTS", async () => {
