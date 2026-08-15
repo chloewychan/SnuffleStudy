@@ -14,6 +14,8 @@ import {
   clearHardBlockRules,
   unlockHardBlockRuleForHostname,
 } from "../infrastructure/browser/declarativeNetRequestApi";
+import { supabase } from "../infrastructure/backend/supabaseClient";
+import * as friendGroupApi from "../infrastructure/backend/friendGroupApi";
 
 const settingsRepo = new ChromeStorageRepository();
 const historyRepo = new IndexedDbSessionRepository();
@@ -324,6 +326,56 @@ async function routeMessage(
         message.payload.description
       );
       return { ok: true, task };
+    }
+
+    case "AUTH_REQUEST_OTP": {
+      const { error } = await supabase.auth.signInWithOtp({ email: message.payload.email });
+      if (error) return { ok: false, error: error.message };
+      return { ok: true };
+    }
+
+    case "AUTH_VERIFY_OTP": {
+      // type: "email" selects the OTP-code verification path (not the magic-link path) - see
+      // shared/messages.ts's comment on AUTH_REQUEST_OTP for why only the code path is used.
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: message.payload.email,
+        token: message.payload.token,
+        type: "email",
+      });
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, session: data.session };
+    }
+
+    case "AUTH_SIGN_OUT": {
+      const { error } = await supabase.auth.signOut();
+      if (error) return { ok: false, error: error.message };
+      return { ok: true };
+    }
+
+    case "AUTH_GET_SESSION": {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, session: data.session };
+    }
+
+    case "GROUP_CREATE": {
+      const group = await friendGroupApi.createGroup(message.payload.name);
+      return { ok: true, group };
+    }
+
+    case "GROUP_GENERATE_INVITE_CODE": {
+      const inviteCode = await friendGroupApi.generateInviteCode(message.payload.groupId);
+      return { ok: true, inviteCode };
+    }
+
+    case "GROUP_JOIN": {
+      const membership = await friendGroupApi.joinGroup(message.payload.code);
+      return { ok: true, membership };
+    }
+
+    case "GROUP_LIST_MEMBERS": {
+      const members = await friendGroupApi.listMembers(message.payload.groupId);
+      return { ok: true, members };
     }
 
     default:

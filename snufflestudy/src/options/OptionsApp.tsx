@@ -11,8 +11,9 @@ import {
   unregisterOverlayContentScript,
 } from "../background/contentScriptRegistration";
 import { HistoryPage } from "./pages/HistoryPage";
+import { AccountPage } from "./pages/AccountPage";
 
-type OptionsView = "settings" | "history";
+type OptionsView = "settings" | "history" | "account";
 
 export function OptionsApp() {
   const [view, setView] = useState<OptionsView>("settings");
@@ -172,9 +173,19 @@ export function OptionsApp() {
         >
           History
         </button>
+        <button
+          type="button"
+          aria-current={view === "account" ? "page" : undefined}
+          disabled={view === "account"}
+          onClick={() => setView("account")}
+        >
+          Account
+        </button>
       </nav>
 
       {view === "history" && <HistoryPage />}
+
+      {view === "account" && <AccountPage />}
 
       {view === "settings" && (
         <>

@@ -32,4 +32,17 @@ export type ExtensionMessage =
   | { type: "TASK_UPDATE"; payload: Task }
   | { type: "TASK_DELETE"; payload: { taskId: string } }
   | { type: "TASK_LIST" }
-  | { type: "TASK_ADD_BREAKDOWN_ITEM"; payload: { taskId: string; description: string } };
+  | { type: "TASK_ADD_BREAKDOWN_ITEM"; payload: { taskId: string; description: string } }
+  // Auth: OTP code-entry flow, not magic-link-click - see messageRouter.ts's AUTH_* cases for
+  // why (a clickable link's redirect target would need a chrome-extension://<id>/... URL
+  // registered with Supabase, and the extension ID differs between dev/unpacked and published
+  // builds; signInWithOtp's email contains both a link and a 6-digit code, and only the code
+  // path is used here).
+  | { type: "AUTH_REQUEST_OTP"; payload: { email: string } }
+  | { type: "AUTH_VERIFY_OTP"; payload: { email: string; token: string } }
+  | { type: "AUTH_SIGN_OUT" }
+  | { type: "AUTH_GET_SESSION" }
+  | { type: "GROUP_CREATE"; payload: { name: string } }
+  | { type: "GROUP_GENERATE_INVITE_CODE"; payload: { groupId: string } }
+  | { type: "GROUP_JOIN"; payload: { code: string } }
+  | { type: "GROUP_LIST_MEMBERS"; payload: { groupId: string } };

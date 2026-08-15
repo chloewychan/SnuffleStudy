@@ -299,4 +299,23 @@ describe("OptionsApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(await screen.findByLabelText("Detailed site tracking")).toBeInTheDocument();
   });
+
+  it("switches to the Account view and requests the current auth session", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") return { ok: true, settings: DEFAULT_USER_SETTINGS };
+      if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
+      return { ok: true };
+    });
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Detailed site tracking"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+
+    expect(await screen.findByRole("heading", { name: "Account" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Detailed site tracking")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(messenger.sendMessage).toHaveBeenCalledWith({ type: "AUTH_GET_SESSION" })
+    );
+  });
 });

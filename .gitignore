@@ -5,3 +5,6 @@ dist/
 .wxt/
 .worktrees/
 .superpowers/
+.env
+.env.*
+!.env.example
