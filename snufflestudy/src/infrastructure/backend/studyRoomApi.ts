@@ -3,14 +3,24 @@ import type { StudyRoom, RoomParticipant, PresenceChangeEvent } from "../../doma
 
 // v2 Task 13: Study Rooms.
 //
-// Architectural fork point, documented per this task's brief (which flags this as a genuine
-// choice no prior task needed to make): every prior *Api.ts file in this directory (Tasks 5-12)
-// is called ONLY from src/background/messageRouter.ts - UI components talk to it exclusively via
-// sendMessage(), never importing infrastructure/backend/* directly (see FriendGroupPanel.tsx's/
-// UnlockRequestPanel.tsx's own header comments: "message-passing-only convention"). This file
-// deliberately breaks that convention and is called DIRECTLY from
-// sidepanel/components/StudyRoomPanel.tsx instead. Two independent reasons, either one alone
-// would be sufficient:
+// createRoom/listRooms/leaveRoom/listParticipants are called from src/background/messageRouter.ts
+// via sendMessage() (STUDY_ROOM_CREATE/STUDY_ROOM_LIST/STUDY_ROOM_LEAVE/
+// STUDY_ROOM_LIST_PARTICIPANTS - see src/shared/messages.ts), following this codebase's normal
+// convention exactly (FriendGroupPanel.tsx's/UnlockRequestPanel.tsx's "message-passing-only"
+// pattern) - these are plain one-shot DB reads/writes with no live-callback or DOM/media coupling,
+// structurally identical to every prior *Api.ts call this codebase already routes that way.
+//
+// Fix round 1 (Important, code review): an earlier version of this file routed ALL SIX exports,
+// including these four, directly from sidepanel/components/StudyRoomPanel.tsx, justified by
+// joinRoom/subscribeToPresence's genuine DOM/live-callback requirements below. That justification
+// does not extend to createRoom/listRooms/leaveRoom/listParticipants - review correctly flagged
+// this as broader than its own reasoning supported (it made this the first UI component in the
+// codebase to bypass message-passing at all, set a precedent other panels could point to, and
+// duplicated error-handling messageRouter.handleMessage already centralizes once). Narrowed here
+// to exactly the two functions that actually need it:
+//
+// joinRoom and subscribeToPresence remain called DIRECTLY from StudyRoomPanel.tsx - not proxied
+// through messageRouter.ts. Two independent, narrower reasons:
 //
 // 1. subscribeToPresence's live-callback shape has no fit in this codebase's existing
 //    message-passing surface. Every previous backend integration is either a one-shot
@@ -26,22 +36,18 @@ import type { StudyRoom, RoomParticipant, PresenceChangeEvent } from "../../doma
 //    worker, which Realtime's WebSocket could run from too, but which has no way to push a live
 //    callback into a UI component without that same missing port protocol) is the direct, minimal
 //    path.
-// 2. infrastructure/video/videoCallClient.ts MUST run in the sidepanel's real DOM context (camera/
-//    mic access, WebRTC) - that's not a choice, it's a browser/MV3 constraint (a service worker
-//    has no getUserMedia). Since joinRoom()'s LiveKit token has to flow directly into
-//    videoCallClient.joinCall(roomId, token) with no indirection, keeping studyRoomApi.ts's DB
-//    operations in that same direct-call context avoids a second round trip and keeps the whole
-//    join flow (insert participant row -> mint token -> connect to LiveKit) in one place instead
-//    of splitting it across a background message hop and a direct sidepanel call.
+// 2. joinRoom's LiveKit token has to flow directly into
+//    infrastructure/video/videoCallClient.ts's joinCall(roomId, token) with no indirection -
+//    videoCallClient.ts MUST run in the sidepanel's real DOM context (camera/mic access, WebRTC),
+//    which is a browser/MV3 constraint (a service worker has no getUserMedia), not a choice.
+//    Keeping joinRoom's participant-row insert and its generate-livekit-token call as one direct
+//    client-side round trip (rather than splitting the insert through messageRouter.ts and the
+//    token mint direct) avoids an extra hop for a flow that immediately hands its result to
+//    videoCallClient.joinCall anyway.
 //
 // The sidepanel already has legitimate access to the same `supabase` singleton
-// (infrastructure/backend/supabaseClient.ts) that messageRouter.ts uses - nothing about that
-// module is background-only (its own header comment explains the chrome.storage.local auth
-// adapter is there because the *background* happened to be where earlier tasks' sync logic lived,
-// not because sidepanel access is unsafe or unsupported). The original "sendMessage only" pattern
-// documented in Tasks 5-12 was about keeping ONE consistent calling convention across those
-// features (all one-shot request/response), not a hard technical wall - it doesn't fit this
-// feature's live-subscription and real-DOM-media requirements, so it isn't followed here.
+// (infrastructure/backend/supabaseClient.ts) that messageRouter.ts uses for these two - nothing
+// about that module is background-only.
 
 interface StudyRoomRow {
   id: string;

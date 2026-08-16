@@ -141,4 +141,27 @@ export type ExtensionMessage =
   // literal Interfaces line, but necessary - without an on-demand fetch, neither LockedPage.tsx
   // (checking its own request's status) nor TempPasscodePanel.tsx (listing pending requests to
   // review) has anything to render from.
-  | { type: "TEMP_PASSCODE_REQUESTS_FETCH"; payload: { sinceTimestamp: number } };
+  | { type: "TEMP_PASSCODE_REQUESTS_FETCH"; payload: { sinceTimestamp: number } }
+  // v2 Task 13, fix round 1 (Important, code review): routes to studyRoomApi.createRoom -
+  // StudyRoomPanel.tsx's create-room action. Plain one-shot DB write with no live-callback or
+  // DOM/media coupling, so - unlike joinRoom/subscribeToPresence (see studyRoomApi.ts's own
+  // header comment on why those two stay a direct, narrower exception) - there's no reason for
+  // this to skip the same message-passing convention every other *Api.ts write goes through.
+  // Throws on failure (not signed in, RLS-denied insert) - the outer handleMessage try/catch
+  // turns that into ok:false, same convention as GROUP_CREATE.
+  | { type: "STUDY_ROOM_CREATE"; payload: { name: string } }
+  // v2 Task 13, fix round 1: routes to studyRoomApi.listRooms - StudyRoomPanel.tsx's room list.
+  // Scoping to "rooms the user's groups have created" is entirely RLS-enforced server-side (see
+  // supabase/migrations/20260815000019_v2_study_rooms_group_visibility_and_join_gate.sql) - this
+  // message does no client-side filtering of its own, same as GROUP_LIST_MINE.
+  | { type: "STUDY_ROOM_LIST" }
+  // v2 Task 13, fix round 1: routes to studyRoomApi.leaveRoom - StudyRoomPanel.tsx's leave
+  // action sets left_at on the caller's own currently-open participant row. Throws on failure
+  // (not signed in, update error) - same outer-catch convention as above.
+  | { type: "STUDY_ROOM_LEAVE"; payload: { roomId: string } }
+  // v2 Task 13, fix round 1: routes to studyRoomApi.listParticipants - seeds StudyRoomPanel.tsx's
+  // presence list with a snapshot of who's currently in a room before subscribeToPresence's live
+  // Realtime feed (which only ever delivers CHANGES from the moment of subscription onward, never
+  // a backfill) takes over. subscribeToPresence itself is NOT a message - see studyRoomApi.ts's
+  // header comment for why a live callback has no fit in this request/response surface.
+  | { type: "STUDY_ROOM_LIST_PARTICIPANTS"; payload: { roomId: string } };

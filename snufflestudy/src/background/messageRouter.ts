@@ -27,6 +27,7 @@ import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
 import * as digestApi from "../infrastructure/backend/digestApi";
 import * as friendshipSettingsApi from "../infrastructure/backend/friendshipSettingsApi";
 import * as tempPasscodeApi from "../infrastructure/backend/tempPasscodeApi";
+import * as studyRoomApi from "../infrastructure/backend/studyRoomApi";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
@@ -622,6 +623,28 @@ async function routeMessage(
         message.payload.sinceTimestamp
       );
       return { ok: true, requests };
+    }
+
+    case "STUDY_ROOM_CREATE": {
+      // createRoom throws on failure (not signed in, RLS-denied insert) - outer handleMessage
+      // try/catch turns that into ok:false, same convention as GROUP_CREATE.
+      const room = await studyRoomApi.createRoom(message.payload.name);
+      return { ok: true, room };
+    }
+
+    case "STUDY_ROOM_LIST": {
+      const rooms = await studyRoomApi.listRooms();
+      return { ok: true, rooms };
+    }
+
+    case "STUDY_ROOM_LEAVE": {
+      await studyRoomApi.leaveRoom(message.payload.roomId);
+      return { ok: true };
+    }
+
+    case "STUDY_ROOM_LIST_PARTICIPANTS": {
+      const participants = await studyRoomApi.listParticipants(message.payload.roomId);
+      return { ok: true, participants };
     }
 
     default:

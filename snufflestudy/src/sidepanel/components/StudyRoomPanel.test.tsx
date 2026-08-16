@@ -1,23 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { StudyRoomPanel } from "./StudyRoomPanel";
+import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 import * as studyRoomApi from "../../infrastructure/backend/studyRoomApi";
 import * as videoCallClient from "../../infrastructure/video/videoCallClient";
+import type { ExtensionMessage } from "../../shared/messages";
 
-// v2 Task 13: StudyRoomPanel.tsx calls studyRoomApi.ts/videoCallClient.ts DIRECTLY (not via
-// sendMessage - see this panel's own header comment for why), so this test mocks both modules
-// wholesale, mirroring SnufflesOverlay.test.tsx's identical vi.mock(...)-a-whole-module pattern
-// for coachingApi.ts. The presence-subscription/live-video wiring these two modules do internally
-// is already covered by their own *.test.ts files (studyRoomApi.test.ts,
-// infrastructure/video/videoCallClient.test.ts) - this file only exercises what StudyRoomPanel.tsx
-// itself is responsible for: rendering room state and calling the right functions in the right
-// order in response to user actions.
+// v2 Task 13 fix round 1 (Important, code review): StudyRoomPanel.tsx now routes
+// createRoom/listRooms/leaveRoom/listParticipants through sendMessage()/messageRouter.ts, the
+// same convention every other panel test in this codebase uses (mirrors
+// UnlockRequestPanel.test.tsx's/FriendGroupPanel.test.tsx's routeSendMessage helper exactly).
+// Only studyRoomApi.joinRoom/subscribeToPresence remain genuinely direct calls (see
+// StudyRoomPanel.tsx's own header comment for why), so only those two are still mocked via
+// vi.mock("../../infrastructure/backend/studyRoomApi", ...) below - listRooms/createRoom/
+// leaveRoom/listParticipants are exercised entirely through the sendMessage mock instead.
 vi.mock("../../infrastructure/backend/studyRoomApi", () => ({
-  listRooms: vi.fn(),
-  createRoom: vi.fn(),
   joinRoom: vi.fn(),
-  leaveRoom: vi.fn(),
-  listParticipants: vi.fn(),
   subscribeToPresence: vi.fn(),
 }));
 
@@ -29,12 +27,27 @@ vi.mock("../../infrastructure/video/videoCallClient", () => ({
 
 const sampleRoom = { id: "room-1", name: "Thursday study group", ownerUserId: "user-a", createdAt: "2026-01-01T00:00:00.000Z" };
 
+// Mirrors UnlockRequestPanel.test.tsx's/FriendGroupPanel.test.tsx's routeSendMessage helper
+// exactly - lets each test override only the message types it cares about, everything else gets
+// a healthy, empty-but-ok default.
+type Handler = (msg: ExtensionMessage) => unknown;
+
+function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
+  const defaults: Partial<Record<ExtensionMessage["type"], Handler>> = {
+    STUDY_ROOM_LIST: () => ({ ok: true, rooms: [] }),
+    STUDY_ROOM_CREATE: () => ({ ok: true, room: sampleRoom }),
+    STUDY_ROOM_LEAVE: () => ({ ok: true }),
+    STUDY_ROOM_LIST_PARTICIPANTS: () => ({ ok: true, participants: [] }),
+  };
+  return (msg: ExtensionMessage) => {
+    const handler = overrides[msg.type] ?? defaults[msg.type];
+    return Promise.resolve(handler ? handler(msg) : { ok: true });
+  };
+}
+
 beforeEach(() => {
-  vi.mocked(studyRoomApi.listRooms).mockReset().mockResolvedValue([]);
-  vi.mocked(studyRoomApi.createRoom).mockReset();
+  vi.restoreAllMocks();
   vi.mocked(studyRoomApi.joinRoom).mockReset();
-  vi.mocked(studyRoomApi.leaveRoom).mockReset().mockResolvedValue(undefined);
-  vi.mocked(studyRoomApi.listParticipants).mockReset().mockResolvedValue([]);
   vi.mocked(studyRoomApi.subscribeToPresence).mockReset().mockReturnValue(() => {});
   vi.mocked(videoCallClient.joinCall).mockReset().mockResolvedValue(undefined);
   vi.mocked(videoCallClient.leaveCall).mockReset();
@@ -42,26 +55,34 @@ beforeEach(() => {
 });
 
 describe("StudyRoomPanel", () => {
-  it("loads and renders the room list on mount", async () => {
-    vi.mocked(studyRoomApi.listRooms).mockResolvedValue([sampleRoom]);
+  it("loads and renders the room list on mount via STUDY_ROOM_LIST", async () => {
+    const sendMessageSpy = vi
+      .spyOn(messenger, "sendMessage")
+      .mockImplementation(routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) }));
 
     render(<StudyRoomPanel onClose={() => {}} />);
 
     expect(await screen.findByText("Thursday study group")).toBeInTheDocument();
-    expect(studyRoomApi.listRooms).toHaveBeenCalled();
+    expect(sendMessageSpy).toHaveBeenCalledWith({ type: "STUDY_ROOM_LIST" });
   });
 
-  it("shows the load error inline when listRooms fails", async () => {
-    vi.mocked(studyRoomApi.listRooms).mockRejectedValue(new Error("network down"));
+  it("shows the load error inline when STUDY_ROOM_LIST fails", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: false, error: "network down" }) })
+    );
 
     render(<StudyRoomPanel onClose={() => {}} />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("network down");
   });
 
-  it("creates a room and adds it to the list without a full reload", async () => {
-    vi.mocked(studyRoomApi.listRooms).mockResolvedValue([]);
-    vi.mocked(studyRoomApi.createRoom).mockResolvedValue(sampleRoom);
+  it("creates a room via STUDY_ROOM_CREATE and adds it to the list without a full reload", async () => {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [] }),
+        STUDY_ROOM_CREATE: () => ({ ok: true, room: sampleRoom }),
+      })
+    );
 
     render(<StudyRoomPanel onClose={() => {}} />);
     await screen.findByText("No study rooms yet — create one to get started.");
@@ -72,15 +93,23 @@ describe("StudyRoomPanel", () => {
     fireEvent.click(screen.getByText("Create room"));
 
     expect(await screen.findByText("Thursday study group")).toBeInTheDocument();
-    expect(studyRoomApi.createRoom).toHaveBeenCalledWith("Thursday study group");
+    expect(sendMessageSpy).toHaveBeenCalledWith({
+      type: "STUDY_ROOM_CREATE",
+      payload: { name: "Thursday study group" },
+    });
   });
 
-  it("joins a room: calls studyRoomApi.joinRoom then videoCallClient.joinCall with the returned token, then subscribes to presence", async () => {
-    vi.mocked(studyRoomApi.listRooms).mockResolvedValue([sampleRoom]);
+  it("joins a room: calls studyRoomApi.joinRoom then videoCallClient.joinCall with the returned token, then fetches participants via STUDY_ROOM_LIST_PARTICIPANTS and subscribes to presence", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }),
+        STUDY_ROOM_LIST_PARTICIPANTS: () => ({
+          ok: true,
+          participants: [{ roomId: "room-1", userId: "user-b", joinedAt: "2026-01-01T00:05:00.000Z", leftAt: null }],
+        }),
+      })
+    );
     vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
-    vi.mocked(studyRoomApi.listParticipants).mockResolvedValue([
-      { roomId: "room-1", userId: "user-b", joinedAt: "2026-01-01T00:05:00.000Z", leftAt: null },
-    ]);
 
     render(<StudyRoomPanel onClose={() => {}} />);
     await screen.findByText("Thursday study group");
@@ -96,7 +125,9 @@ describe("StudyRoomPanel", () => {
   });
 
   it("surfaces a join error inline and does not get stuck showing the joined view", async () => {
-    vi.mocked(studyRoomApi.listRooms).mockResolvedValue([sampleRoom]);
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
     vi.mocked(studyRoomApi.joinRoom).mockRejectedValue(new Error("not a participant"));
 
     render(<StudyRoomPanel onClose={() => {}} />);
@@ -110,9 +141,15 @@ describe("StudyRoomPanel", () => {
     expect(videoCallClient.leaveCall).toHaveBeenCalled();
   });
 
-  it("leaves a room: unsubscribes presence, ends the video call, and records leaving server-side", async () => {
+  it("leaves a room: unsubscribes presence, ends the video call, and sends STUDY_ROOM_LEAVE", async () => {
     const unsubscribe = vi.fn();
-    vi.mocked(studyRoomApi.listRooms).mockResolvedValue([sampleRoom]);
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }),
+        STUDY_ROOM_LIST_PARTICIPANTS: () => ({ ok: true, participants: [] }),
+        STUDY_ROOM_LEAVE: () => ({ ok: true }),
+      })
+    );
     vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
     vi.mocked(studyRoomApi.subscribeToPresence).mockReturnValue(unsubscribe);
 
@@ -123,7 +160,12 @@ describe("StudyRoomPanel", () => {
 
     fireEvent.click(screen.getByText("Leave room"));
 
-    await waitFor(() => expect(studyRoomApi.leaveRoom).toHaveBeenCalledWith("room-1"));
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "STUDY_ROOM_LEAVE",
+        payload: { roomId: "room-1" },
+      })
+    );
     expect(unsubscribe).toHaveBeenCalled();
     expect(videoCallClient.leaveCall).toHaveBeenCalled();
     // Back to the room-list view.

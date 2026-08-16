@@ -1,19 +1,34 @@
 import { useEffect, useRef, useState } from "react";
+import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import * as studyRoomApi from "../../infrastructure/backend/studyRoomApi";
 import * as videoCallClient from "../../infrastructure/video/videoCallClient";
 import type { StudyRoom, RoomParticipant } from "../../domain/rooms/studyRoom";
 
 // v2 Task 13: Study Rooms.
 //
-// Calls studyRoomApi.ts and videoCallClient.ts DIRECTLY (not via sendMessage/messageRouter.ts,
-// unlike every other sidepanel panel component in this codebase - FriendGroupPanel.tsx/
-// UnlockRequestPanel.tsx/TempPasscodePanel.tsx all route through the background service worker).
-// See studyRoomApi.ts's own header comment for the full rationale; summarized here: presence's
-// live-callback shape and videoCallClient's hard DOM/camera/mic requirement (a service worker has
-// no getUserMedia) both need this component to hold a persistent, direct connection to Supabase
-// Realtime and to LiveKit for as long as it's mounted - a message-passing round trip through the
-// background doesn't fit either requirement, and inventing a new port-forwarding protocol to
-// force-fit it would serve only this one feature.
+// Room list/create/leave (STUDY_ROOM_LIST/STUDY_ROOM_CREATE/STUDY_ROOM_LEAVE/
+// STUDY_ROOM_LIST_PARTICIPANTS) all go through sendMessage()/messageRouter.ts, the same
+// message-passing-only convention every other panel in this codebase follows
+// (FriendGroupPanel.tsx/UnlockRequestPanel.tsx/TempPasscodePanel.tsx).
+//
+// Fix round 1 (Important, code review): an earlier version of this component called
+// studyRoomApi.ts's createRoom/listRooms/leaveRoom/listParticipants directly too, justified by
+// the same reasoning that genuinely does apply to joinRoom/subscribeToPresence below - review
+// correctly flagged that the justification didn't actually extend that far, since those four are
+// plain one-shot DB operations with no live-callback or DOM/media coupling. Narrowed to exactly
+// two direct exceptions, matching studyRoomApi.ts's own header comment:
+//
+// - `studyRoomApi.joinRoom` is called directly because its LiveKit token has to flow straight
+//   into `videoCallClient.joinCall(roomId, token)` below, which MUST run in this component's real
+//   DOM context (camera/mic access) - a browser/MV3 constraint, not a style choice.
+// - `studyRoomApi.subscribeToPresence` is called directly because its live-callback shape (a
+//   Supabase Realtime subscription that keeps firing for as long as this component is mounted)
+//   has no fit in this codebase's one-shot request/response or alarm-driven-poll message-passing
+//   surface - piping it through messageRouter.ts would need a new persistent port protocol that
+//   would exist to serve only this one feature.
+//
+// `videoCallClient.ts` itself is always called directly (never a message) - it's a pure client-
+// side wrapper around a real DOM connection, not a backend call.
 
 interface StudyRoomPanelProps {
   onClose: () => void;
@@ -63,9 +78,14 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
 
   function loadRooms() {
     setLoadError(null);
-    studyRoomApi
-      .listRooms()
-      .then(setRooms)
+    sendMessage<{ ok: boolean; rooms?: StudyRoom[]; error?: string }>({ type: "STUDY_ROOM_LIST" })
+      .then((res) => {
+        if (!res.ok || !res.rooms) {
+          setLoadError(res.error ?? "Could not load rooms.");
+          return;
+        }
+        setRooms(res.rooms);
+      })
       .catch((err) => {
         console.error("Failed to load study rooms", err);
         setLoadError(err instanceof Error ? err.message : String(err));
@@ -131,11 +151,17 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
     if (!trimmed) return;
     setCreating(true);
     setCreateError(null);
-    studyRoomApi
-      .createRoom(trimmed)
-      .then((room) => {
+    sendMessage<{ ok: boolean; room?: StudyRoom; error?: string }>({
+      type: "STUDY_ROOM_CREATE",
+      payload: { name: trimmed },
+    })
+      .then((res) => {
+        if (!res.ok || !res.room) {
+          setCreateError(res.error ?? "Could not create that room.");
+          return;
+        }
         setNewRoomName("");
-        setRooms((prev) => [room, ...(prev ?? [])]);
+        setRooms((prev) => [res.room!, ...(prev ?? [])]);
       })
       .catch((err) => {
         console.error("Failed to create study room", err);
@@ -151,8 +177,15 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
       const { token } = await studyRoomApi.joinRoom(room.id);
       await videoCallClient.joinCall(room.id, token);
 
-      const initialParticipants = await studyRoomApi.listParticipants(room.id);
-      setParticipants(new Map(initialParticipants.map((p) => [p.userId, p])));
+      const participantsRes = await sendMessage<{
+        ok: boolean;
+        participants?: RoomParticipant[];
+        error?: string;
+      }>({ type: "STUDY_ROOM_LIST_PARTICIPANTS", payload: { roomId: room.id } });
+      if (!participantsRes.ok || !participantsRes.participants) {
+        throw new Error(participantsRes.error ?? "Could not load who's currently in this room.");
+      }
+      setParticipants(new Map(participantsRes.participants.map((p) => [p.userId, p])));
 
       unsubscribePresenceRef.current = studyRoomApi.subscribeToPresence(room.id, (event) => {
         setParticipants((prev) => applyPresenceEvent(prev, event));
@@ -177,7 +210,13 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
       unsubscribePresenceRef.current?.();
       unsubscribePresenceRef.current = null;
       videoCallClient.leaveCall();
-      await studyRoomApi.leaveRoom(joinedRoom.id);
+      const res = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "STUDY_ROOM_LEAVE",
+        payload: { roomId: joinedRoom.id },
+      });
+      if (!res.ok) {
+        throw new Error(res.error ?? "Could not record leaving this room.");
+      }
     } catch (err) {
       // Local call/presence teardown above already ran regardless - a failure here only means
       // the server-side left_at write didn't land (e.g. offline), not that the user is still
