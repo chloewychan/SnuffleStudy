@@ -446,6 +446,14 @@ async function main() {
         }
       }
 
+      // v2 Task 12 (migration 20260815000016_v2_temp_passcode_hard_mode.sql): code_hash/code_salt
+      // are no longer selectable by the `authenticated` role at all (a Postgres column-level
+      // GRANT, not just RLS) - a bare `.select()` here would now hard-fail with "permission denied
+      // for column code_hash", regardless of RLS. Narrowed to the same column list
+      // tempPasscodeApi.ts itself uses (excluding code_hash/code_salt) - see
+      // scripts/verify-temp-passcode.mjs's own Case 5 for the dedicated live proof that this
+      // denial is real and deliberate, not a bug this script should route around by requesting
+      // fewer columns without remark.
       const { data: passcodeReq, error: passcodeErr } = await clientA
         .from("temp_passcode_requests")
         .insert({
@@ -458,15 +466,24 @@ async function main() {
           expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
           delivered_via: "email",
         })
-        .select()
+        .select("id, session_id, hostname, requester_user_id, friend_user_id, status")
         .single();
       if (passcodeErr || !passcodeReq) {
         record("temp_passcode_requests: A creates a request assigned to C", false, passcodeErr?.message);
       } else {
         record("temp_passcode_requests: A creates a request assigned to C", true);
+        // Narrowed selects here too (same rationale as the insert's own comment above) - the
+        // point of these two checks is RLS row-visibility specifically (B has no relationship to
+        // this row at all), not the separate column-grant denial code_hash/code_salt would add
+        // regardless of who's asking; a narrowed column list isolates that.
         await expectDenied(
           "temp_passcode_requests: B (not requester, not assigned friend) cannot read the request",
-          () => clientB.from("temp_passcode_requests").select().eq("id", passcodeReq.id).single()
+          () =>
+            clientB
+              .from("temp_passcode_requests")
+              .select("id, session_id, hostname, requester_user_id, friend_user_id, status")
+              .eq("id", passcodeReq.id)
+              .single()
         );
         await expectDenied(
           "temp_passcode_requests: B (not requester, not assigned friend) cannot write the request",
@@ -475,7 +492,7 @@ async function main() {
               .from("temp_passcode_requests")
               .update({ status: "denied" })
               .eq("id", passcodeReq.id)
-              .select()
+              .select("id, session_id, hostname, requester_user_id, friend_user_id, status")
               .single()
         );
       }
