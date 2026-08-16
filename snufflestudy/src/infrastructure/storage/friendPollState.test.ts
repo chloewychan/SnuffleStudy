@@ -9,6 +9,8 @@ import {
   setLastUnlockPollAt,
   getLastDigestPollAt,
   setLastDigestPollAt,
+  getLastTempPasscodePollAt,
+  setLastTempPasscodePollAt,
 } from "./friendPollState";
 
 beforeEach(() => {
@@ -103,5 +105,33 @@ describe("friendPollState — digest cursor", () => {
     expect(await getLastNudgePollAt()).toBe(1_800_000_000_000);
     expect(await getLastUnlockPollAt()).toBe(1_900_000_000_000);
     expect(await getLastDigestPollAt()).toBe(2_000_000_000_000);
+  });
+});
+
+// v2 Task 12: a fifth, independent cursor for the temp-passcode-request stream polled by the same
+// alarm tick - see this file's own comment on getLastTempPasscodePollAt/setLastTempPasscodePollAt
+// for why it's separate from all four cursors above.
+describe("friendPollState — temp passcode request cursor", () => {
+  it("returns null when no last-checked-for-temp-passcode-requests timestamp has ever been persisted", async () => {
+    expect(await getLastTempPasscodePollAt()).toBeNull();
+  });
+
+  it("round-trips a timestamp through chrome.storage.local", async () => {
+    await setLastTempPasscodePollAt(1_700_000_000_000);
+    expect(await getLastTempPasscodePollAt()).toBe(1_700_000_000_000);
+  });
+
+  it("is independent of the other four cursors - setting one never affects the others", async () => {
+    await setLastFriendPollAt(1_700_000_000_000);
+    await setLastNudgePollAt(1_800_000_000_000);
+    await setLastUnlockPollAt(1_900_000_000_000);
+    await setLastDigestPollAt(2_000_000_000_000);
+    await setLastTempPasscodePollAt(2_100_000_000_000);
+
+    expect(await getLastFriendPollAt()).toBe(1_700_000_000_000);
+    expect(await getLastNudgePollAt()).toBe(1_800_000_000_000);
+    expect(await getLastUnlockPollAt()).toBe(1_900_000_000_000);
+    expect(await getLastDigestPollAt()).toBe(2_000_000_000_000);
+    expect(await getLastTempPasscodePollAt()).toBe(2_100_000_000_000);
   });
 });

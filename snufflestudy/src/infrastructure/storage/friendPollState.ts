@@ -85,3 +85,23 @@ export async function getLastDigestPollAt(): Promise<number | null> {
 export async function setLastDigestPollAt(timestamp: number): Promise<void> {
   await chrome.storage.local.set({ [LAST_DIGEST_POLL_KEY]: timestamp });
 }
+
+// v2 Task 12: a fifth, independent cursor for the temp-passcode-request stream polled by the same
+// alarm tick (handleFriendPollAlarm in alarmHandlers.ts) - reuses Task 6's alarm per this task's
+// brief ("extend Task 6's shared poll... add a fifth: pollTempPasscodeUpdates"), not a new one.
+// Same get/set shape and the same "only advance on confirmed success" discipline as the four
+// cursors above, for the identical reason: this is a fifth logically separate stream delivered by
+// the same chrome.alarms entry, so it needs its own "last checked" bookmark that advances
+// independently of the other four's success/failure on any given tick.
+const LAST_TEMP_PASSCODE_POLL_KEY = "snufflestudy.friendPollLastTempPasscodeCheckedAt";
+
+export async function getLastTempPasscodePollAt(): Promise<number | null> {
+  const result = await chrome.storage.local.get<Record<typeof LAST_TEMP_PASSCODE_POLL_KEY, number>>(
+    LAST_TEMP_PASSCODE_POLL_KEY
+  );
+  return result[LAST_TEMP_PASSCODE_POLL_KEY] ?? null;
+}
+
+export async function setLastTempPasscodePollAt(timestamp: number): Promise<void> {
+  await chrome.storage.local.set({ [LAST_TEMP_PASSCODE_POLL_KEY]: timestamp });
+}

@@ -26,6 +26,7 @@ import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
 import * as digestApi from "../infrastructure/backend/digestApi";
 import * as friendshipSettingsApi from "../infrastructure/backend/friendshipSettingsApi";
+import * as tempPasscodeApi from "../infrastructure/backend/tempPasscodeApi";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
@@ -574,6 +575,53 @@ async function routeMessage(
         message.payload.patch
       );
       return { ok: true, settings };
+    }
+
+    case "TEMP_PASSCODE_CREATE": {
+      // createRequest throws (not signed in, insert error) rather than returning ok:false - the
+      // outer handleMessage try/catch (top of this file) turns that into { ok: false, error },
+      // same convention as UNLOCK_REQUEST_CREATE above.
+      const request = await tempPasscodeApi.createRequest(
+        message.payload.sessionId,
+        message.payload.hostname,
+        message.payload.friendUserId
+      );
+      return { ok: true, request };
+    }
+
+    case "TEMP_PASSCODE_APPROVE": {
+      // approveRequest throws on failure (not the assigned friend, already resolved, Edge
+      // Function error) - same outer-catch convention as above. Returns the plaintext code
+      // exactly once, in this response only.
+      const { code } = await tempPasscodeApi.approveRequest(message.payload.requestId);
+      return { ok: true, code };
+    }
+
+    case "TEMP_PASSCODE_DENY": {
+      // denyRequest throws on failure (already resolved / not the assigned friend) - same
+      // outer-catch convention as above.
+      await tempPasscodeApi.denyRequest(message.payload.requestId);
+      return { ok: true };
+    }
+
+    case "TEMP_PASSCODE_REDEEM": {
+      // redeemCode never throws (see tempPasscodeApi.ts) - it resolves to { ok: false } for
+      // every failure path (wrong code, expired, locked, network/invoke error), and on success
+      // has already performed the actual local unlock (unlockHardBlockRuleForHostname +
+      // scheduleTempUnlockRelockAlarm) itself. This case is a thin pass-through, same convention
+      // as HARD_BLOCK_VERIFY_PASSCODE.
+      const result = await tempPasscodeApi.redeemCode(message.payload.requestId, message.payload.code);
+      return result;
+    }
+
+    case "TEMP_PASSCODE_REQUESTS_FETCH": {
+      // fetchRelevantTempPasscodeRequests already degrades to [] (never throws) when signed out
+      // or on a transient failure - see tempPasscodeApi.ts - so LockedPage.tsx/
+      // TempPasscodePanel.tsx always get an ok:true response, even with nothing to show.
+      const requests = await tempPasscodeApi.fetchRelevantTempPasscodeRequests(
+        message.payload.sinceTimestamp
+      );
+      return { ok: true, requests };
     }
 
     default:

@@ -36,3 +36,41 @@ export function cancelFriendPollAlarm(): void {
 export function isFriendPollAlarm(alarm: chrome.alarms.Alarm): boolean {
   return alarm.name === FRIEND_POLL_ALARM;
 }
+
+// v2 Task 12: schedules the DNR re-lock for a single hostname's temp-passcode unlock, at the
+// exact expiresAt the redeem-temp-passcode Edge Function returned. Deliberately its OWN alarm,
+// not a reuse of FRIEND_POLL_ALARM above - a temp-passcode redemption must re-lock regardless of
+// friend-sync enablement/group-membership/session-active-ness (FRIEND_POLL_ALARM's own
+// eligibility gating in alarmHandlers.ts's handleFriendPollAlarm checks exactly those unrelated
+// conditions, none of which should be able to suppress a re-lock the user is depending on).
+//
+// Named per-hostname (not a single shared name) via a fixed prefix - one unlock per hostname at a
+// time is the realistic case (a second temp-passcode approval for the SAME hostname while one is
+// already unlocked just reschedules this same-named alarm to the new expiry;
+// chrome.alarms.create with an existing name replaces it, which is the correct behavior here: the
+// newer approval's expiry should win). isTempUnlockRelockAlarm/hostnameFromTempUnlockRelockAlarm
+// let alarmHandlers.ts's handleAlarm recognize and parse this alarm type by its name prefix, the
+// same way isSessionAlarm/isFriendPollAlarm let it recognize theirs by exact name.
+const TEMP_UNLOCK_RELOCK_ALARM_PREFIX = "snufflestudy-temp-unlock-relock-";
+
+function tempUnlockRelockAlarmName(hostname: string): string {
+  return `${TEMP_UNLOCK_RELOCK_ALARM_PREFIX}${hostname}`;
+}
+
+export function scheduleTempUnlockRelockAlarm(hostname: string, expiresAtEpochMs: number): void {
+  chrome.alarms.create(tempUnlockRelockAlarmName(hostname), { when: expiresAtEpochMs });
+}
+
+export function cancelTempUnlockRelockAlarm(hostname: string): void {
+  chrome.alarms.clear(tempUnlockRelockAlarmName(hostname));
+}
+
+export function isTempUnlockRelockAlarm(alarm: chrome.alarms.Alarm): boolean {
+  return alarm.name.startsWith(TEMP_UNLOCK_RELOCK_ALARM_PREFIX);
+}
+
+// Only meaningful when isTempUnlockRelockAlarm(alarm) is true - callers (alarmHandlers.ts) always
+// check that first.
+export function hostnameFromTempUnlockRelockAlarm(alarm: chrome.alarms.Alarm): string {
+  return alarm.name.slice(TEMP_UNLOCK_RELOCK_ALARM_PREFIX.length);
+}

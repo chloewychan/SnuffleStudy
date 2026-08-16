@@ -7,6 +7,10 @@ import {
   scheduleFriendPollAlarm,
   cancelFriendPollAlarm,
   isFriendPollAlarm,
+  scheduleTempUnlockRelockAlarm,
+  cancelTempUnlockRelockAlarm,
+  isTempUnlockRelockAlarm,
+  hostnameFromTempUnlockRelockAlarm,
 } from "./alarmsApi";
 
 beforeEach(() => {
@@ -77,5 +81,78 @@ describe("friend-poll alarm is independent of the session-timer alarm", () => {
     expect(isFriendPollAlarm({ name: "snufflestudy-session-timer" } as chrome.alarms.Alarm)).toBe(false);
     expect(isSessionAlarm({ name: "some-other-alarm" } as chrome.alarms.Alarm)).toBe(false);
     expect(isFriendPollAlarm({ name: "some-other-alarm" } as chrome.alarms.Alarm)).toBe(false);
+  });
+});
+
+// v2 Task 12: the temp-unlock-relock alarm - deliberately its own name/prefix, independent of
+// both the session-timer and friend-poll alarms (must fire regardless of friend-sync/group
+// eligibility, per this task's brief), and named PER HOSTNAME (a prefix match, not a single fixed
+// name like the other two alarms) since more than one hostname could have an active temp-unlock
+// at once.
+describe("temp-unlock-relock alarm is independent of, and named differently from, the other two alarms", () => {
+  it("scheduleTempUnlockRelockAlarm creates an alarm named with the hostname suffix, at the given timestamp, without touching the other two alarms", async () => {
+    scheduleTempUnlockRelockAlarm("youtube.com", 50_000);
+
+    const alarm = await chrome.alarms.get("snufflestudy-temp-unlock-relock-youtube.com");
+    expect(alarm?.scheduledTime).toBe(50_000);
+    expect(await chrome.alarms.get("snufflestudy-session-timer")).toBeUndefined();
+    expect(await chrome.alarms.get("snufflestudy-friend-poll")).toBeUndefined();
+  });
+
+  it("schedules independent alarms for different hostnames simultaneously", async () => {
+    scheduleTempUnlockRelockAlarm("youtube.com", 50_000);
+    scheduleTempUnlockRelockAlarm("reddit.com", 60_000);
+
+    expect((await chrome.alarms.get("snufflestudy-temp-unlock-relock-youtube.com"))?.scheduledTime).toBe(
+      50_000
+    );
+    expect((await chrome.alarms.get("snufflestudy-temp-unlock-relock-reddit.com"))?.scheduledTime).toBe(
+      60_000
+    );
+  });
+
+  it("re-scheduling the same hostname replaces its alarm's expiry rather than creating a second one", async () => {
+    scheduleTempUnlockRelockAlarm("youtube.com", 50_000);
+    scheduleTempUnlockRelockAlarm("youtube.com", 90_000);
+
+    const alarm = await chrome.alarms.get("snufflestudy-temp-unlock-relock-youtube.com");
+    expect(alarm?.scheduledTime).toBe(90_000);
+  });
+
+  it("cancelTempUnlockRelockAlarm clears only the named hostname's alarm, leaving another hostname's and the other two alarms untouched", async () => {
+    scheduleSessionAlarm(Date.now() + 60_000);
+    scheduleFriendPollAlarm();
+    scheduleTempUnlockRelockAlarm("youtube.com", 50_000);
+    scheduleTempUnlockRelockAlarm("reddit.com", 60_000);
+
+    cancelTempUnlockRelockAlarm("youtube.com");
+
+    expect(await chrome.alarms.get("snufflestudy-temp-unlock-relock-youtube.com")).toBeUndefined();
+    expect(await chrome.alarms.get("snufflestudy-temp-unlock-relock-reddit.com")).toBeDefined();
+    expect(await chrome.alarms.get("snufflestudy-session-timer")).toBeDefined();
+    expect(await chrome.alarms.get("snufflestudy-friend-poll")).toBeDefined();
+  });
+
+  it("isTempUnlockRelockAlarm matches by prefix (any hostname) and rejects the other two alarm names", () => {
+    expect(
+      isTempUnlockRelockAlarm({ name: "snufflestudy-temp-unlock-relock-youtube.com" } as chrome.alarms.Alarm)
+    ).toBe(true);
+    expect(
+      isTempUnlockRelockAlarm({ name: "snufflestudy-temp-unlock-relock-a.b.co.uk" } as chrome.alarms.Alarm)
+    ).toBe(true);
+    expect(isTempUnlockRelockAlarm({ name: "snufflestudy-session-timer" } as chrome.alarms.Alarm)).toBe(
+      false
+    );
+    expect(isTempUnlockRelockAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm)).toBe(
+      false
+    );
+  });
+
+  it("hostnameFromTempUnlockRelockAlarm parses the hostname back out of the alarm name", () => {
+    expect(
+      hostnameFromTempUnlockRelockAlarm({
+        name: "snufflestudy-temp-unlock-relock-youtube.com",
+      } as chrome.alarms.Alarm)
+    ).toBe("youtube.com");
   });
 });

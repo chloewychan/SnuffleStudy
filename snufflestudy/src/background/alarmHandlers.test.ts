@@ -14,12 +14,15 @@ import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
 import type { UnlockRequest } from "../infrastructure/backend/unlockRequestApi";
 import * as digestApi from "../infrastructure/backend/digestApi";
 import type { FriendDigest } from "../infrastructure/backend/digestApi";
+import * as tempPasscodeApi from "../infrastructure/backend/tempPasscodeApi";
+import type { TempPasscodeRequest } from "../domain/accountability/tempPasscodeRequest";
 import * as friendSync from "./friendSync";
 import {
   getLastFriendPollAt,
   getLastNudgePollAt,
   getLastUnlockPollAt,
   getLastDigestPollAt,
+  getLastTempPasscodePollAt,
 } from "../infrastructure/storage/friendPollState";
 import { classifySite } from "../domain/sites/siteRules";
 import type { CreateSessionInput, StudySession } from "../domain/session/sessionTypes";
@@ -237,6 +240,15 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       requests: [],
     });
     vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({ ok: true, digests: [] });
+    // v2 Task 12: same treatment for the fifth stream, temp passcode requests
+    // (pollTempPasscodeUpdates) - defaulted to a clean "no new/resolved requests" result so every
+    // pre-existing test in this describe block (which predates Task 12) never exercises
+    // tempPasscodeApi's real supabase.auth.getSession() call. The dedicated "temp passcode
+    // polling" tests further below override this per-test.
+    vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
+      ok: true,
+      requests: [],
+    });
   });
 
   // handleFriendPollAlarm now re-checks friend-sync eligibility on every tick (fix round 1) -
@@ -1131,6 +1143,184 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     });
   });
 
+  describe("temp passcode request polling (v2 Task 12 - reuses this same alarm, not a parallel one)", () => {
+    function sampleTempPasscodeRequest(
+      overrides: Partial<TempPasscodeRequest> = {}
+    ): TempPasscodeRequest {
+      return {
+        id: "temp-1",
+        sessionId: "session-1",
+        hostname: "youtube.com",
+        friendUserId: "user-b",
+        requesterUserId: "user-a",
+        status: "pending",
+        codeHash: "",
+        codeSalt: "",
+        expiresAt: 0,
+        failedAttempts: 0,
+        lockedUntil: undefined,
+        ...overrides,
+      };
+    }
+
+    it("dispatches to pollRelevantTempPasscodeRequests when eligible, in the same tick as the other four streams", async () => {
+      mockFriendSyncEligible();
+      const tempPasscodePollSpy = vi
+        .spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests")
+        .mockResolvedValue({ ok: true, requests: [] });
+      const eventPollSpy = vi
+        .spyOn(sessionStatusSyncApi, "pollNewEventsForFriends")
+        .mockResolvedValue({ ok: true, events: [] });
+      const nudgePollSpy = vi
+        .spyOn(nudgeApi, "pollIncomingNudges")
+        .mockResolvedValue({ ok: true, nudges: [] });
+      const unlockPollSpy = vi
+        .spyOn(unlockRequestApi, "pollRelevantUnlockRequests")
+        .mockResolvedValue({ ok: true, requests: [] });
+      const digestPollSpy = vi
+        .spyOn(digestApi, "pollNewDigests")
+        .mockResolvedValue({ ok: true, digests: [] });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(tempPasscodePollSpy).toHaveBeenCalledTimes(1);
+      expect(eventPollSpy).toHaveBeenCalledTimes(1);
+      expect(nudgePollSpy).toHaveBeenCalledTimes(1);
+      expect(unlockPollSpy).toHaveBeenCalledTimes(1);
+      expect(digestPollSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("notifies the requester when their own request was approved", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleTempPasscodeRequest({
+            requesterUserId: "user-a",
+            status: "approved",
+            hostname: "youtube.com",
+          }),
+        ],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "temp-passcode-temp-1",
+        expect.objectContaining({ title: "Temporary passcode approved" })
+      );
+    });
+
+    it("notifies the requester when their own request was denied", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
+        ok: true,
+        requests: [sampleTempPasscodeRequest({ requesterUserId: "user-a", status: "denied" })],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "temp-passcode-temp-1",
+        expect.objectContaining({ title: "Temporary passcode denied" })
+      );
+    });
+
+    it("notifies the requester when their own request expired", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
+        ok: true,
+        requests: [sampleTempPasscodeRequest({ requesterUserId: "user-a", status: "expired" })],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "temp-passcode-temp-1",
+        expect.objectContaining({ title: "Temporary passcode expired" })
+      );
+    });
+
+    it("notifies the assigned friend about a new pending request from someone else", async () => {
+      mockFriendSyncEligible("user-b");
+      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleTempPasscodeRequest({
+            requesterUserId: "user-a",
+            friendUserId: "user-b",
+            status: "pending",
+          }),
+        ],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "temp-passcode-pending-temp-1",
+        expect.objectContaining({ title: "Temporary passcode request" })
+      );
+    });
+
+    it("does not notify about the current user's own still-pending request", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
+        ok: true,
+        requests: [sampleTempPasscodeRequest({ requesterUserId: "user-a", status: "pending" })],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).not.toHaveBeenCalled();
+    });
+
+    it("persists the temp-passcode-poll timestamp only on a successful poll, independently of the other four cursors", async () => {
+      mockFriendSyncEligible();
+      const tempPasscodePollSpy = vi
+        .spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests")
+        .mockResolvedValue({ ok: true, requests: [] });
+      expect(await getLastTempPasscodePollAt()).toBeNull();
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      const persisted = await getLastTempPasscodePollAt();
+      expect(persisted).toEqual(expect.any(Number));
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(tempPasscodePollSpy).toHaveBeenLastCalledWith(persisted);
+    });
+
+    it("does NOT advance the persisted temp-passcode cursor when the poll fails (ok: false), so the next tick retries the same window", async () => {
+      mockFriendSyncEligible();
+      const tempPasscodePollSpy = vi
+        .spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests")
+        .mockResolvedValue({ ok: false });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+      expect(await getLastTempPasscodePollAt()).toBeNull();
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+      expect(await getLastTempPasscodePollAt()).toBeNull();
+
+      expect(tempPasscodePollSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("skips the temp-passcode fetch entirely when friend-sync is no longer enabled/signed-in (same eligibility gate as the other four polls)", async () => {
+      vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue(null);
+      const tempPasscodePollSpy = vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(tempPasscodePollSpy).not.toHaveBeenCalled();
+    });
+  });
+
   it("cancels the friend-poll alarm and records a gated SESSION_COMPLETED event on natural completion", async () => {
     await settingsRepo.saveSettings({ ...DEFAULT_USER_SETTINGS, friendSyncEnabled: true });
     vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
@@ -1188,5 +1378,131 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       session: { state: string };
     };
     expect(active.session.state).toBe("COMPLETED");
+  });
+});
+
+// v2 Task 12: the temp-unlock-relock alarm is a completely separate lifecycle from both the
+// session-timer alarm and the friend-poll alarm above - fired by alarmsApi.ts's
+// scheduleTempUnlockRelockAlarm (called from tempPasscodeApi.ts's redeemCode on a successful
+// redemption), and must work regardless of friend-sync/group-membership state. These tests cover
+// handleTempUnlockRelockAlarm's own guard logic directly against handleAlarm's dispatch, per this
+// task's brief ("confirm rather than assume" a session is still around and still hard-restricted
+// for the given hostname before re-adding a DNR rule).
+describe("handleAlarm — temp-unlock-relock alarm (v2 Task 12)", () => {
+  async function ruleExistsFor(hostname: string): Promise<boolean> {
+    const rules = await chrome.declarativeNetRequest.getDynamicRules();
+    return rules.some((rule) => rule.condition.requestDomains?.includes(hostname));
+  }
+
+  async function removeRuleFor(hostname: string): Promise<void> {
+    const rules = await chrome.declarativeNetRequest.getDynamicRules();
+    const match = rules.find((rule) => rule.condition.requestDomains?.includes(hostname));
+    if (!match) throw new Error(`No DNR rule found for ${hostname} to remove`);
+    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [match.id] });
+  }
+
+  it("re-adds the DNR rule for the hostname when the session is still active and still hard-restricted for it (the actual re-lock)", async () => {
+    const created = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: { ...createInput, restrictedSites: ["youtube.com"], restrictionMode: "hard" },
+    })) as { session: { id: string } };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    expect(await ruleExistsFor("youtube.com")).toBe(true);
+
+    // Simulate what redeemCode's successful-redemption unlock does.
+    await removeRuleFor("youtube.com");
+    expect(await ruleExistsFor("youtube.com")).toBe(false);
+
+    await handleAlarm({ name: "snufflestudy-temp-unlock-relock-youtube.com" } as chrome.alarms.Alarm);
+
+    expect(await ruleExistsFor("youtube.com")).toBe(true);
+  });
+
+  it("is a no-op when there is no active session at all", async () => {
+    await handleAlarm({ name: "snufflestudy-temp-unlock-relock-youtube.com" } as chrome.alarms.Alarm);
+
+    expect(await ruleExistsFor("youtube.com")).toBe(false);
+  });
+
+  it("is a no-op when the session that granted the unlock has since completed (clearHardBlockRules() already ran)", async () => {
+    const created = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: { ...createInput, restrictedSites: ["youtube.com"], restrictionMode: "hard" },
+    })) as { session: { id: string } };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await removeRuleFor("youtube.com");
+
+    // Natural completion clears every remaining DNR rule (see the "clears hard-block DNR rules"
+    // test above).
+    await handleAlarm({ name: "snufflestudy-session-timer" } as chrome.alarms.Alarm);
+    expect(await chrome.declarativeNetRequest.getDynamicRules()).toEqual([]);
+
+    await handleAlarm({ name: "snufflestudy-temp-unlock-relock-youtube.com" } as chrome.alarms.Alarm);
+
+    expect(await ruleExistsFor("youtube.com")).toBe(false);
+  });
+
+  it("is a no-op when the session that granted the unlock has since been abandoned", async () => {
+    const created = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: { ...createInput, restrictedSites: ["youtube.com"], restrictionMode: "hard" },
+    })) as { session: { id: string } };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await removeRuleFor("youtube.com");
+
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: created.session.id } });
+    expect(await chrome.declarativeNetRequest.getDynamicRules()).toEqual([]);
+
+    await handleAlarm({ name: "snufflestudy-temp-unlock-relock-youtube.com" } as chrome.alarms.Alarm);
+
+    expect(await ruleExistsFor("youtube.com")).toBe(false);
+  });
+
+  it("is a no-op when the hostname isn't part of the CURRENT session's restrictedSites (e.g. a new session started since the original grant)", async () => {
+    const created = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: { ...createInput, restrictedSites: ["reddit.com"], restrictionMode: "hard" },
+    })) as { session: { id: string } };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    expect(await ruleExistsFor("reddit.com")).toBe(true);
+
+    // A relock alarm for a hostname this session's own restrictedSites doesn't even contain -
+    // stale from some earlier, different session.
+    await handleAlarm({ name: "snufflestudy-temp-unlock-relock-youtube.com" } as chrome.alarms.Alarm);
+
+    expect(await ruleExistsFor("youtube.com")).toBe(false);
+    // The unrelated, still-legitimately-blocked hostname's rule is untouched either way.
+    expect(await ruleExistsFor("reddit.com")).toBe(true);
+  });
+
+  it("is a no-op when the active session is soft-mode (not hard-restricted at all)", async () => {
+    const created = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: { ...createInput, restrictedSites: ["youtube.com"], restrictionMode: "soft" },
+    })) as { session: { id: string } };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    await handleAlarm({ name: "snufflestudy-temp-unlock-relock-youtube.com" } as chrome.alarms.Alarm);
+
+    expect(await ruleExistsFor("youtube.com")).toBe(false);
+  });
+
+  it("does not throw and logs, rather than propagating, if the underlying declarativeNetRequest call fails", async () => {
+    const created = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: { ...createInput, restrictedSites: ["youtube.com"], restrictionMode: "hard" },
+    })) as { session: { id: string } };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await removeRuleFor("youtube.com");
+
+    vi.spyOn(chrome.declarativeNetRequest, "getDynamicRules").mockRejectedValueOnce(
+      new Error("boom")
+    );
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      handleAlarm({ name: "snufflestudy-temp-unlock-relock-youtube.com" } as chrome.alarms.Alarm)
+    ).resolves.toBeUndefined();
+    expect(consoleErrorSpy).toHaveBeenCalled();
   });
 });

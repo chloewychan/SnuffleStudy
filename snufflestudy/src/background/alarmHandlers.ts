@@ -1,10 +1,19 @@
-import { isSessionAlarm, isFriendPollAlarm, cancelFriendPollAlarm } from "../infrastructure/browser/alarmsApi";
+import {
+  isSessionAlarm,
+  isFriendPollAlarm,
+  cancelFriendPollAlarm,
+  isTempUnlockRelockAlarm,
+  hostnameFromTempUnlockRelockAlarm,
+} from "../infrastructure/browser/alarmsApi";
 import { ChromeStorageRepository } from "../infrastructure/storage/chromeStorageRepository";
 import { IndexedDbSessionRepository } from "../infrastructure/storage/indexedDbRepository";
 import { IndexedDbTaskRepository } from "../infrastructure/storage/taskRepository";
 import * as machine from "../domain/session/sessionMachine";
 import { showNotification } from "../infrastructure/browser/notificationsApi";
-import { clearHardBlockRules } from "../infrastructure/browser/declarativeNetRequestApi";
+import {
+  clearHardBlockRules,
+  lockHardBlockRuleForHostname,
+} from "../infrastructure/browser/declarativeNetRequestApi";
 import { pollNewEventsForFriends } from "../infrastructure/backend/sessionStatusSyncApi";
 import { pollIncomingNudges } from "../infrastructure/backend/nudgeApi";
 import {
@@ -12,6 +21,7 @@ import {
   type UnlockRequest,
 } from "../infrastructure/backend/unlockRequestApi";
 import { pollNewDigests } from "../infrastructure/backend/digestApi";
+import { pollRelevantTempPasscodeRequests } from "../infrastructure/backend/tempPasscodeApi";
 import { nudgeMessageText } from "../domain/accountability/nudgeMessages";
 import { isWithinQuietHours } from "../domain/settings/userSettings";
 import {
@@ -23,6 +33,8 @@ import {
   setLastUnlockPollAt,
   getLastDigestPollAt,
   setLastDigestPollAt,
+  getLastTempPasscodePollAt,
+  setLastTempPasscodePollAt,
 } from "../infrastructure/storage/friendPollState";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
@@ -266,11 +278,74 @@ async function pollDigestUpdates(userId: string): Promise<void> {
   }
 }
 
-// Runs all four poll streams (session-status events, nudges, unlock requests, daily digests) on
-// every friend-poll alarm tick. Best-effort throughout: none of pollSessionEventUpdates/
-// pollNudgeUpdates/pollUnlockRequestUpdates/pollDigestUpdates ever throws (each wraps its own
-// body), but this outer try/catch stays as a last-resort safety net so nothing here can take down
-// the alarm listener.
+// v2 Task 12: fifth stream on this same alarm - temp passcode requests. Reuses Task 6's
+// alarm/notification path per this task's brief ("extend Task 6's shared poll... add a fifth"),
+// not a new one. Same "only advance the cursor on confirmed success" discipline as the four
+// streams above, using its own independent cursor (getLastTempPasscodePollAt/
+// setLastTempPasscodePollAt) so a failure here never affects, and is never affected by, the other
+// four cursors.
+//
+// Unlike pollUnlockRequestUpdates's approved case, an approved temp-passcode request does NOT
+// trigger any local session mutation here - the actual unlock only happens when the requester
+// successfully redeems the code (tempPasscodeApi.ts's redeemCode, which requires the plaintext
+// code obtained out-of-band from the friend - this poll never sees or transmits it). This
+// function's whole job is notification: tell the requester their request was approved/denied/
+// expired (so they know to go enter - or stop waiting for - a code), and tell the friend about a
+// new pending request directed at them (so they know to open the panel and review it) - same two
+// directions pollUnlockRequestUpdates covers, adapted to this table's own status set.
+async function pollTempPasscodeUpdates(userId: string): Promise<void> {
+  try {
+    const now = Date.now();
+    const since = (await getLastTempPasscodePollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
+    const result = await pollRelevantTempPasscodeRequests(since);
+    if (!result.ok) {
+      // Same rationale as the other four poll functions' identical branch: leave the persisted
+      // cursor untouched on a failed fetch so the next tick retries this exact window instead of
+      // silently losing whatever pending requests/resolutions arrived during the outage.
+      return;
+    }
+    for (const req of result.requests) {
+      if (req.requesterUserId === userId) {
+        if (req.status === "approved") {
+          showNotification(
+            `temp-passcode-${req.id}`,
+            "Temporary passcode approved",
+            `Ask your friend for the code to unlock ${req.hostname}.`
+          );
+        } else if (req.status === "denied") {
+          showNotification(
+            `temp-passcode-${req.id}`,
+            "Temporary passcode denied",
+            `Your request to unlock ${req.hostname} was denied.`
+          );
+        } else if (req.status === "expired") {
+          showNotification(
+            `temp-passcode-${req.id}`,
+            "Temporary passcode expired",
+            `Your unlock window for ${req.hostname} has expired.`
+          );
+        }
+        // status === "pending" here means it's the requester's own still-unanswered request -
+        // nothing to do, they already know they just created it.
+      } else if (req.status === "pending") {
+        showNotification(
+          `temp-passcode-pending-${req.id}`,
+          "Temporary passcode request",
+          `A friend wants a temporary passcode for ${req.hostname} — open the panel to review.`
+        );
+      }
+    }
+    await setLastTempPasscodePollAt(now);
+  } catch (err) {
+    console.error("Failed to poll temp passcode requests", err);
+  }
+}
+
+// Runs all five poll streams (session-status events, nudges, unlock requests, daily digests, temp
+// passcode requests) on every friend-poll alarm tick. Best-effort throughout: none of
+// pollSessionEventUpdates/pollNudgeUpdates/pollUnlockRequestUpdates/pollDigestUpdates/
+// pollTempPasscodeUpdates ever throws (each wraps its own body), but this outer try/catch stays
+// as a last-resort safety net so nothing here can take down the alarm listener.
 async function handleFriendPollAlarm(): Promise<void> {
   try {
     // Re-check eligibility on every tick (fix round 1), not just once at alarm-start time
@@ -291,8 +366,47 @@ async function handleFriendPollAlarm(): Promise<void> {
     await pollNudgeUpdates();
     await pollUnlockRequestUpdates(userId);
     await pollDigestUpdates(userId);
+    await pollTempPasscodeUpdates(userId);
   } catch (err) {
     console.error("Failed to poll friend events", err);
+  }
+}
+
+// v2 Task 12: re-locks a single hostname after a temp-passcode-unlocked window expires - see
+// declarativeNetRequestApi.ts's lockHardBlockRuleForHostname (the inverse of
+// unlockHardBlockRuleForHostname, v2 Task 8) and alarmsApi.ts's scheduleTempUnlockRelockAlarm
+// (the alarm that fires this).
+//
+// Guarded against re-locking a session that's no longer around, or no longer hard-restricted for
+// this hostname, by the time this fires - confirmed by checking the active session directly
+// rather than assumed, per this task's brief ("if there's no active session or it's not in a
+// hard-restricted state anymore, the DNR rules were already cleared by clearHardBlockRules()
+// elsewhere, so this is a no-op, but confirm rather than assume"):
+//   - no active session at all -> clearHardBlockRules() already ran (SESSION_END/natural
+//     completion) - nothing to re-lock.
+//   - session in a terminal state (COMPLETED/ABANDONED) -> same as above.
+//   - session.restrictionMode is no longer "hard" -> can't happen via any existing mutation path
+//     today (restrictionMode is fixed at session creation), but checked anyway as a genuine
+//     guard, not a defensive-programming no-op - if a future task ever adds a way to downgrade a
+//     session out of hard mode mid-session, this guard is what keeps this alarm from
+//     re-introducing a stale hard-block rule for it.
+//   - hostname isn't part of the CURRENT session's restrictedSites -> the user could have ended
+//     the original hard-mode session and started an entirely different one (possibly hard-mode
+//     again, but with a different restricted-site list) before this alarm fired; re-locking a
+//     hostname that session doesn't even care about would be adding a stray, orphaned rule.
+async function handleTempUnlockRelockAlarm(hostname: string): Promise<void> {
+  try {
+    const session = await settingsRepo.getActiveSession();
+    if (!session) return;
+    const nonTerminal =
+      session.state === "FOCUSING" || session.state === "PAUSED" || session.state === "BREAK";
+    if (!nonTerminal) return;
+    if (session.restrictionMode !== "hard") return;
+    if (!session.restrictedSites.includes(hostname)) return;
+
+    await lockHardBlockRuleForHostname(hostname);
+  } catch (err) {
+    console.error("Failed to re-lock hard-block rule after temp-passcode expiry", err);
   }
 }
 
@@ -321,6 +435,15 @@ export async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
   // `!isSessionAlarm` guard that every other/unrecognized alarm name hits.
   if (isFriendPollAlarm(alarm)) {
     await handleFriendPollAlarm();
+    return;
+  }
+
+  // v2 Task 12: same "completely separate lifecycle, handled and returned from here first"
+  // treatment as the friend-poll alarm above - a temp-unlock-relock alarm must never fall through
+  // to the session-alarm logic below, and (unlike the friend-poll alarm) must work regardless of
+  // friend-sync/group-membership state, so it's checked independently of that branch too.
+  if (isTempUnlockRelockAlarm(alarm)) {
+    await handleTempUnlockRelockAlarm(hostnameFromTempUnlockRelockAlarm(alarm));
     return;
   }
 
