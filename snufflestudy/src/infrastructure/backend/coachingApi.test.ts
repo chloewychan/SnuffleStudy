@@ -146,6 +146,36 @@ describe("coachingApi.generateCoachingMessage", () => {
     expect(result).toBe("STATIC_FALLBACK_LINE");
   });
 
+  // Fix round 1: pickWarningMessage() itself throws for any pressureProfileId outside the six
+  // known PRESSURE_PROFILES entries (getPressureProfile(), pressureProfiles.ts:110-113) -
+  // StudySession.pressureProfileId is a bare `string`, not a literal union, so a stale/legacy/
+  // corrupted session can genuinely carry an id that no longer matches. Before this fix,
+  // generateCoachingMessage's own fallback() call had no protection against this - the throw
+  // propagated straight out, breaking the "always resolves to a string, never throws" contract
+  // for exactly the input that contract exists to guard against.
+  it("resolves to a hardcoded last-resort message (never throws) when pickWarningMessage itself throws - e.g. a stale session with an unrecognized pressureProfileId", async () => {
+    mockSignedOut(); // simplest deterministic path to fallback() - no invoke mocking needed
+    vi.mocked(pickWarningMessage).mockImplementation(() => {
+      throw new Error("Unknown pressure profile: not-a-real-profile-id");
+    });
+
+    await expect(generateCoachingMessage(REQUEST)).resolves.toBe("Back to it.");
+  });
+
+  it("resolves to a hardcoded last-resort message (never throws) when pickWarningMessage throws from inside the outer catch block's own fallback() call", async () => {
+    // Reaches the specific code path the fix targets: invoke itself rejects (landing in the
+    // outer catch), and THAT catch block's own fallback() call is what throws - there is no
+    // further try/catch around that specific call site unless fallback() protects itself.
+    mockSignedIn("user-1");
+    mockInvoke(() => Promise.reject(new Error("network down")));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(pickWarningMessage).mockImplementation(() => {
+      throw new Error("Unknown pressure profile: not-a-real-profile-id");
+    });
+
+    await expect(generateCoachingMessage(REQUEST)).resolves.toBe("Back to it.");
+  });
+
   it("passes the pressureProfileId and interventionLevel from the request to pickWarningMessage on every fallback path", async () => {
     mockSignedOut();
     mockInvoke(() => Promise.resolve({ data: null, error: null }));

@@ -15,13 +15,31 @@
 // response (needed for Case 2's 429 assertion).
 //
 // What it does:
-//   1. Case 1 (goal-specificity): creates one ephemeral, auto-confirmed account (USER_GOAL),
-//      signs in, calls the Edge Function once with goal "Finish Chapter 6 of STAT231" and a
-//      "gentle-encouragement" pressure profile. Asserts: HTTP 200; a non-empty `message` string;
-//      the message plausibly references the specific goal (contains "chapter 6" or "stat231",
-//      case-insensitive - the DoD's literal example); the message is NOT byte-identical to either
-//      of gentle-encouragement's static firstWarningMessages pool entries (proving it's a real
-//      generated line, not an accidental passthrough of the fallback pool).
+//   1. Case 1 (goal-specificity + latency): creates one ephemeral, auto-confirmed account
+//      (USER_GOAL), signs in, calls the Edge Function REPEAT_CALLS times (sequentially, well
+//      under the 12/60s rate limit) with goal "Finish Chapter 6 of STAT231" and a
+//      "gentle-encouragement" pressure profile, timing each call. Content assertions (HTTP 200;
+//      non-empty `message`; the message plausibly references the specific goal - "chapter 6" or
+//      "stat231", case-insensitive, the DoD's literal example; NOT byte-identical to either of
+//      gentle-encouragement's static firstWarningMessages pool entries) run against the first
+//      call. Fix round 1: a real latency assertion now runs across ALL calls - median (p50)
+//      elapsed time is asserted against coachingApi.ts's REAL 800ms client-side race timeout
+//      (INVOKE_TIMEOUT_MS), not an invented "should be comfortable" number. Before this fix,
+//      Case 1 only proved the call eventually succeeds (5s per-request allowance, no elapsed time
+//      ever recorded) - a function that happened to take 3 seconds per call would have passed
+//      every check while the shipped feature fell back to the static pool on almost every real
+//      distraction event. p50 (not p100/max) is the right statistic: a single slow outlier is
+//      exactly what coachingApi.ts's per-call race-and-fallback design already tolerates by
+//      design (that request's user just sees the static pool that one time) - what would
+//      actually indicate a wrong model/latency profile is the TYPICAL call being too slow, which
+//      p50 across several calls measures directly. As of this fix round, this specific assertion
+//      is a KNOWN, HONEST FAIL (see task-11-report.md's "Fix round 1" section) - real measured
+//      p50 is ~1150-1200ms even after switching to claude-haiku-4-5 and collapsing the rate-limit
+//      check+insert into one atomic RPC, because the Anthropic API call itself (not this
+//      function's own overhead) is the dominant cost and did not meaningfully improve from either
+//      optimization. Left failing deliberately rather than loosened to a passing number that
+//      wouldn't mean anything - see the report for the full analysis and open questions this
+//      raises for a follow-up decision (e.g. whether INVOKE_TIMEOUT_MS itself should change).
 //   2. Case 2 (rate limiting): creates a second ephemeral account (USER_RATE_LIMIT), dedicated to
 //      this case so Case 1's single call never contends with it. Fires 15 sequential requests
 //      (5s per-request timeout via AbortController, so a hang fails loudly instead of blocking
@@ -102,9 +120,12 @@ async function signInAndGetAccessToken(email) {
 // Calls the deployed Edge Function directly via fetch (not supabase.functions.invoke()) so this
 // script gets the raw HTTP status code unambiguously - see the header comment for why that
 // matters for Case 2. `timeoutMs` guards against a hang counting as neither a pass nor a fail.
+// Also times the full request (fix round 1 - see Case 1's elapsedMs use below), so callers get
+// wall-clock latency for free without a second measurement mechanism to keep in sync.
 async function callFunction(accessToken, body, timeoutMs = 5000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
   try {
     const res = await fetch(FUNCTION_URL, {
       method: "POST",
@@ -117,10 +138,16 @@ async function callFunction(accessToken, body, timeoutMs = 5000) {
       signal: controller.signal,
     });
     const json = await res.json().catch(() => null);
-    return { status: res.status, json };
+    return { status: res.status, json, elapsedMs: Date.now() - startedAt };
   } finally {
     clearTimeout(timer);
   }
+}
+
+function median(numbers) {
+  const sorted = [...numbers].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
 }
 
 async function cleanup(userIds) {
@@ -155,26 +182,38 @@ async function main() {
   const userIds = [];
 
   try {
-    // === Case 1: goal-specificity ===
-    console.log("=== Case 1: goal-specificity ===");
+    // === Case 1: goal-specificity + latency ===
+    console.log("=== Case 1: goal-specificity + latency ===");
     const userGoal = await createTestUser("goal");
     userIds.push(userGoal.id);
     const goalToken = await signInAndGetAccessToken(userGoal.email);
 
-    const goalResult = await callFunction(goalToken, {
-      pressureProfileId: "gentle-encouragement",
-      goal: "Finish Chapter 6 of STAT231",
-      hostname: "youtube.com",
-      interventionLevel: "none",
-    });
+    // REPEAT_CALLS=8 sequential calls, well under the 12/60s rate limit (this is Case 1's own
+    // dedicated user, untouched by Case 2's separate user below) - enough samples for a
+    // meaningful median without needlessly burning most of this user's own quota.
+    const REPEAT_CALLS = 8;
+    const goalCalls = [];
+    for (let i = 0; i < REPEAT_CALLS; i++) {
+      const result = await callFunction(goalToken, {
+        pressureProfileId: "gentle-encouragement",
+        goal: "Finish Chapter 6 of STAT231",
+        hostname: "youtube.com",
+        interventionLevel: "none",
+      });
+      goalCalls.push(result);
+    }
+    const elapsedMsList = goalCalls.map((c) => c.elapsedMs);
+    const p50 = median(elapsedMsList);
+    console.log(`  Elapsed ms across ${REPEAT_CALLS} calls: ${elapsedMsList.join(", ")} (p50=${p50}ms)`);
 
+    const firstCall = goalCalls[0];
     record(
       "Case 1: a real call with a specific goal returns HTTP 200",
-      goalResult.status === 200,
-      `got status ${goalResult.status}, body ${JSON.stringify(goalResult.json)}`
+      firstCall.status === 200,
+      `got status ${firstCall.status}, body ${JSON.stringify(firstCall.json)}`
     );
 
-    const message = goalResult.json?.message;
+    const message = firstCall.json?.message;
     record(
       "Case 1: response body has a non-empty `message` string",
       typeof message === "string" && message.trim().length > 0,
@@ -199,6 +238,33 @@ async function main() {
         `got message: ${JSON.stringify(message)}`
       );
     }
+
+    // Fix round 1: the actual latency assertion this Definition of Done requires. coachingApi.ts
+    // races the ENTIRE round trip (client -> Edge Function -> JWT verify -> rate-limit RPC ->
+    // Anthropic call -> response) against an 800ms timeout (INVOKE_TIMEOUT_MS,
+    // src/infrastructure/backend/coachingApi.ts) before falling back to the static pool - this
+    // asserts against that EXACT real constant (not an invented "comfortable" number picked
+    // without measuring first, which is what fix round 1's own first draft did and got wrong -
+    // see task-11-report.md's Fix round 1 section) because that is the only threshold that is
+    // actually "meaningful" here: it's the literal bar the shipped feature is racing against in
+    // production, so this check reports the ACTUAL truth about the ACTUAL requirement rather than
+    // a threshold reverse-engineered to make the check green.
+    //
+    // Known, currently-open finding (see task-11-report.md's Fix round 1 section for the full
+    // writeup and breakdown): even after switching to claude-haiku-4-5 (fastest/cheapest current
+    // Anthropic model) and collapsing the rate-limit check+insert into one atomic RPC call, the
+    // measured p50 does NOT clear this budget - the dominant cost by a wide margin is the
+    // Anthropic API call itself (roughly 85-95% of total elapsed time in every sample), not this
+    // function's own Supabase-side overhead, and that portion did not meaningfully improve from
+    // either optimization. This is intentionally left as a genuine, visible FAIL rather than
+    // silently loosened - the whole point of this fix round was to stop a green checkmark from
+    // meaning "eventually returns" instead of "meets the actual budget."
+    const INVOKE_TIMEOUT_MS = 800; // must match src/infrastructure/backend/coachingApi.ts's own constant
+    record(
+      `Case 1: median (p50) latency across ${REPEAT_CALLS} calls stays under coachingApi.ts's real ${INVOKE_TIMEOUT_MS}ms race timeout`,
+      p50 < INVOKE_TIMEOUT_MS,
+      `p50=${p50}ms (budget ${INVOKE_TIMEOUT_MS}ms), all samples: [${elapsedMsList.join(", ")}]ms`
+    );
 
     // === Case 2: rate limiting ===
     console.log("\n=== Case 2: rate limiting ===");

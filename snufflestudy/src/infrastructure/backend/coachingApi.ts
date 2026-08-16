@@ -38,6 +38,18 @@ async function checkAuth(): Promise<{ ok: true; userId: string | null } | { ok: 
   }
 }
 
+// Absolute last resort - used only if pickWarningMessage() ITSELF throws (fix round 1). That can
+// genuinely happen: pickWarningMessage() calls getPressureProfile(id), which throws for any id
+// outside the six known PRESSURE_PROFILES entries (pressureProfiles.ts:110-113) -
+// StudySession.pressureProfileId is a bare `string`, not a literal union, so nothing prevents a
+// stale/legacy/corrupted session from carrying an id that no longer matches. Before this fix, a
+// throw here propagated straight out of generateCoachingMessage's own catch block (nothing wraps
+// the fallback() call *inside* that catch), breaking this function's advertised "always resolves
+// to a string, never throws" contract for exactly the input that contract exists to protect
+// against - relying on SnufflesOverlay's own try/catch to paper over it instead of this function
+// actually meeting its own contract.
+const LAST_RESORT_MESSAGE = "Back to it.";
+
 // Resolves after `ms` milliseconds with a sentinel object (never rejects) - used to race against
 // the real supabase.functions.invoke(...) call below via Promise.race. A plain setTimeout-based
 // rejection would work too, but a resolving sentinel keeps the race's result type a plain
@@ -57,7 +69,18 @@ function timeoutSentinel(ms: number): Promise<{ timedOut: true }> {
 // Edge Function's 429 rate-limit, or a malformed/empty success body) falls back identically -
 // this function's callers never need to distinguish why a message came from the static pool.
 export async function generateCoachingMessage(request: CoachingMessageRequest): Promise<string> {
-  const fallback = () => pickWarningMessage(request.pressureProfileId, request.interventionLevel);
+  // Wraps pickWarningMessage() in its own try/catch (fix round 1) - this is what actually makes
+  // the "never throws" contract hold, rather than relying on the try/catch below (which only
+  // protects call sites INSIDE it, not the ones in the catch block itself - see LAST_RESORT_MESSAGE's
+  // comment above).
+  const fallback = (): string => {
+    try {
+      return pickWarningMessage(request.pressureProfileId, request.interventionLevel);
+    } catch (err) {
+      console.error("pickWarningMessage itself failed, using the last-resort fallback", err);
+      return LAST_RESORT_MESSAGE;
+    }
+  };
 
   try {
     const auth = await checkAuth();

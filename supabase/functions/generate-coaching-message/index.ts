@@ -27,7 +27,7 @@ const corsHeaders = {
 // case (a stuck/looping content script re-mounting continuously) to a fixed ~720 Claude calls per
 // user per hour if pinned at the ceiling the whole time - a real but bounded cost, not unbounded.
 const RATE_LIMIT_MAX_REQUESTS = 12;
-const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_WINDOW_SECONDS = 60;
 
 // Small, static lookup of each PressureProfile's voice - duplicated intentionally from
 // src/domain/pressure/pressureProfiles.ts (name/intensity/description only, never the message
@@ -86,6 +86,21 @@ function json(body: unknown, status: number): Response {
   });
 }
 
+// Fix round 1 (latency): hoisted to module scope so a warm Deno isolate reuses the same client
+// (and whatever HTTP connection pooling supabase-js/Deno's fetch does underneath it) across
+// invocations, instead of constructing a fresh client object on every single request. Neither
+// client depends on request-specific state - the anon client is always the same
+// project URL + anon key, and the service-role client is only ever used for the rate-limit RPC.
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const anonClient =
+  SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const adminClient =
+  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    : null;
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -94,11 +109,10 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Method not allowed" }, 405);
   }
 
+  const startedAt = Date.now();
+
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    if (!anonClient || !adminClient) {
       console.error("Missing Supabase environment configuration");
       return json({ error: "Server misconfigured" }, 500);
     }
@@ -112,7 +126,6 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Not authenticated" }, 401);
     }
     const jwt = authHeader.replace(/^Bearer\s+/i, "");
-    const anonClient = createClient(supabaseUrl, anonKey);
     const { data: userData, error: userError } = await anonClient.auth.getUser(jwt);
     if (userError || !userData.user) {
       return json({ error: "Not authenticated" }, 401);
@@ -130,36 +143,28 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Missing required fields" }, 400);
     }
 
-    // Service-role client for the rate-limit ledger only - coaching_message_requests has no
-    // RLS policies at all (see the migration), so only this service-role client can touch it.
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
-
-    const windowStartIso = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString();
-    const { count, error: countError } = await adminClient
-      .from("coaching_message_requests")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gt("requested_at", windowStartIso);
-    if (countError) {
-      console.error("Rate limit check failed", countError);
+    // Fix round 1 (latency + atomicity): a single RPC replaces the old two-step SELECT count(...)
+    // then INSERT (two separate round trips to Postgres). See
+    // supabase/migrations/20260815000015_v2_coaching_message_atomic_rate_limit.sql for the
+    // function body - it does the count check and the insert inside one PL/pgSQL function call,
+    // serialized per-user via pg_advisory_xact_lock so two concurrent requests from the same user
+    // can no longer both read a below-limit count before either has inserted its own row (the
+    // race the old two-step version had). coaching_message_requests has no RLS policies at all
+    // (20260815000014), so only this service-role client can call it.
+    const { data: admitted, error: rpcError } = await adminClient.rpc(
+      "check_and_record_coaching_message_request",
+      {
+        p_user_id: userId,
+        p_max_requests: RATE_LIMIT_MAX_REQUESTS,
+        p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
+      }
+    );
+    if (rpcError) {
+      console.error("Rate limit check failed", rpcError);
       return json({ error: "Server error" }, 500);
     }
-    if ((count ?? 0) >= RATE_LIMIT_MAX_REQUESTS) {
+    if (!admitted) {
       return json({ error: "Rate limited" }, 429);
-    }
-
-    // Record this admitted request BEFORE calling Claude, so a slow or hanging model call still
-    // counts toward the caller's quota - the rate limiter bounds actual Claude spend, not just
-    // request volume to this function. Denied (429) requests above are never recorded, so the
-    // sliding window rolls forward normally instead of a burst of denials permanently pinning a
-    // user at the ceiling.
-    const { error: insertError } = await adminClient
-      .from("coaching_message_requests")
-      .insert({ user_id: userId });
-    if (insertError) {
-      // Non-fatal - proceed anyway rather than blocking the coaching line on bookkeeping. A
-      // transient ledger-write failure should not itself trigger the client's fallback.
-      console.error("Failed to record coaching message request", insertError);
     }
 
     const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
@@ -192,11 +197,15 @@ Deno.serve(async (req: Request) => {
       `They just got distracted on: ${hostname}\n` +
       escalationNote;
 
-    // Raw fetch to the Messages API (no Anthropic SDK dependency in this Deno function) - model
-    // choice is claude-opus-5 per this environment's default-model policy (never downgrade for
-    // cost without an explicit ask), with thinking disabled and effort held low since this is a
-    // single short sentence with no tool use, where the two disabled-thinking failure modes
-    // (tool-call-as-text, tag leakage) don't apply and low latency matters more than depth.
+    // Raw fetch to the Messages API (no Anthropic SDK dependency in this Deno function). Model
+    // choice: claude-haiku-4-5 - fastest/cheapest current Anthropic model, the correct fit for
+    // this specific constraint (fix round 1): coachingApi.ts races this whole round trip against
+    // an 800ms client-side timeout, on every single distraction event, to generate one short
+    // sentence with no tool use, no long context, and no complex reasoning - not a task where
+    // Opus-tier's baseline latency or separate (tighter) rate-limit pool make sense. Haiku 4.5
+    // doesn't support `thinking`/`output_config.effort` the way Opus/Sonnet 5 do (effort errors
+    // on this model), so neither field is sent - omitting `thinking` entirely already means "no
+    // thinking" on this model, which is what a single short sentence needs anyway.
     const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -205,10 +214,8 @@ Deno.serve(async (req: Request) => {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-opus-5",
+        model: "claude-haiku-4-5",
         max_tokens: 100,
-        thinking: { type: "disabled" },
-        output_config: { effort: "low" },
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
       }),
@@ -222,9 +229,9 @@ Deno.serve(async (req: Request) => {
 
     const claudeData = await claudeResponse.json();
 
-    // Claude Opus 5's elevated cybersecurity safeguards can return stop_reason: "refusal" with a
-    // 200 and (possibly) empty content - treat that as a failure the client should fall back on,
-    // not as a successful-but-empty message.
+    // A safety-classifier decline (any current Claude model can return stop_reason: "refusal"
+    // with a 200 and possibly empty content) - treat that as a failure the client should fall
+    // back on, not as a successful-but-empty message.
     if (claudeData.stop_reason === "refusal") {
       console.error("Model declined to respond", claudeData.stop_details ?? null);
       return json({ error: "Model declined to respond" }, 502);
@@ -240,6 +247,10 @@ Deno.serve(async (req: Request) => {
       return json({ error: "No message generated" }, 502);
     }
 
+    // Total elapsed time, server-side, logged (not returned to the client) - the only
+    // observability this function has without a dedicated logs-viewing CLI command in this
+    // environment; harmless (no request content, no secrets).
+    console.log(`generate-coaching-message ok in ${Date.now() - startedAt}ms`);
     return json({ message }, 200);
   } catch (err) {
     console.error("generate-coaching-message crashed", err);
