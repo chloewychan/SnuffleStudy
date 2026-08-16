@@ -6,6 +6,7 @@ import { SessionSetupForm } from "./components/SessionSetupForm";
 import { FriendGroupPanel } from "./components/FriendGroupPanel";
 import { UnlockRequestPanel } from "./components/UnlockRequestPanel";
 import { TempPasscodePanel } from "./components/TempPasscodePanel";
+import { StudyRoomPanel } from "./components/StudyRoomPanel";
 import { SessionStatusCard } from "../shared/ui/SessionStatusCard";
 import { TimerRing } from "../shared/ui/TimerRing";
 import { EndSessionControl } from "../shared/ui/EndSessionControl";
@@ -18,7 +19,7 @@ import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
 import { remainingSeconds } from "../domain/session/timer";
 import type { UserSettings } from "../domain/settings/userSettings";
 
-type SidePanelView = "setup" | "taskVault" | "friends" | "unlockRequests" | "tempPasscodes";
+type SidePanelView = "setup" | "taskVault" | "friends" | "unlockRequests" | "tempPasscodes" | "studyRooms";
 
 export function SidePanelApp() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -146,6 +147,14 @@ export function SidePanelApp() {
       );
     }
 
+    if (view === "studyRooms") {
+      return (
+        <div className="sidepanel-app">
+          <StudyRoomPanel onClose={() => setView("setup")} />
+        </div>
+      );
+    }
+
     return (
       <div className="sidepanel-app">
         <button type="button" onClick={() => setView("taskVault")}>
@@ -159,6 +168,9 @@ export function SidePanelApp() {
         </button>
         <button type="button" onClick={() => setView("tempPasscodes")}>
           Temp passcode requests
+        </button>
+        <button type="button" onClick={() => setView("studyRooms")}>
+          Study Rooms
         </button>
         <SessionSetupForm
           settings={settings}
