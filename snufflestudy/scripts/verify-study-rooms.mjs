@@ -43,8 +43,18 @@
 //      and this specific room, not a generic/shared credential. C (never a participant of R1, and
 //      confirmed denied in Case 2) invokes the same function for R1 and is rejected. A request
 //      with no Authorization header at all is also rejected (401).
-//   6. Cleans up every row/account it created.
-//   7. Prints a pass/fail summary and exits non-zero if anything failed.
+//   6. Case 5 (fix round 1, Critical - the room_id-retargeting UPDATE bypass, migration
+//      20260815000020): reproduces the exact exploit code review flagged: C creates their own
+//      room R_C (no group prerequisite to CREATE, by design), legitimately joins it as its owner,
+//      then attempts `update study_room_participants set room_id = R1 ...` on that row - before
+//      the immutable-columns trigger, this would have silently retargeted a legitimate-looking
+//      row onto R1 with zero group relationship ever checked, defeating both the discovery and
+//      join-gate fixes and handing the attacker a real generate-livekit-token grant for R1. Now
+//      asserted denied, C's row confirmed unaffected, and C confirmed still unable to read R1
+//      afterward. A positive control (B's legitimate leaveRoom, which only ever sets left_at)
+//      confirms the tightened policy doesn't break the real client path.
+//   7. Cleans up every row/account it created.
+//   8. Prints a pass/fail summary and exits non-zero if anything failed.
 //
 // What this script does NOT and CANNOT prove (see the report for the full honest accounting):
 // actual audio/video capture, transmission, or rendering. That requires a real browser with
@@ -401,6 +411,63 @@ async function main() {
       "Case 4: a request with no signed-in session is rejected by generate-livekit-token",
       Boolean(noAuthError),
       noAuthError ? noAuthError.message : "expected an error, got none"
+    );
+
+    // --- Case 5 (fix round 1, Critical): the room_id-retargeting UPDATE bypass is closed ---
+    // Reproduces the exact exploit flagged in code review, using C (who shares no group with A
+    // anywhere): (1) C creates their own room R_C - study_rooms' INSERT policy has no group
+    // prerequisite to CREATE a room, only to join someone else's, so this always succeeds;
+    // (2) C joins R_C as its owner - a legitimate row (room_id=R_C, user_id=C) via the
+    // `sr.owner_user_id = auth.uid()` clause of 20260815000019's INSERT policy; (3) C attempts to
+    // retarget that row's room_id to R1 (A's room, which C shares no group with and was already
+    // proven denied read/join access to in Cases 1/2) via a bare UPDATE - before migration
+    // 20260815000020's immutable-columns trigger, this passed the old UPDATE policy outright
+    // (which only ever checked user_id = auth.uid(), never room_id) and would have handed C both
+    // read access to R1 and a legitimate-looking participant row generate-livekit-token would
+    // trust. Now it must be rejected.
+    const roomC = await expectOk("Case 5: C creates their own room R_C", () =>
+      createRoomAs(clientC, userC.id, `Verify Study Rooms R_C (attacker-owned) ${RUN_ID}`)
+    );
+    if (roomC) {
+      await expectOk("Case 5: C joins their own room R_C (legitimate self-join)", () =>
+        joinRoomAs(clientC, userC.id, roomC.id)
+      );
+
+      await expectDenied(
+        "Case 5: C's attempt to retarget their R_C participant row's room_id to R1 (the exploit) is rejected by the immutable-columns trigger",
+        () =>
+          clientC
+            .from("study_room_participants")
+            .update({ room_id: room.id })
+            .eq("room_id", roomC.id)
+            .eq("user_id", userC.id)
+            .select()
+            .single()
+      );
+
+      // The trigger must have aborted the whole statement, not partially applied it - C's row
+      // should still point at R_C, and C must still be denied read access to R1 (the discovery-
+      // gap fix from Case 1 must still hold - the exploit specifically targeted defeating it).
+      const rereadC = await expectOk("Case 5: C's participant row still points at R_C (unaffected by the rejected update)", () =>
+        clientC.from("study_room_participants").select().eq("user_id", userC.id).eq("room_id", roomC.id).single()
+      );
+      if (rereadC) {
+        record(
+          "Case 5: C's row's room_id was not changed by the rejected update",
+          rereadC.room_id === roomC.id,
+          `got room_id=${rereadC.room_id}`
+        );
+      }
+      await expectDenied("Case 5: C still cannot read R1 after the rejected retarget attempt", () =>
+        clientC.from("study_rooms").select().eq("id", room.id).single()
+      );
+    }
+
+    // Positive control: the legitimate leaveRoom path (which only ever sets left_at) must still
+    // work under the tightened UPDATE policy - the trigger should reject ONLY changes to
+    // room_id/user_id/joined_at, not UPDATEs in general.
+    await expectOk("Case 5: B's legitimate leaveRoom (only sets left_at) still succeeds", () =>
+      leaveRoomAs(clientB, userB.id, room.id)
     );
   } finally {
     await cleanup(userIds, channels);
