@@ -5,6 +5,7 @@ import { TaskVaultPage } from "../app/routes/TaskVaultPage";
 import { SessionSetupForm } from "./components/SessionSetupForm";
 import { FriendGroupPanel } from "./components/FriendGroupPanel";
 import { UnlockRequestPanel } from "./components/UnlockRequestPanel";
+import { TempPasscodePanel } from "./components/TempPasscodePanel";
 import { SessionStatusCard } from "../shared/ui/SessionStatusCard";
 import { TimerRing } from "../shared/ui/TimerRing";
 import { EndSessionControl } from "../shared/ui/EndSessionControl";
@@ -17,7 +18,7 @@ import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
 import { remainingSeconds } from "../domain/session/timer";
 import type { UserSettings } from "../domain/settings/userSettings";
 
-type SidePanelView = "setup" | "taskVault" | "friends" | "unlockRequests";
+type SidePanelView = "setup" | "taskVault" | "friends" | "unlockRequests" | "tempPasscodes";
 
 export function SidePanelApp() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
@@ -32,9 +33,14 @@ export function SidePanelApp() {
   }>({});
   // v2 Task 8: whether the active-session view is showing UnlockRequestPanel instead of its
   // normal timer/controls. Separate from `view` above - `view` only governs the no-active-session
-  // branch's routing (setup/taskVault/friends/unlockRequests), while a running session has its
-  // own dedicated render branch further below that doesn't go through `view` at all.
+  // branch's routing (setup/taskVault/friends/unlockRequests/tempPasscodes), while a running
+  // session has its own dedicated render branch further below that doesn't go through `view` at
+  // all.
   const [showUnlockPanel, setShowUnlockPanel] = useState(false);
+  // v2 Task 12: same treatment as showUnlockPanel above, for TempPasscodePanel - reachable from
+  // the active-session view too, not just the no-session `view` routing below, since a friend
+  // might be mid-session themselves when asked to approve/deny a temp-passcode request.
+  const [showTempPasscodePanel, setShowTempPasscodePanel] = useState(false);
 
   // Once a session actually starts, drop back to a clean "setup" view/no-prefill state for
   // next time - otherwise a stale goal/taskBreakdownItemId from a Task Vault pick would
@@ -46,6 +52,7 @@ export function SidePanelApp() {
       setSessionPrefill({});
       // A fresh session should never inherit a panel left open from a previous one.
       setShowUnlockPanel(false);
+      setShowTempPasscodePanel(false);
     }
   }, [session]);
 
@@ -131,6 +138,14 @@ export function SidePanelApp() {
       );
     }
 
+    if (view === "tempPasscodes") {
+      return (
+        <div className="sidepanel-app">
+          <TempPasscodePanel onClose={() => setView("setup")} />
+        </div>
+      );
+    }
+
     return (
       <div className="sidepanel-app">
         <button type="button" onClick={() => setView("taskVault")}>
@@ -141,6 +156,9 @@ export function SidePanelApp() {
         </button>
         <button type="button" onClick={() => setView("unlockRequests")}>
           Unlock requests
+        </button>
+        <button type="button" onClick={() => setView("tempPasscodes")}>
+          Temp passcode requests
         </button>
         <SessionSetupForm
           settings={settings}
@@ -180,6 +198,16 @@ export function SidePanelApp() {
     );
   }
 
+  // v2 Task 12: same reachable-during-an-active-session treatment as UnlockRequestPanel above -
+  // a friend might be mid-session themselves when asked to approve/deny a temp-passcode request.
+  if (showTempPasscodePanel) {
+    return (
+      <div className="sidepanel-app">
+        <TempPasscodePanel onClose={() => setShowTempPasscodePanel(false)} />
+      </div>
+    );
+  }
+
   const totalSeconds =
     session.state === "BREAK" ? session.breakDurationSeconds : session.focusDurationSeconds;
 
@@ -197,6 +225,9 @@ export function SidePanelApp() {
         <EndSessionControl session={session} />
         <button type="button" onClick={() => setShowUnlockPanel(true)}>
           Unlock requests
+        </button>
+        <button type="button" onClick={() => setShowTempPasscodePanel(true)}>
+          Temp passcode requests
         </button>
       </div>
     </div>
