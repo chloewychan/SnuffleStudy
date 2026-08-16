@@ -454,6 +454,15 @@ async function main() {
       // scripts/verify-temp-passcode.mjs's own Case 5 for the dedicated live proof that this
       // denial is real and deliberate, not a bug this script should route around by requesting
       // fewer columns without remark.
+      //
+      // v2 Task 12 fix round 2 (migration 20260815000018_v2_temp_passcode_lock_down_insert.sql):
+      // the INSERT policy now additionally requires code_hash/code_salt/expires_at/locked_until
+      // to be null and failed_attempts to be 0 at creation time (only approve-temp-passcode,
+      // running as service_role, may ever set them) - this insert previously set a placeholder
+      // code_hash and a future expires_at, which the tightened policy now correctly rejects. A
+      // genuinely pending request never carries either at creation, so both are simply omitted
+      // here now (see scripts/verify-temp-passcode.mjs's Cases 12-14 for the dedicated live proof
+      // that this tightening is real/deliberate and that the legitimate insert path still works).
       const { data: passcodeReq, error: passcodeErr } = await clientA
         .from("temp_passcode_requests")
         .insert({
@@ -462,8 +471,6 @@ async function main() {
           requester_user_id: userA.id,
           friend_user_id: userC.id,
           status: "pending",
-          code_hash: "not-a-real-hash",
-          expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
           delivered_via: "email",
         })
         .select("id, session_id, hostname, requester_user_id, friend_user_id, status")

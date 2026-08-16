@@ -74,8 +74,23 @@
 //      EXACTLY the number of concurrent guesses - a direct regression proof that the atomic
 //      record_temp_passcode_failed_attempt() UPDATE doesn't lose updates the way the old
 //      read-then-write-in-two-round-trips implementation could under concurrency.
-//  13. Cleans up every row and account it created via the service-role client.
-//  14. Prints a pass/fail summary and exits non-zero if anything failed.
+//  13. Case 12 (fix round 2, Critical): the SAME exploit class as Case 9, reached via INSERT
+//      instead of UPDATE - a requester attempts to directly INSERT a request with status:
+//      'approved' and a self-chosen code_hash/code_salt (skipping the friend-approval flow
+//      entirely). Asserts the INSERT is denied outright and that no row was actually created.
+//  14. Case 13 (fix round 2, additional finding from the same audit pass): a requester attempts to
+//      INSERT a request naming THEMSELVES as friend_user_id - which, if allowed, would let them
+//      legitimately self-approve via the real approve-temp-passcode Edge Function with no forged
+//      hash needed at all (its own friend-identity check trivially passes when requester and
+//      friend are the same person). Asserts this is denied outright.
+//  15. Case 14 (fix round 2): re-confirms the legitimate happy-path pending-request INSERT (the
+//      exact call tempPasscodeApi.ts's createRequest makes) still succeeds under the tightened
+//      INSERT policy - proving Cases 12/13's fix didn't also break the real flow.
+//  16. Case 15 (fix round 2 - reviewer's explicit DELETE double-check): confirms DELETE is still
+//      denied for the authenticated role (no policy has ever granted it) and wasn't accidentally
+//      opened up while tightening INSERT.
+//  17. Cleans up every row and account it created via the service-role client.
+//  18. Prints a pass/fail summary and exits non-zero if anything failed.
 
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
@@ -636,6 +651,132 @@ async function main() {
         "Case 11: the lockout engaged at exactly the configured threshold",
         !!r11Row?.locked_until && new Date(r11Row.locked_until).getTime() > Date.now(),
         `got locked_until=${r11Row?.locked_until}`
+      );
+    }
+
+    // === Case 12 (fix round 2, Critical): a requester cannot self-approve via a direct client INSERT ===
+    // The same exploit class Case 9 closed for UPDATE, reached via INSERT instead - the re-review
+    // found the INSERT policy was never tightened, so this was still fully open even after fix
+    // round 1.
+    console.log(
+      "\n=== Case 12: a requester cannot INSERT a pre-approved request directly (Critical fix round 2) ==="
+    );
+    {
+      const attackerCode = "888888";
+      const attackerSalt = randomBytes(16).toString("hex");
+      const attackerHash = attackerComputeHash(attackerCode, attackerSalt);
+
+      const selfApproveInsert = await clientA
+        .from("temp_passcode_requests")
+        .insert({
+          session_id: sessionId,
+          hostname: "insert-exploit.com",
+          requester_user_id: userA.id,
+          friend_user_id: userB.id,
+          status: "approved",
+          code_hash: attackerHash,
+          code_salt: attackerSalt,
+          expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+          delivered_via: "email",
+          failed_attempts: 0,
+          locked_until: null,
+        })
+        .select("id")
+        .single();
+      record(
+        "Case 12: a direct client INSERT with status:'approved' and a self-chosen code_hash/code_salt is DENIED outright",
+        !!selfApproveInsert.error,
+        selfApproveInsert.error
+          ? `denied — ${selfApproveInsert.error.message}`
+          : `NOT denied — got ${JSON.stringify(selfApproveInsert.data)}`
+      );
+
+      const { data: leaked } = await admin
+        .from("temp_passcode_requests")
+        .select("id")
+        .eq("hostname", "insert-exploit.com")
+        .eq("requester_user_id", userA.id);
+      record(
+        "Case 12: no row was actually created by the rejected INSERT",
+        (leaked ?? []).length === 0,
+        `found ${leaked?.length ?? 0} row(s)`
+      );
+    }
+
+    // === Case 13 (fix round 2, additional finding from the same audit pass): a requester cannot
+    // name themselves as the assigned friend, which would let them legitimately self-approve via
+    // the real approve-temp-passcode Edge Function (no forged hash needed at all). ===
+    console.log(
+      "\n=== Case 13: a requester cannot INSERT a request naming themselves as friend_user_id ==="
+    );
+    {
+      const selfFriendInsert = await clientA
+        .from("temp_passcode_requests")
+        .insert({
+          session_id: sessionId,
+          hostname: "self-friend-exploit.com",
+          requester_user_id: userA.id,
+          friend_user_id: userA.id, // self-assignment
+          status: "pending",
+          delivered_via: "email+in_app",
+        })
+        .select("id")
+        .single();
+      record(
+        "Case 13: a direct client INSERT naming the requester as their own assigned friend is DENIED outright",
+        !!selfFriendInsert.error,
+        selfFriendInsert.error
+          ? `denied — ${selfFriendInsert.error.message}`
+          : `NOT denied — got ${JSON.stringify(selfFriendInsert.data)}`
+      );
+    }
+
+    // === Case 14 (fix round 2): the legitimate happy-path INSERT still succeeds under the
+    // tightened policy - re-runs the exact same createRequestAs() helper Case 1 used. ===
+    console.log(
+      "\n=== Case 14: the legitimate pending-request INSERT still succeeds under the tightened policy ==="
+    );
+    {
+      const legit = await createRequestAs(clientA, userA.id, userB.id, "legit-after-fix.com", sessionId);
+      record(
+        "Case 14: the normal pending-request INSERT (exactly what tempPasscodeApi.ts's createRequest does) still succeeds",
+        !legit.error && !!legit.data && legit.data.status === "pending",
+        legit.error?.message ?? `got ${JSON.stringify(legit.data)}`
+      );
+    }
+
+    // === Case 15 (fix round 2 - reviewer's DELETE double-check): confirm DELETE is still denied
+    // for the authenticated role (no policy has ever granted it - RLS enabled + zero matching
+    // policies for a command denies that command by default), and wasn't accidentally opened up
+    // while tightening INSERT. ===
+    console.log("\n=== Case 15: DELETE remains denied for the authenticated role ===");
+    if (r1Id) {
+      // Chains .select("id").single() (narrowed to a grant-safe column, not a bare .select())
+      // to convert RLS's silent zero-rows-affected behavior into a hard error - same technique
+      // this script's/verify-rls.mjs's expectDenied helper relies on throughout.
+      const deleteAttempt = await clientA
+        .from("temp_passcode_requests")
+        .delete()
+        .eq("id", r1Id)
+        .select("id")
+        .single();
+      record(
+        "Case 15: the requester cannot DELETE their own request row",
+        !!deleteAttempt.error,
+        deleteAttempt.error
+          ? `denied — ${deleteAttempt.error.message}`
+          : "NOT denied - DELETE succeeded"
+      );
+
+      const { data: stillThere } = await admin
+        .from("temp_passcode_requests")
+        .select("id")
+        .eq("id", r1Id)
+        .single();
+      record(
+        "Case 15: R1 still exists after the denied DELETE attempt (not silently removed)",
+        !!stillThere,
+        stillThere ? "row present" : "row missing"
       );
     }
   } finally {
