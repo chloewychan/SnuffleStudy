@@ -227,15 +227,19 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const failedAttempts = row.failed_attempts + 1;
-    const lockedUntil =
-      failedAttempts >= MAX_ATTEMPTS_BEFORE_LOCKOUT
-        ? new Date(now + LOCKOUT_DURATION_MS).toISOString()
-        : null;
-    const { error: failError } = await adminClient
-      .from("temp_passcode_requests")
-      .update({ failed_attempts: failedAttempts, locked_until: lockedUntil })
-      .eq("id", row.id);
+    // Fix round 1 (Important, code review): the increment used to be read-in-application-code
+    // then a separate literal-value UPDATE - two round trips, vulnerable to a race where two
+    // concurrent wrong guesses both read the same stale failed_attempts and each write the same
+    // "stale + 1", undercounting real attempts under concurrency. record_temp_passcode_failed_attempt
+    // (supabase/migrations/20260815000017_v2_temp_passcode_lock_down_client_writes.sql) performs
+    // the increment - and, if the threshold is crossed, the lockout - as a single atomic
+    // UPDATE ... SET failed_attempts = failed_attempts + 1 ... RETURNING, which Postgres's own
+    // row-level locking serializes correctly under concurrency without any explicit lock needed.
+    const { error: failError } = await adminClient.rpc("record_temp_passcode_failed_attempt", {
+      p_request_id: row.id,
+      p_max_attempts: MAX_ATTEMPTS_BEFORE_LOCKOUT,
+      p_lockout_seconds: LOCKOUT_DURATION_MS / 1000,
+    });
     if (failError) {
       console.error("Failed to record a failed temp passcode redeem attempt", failError);
     }

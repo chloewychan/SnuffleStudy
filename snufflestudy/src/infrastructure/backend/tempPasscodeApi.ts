@@ -139,25 +139,27 @@ export async function createRequest(
   return request;
 }
 
-// Denies a pending request as the assigned friend - a direct client-side table update (unlike
-// approveRequest below), since denying never touches code_hash/code_salt at all and needs no
-// server-side crypto. Mirrors unlockRequestApi.resolveRequest's "first responder wins" pattern:
-// `.eq("status", "pending")` + `.select().single()` means an UPDATE matching zero rows (e.g. the
-// request was already resolved, or never existed, or the caller isn't requester_user_id/
-// friend_user_id per RLS) surfaces as a real error rather than a silent no-op.
+// Denies a pending request as the assigned friend. Fix round 1 (Critical, code review): this used
+// to be a direct client-side table UPDATE - reasoned at the time to be safe because denying never
+// touches code_hash/code_salt - but that missed that the SAME unrestricted UPDATE grant/RLS combo
+// also let the REQUESTER directly rewrite status to 'approved' with a self-chosen code_hash/
+// code_salt, entirely bypassing approve-temp-passcode. The fix (migration
+// 20260815000017_v2_temp_passcode_lock_down_client_writes.sql) revokes ALL client UPDATE access to
+// this table, full stop - so denying now goes through the narrow deny_temp_passcode_request()
+// SECURITY DEFINER RPC, which permits ONLY a pending -> denied transition, only by the row's own
+// friend_user_id, touching only status/resolved_at. The RPC itself raises (surfaced here as a
+// thrown error) on zero rows matched - wrong id, not the assigned friend, or already resolved -
+// same "first responder wins"-safety guarantee the old `.eq("status","pending")` chain gave,
+// enforced server-side now instead of relying on RLS/grants alone.
 export async function denyRequest(requestId: string): Promise<void> {
   await requireUserId();
 
-  const { data, error } = await supabase
-    .from("temp_passcode_requests")
-    .update({ status: "denied", resolved_at: new Date().toISOString() })
-    .eq("id", requestId)
-    .eq("status", "pending")
-    .select(TEMP_PASSCODE_COLUMNS)
-    .single();
-  if (error || !data) {
+  const { error } = await supabase.rpc("deny_temp_passcode_request", {
+    p_request_id: requestId,
+  });
+  if (error) {
     throw new Error(
-      error?.message ?? "Could not deny this request — it may already have been resolved."
+      error.message ?? "Could not deny this request — it may already have been resolved."
     );
   }
 }

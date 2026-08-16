@@ -183,27 +183,43 @@ describe("tempPasscodeApi.createRequest", () => {
   });
 });
 
+// Fix round 1 (Critical, code review): denyRequest no longer does a direct client-side table
+// UPDATE (that path let ANY authenticated requester also self-approve their own request with a
+// self-chosen code, bypassing approve-temp-passcode entirely - see tempPasscodeApi.ts's updated
+// comment and migration 20260815000017_v2_temp_passcode_lock_down_client_writes.sql). It now
+// calls the narrow deny_temp_passcode_request() SECURITY DEFINER RPC instead - these tests assert
+// THAT call shape, not a table update.
 describe("tempPasscodeApi.denyRequest", () => {
-  it("updates status to denied, scoped to the still-pending row", async () => {
+  it("calls the deny_temp_passcode_request RPC with the request id", async () => {
     mockGetUser("user-b");
-    const builder = makeBuilder({ data: { ...sampleRow, status: "denied" }, error: null });
-    vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+    const rpcSpy = vi.spyOn(supabase, "rpc").mockResolvedValue({ data: null, error: null } as never);
 
     await denyRequest("req-1");
 
-    expect(builder.update).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "denied" })
-    );
-    expect(builder.eq).toHaveBeenCalledWith("id", "req-1");
-    expect(builder.eq).toHaveBeenCalledWith("status", "pending");
+    expect(rpcSpy).toHaveBeenCalledWith("deny_temp_passcode_request", { p_request_id: "req-1" });
   });
 
-  it("throws when the request was already resolved (zero rows matched)", async () => {
+  it("throws when the RPC reports an error (e.g. already resolved, or not the assigned friend)", async () => {
     mockGetUser("user-b");
-    const builder = makeBuilder({ data: null, error: null });
-    vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+    vi.spyOn(supabase, "rpc").mockResolvedValue({
+      data: null,
+      error: {
+        message:
+          "Could not deny this request - it may already have been resolved, or you are not the assigned friend.",
+      },
+    } as never);
 
     await expect(denyRequest("req-1")).rejects.toThrow(/already have been resolved/);
+  });
+
+  it("never issues a direct table UPDATE against temp_passcode_requests (regression guard for the Critical finding)", async () => {
+    mockGetUser("user-b");
+    const fromSpy = vi.spyOn(supabase, "from");
+    vi.spyOn(supabase, "rpc").mockResolvedValue({ data: null, error: null } as never);
+
+    await denyRequest("req-1");
+
+    expect(fromSpy).not.toHaveBeenCalled();
   });
 });
 

@@ -57,11 +57,44 @@
 //      verified email until a custom domain is DNS-verified, which is an expected, known
 //      limitation of this environment per this task's brief, not something this script works
 //      around.
-//  10. Cleans up every row and account it created via the service-role client.
-//  11. Prints a pass/fail summary and exits non-zero if anything failed.
+//  10. Case 9 (fix round 1, Critical): the exact exploit a code review found - the REQUESTER
+//      attempts a direct client-side `.update()` against their own pending request, self-approving
+//      it with a self-chosen code (hashed with the SAME public PBKDF2 algorithm this script's
+//      attackerComputeHash() below ports from src/domain/sites/hardBlockCredential.ts, simulating
+//      a real attacker who has the shipped extension bundle). Asserts the UPDATE itself is denied
+//      outright, that the row's status is still 'pending' afterward (no partial write), and that
+//      redeeming with the attacker's own chosen code via the real Edge Function still fails
+//      end-to-end - closing the loop, not just checking the raw UPDATE call's error.
+//  11. Case 10 (fix round 1): the new deny_temp_passcode_request() RPC - C (not the assigned
+//      friend) cannot deny a request via the RPC; B (the actual assigned friend) still CAN, and
+//      the row's status becomes 'denied' - proving the Critical fix's lockdown didn't also break
+//      the legitimate deny path it was meant to preserve.
+//  12. Case 11 (fix round 1, Important): fires CONCURRENT wrong-guess requests (Promise.all, not
+//      sequential) against one freshly-approved request and asserts failed_attempts lands at
+//      EXACTLY the number of concurrent guesses - a direct regression proof that the atomic
+//      record_temp_passcode_failed_attempt() UPDATE doesn't lose updates the way the old
+//      read-then-write-in-two-round-trips implementation could under concurrency.
+//  13. Cleans up every row and account it created via the service-role client.
+//  14. Prints a pass/fail summary and exits non-zero if anything failed.
 
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
+import { randomBytes, pbkdf2Sync } from "node:crypto";
+
+// Fix round 1 (Critical, Case 9): a line-for-line port of src/domain/sites/
+// hardBlockCredential.ts's hashPasscode algorithm using Node's built-in crypto instead of
+// Web Crypto's subtle.deriveBits - same PBKDF2-HMAC-SHA256, 100,000 iterations, 256-bit output,
+// hex-encoded, so it produces byte-identical hashes to the real client/Edge Function
+// implementation. This is deliberately how an attacker with access to the shipped extension
+// bundle (a plain PBKDF2 implementation, no secret material) would forge a hash for a
+// self-chosen code - the point of Case 9 is proving the server-side write path rejects this, not
+// that the hash itself is somehow unguessable.
+const PBKDF2_ITERATIONS = 100_000;
+function attackerComputeHash(code, saltHex) {
+  return pbkdf2Sync(code, Buffer.from(saltHex, "hex"), PBKDF2_ITERATIONS, 32, "sha256").toString(
+    "hex"
+  );
+}
 
 const SUPABASE_URL = process.env.WXT_SUPABASE_URL;
 const ANON_KEY = process.env.WXT_SUPABASE_ANON_KEY;
@@ -472,6 +505,137 @@ async function main() {
           "not indicate a bug - the in-app delivery leg (the row itself, already proven readable by " +
           "B in Case 1) is what this task's DoD actually requires to work end-to-end without a " +
           "verified sending domain."
+      );
+    }
+
+    // === Case 9 (fix round 1, Critical): a direct client UPDATE self-approval is denied ===
+    console.log(
+      "\n=== Case 9: a requester cannot self-approve a request via a direct client UPDATE (Critical fix) ==="
+    );
+    const r9 = await createRequestAs(clientA, userA.id, userB.id, "twitch.tv", sessionId);
+    const r9Id = r9.data?.id;
+    if (r9Id) {
+      const attackerCode = "999999";
+      const attackerSalt = randomBytes(16).toString("hex");
+      const attackerHash = attackerComputeHash(attackerCode, attackerSalt);
+
+      const selfApprove = await clientA
+        .from("temp_passcode_requests")
+        .update({
+          status: "approved",
+          code_hash: attackerHash,
+          code_salt: attackerSalt,
+          expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+          failed_attempts: 0,
+          locked_until: null,
+        })
+        .eq("id", r9Id)
+        .select("id")
+        .single();
+      record(
+        "Case 9: a direct client UPDATE self-approving with a self-chosen code_hash/code_salt is DENIED outright",
+        !!selfApprove.error,
+        selfApprove.error
+          ? `denied — ${selfApprove.error.message}`
+          : `NOT denied — got ${JSON.stringify(selfApprove.data)}`
+      );
+
+      const { data: r9RowAfter } = await admin
+        .from("temp_passcode_requests")
+        .select("status, code_hash")
+        .eq("id", r9Id)
+        .single();
+      record(
+        "Case 9: R9's status is still 'pending' afterward (the malicious update did not partially apply)",
+        r9RowAfter?.status === "pending",
+        `got status=${r9RowAfter?.status}`
+      );
+
+      const attackerRedeem = await callFunction("redeem-temp-passcode", tokenA, {
+        requestId: r9Id,
+        code: attackerCode,
+      });
+      record(
+        "Case 9: redeeming with the attacker's own self-chosen code still fails end-to-end (the row was never actually approved)",
+        attackerRedeem.json?.ok !== true,
+        `got status ${attackerRedeem.status}, body ${JSON.stringify(attackerRedeem.json)}`
+      );
+    }
+
+    // === Case 10 (fix round 1): the new deny_temp_passcode_request() RPC ===
+    console.log("\n=== Case 10: deny_temp_passcode_request RPC (legitimate deny path still works) ===");
+    const r10 = await createRequestAs(clientA, userA.id, userB.id, "netflix.com", sessionId);
+    const r10Id = r10.data?.id;
+    if (r10Id) {
+      const cDeny = await clientC.rpc("deny_temp_passcode_request", { p_request_id: r10Id });
+      record(
+        "Case 10: C (unrelated - not the assigned friend) cannot deny R10 via the RPC",
+        !!cDeny.error,
+        cDeny.error ? `denied — ${cDeny.error.message}` : `NOT denied — got ${JSON.stringify(cDeny.data)}`
+      );
+
+      const bDeny = await clientB.rpc("deny_temp_passcode_request", { p_request_id: r10Id });
+      record(
+        "Case 10: B (the actual assigned friend) CAN still legitimately deny R10 via the RPC",
+        !bDeny.error,
+        bDeny.error?.message
+      );
+
+      const { data: r10RowAfter } = await admin
+        .from("temp_passcode_requests")
+        .select("status")
+        .eq("id", r10Id)
+        .single();
+      record(
+        "Case 10: R10's status is now 'denied'",
+        r10RowAfter?.status === "denied",
+        `got status=${r10RowAfter?.status}`
+      );
+    }
+
+    // === Case 11 (fix round 1, Important): concurrent wrong guesses don't under-count ===
+    // Direct regression proof for the atomicity fix: the old implementation read failed_attempts,
+    // incremented it in application code, then wrote it back in a SEPARATE round trip - firing
+    // several wrong guesses at once could lose updates (two concurrent requests both reading the
+    // same stale count), letting an attacker firing guesses in parallel get more than
+    // MAX_ATTEMPTS_BEFORE_LOCKOUT real attempts before the lockout visibly engaged.
+    // record_temp_passcode_failed_attempt's single atomic UPDATE (migration
+    // 20260815000017_v2_temp_passcode_lock_down_client_writes.sql) should make failed_attempts
+    // land at EXACTLY the number of concurrent guesses fired, never less.
+    console.log(
+      "\n=== Case 11: concurrent wrong-code attempts do not lose updates to failed_attempts (Important fix) ==="
+    );
+    const r11 = await createRequestAs(clientA, userA.id, userB.id, "hulu.com", sessionId);
+    const r11Id = r11.data?.id;
+    if (r11Id) {
+      await callFunction("approve-temp-passcode", tokenB, { requestId: r11Id });
+
+      const CONCURRENT_GUESSES = 3; // matches MAX_ATTEMPTS_BEFORE_LOCKOUT
+      const concurrentResults = await Promise.all(
+        Array.from({ length: CONCURRENT_GUESSES }, () =>
+          callFunction("redeem-temp-passcode", tokenA, { requestId: r11Id, code: "000000" })
+        )
+      );
+      record(
+        "Case 11: all concurrent wrong-guess requests are individually rejected",
+        concurrentResults.every((r) => r.json?.ok === false),
+        `results: ${JSON.stringify(concurrentResults.map((r) => r.json))}`
+      );
+
+      const { data: r11Row } = await admin
+        .from("temp_passcode_requests")
+        .select("failed_attempts, locked_until")
+        .eq("id", r11Id)
+        .single();
+      record(
+        `Case 11: failed_attempts is exactly ${CONCURRENT_GUESSES} after ${CONCURRENT_GUESSES} CONCURRENT wrong guesses (no lost updates from the old read-then-write race)`,
+        r11Row?.failed_attempts === CONCURRENT_GUESSES,
+        `got failed_attempts=${r11Row?.failed_attempts}`
+      );
+      record(
+        "Case 11: the lockout engaged at exactly the configured threshold",
+        !!r11Row?.locked_until && new Date(r11Row.locked_until).getTime() > Date.now(),
+        `got locked_until=${r11Row?.locked_until}`
       );
     }
   } finally {
