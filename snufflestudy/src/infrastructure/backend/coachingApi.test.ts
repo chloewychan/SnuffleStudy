@@ -133,14 +133,16 @@ describe("coachingApi.generateCoachingMessage", () => {
     expect(result).toBe("STATIC_FALLBACK_LINE");
   });
 
-  it("falls back to pickWarningMessage once the ~800ms timeout elapses, even if invoke would eventually have succeeded", async () => {
+  it("falls back to pickWarningMessage once the ~2000ms timeout elapses, even if invoke would eventually have succeeded", async () => {
+    // 2000ms per fix round 2 (raised from the plan's suggested 800ms - see coachingApi.ts's
+    // INVOKE_TIMEOUT_MS comment and task-11-report.md's Fix round 1/2 sections for why).
     vi.useFakeTimers();
     mockSignedIn("user-1");
     // Never resolves within this test's lifetime - simulates a slow Edge Function/model call.
     mockInvoke(() => new Promise(() => {}));
 
     const resultPromise = generateCoachingMessage(REQUEST);
-    await vi.advanceTimersByTimeAsync(800);
+    await vi.advanceTimersByTimeAsync(2000);
     const result = await resultPromise;
 
     expect(result).toBe("STATIC_FALLBACK_LINE");

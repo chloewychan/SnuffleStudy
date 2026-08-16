@@ -12,13 +12,17 @@ export interface CoachingMessageRequest {
   interventionLevel: InterventionLevel;
 }
 
-// Per this task's brief's suggested figure. Chosen to comfortably exceed typical Edge Function
-// latency for a short generation while still being well under the timescale a user would notice
-// as "the warning UI is stalled" - SnufflesOverlay never blocks on this value either way (it
-// always renders pickWarningMessage() immediately and only swaps text in if this resolves
-// before dismissal), so the exact number mainly trades off "how often does the real line arrive
-// in time to be seen" against "how long do we keep a network call alive in the background."
-const INVOKE_TIMEOUT_MS = 800;
+// Fix round 2: raised from the plan's suggested 800ms to 2000ms, based on real measured
+// Anthropic API latency with claude-haiku-4-5 (~1.1s p50 - see task-11-report.md's Fix round 1/2
+// sections; the Anthropic call itself, not this codebase's own overhead, is 85-95% of that time
+// and isn't something further optimization on our side can close) - 800ms would have lost the
+// swap-in race on most requests even on the fastest available model. Safe to raise regardless of
+// the exact value: SnufflesOverlay never blocks on this value either way (it always renders
+// pickWarningMessage() immediately and only swaps text in if this resolves before dismissal), so
+// the number only trades off "how often does the real line arrive in time to be seen" against
+// "how long do we keep a network call alive in the background" - it is not a UI-responsiveness
+// budget, just a bounded ceiling so a genuine outage/hang still falls back cleanly.
+const INVOKE_TIMEOUT_MS = 2000;
 
 // Mirrors sessionStatusSyncApi.ts's/nudgeApi.ts's/unlockRequestApi.ts's checkAuth() exactly (see
 // those files' identical comment) - reads the already-persisted/cached session via

@@ -23,7 +23,7 @@
 //      "stat231", case-insensitive, the DoD's literal example; NOT byte-identical to either of
 //      gentle-encouragement's static firstWarningMessages pool entries) run against the first
 //      call. Fix round 1: a real latency assertion now runs across ALL calls - median (p50)
-//      elapsed time is asserted against coachingApi.ts's REAL 800ms client-side race timeout
+//      elapsed time is asserted against coachingApi.ts's REAL client-side race timeout
 //      (INVOKE_TIMEOUT_MS), not an invented "should be comfortable" number. Before this fix,
 //      Case 1 only proved the call eventually succeeds (5s per-request allowance, no elapsed time
 //      ever recorded) - a function that happened to take 3 seconds per call would have passed
@@ -32,14 +32,15 @@
 //      exactly what coachingApi.ts's per-call race-and-fallback design already tolerates by
 //      design (that request's user just sees the static pool that one time) - what would
 //      actually indicate a wrong model/latency profile is the TYPICAL call being too slow, which
-//      p50 across several calls measures directly. As of this fix round, this specific assertion
-//      is a KNOWN, HONEST FAIL (see task-11-report.md's "Fix round 1" section) - real measured
-//      p50 is ~1150-1200ms even after switching to claude-haiku-4-5 and collapsing the rate-limit
-//      check+insert into one atomic RPC, because the Anthropic API call itself (not this
-//      function's own overhead) is the dominant cost and did not meaningfully improve from either
-//      optimization. Left failing deliberately rather than loosened to a passing number that
-//      wouldn't mean anything - see the report for the full analysis and open questions this
-//      raises for a follow-up decision (e.g. whether INVOKE_TIMEOUT_MS itself should change).
+//      p50 across several calls measures directly. Fix round 1 found real measured p50 ~1150-
+//      1200ms even after switching to claude-haiku-4-5 and collapsing the rate-limit check+insert
+//      into one atomic RPC (the Anthropic API call itself, not this function's own overhead, is
+//      85-95% of that time and isn't something further optimization on our side can close) -
+//      left as a known, honest FAIL that round rather than loosened to a number that would pass
+//      without meaning anything. Fix round 2: per the controller's explicit decision (documented
+//      in task-11-report.md), INVOKE_TIMEOUT_MS itself was raised from the plan's suggested 800ms
+//      to 2000ms to match that real-world data - this assertion now checks against the corrected
+//      2000ms budget, which the measured p50 comfortably clears.
 //   2. Case 2 (rate limiting): creates a second ephemeral account (USER_RATE_LIMIT), dedicated to
 //      this case so Case 1's single call never contends with it. Fires 15 sequential requests
 //      (5s per-request timeout via AbortController, so a hang fails loudly instead of blocking
@@ -239,27 +240,28 @@ async function main() {
       );
     }
 
-    // Fix round 1: the actual latency assertion this Definition of Done requires. coachingApi.ts
-    // races the ENTIRE round trip (client -> Edge Function -> JWT verify -> rate-limit RPC ->
-    // Anthropic call -> response) against an 800ms timeout (INVOKE_TIMEOUT_MS,
-    // src/infrastructure/backend/coachingApi.ts) before falling back to the static pool - this
-    // asserts against that EXACT real constant (not an invented "comfortable" number picked
-    // without measuring first, which is what fix round 1's own first draft did and got wrong -
-    // see task-11-report.md's Fix round 1 section) because that is the only threshold that is
+    // The actual latency assertion this Definition of Done requires. coachingApi.ts races the
+    // ENTIRE round trip (client -> Edge Function -> JWT verify -> rate-limit RPC -> Anthropic
+    // call -> response) against INVOKE_TIMEOUT_MS (src/infrastructure/backend/coachingApi.ts)
+    // before falling back to the static pool - this asserts against that EXACT real constant
+    // (not an invented "comfortable" number picked without measuring first, which is what fix
+    // round 1's own first draft did and got wrong) because that is the only threshold that is
     // actually "meaningful" here: it's the literal bar the shipped feature is racing against in
     // production, so this check reports the ACTUAL truth about the ACTUAL requirement rather than
     // a threshold reverse-engineered to make the check green.
     //
-    // Known, currently-open finding (see task-11-report.md's Fix round 1 section for the full
-    // writeup and breakdown): even after switching to claude-haiku-4-5 (fastest/cheapest current
-    // Anthropic model) and collapsing the rate-limit check+insert into one atomic RPC call, the
-    // measured p50 does NOT clear this budget - the dominant cost by a wide margin is the
-    // Anthropic API call itself (roughly 85-95% of total elapsed time in every sample), not this
-    // function's own Supabase-side overhead, and that portion did not meaningfully improve from
-    // either optimization. This is intentionally left as a genuine, visible FAIL rather than
-    // silently loosened - the whole point of this fix round was to stop a green checkmark from
-    // meaning "eventually returns" instead of "meets the actual budget."
-    const INVOKE_TIMEOUT_MS = 800; // must match src/infrastructure/backend/coachingApi.ts's own constant
+    // History (see task-11-report.md's Fix round 1/2 sections for the full writeup): fix round 1
+    // measured real p50 ~1150-1200ms against the plan's original 800ms suggested figure - even
+    // after switching to claude-haiku-4-5 (fastest/cheapest current Anthropic model) and
+    // collapsing the rate-limit check+insert into one atomic RPC call, the dominant cost by a wide
+    // margin was the Anthropic API call itself (roughly 85-95% of total elapsed time in every
+    // sample), not this function's own Supabase-side overhead, and neither optimization
+    // meaningfully closed that gap. That was left as a genuine, visible FAIL rather than silently
+    // loosened. Fix round 2: the controller made the informed call, given that real data, to raise
+    // INVOKE_TIMEOUT_MS itself to 2000ms (comfortably above the measured p50, still a bounded
+    // ceiling so a genuine outage/hang falls back cleanly) - this assertion was updated to match
+    // that corrected, deliberately-chosen budget, not loosened independently of it.
+    const INVOKE_TIMEOUT_MS = 2000; // must match src/infrastructure/backend/coachingApi.ts's own constant
     record(
       `Case 1: median (p50) latency across ${REPEAT_CALLS} calls stays under coachingApi.ts's real ${INVOKE_TIMEOUT_MS}ms race timeout`,
       p50 < INVOKE_TIMEOUT_MS,
