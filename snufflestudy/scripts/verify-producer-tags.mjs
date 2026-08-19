@@ -189,6 +189,36 @@ function sendToRoomAs(client, senderId, tagId, roomId) {
     .insert({ tag_id: tagId, sender_user_id: senderId, recipient_user_id: null, recipient_room_id: roomId });
 }
 
+// Mirrors producerTagApi.ts's sendToRoom()'s SECOND step exactly (see that file): after the
+// producer_tag_sends row insert above succeeds, the real client also broadcasts a one-shot Realtime
+// message over the room's private topic via channel.httpSend, so a live-subscribed StudyRoomPanel
+// hears about it within seconds instead of waiting for the next poll. `sendToRoomAs` above only
+// covers the row insert (proving the producer_tag_sends INSERT floor); without this second call,
+// nothing in this script would ever actually exercise the realtime.messages Broadcast INSERT policy
+// or produce a message for a subscriber to receive - Case 3's own live-broadcast assertion below
+// would be unwinnable regardless of how correct the RLS is. Not exercising this was a real gap in
+// this script's first draft, found the same way the RLS recursion bug was: by actually running it
+// and noticing the broadcast assertion could never pass, not by inspection.
+//
+// Returns a Supabase-style {data, error} pair (rather than resolving void/throwing) specifically
+// so this fits expectOk/expectDenied's shared contract unchanged, same as every other helper above.
+async function broadcastToRoomAs(client, roomId, tagId, senderUserId) {
+  const channel = client.channel(`study-room-producer-tags:${roomId}`, { config: { private: true } });
+  try {
+    const result = await channel.httpSend("producer-tag", {
+      tagId,
+      roomId,
+      senderUserId,
+      sentAt: new Date().toISOString(),
+    });
+    return result.success
+      ? { data: true, error: null }
+      : { data: null, error: { message: `status ${result.status}: ${result.error}` } };
+  } finally {
+    client.removeChannel(channel);
+  }
+}
+
 async function createRoomAs(client, ownerId, name) {
   return client.from("study_rooms").insert({ name, owner_user_id: ownerId }).select().single();
 }
@@ -389,6 +419,16 @@ async function main() {
     await new Promise((resolve) => setTimeout(resolve, 1000)); // settle window, same as verify-study-rooms.mjs
 
     await expectOk("Case 3: A sends tag2 to room R1", () => sendToRoomAs(clientA, userA.id, tag2.tagId, room.id));
+
+    // A is R1's OWNER but was never added to study_room_participants (nothing in this codebase
+    // auto-joins a room's creator - studyRoomApi.ts's createRoom() only inserts the study_rooms
+    // row; joining is a separate, explicit joinRoom() call B/D both made above and A never did).
+    // Part A.2's producer_tag_sends INSERT floor explicitly treats the owner as equivalent to a
+    // participant for targeting a room - this call proves the sibling realtime.messages Broadcast
+    // INSERT policy grants A (owner-but-not-participant) that same floor, not just a narrower one.
+    await expectOk("Case 3: A (room owner, not a participant) broadcasts tag2 over R1's live topic", () =>
+      broadcastToRoomAs(clientA, room.id, tag2.tagId, userA.id)
+    );
 
     const sawBroadcast = await waitFor(
       () => receivedByD.some((p) => p.tagId === tag2.tagId && p.roomId === room.id),
