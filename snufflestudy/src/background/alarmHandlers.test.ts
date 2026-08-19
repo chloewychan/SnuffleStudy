@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import { handleAlarm } from "./alarmHandlers";
 import { handleMessage } from "./messageRouter";
@@ -40,6 +40,12 @@ beforeEach(() => {
   // than leaking into later tests in this file (mirrors friendGroupApi.test.ts's/
   // messageRouterAccountability.test.ts's beforeEach convention).
   vi.restoreAllMocks();
+});
+
+afterEach(() => {
+  // Guards the two quiet-hours tests below, which use vi.useFakeTimers()/setSystemTime() -
+  // always restore even on failure so real timers never leak into a later test in this file.
+  vi.useRealTimers();
 });
 
 const createInput: CreateSessionInput = {
@@ -605,6 +611,13 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       });
 
       it("suppresses the nudge toast during configured quiet hours, but still advances the cursor", async () => {
+        // Pins the system clock to a fixed noon timestamp rather than relying on the real
+        // wall-clock hour falling inside [0, 23) - the original same-day-window approach was
+        // "vanishingly unlikely" to flake but genuinely did, whenever this suite happened to run
+        // during hour 23 local time. vi.useRealTimers() runs in this file's top-level afterEach.
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date("2026-01-01T12:00:00"));
+
         await settingsRepo.saveSettings({
           ...DEFAULT_USER_SETTINGS,
           quietHours: { startHour: 0, endHour: 23 },
@@ -622,9 +635,6 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
 
         await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
 
-        // 0-23 covers every hour of the day except the tiny sliver at hour 23, which is
-        // vanishingly unlikely to be the exact moment this test runs - a same-day, wide window
-        // is deterministic enough here without needing to fake the system clock.
         expect(createNotificationSpy).not.toHaveBeenCalled();
         expect(await getLastNudgePollAt()).toEqual(expect.any(Number));
       });
@@ -1118,6 +1128,11 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       });
 
       it("suppresses the digest toast during configured quiet hours, but still advances the cursor", async () => {
+        // Pinned system clock - see the identical nudge-toast quiet-hours test above for why
+        // (the same [0,23) real-wall-clock-hour flake applies here).
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date("2026-01-01T12:00:00"));
+
         await settingsRepo.saveSettings({
           ...DEFAULT_USER_SETTINGS,
           quietHours: { startHour: 0, endHour: 23 },

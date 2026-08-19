@@ -28,7 +28,7 @@ export function PopupApp() {
     return (
       <div className="popup-app popup-app--idle">
         <p>No active session.</p>
-        <button onClick={() => void openSidePanel()}>Start a session</button>
+        <button onClick={() => openSidePanel().catch(console.error)}>Start a session</button>
       </div>
     );
   }
