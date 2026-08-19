@@ -11,6 +11,8 @@ import {
   setLastDigestPollAt,
   getLastTempPasscodePollAt,
   setLastTempPasscodePollAt,
+  getLastProducerTagPollAt,
+  setLastProducerTagPollAt,
 } from "./friendPollState";
 
 beforeEach(() => {
@@ -133,5 +135,35 @@ describe("friendPollState — temp passcode request cursor", () => {
     expect(await getLastUnlockPollAt()).toBe(1_900_000_000_000);
     expect(await getLastDigestPollAt()).toBe(2_000_000_000_000);
     expect(await getLastTempPasscodePollAt()).toBe(2_100_000_000_000);
+  });
+});
+
+// v2 Task 14: a sixth, independent cursor for the producer-tag (friend-delivery) stream polled by
+// the same alarm tick - see this file's own comment on getLastProducerTagPollAt/
+// setLastProducerTagPollAt for why it's separate from all five cursors above.
+describe("friendPollState — producer-tag cursor", () => {
+  it("returns null when no last-checked-for-producer-tags timestamp has ever been persisted", async () => {
+    expect(await getLastProducerTagPollAt()).toBeNull();
+  });
+
+  it("round-trips a timestamp through chrome.storage.local", async () => {
+    await setLastProducerTagPollAt(1_700_000_000_000);
+    expect(await getLastProducerTagPollAt()).toBe(1_700_000_000_000);
+  });
+
+  it("is independent of the other five cursors - setting one never affects the others", async () => {
+    await setLastFriendPollAt(1_700_000_000_000);
+    await setLastNudgePollAt(1_800_000_000_000);
+    await setLastUnlockPollAt(1_900_000_000_000);
+    await setLastDigestPollAt(2_000_000_000_000);
+    await setLastTempPasscodePollAt(2_100_000_000_000);
+    await setLastProducerTagPollAt(2_200_000_000_000);
+
+    expect(await getLastFriendPollAt()).toBe(1_700_000_000_000);
+    expect(await getLastNudgePollAt()).toBe(1_800_000_000_000);
+    expect(await getLastUnlockPollAt()).toBe(1_900_000_000_000);
+    expect(await getLastDigestPollAt()).toBe(2_000_000_000_000);
+    expect(await getLastTempPasscodePollAt()).toBe(2_100_000_000_000);
+    expect(await getLastProducerTagPollAt()).toBe(2_200_000_000_000);
   });
 });

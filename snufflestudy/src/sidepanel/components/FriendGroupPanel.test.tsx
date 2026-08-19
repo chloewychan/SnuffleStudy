@@ -6,9 +6,35 @@ import type { FriendEvent } from "../../infrastructure/backend/sessionStatusSync
 import type { FriendNudge } from "../../infrastructure/backend/nudgeApi";
 import type { DigestSummary } from "../../infrastructure/backend/digestApi";
 import type { ExtensionMessage } from "../../shared/messages";
+import * as audioRecorder from "../../infrastructure/audio/audioRecorder";
+import * as producerTagApi from "../../infrastructure/backend/producerTagApi";
+
+// v2 Task 14: ProducerTagRecorder (rendered inside FriendGroupPanel) calls the real
+// audioRecorder module directly - mocked here the same way ProducerTagRecorder.test.tsx mocks it,
+// so these integration tests only exercise FriendGroupPanel's own wiring (which target friend it
+// sends to, which messages it sends, how it renders incoming tags), not audioRecorder.ts's own
+// MediaRecorder mechanics (covered separately, audioRecorder.test.ts). blobToBase64/
+// downloadTagAudio are producerTagApi.ts's two functions FriendGroupPanel.tsx calls directly
+// (never through sendMessage - see that file's own header comment for why) - mocked the same way.
+vi.mock("../../infrastructure/audio/audioRecorder", () => ({
+  MAX_RECORDING_MS: 10_000,
+  startRecording: vi.fn(),
+  stopRecording: vi.fn(),
+  getLastRecordingDurationMs: vi.fn(),
+}));
+
+vi.mock("../../infrastructure/backend/producerTagApi", () => ({
+  blobToBase64: vi.fn(),
+  downloadTagAudio: vi.fn(),
+}));
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  vi.mocked(audioRecorder.startRecording).mockReset();
+  vi.mocked(audioRecorder.stopRecording).mockReset();
+  vi.mocked(audioRecorder.getLastRecordingDurationMs).mockReset().mockReturnValue(4200);
+  vi.mocked(producerTagApi.blobToBase64).mockReset().mockResolvedValue("ZmFrZQ==");
+  vi.mocked(producerTagApi.downloadTagAudio).mockReset();
 });
 
 const sampleEvent: FriendEvent = {
@@ -54,6 +80,7 @@ function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Ha
     NUDGES_FETCH: () => ({ ok: true, nudges: [] }),
     NUDGE_SEND: () => ({ ok: true }),
     DIGEST_FETCH: () => ({ ok: true, digests: [] }),
+    PRODUCER_TAG_SENDS_FETCH: () => ({ ok: true, sends: [] }),
   };
   return (msg: ExtensionMessage) => {
     const handler = overrides[msg.type] ?? defaults[msg.type];
@@ -377,5 +404,142 @@ describe("FriendGroupPanel — daily digest (v2 Task 9)", () => {
     fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
 
     await waitFor(() => expect(callsOfType(sendMessageSpy, "DIGEST_FETCH")).toHaveLength(2));
+  });
+});
+
+// v2 Task 14.
+function routeSendMessageWithFriend(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
+  return routeSendMessage({
+    GROUP_LIST_MINE: () => ({ ok: true, memberships: [{ groupId: "group-1", userId: "user-self", joinedAt: "x" }] }),
+    GROUP_LIST_MEMBERS: () => ({
+      ok: true,
+      members: [
+        { groupId: "group-1", userId: "user-self", joinedAt: "x" },
+        { groupId: "group-1", userId: "user-friend", joinedAt: "x" },
+      ],
+    }),
+    ...overrides,
+  });
+}
+
+describe("FriendGroupPanel — Producer Tags (v2 Task 14)", () => {
+  it("fetches incoming producer tags on mount via PRODUCER_TAG_SENDS_FETCH and renders them", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        PRODUCER_TAG_SENDS_FETCH: () => ({
+          ok: true,
+          sends: [
+            {
+              tagId: "tag-1",
+              senderUserId: "user-friend",
+              sentAt: Date.now(),
+              audioUrl: "tag-1/clip.webm",
+              durationMs: 4000,
+            },
+          ],
+        }),
+      })
+    );
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+
+    expect(await screen.findByText(/From friend user-friend/)).toBeInTheDocument();
+  });
+
+  it("shows a friendly empty state when there are no producer tags", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+
+    expect(await screen.findByText("No producer tags yet.")).toBeInTheDocument();
+  });
+
+  it("downloads and plays an incoming tag's audio, lazily, only once 'Play' is pressed", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        PRODUCER_TAG_SENDS_FETCH: () => ({
+          ok: true,
+          sends: [
+            {
+              tagId: "tag-1",
+              senderUserId: "user-friend",
+              sentAt: Date.now(),
+              audioUrl: "tag-1/clip.webm",
+              durationMs: 4000,
+            },
+          ],
+        }),
+      })
+    );
+    vi.mocked(producerTagApi.downloadTagAudio).mockResolvedValue(new Blob(["audio-bytes"]));
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+    await screen.findByText(/From friend user-friend/);
+    expect(producerTagApi.downloadTagAudio).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("Play"));
+
+    await waitFor(() => expect(producerTagApi.downloadTagAudio).toHaveBeenCalledWith("tag-1/clip.webm"));
+    expect(document.querySelector("audio")).toBeInTheDocument();
+  });
+
+  it("records, uploads (base64-encoded), and sends a tag to the selected friend via PRODUCER_TAG_UPLOAD then PRODUCER_TAG_SEND_TO_FRIEND", async () => {
+    vi.mocked(audioRecorder.stopRecording).mockResolvedValue(
+      new Blob(["fake-audio"], { type: "audio/webm" })
+    );
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessageWithFriend({
+        PRODUCER_TAG_UPLOAD: () => ({
+          ok: true,
+          tag: { id: "tag-1", userId: "user-self", audioUrl: "tag-1/clip.webm", durationMs: 4200, createdAt: "x" },
+        }),
+        PRODUCER_TAG_SEND_TO_FRIEND: () => ({ ok: true }),
+      })
+    );
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+    // "Send to friend <id>" only renders once ProducerTagRecorder reaches its preview step (after
+    // Record -> Stop) - the friend picker itself (shared with "Send a nudge") is what's loaded by
+    // this point, confirmed via its <option>.
+    await screen.findByRole("option", { name: "user-friend" });
+
+    fireEvent.click(screen.getByText("Record a tag (10s max)"));
+    fireEvent.click(screen.getByText("Stop"));
+    await waitFor(() => expect(screen.getByText("Send to friend user-friend")).not.toBeDisabled());
+
+    fireEvent.click(screen.getByText("Send to friend user-friend"));
+
+    await waitFor(() => expect(screen.getByText("Tag sent.")).toBeInTheDocument());
+    expect(producerTagApi.blobToBase64).toHaveBeenCalled();
+    expect(sendMessageSpy).toHaveBeenCalledWith({
+      type: "PRODUCER_TAG_UPLOAD",
+      payload: { audioBase64: "ZmFrZQ==", mimeType: "audio/webm", durationMs: 4200 },
+    });
+    expect(sendMessageSpy).toHaveBeenCalledWith({
+      type: "PRODUCER_TAG_SEND_TO_FRIEND",
+      payload: { tagId: "tag-1", friendUserId: "user-friend" },
+    });
+  });
+
+  it("surfaces an error inline when the upload fails, without attempting PRODUCER_TAG_SEND_TO_FRIEND", async () => {
+    vi.mocked(audioRecorder.stopRecording).mockResolvedValue(new Blob(["x"], { type: "audio/webm" }));
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessageWithFriend({
+        PRODUCER_TAG_UPLOAD: () => ({ ok: false, error: "Failed to upload the recorded audio." }),
+      })
+    );
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+    await screen.findByRole("option", { name: "user-friend" });
+    fireEvent.click(screen.getByText("Record a tag (10s max)"));
+    fireEvent.click(screen.getByText("Stop"));
+    await waitFor(() => expect(screen.getByText("Send to friend user-friend")).not.toBeDisabled());
+
+    fireEvent.click(screen.getByText("Send to friend user-friend"));
+
+    expect(await screen.findByText(/Tag not sent/)).toHaveTextContent(
+      "Failed to upload the recorded audio."
+    );
+    expect(callsOfType(sendMessageSpy, "PRODUCER_TAG_SEND_TO_FRIEND")).toHaveLength(0);
   });
 });

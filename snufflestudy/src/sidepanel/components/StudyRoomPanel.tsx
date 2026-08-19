@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import * as studyRoomApi from "../../infrastructure/backend/studyRoomApi";
 import * as videoCallClient from "../../infrastructure/video/videoCallClient";
+import * as producerTagApi from "../../infrastructure/backend/producerTagApi";
+import type { RoomProducerTagBroadcast } from "../../infrastructure/backend/producerTagApi";
 import type { StudyRoom, RoomParticipant } from "../../domain/rooms/studyRoom";
+import type { ProducerTag } from "../../domain/rooms/producerTag";
+import { ProducerTagRecorder } from "./ProducerTagRecorder";
 
 // v2 Task 13: Study Rooms.
 //
@@ -29,6 +33,26 @@ import type { StudyRoom, RoomParticipant } from "../../domain/rooms/studyRoom";
 //
 // `videoCallClient.ts` itself is always called directly (never a message) - it's a pure client-
 // side wrapper around a real DOM connection, not a backend call.
+//
+// v2 Task 14: `producerTagApi.subscribeToRoomProducerTags`/`downloadTagAudio` are ALSO called
+// directly here, for the same two reasons studyRoomApi.subscribeToPresence/joinRoom are (see
+// producerTagApi.ts's own header comment): a live Realtime callback has no fit in the
+// message-passing surface, and a downloaded audio Blob must flow straight into this component's
+// own <audio> element. uploadTag/sendToFriend/sendToRoom remain message-routed (PRODUCER_TAG_*),
+// same as STUDY_ROOM_CREATE/LIST/LEAVE/LIST_PARTICIPANTS above.
+
+// The shape this panel tracks per received room broadcast - starts as just the broadcast payload,
+// filled in with audioUrl/durationMs once PRODUCER_TAG_FETCH_BY_ID resolves (see
+// handleIncomingRoomTag below). Kept local to this file (not a domain/*Api.ts export) since it's
+// purely a "what does this one component need to render a list item" shape, same category as
+// applyPresenceEvent's Map<string, RoomParticipant> above.
+interface RoomProducerTagEntry {
+  tagId: string;
+  senderUserId: string;
+  sentAt: string;
+  audioUrl: string | null;
+  durationMs: number | null;
+}
 
 interface StudyRoomPanelProps {
   onClose: () => void;
@@ -53,6 +77,48 @@ function applyPresenceEvent(
   return next;
 }
 
+// v2 Task 14: one producer tag received live in the currently-joined room. Play is lazy (only
+// fetched once clicked, same as FriendGroupPanel.tsx's IncomingProducerTagCard) - and only
+// possible once audioUrl has resolved (see handleIncomingRoomTag above), which can lag the initial
+// broadcast by one round trip.
+function RoomProducerTagItem({ tag }: { tag: RoomProducerTagEntry }) {
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function handlePlay() {
+    if (!tag.audioUrl) return;
+    setLoading(true);
+    setError(null);
+    producerTagApi
+      .downloadTagAudio(tag.audioUrl)
+      .then((blob) => setPlaybackUrl(URL.createObjectURL(blob)))
+      .catch((err) => {
+        console.error("Failed to download producer tag audio", err);
+        setError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => setLoading(false));
+  }
+
+  return (
+    <li>
+      <span>
+        From {tag.senderUserId}
+        {tag.durationMs !== null ? ` — ${Math.round(tag.durationMs / 1000)}s` : ""}
+      </span>
+      {playbackUrl ? (
+        // eslint-disable-next-line jsx-a11y/media-has-caption -- a short voice tag, not video
+        <audio src={playbackUrl} controls autoPlay />
+      ) : (
+        <button type="button" onClick={handlePlay} disabled={loading || !tag.audioUrl}>
+          {loading ? "Loading…" : "Play"}
+        </button>
+      )}
+      {error && <p role="alert">{error}</p>}
+    </li>
+  );
+}
+
 export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   const [rooms, setRooms] = useState<StudyRoom[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -68,6 +134,15 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
 
   const [participants, setParticipants] = useState<Map<string, RoomParticipant>>(new Map());
 
+  // v2 Task 14: producer tags broadcast live into the currently-joined room (Part D - Realtime
+  // Broadcast, not the friend-poll alarm; see producerTagApi.ts's sendToRoom/
+  // subscribeToRoomProducerTags). Cleared on join/leave, same as `participants` above - this is a
+  // live view of "what's been broadcast while I've been in THIS room", not a persisted history
+  // (matching this task's DoD, which only asks for "all CURRENT participants hear it").
+  const [roomTags, setRoomTags] = useState<RoomProducerTagEntry[]>([]);
+  const [tagSendBusy, setTagSendBusy] = useState(false);
+  const [tagSendError, setTagSendError] = useState<string | null>(null);
+
   // Where LiveKit's own attach()'d <video>/<audio> elements get appended - see
   // videoCallClient.ts's VideoCallEvent union. Keyed by participant identity so a track-removed
   // event can find and detach exactly the right element without touching anyone else's tile.
@@ -75,6 +150,7 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   const tileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const unsubscribePresenceRef = useRef<(() => void) | null>(null);
+  const unsubscribeRoomTagsRef = useRef<(() => void) | null>(null);
 
   function loadRooms() {
     setLoadError(null);
@@ -142,9 +218,72 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   useEffect(() => {
     return () => {
       unsubscribePresenceRef.current?.();
+      unsubscribeRoomTagsRef.current?.();
       videoCallClient.leaveCall();
     };
   }, []);
+
+  // v2 Task 14: a live broadcast only ever carries tagId/roomId/senderUserId/sentAt (see
+  // RoomProducerTagBroadcast's own comment on why audioUrl/durationMs are deliberately NOT part of
+  // the payload) - this resolves the rest via PRODUCER_TAG_FETCH_BY_ID (message-routed, a plain
+  // CRUD read) so the entry becomes playable. Added to the list immediately (with audioUrl/
+  // durationMs null) so the UI shows "someone sent a tag" right away rather than waiting on a
+  // second round trip before anything appears at all; filled in once the fetch resolves.
+  function handleIncomingRoomTag(event: RoomProducerTagBroadcast) {
+    setRoomTags((prev) => [
+      ...prev,
+      { tagId: event.tagId, senderUserId: event.senderUserId, sentAt: event.sentAt, audioUrl: null, durationMs: null },
+    ]);
+    sendMessage<{ ok: boolean; tag?: ProducerTag | null; error?: string }>({
+      type: "PRODUCER_TAG_FETCH_BY_ID",
+      payload: { tagId: event.tagId },
+    })
+      .then((res) => {
+        if (!res.ok || !res.tag) return;
+        const tag = res.tag;
+        setRoomTags((prev) =>
+          prev.map((entry) =>
+            entry.tagId === event.tagId
+              ? { ...entry, audioUrl: tag.audioUrl, durationMs: tag.durationMs }
+              : entry
+          )
+        );
+      })
+      .catch((err) => console.error("Failed to resolve an incoming producer tag broadcast", err));
+  }
+
+  // v2 Task 14: record -> upload -> send-to-room, in one call from ProducerTagRecorder's onSend.
+  // uploadTag/sendToRoom both go through messageRouter.ts (PRODUCER_TAG_UPLOAD then
+  // PRODUCER_TAG_SEND_TO_ROOM, which also broadcasts - see producerTagApi.ts's sendToRoom
+  // comment); blobToBase64 is a direct, pure-browser-API call (not a backend call).
+  async function handleSendProducerTagToRoom(blob: Blob, durationMs: number) {
+    if (!joinedRoom) return;
+    setTagSendBusy(true);
+    setTagSendError(null);
+    try {
+      const audioBase64 = await producerTagApi.blobToBase64(blob);
+      const uploadRes = await sendMessage<{ ok: boolean; tag?: ProducerTag; error?: string }>({
+        type: "PRODUCER_TAG_UPLOAD",
+        payload: { audioBase64, mimeType: blob.type || "audio/webm", durationMs },
+      });
+      if (!uploadRes.ok || !uploadRes.tag) {
+        throw new Error(uploadRes.error ?? "Could not upload this recording.");
+      }
+
+      const sendRes = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "PRODUCER_TAG_SEND_TO_ROOM",
+        payload: { tagId: uploadRes.tag.id, roomId: joinedRoom.id },
+      });
+      if (!sendRes.ok) {
+        throw new Error(sendRes.error ?? "Could not send this tag to the room.");
+      }
+    } catch (err) {
+      console.error("Failed to send producer tag to room", err);
+      setTagSendError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTagSendBusy(false);
+    }
+  }
 
   function handleCreateRoom() {
     const trimmed = newRoomName.trim();
@@ -190,6 +329,11 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
       unsubscribePresenceRef.current = studyRoomApi.subscribeToPresence(room.id, (event) => {
         setParticipants((prev) => applyPresenceEvent(prev, event));
       });
+      setRoomTags([]);
+      unsubscribeRoomTagsRef.current = producerTagApi.subscribeToRoomProducerTags(
+        room.id,
+        handleIncomingRoomTag
+      );
 
       setJoinedRoom(room);
     } catch (err) {
@@ -209,6 +353,8 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
     try {
       unsubscribePresenceRef.current?.();
       unsubscribePresenceRef.current = null;
+      unsubscribeRoomTagsRef.current?.();
+      unsubscribeRoomTagsRef.current = null;
       videoCallClient.leaveCall();
       const res = await sendMessage<{ ok: boolean; error?: string }>({
         type: "STUDY_ROOM_LEAVE",
@@ -225,6 +371,8 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
     } finally {
       setJoinedRoom(null);
       setParticipants(new Map());
+      setRoomTags([]);
+      setTagSendError(null);
       setLeaving(false);
     }
   }
@@ -251,6 +399,25 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
         </section>
 
         {joinError && <p role="alert">{joinError}</p>}
+
+        <section className="study-room-panel__producer-tags">
+          <h3>Producer tags</h3>
+          <ProducerTagRecorder
+            onSend={handleSendProducerTagToRoom}
+            sending={tagSendBusy}
+            sendLabel="Send to room"
+          />
+          {tagSendError && <p role="alert">Tag not sent: {tagSendError}</p>}
+
+          {roomTags.length === 0 && <p>No producer tags sent to this room yet.</p>}
+          {roomTags.length > 0 && (
+            <ul className="study-room-panel__producer-tag-list">
+              {roomTags.map((tag) => (
+                <RoomProducerTagItem key={tag.tagId} tag={tag} />
+              ))}
+            </ul>
+          )}
+        </section>
 
         <button type="button" onClick={handleLeaveRoom} disabled={leaving}>
           {leaving ? "Leaving…" : "Leave room"}

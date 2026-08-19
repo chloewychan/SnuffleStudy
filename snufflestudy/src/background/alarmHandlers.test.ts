@@ -16,6 +16,8 @@ import * as digestApi from "../infrastructure/backend/digestApi";
 import type { FriendDigest } from "../infrastructure/backend/digestApi";
 import * as tempPasscodeApi from "../infrastructure/backend/tempPasscodeApi";
 import type { TempPasscodeRequest } from "../domain/accountability/tempPasscodeRequest";
+import * as producerTagApi from "../infrastructure/backend/producerTagApi";
+import type { IncomingProducerTag } from "../infrastructure/backend/producerTagApi";
 import * as friendSync from "./friendSync";
 import {
   getLastFriendPollAt,
@@ -23,6 +25,7 @@ import {
   getLastUnlockPollAt,
   getLastDigestPollAt,
   getLastTempPasscodePollAt,
+  getLastProducerTagPollAt,
 } from "../infrastructure/storage/friendPollState";
 import { classifySite } from "../domain/sites/siteRules";
 import type { CreateSessionInput, StudySession } from "../domain/session/sessionTypes";
@@ -248,6 +251,14 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
       ok: true,
       requests: [],
+    });
+    // v2 Task 14: same treatment for the sixth stream, producer tags (pollProducerTagUpdates) -
+    // defaulted to a clean "no new tags" result so every pre-existing test in this describe block
+    // (which predates Task 14) never exercises producerTagApi's real supabase.auth.getSession()
+    // call. The dedicated "producer tag polling" tests further below override this per-test.
+    vi.spyOn(producerTagApi, "pollIncomingProducerTagSends").mockResolvedValue({
+      ok: true,
+      sends: [],
     });
   });
 
@@ -1318,6 +1329,107 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
 
       expect(tempPasscodePollSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("producer tag polling (v2 Task 14 - reuses this same alarm, not a parallel one; friend-delivery side only)", () => {
+    function sampleIncomingTag(overrides: Partial<IncomingProducerTag> = {}): IncomingProducerTag {
+      return {
+        tagId: "tag-1",
+        senderUserId: "user-b",
+        sentAt: 1_700_000_000_000,
+        audioUrl: "tag-1/clip.webm",
+        durationMs: 4000,
+        ...overrides,
+      };
+    }
+
+    it("dispatches to pollIncomingProducerTagSends when eligible, in the same tick as the other five streams", async () => {
+      mockFriendSyncEligible();
+      const producerTagPollSpy = vi
+        .spyOn(producerTagApi, "pollIncomingProducerTagSends")
+        .mockResolvedValue({ ok: true, sends: [] });
+      const eventPollSpy = vi
+        .spyOn(sessionStatusSyncApi, "pollNewEventsForFriends")
+        .mockResolvedValue({ ok: true, events: [] });
+      const nudgePollSpy = vi
+        .spyOn(nudgeApi, "pollIncomingNudges")
+        .mockResolvedValue({ ok: true, nudges: [] });
+      const unlockPollSpy = vi
+        .spyOn(unlockRequestApi, "pollRelevantUnlockRequests")
+        .mockResolvedValue({ ok: true, requests: [] });
+      const digestPollSpy = vi
+        .spyOn(digestApi, "pollNewDigests")
+        .mockResolvedValue({ ok: true, digests: [] });
+      const tempPasscodePollSpy = vi
+        .spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests")
+        .mockResolvedValue({ ok: true, requests: [] });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(producerTagPollSpy).toHaveBeenCalledTimes(1);
+      expect(eventPollSpy).toHaveBeenCalledTimes(1);
+      expect(nudgePollSpy).toHaveBeenCalledTimes(1);
+      expect(unlockPollSpy).toHaveBeenCalledTimes(1);
+      expect(digestPollSpy).toHaveBeenCalledTimes(1);
+      expect(tempPasscodePollSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows a chrome.notifications toast for each new incoming producer tag, naming the sender", async () => {
+      mockFriendSyncEligible();
+      vi.spyOn(producerTagApi, "pollIncomingProducerTagSends").mockResolvedValue({
+        ok: true,
+        sends: [sampleIncomingTag({ senderUserId: "user-b" })],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "producer-tag-tag-1-1700000000000",
+        expect.objectContaining({ title: "Producer tag from a friend" })
+      );
+    });
+
+    it("persists the producer-tag-poll timestamp only on a successful poll, independently of the other five cursors", async () => {
+      mockFriendSyncEligible();
+      const producerTagPollSpy = vi
+        .spyOn(producerTagApi, "pollIncomingProducerTagSends")
+        .mockResolvedValue({ ok: true, sends: [] });
+      expect(await getLastProducerTagPollAt()).toBeNull();
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      const persisted = await getLastProducerTagPollAt();
+      expect(persisted).toEqual(expect.any(Number));
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(producerTagPollSpy).toHaveBeenLastCalledWith(persisted);
+    });
+
+    it("does NOT advance the persisted producer-tag cursor when the poll fails (ok: false), so the next tick retries the same window", async () => {
+      mockFriendSyncEligible();
+      const producerTagPollSpy = vi
+        .spyOn(producerTagApi, "pollIncomingProducerTagSends")
+        .mockResolvedValue({ ok: false });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+      expect(await getLastProducerTagPollAt()).toBeNull();
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+      expect(await getLastProducerTagPollAt()).toBeNull();
+
+      expect(producerTagPollSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it("skips the producer-tag fetch entirely when friend-sync is no longer enabled/signed-in (same eligibility gate as the other five polls)", async () => {
+      vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue(null);
+      const producerTagPollSpy = vi.spyOn(producerTagApi, "pollIncomingProducerTagSends");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(producerTagPollSpy).not.toHaveBeenCalled();
     });
   });
 

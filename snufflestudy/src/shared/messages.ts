@@ -164,4 +164,44 @@ export type ExtensionMessage =
   // Realtime feed (which only ever delivers CHANGES from the moment of subscription onward, never
   // a backfill) takes over. subscribeToPresence itself is NOT a message - see studyRoomApi.ts's
   // header comment for why a live callback has no fit in this request/response surface.
-  | { type: "STUDY_ROOM_LIST_PARTICIPANTS"; payload: { roomId: string } };
+  | { type: "STUDY_ROOM_LIST_PARTICIPANTS"; payload: { roomId: string } }
+  // v2 Task 14: routes to producerTagApi.uploadTag - the sidepanel's recording flow, once
+  // audioRecorder.ts's stopRecording() has resolved. audioBase64/mimeType exist ONLY because a raw
+  // Blob cannot cross chrome.runtime.sendMessage under this codebase's default (JSON) message
+  // serialization - see producerTagApi.ts's header comment. durationMs is
+  // audioRecorder.ts's own getLastRecordingDurationMs() (the real elapsed recording time, clamped
+  // to the cap), read by the panel right after stopRecording() resolves and forwarded here rather
+  // than re-derived server-side (which would require decoding audio in a service worker - not
+  // available). Throws on failure (not signed in, insert/upload error) - the outer handleMessage
+  // try/catch turns that into ok:false, same convention as GROUP_CREATE/STUDY_ROOM_CREATE.
+  | {
+      type: "PRODUCER_TAG_UPLOAD";
+      payload: { audioBase64: string; mimeType: string; durationMs: number };
+    }
+  // v2 Task 14: routes to producerTagApi.sendToFriend - the group-membership and tag-ownership
+  // floors are both enforced entirely server-side (producer_tag_sends' INSERT policy, supabase/
+  // migrations/20260815000021_v2_producer_tags_storage_and_send_floor.sql). Throws on failure -
+  // same outer-catch convention as above.
+  | { type: "PRODUCER_TAG_SEND_TO_FRIEND"; payload: { tagId: string; friendUserId: string } }
+  // v2 Task 14: routes to producerTagApi.sendToRoom - inserts the producer_tag_sends row AND
+  // broadcasts it live over Supabase Realtime to any currently-connected StudyRoomPanel (see
+  // producerTagApi.ts's own comment on why this, unlike every other case here, has a live side
+  // effect beyond the DB write - it still stays a plain request/response from this message's own
+  // point of view, since the broadcast is fire-and-forget/best-effort inside sendToRoom() itself).
+  // Throws on failure (the DB insert failing) - same outer-catch convention as above.
+  | { type: "PRODUCER_TAG_SEND_TO_ROOM"; payload: { tagId: string; roomId: string } }
+  // v2 Task 14: routes to producerTagApi.fetchIncomingProducerTagSends - the on-demand counterpart
+  // to the background's alarm-driven poll (alarmHandlers.ts calls
+  // producerTagApi.pollIncomingProducerTagSends directly, mirroring NUDGES_FETCH/
+  // UNLOCK_REQUESTS_FETCH's identical split). Friend-delivery only, per this task's Part D - a
+  // room send is never returned by this (see producerTagApi.ts's queryIncomingSince comment).
+  | { type: "PRODUCER_TAG_SENDS_FETCH"; payload: { sinceTimestamp: number } }
+  // v2 Task 14: routes to producerTagApi.fetchProducerTagById - StudyRoomPanel.tsx's lookup once a
+  // live Realtime broadcast (subscribeToRoomProducerTags, called directly - see producerTagApi.ts's
+  // header comment) names a tagId, resolving the audioUrl/durationMs needed to actually play it.
+  // Plain CRUD read with no DOM coupling of its own (unlike the download/playback step that
+  // follows it), so - unlike subscribeToRoomProducerTags/downloadTagAudio - this one IS
+  // message-routed. Throws on a query error - same outer-catch convention as above; returns
+  // { ok: true, tag: null } (not a throw) if the tag genuinely doesn't exist/isn't visible, mirroring
+  // maybeSingle()'s own null-not-error distinction.
+  | { type: "PRODUCER_TAG_FETCH_BY_ID"; payload: { tagId: string } };

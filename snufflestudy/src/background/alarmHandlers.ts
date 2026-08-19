@@ -22,6 +22,7 @@ import {
 } from "../infrastructure/backend/unlockRequestApi";
 import { pollNewDigests } from "../infrastructure/backend/digestApi";
 import { pollRelevantTempPasscodeRequests } from "../infrastructure/backend/tempPasscodeApi";
+import { pollIncomingProducerTagSends } from "../infrastructure/backend/producerTagApi";
 import { nudgeMessageText } from "../domain/accountability/nudgeMessages";
 import { isWithinQuietHours } from "../domain/settings/userSettings";
 import {
@@ -35,6 +36,8 @@ import {
   setLastDigestPollAt,
   getLastTempPasscodePollAt,
   setLastTempPasscodePollAt,
+  getLastProducerTagPollAt,
+  setLastProducerTagPollAt,
 } from "../infrastructure/storage/friendPollState";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
@@ -341,11 +344,49 @@ async function pollTempPasscodeUpdates(userId: string): Promise<void> {
   }
 }
 
-// Runs all five poll streams (session-status events, nudges, unlock requests, daily digests, temp
-// passcode requests) on every friend-poll alarm tick. Best-effort throughout: none of
-// pollSessionEventUpdates/pollNudgeUpdates/pollUnlockRequestUpdates/pollDigestUpdates/
-// pollTempPasscodeUpdates ever throws (each wraps its own body), but this outer try/catch stays
-// as a last-resort safety net so nothing here can take down the alarm listener.
+// v2 Task 14: sixth stream on this same alarm - producer tags sent to the current user by a
+// friend (room deliveries are excluded entirely - see producerTagApi.ts's queryIncomingSince -
+// and are instead delivered live via Supabase Realtime broadcast, Part D of this task, which has
+// no cursor/alarm involvement at all). Reuses Task 6's alarm/notification path per this task's
+// brief ("Do NOT add a new alarm"), not a new one. Same "only advance the cursor on confirmed
+// success" discipline as the five streams above, using its own independent cursor
+// (getLastProducerTagPollAt/setLastProducerTagPollAt) so a failure here never affects, and is
+// never affected by, the other five cursors.
+//
+// Notification id is synthesized from tagId+sentAt (`producer_tag_sends` has no id/primary key
+// column at all - see the schema migration's own comment on why) rather than a real row
+// identity - unique enough for chrome.notifications' dedupe purposes across this stream's own
+// polls, which is all this id is used for.
+async function pollProducerTagUpdates(): Promise<void> {
+  try {
+    const now = Date.now();
+    const since = (await getLastProducerTagPollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
+    const result = await pollIncomingProducerTagSends(since);
+    if (!result.ok) {
+      // Same rationale as the other five poll functions' identical branch: leave the persisted
+      // cursor untouched on a failed fetch so the next tick retries this exact window instead of
+      // silently losing whatever tag(s) a friend sent during the outage.
+      return;
+    }
+    for (const send of result.sends) {
+      showNotification(
+        `producer-tag-${send.tagId}-${send.sentAt}`,
+        "Producer tag from a friend",
+        `A friend sent you a short recording — from ${send.senderUserId}.`
+      );
+    }
+    await setLastProducerTagPollAt(now);
+  } catch (err) {
+    console.error("Failed to poll incoming producer tags", err);
+  }
+}
+
+// Runs all six poll streams (session-status events, nudges, unlock requests, daily digests, temp
+// passcode requests, producer tags) on every friend-poll alarm tick. Best-effort throughout: none
+// of pollSessionEventUpdates/pollNudgeUpdates/pollUnlockRequestUpdates/pollDigestUpdates/
+// pollTempPasscodeUpdates/pollProducerTagUpdates ever throws (each wraps its own body), but this
+// outer try/catch stays as a last-resort safety net so nothing here can take down the alarm
+// listener.
 async function handleFriendPollAlarm(): Promise<void> {
   try {
     // Re-check eligibility on every tick (fix round 1), not just once at alarm-start time
@@ -367,6 +408,7 @@ async function handleFriendPollAlarm(): Promise<void> {
     await pollUnlockRequestUpdates(userId);
     await pollDigestUpdates(userId);
     await pollTempPasscodeUpdates(userId);
+    await pollProducerTagUpdates();
   } catch (err) {
     console.error("Failed to poll friend events", err);
   }

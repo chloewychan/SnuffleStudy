@@ -105,3 +105,24 @@ export async function getLastTempPasscodePollAt(): Promise<number | null> {
 export async function setLastTempPasscodePollAt(timestamp: number): Promise<void> {
   await chrome.storage.local.set({ [LAST_TEMP_PASSCODE_POLL_KEY]: timestamp });
 }
+
+// v2 Task 14: a sixth, independent cursor for the producer-tag (friend-delivery side only - see
+// producerTagApi.ts's queryIncomingSince) stream polled by the same alarm tick
+// (handleFriendPollAlarm in alarmHandlers.ts) - reuses Task 6's alarm per this task's brief ("Do
+// NOT add a new alarm"). Same get/set shape and the same "only advance on confirmed success"
+// discipline as the five cursors above, for the identical reason: this is a sixth logically
+// separate stream delivered by the same chrome.alarms entry, so it needs its own "last checked"
+// bookmark that advances independently of the other five's success/failure on any given tick. Room
+// delivery has no cursor at all - it's delivered live via Supabase Realtime (Part D), not polled.
+const LAST_PRODUCER_TAG_POLL_KEY = "snufflestudy.friendPollLastProducerTagCheckedAt";
+
+export async function getLastProducerTagPollAt(): Promise<number | null> {
+  const result = await chrome.storage.local.get<Record<typeof LAST_PRODUCER_TAG_POLL_KEY, number>>(
+    LAST_PRODUCER_TAG_POLL_KEY
+  );
+  return result[LAST_PRODUCER_TAG_POLL_KEY] ?? null;
+}
+
+export async function setLastProducerTagPollAt(timestamp: number): Promise<void> {
+  await chrome.storage.local.set({ [LAST_PRODUCER_TAG_POLL_KEY]: timestamp });
+}

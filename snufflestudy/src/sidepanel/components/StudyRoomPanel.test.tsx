@@ -4,21 +4,42 @@ import { StudyRoomPanel } from "./StudyRoomPanel";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 import * as studyRoomApi from "../../infrastructure/backend/studyRoomApi";
 import * as videoCallClient from "../../infrastructure/video/videoCallClient";
+import * as producerTagApi from "../../infrastructure/backend/producerTagApi";
+import * as audioRecorder from "../../infrastructure/audio/audioRecorder";
 import type { ExtensionMessage } from "../../shared/messages";
+
+// v2 Task 14: producerTagApi.subscribeToRoomProducerTags/downloadTagAudio are called DIRECTLY by
+// StudyRoomPanel.tsx (same two-exceptions precedent as studyRoomApi.joinRoom/subscribeToPresence
+// above - see producerTagApi.ts's own header comment), so they're mocked alongside those two.
+// blobToBase64 is also called directly (a pure browser-API helper, not a backend call).
+// uploadTag/sendToFriend/sendToRoom/fetchIncomingProducerTagSends/fetchProducerTagById are NOT
+// mocked here - they're exercised entirely through the sendMessage mock, same treatment
+// listRooms/createRoom/leaveRoom/listParticipants already get.
+vi.mock("../../infrastructure/backend/studyRoomApi", () => ({
+  joinRoom: vi.fn(),
+  subscribeToPresence: vi.fn(),
+}));
+
+vi.mock("../../infrastructure/backend/producerTagApi", () => ({
+  subscribeToRoomProducerTags: vi.fn(),
+  downloadTagAudio: vi.fn(),
+  blobToBase64: vi.fn(),
+}));
+
+vi.mock("../../infrastructure/audio/audioRecorder", () => ({
+  MAX_RECORDING_MS: 10_000,
+  startRecording: vi.fn(),
+  stopRecording: vi.fn(),
+  getLastRecordingDurationMs: vi.fn(),
+}));
 
 // v2 Task 13 fix round 1 (Important, code review): StudyRoomPanel.tsx now routes
 // createRoom/listRooms/leaveRoom/listParticipants through sendMessage()/messageRouter.ts, the
 // same convention every other panel test in this codebase uses (mirrors
 // UnlockRequestPanel.test.tsx's/FriendGroupPanel.test.tsx's routeSendMessage helper exactly).
 // Only studyRoomApi.joinRoom/subscribeToPresence remain genuinely direct calls (see
-// StudyRoomPanel.tsx's own header comment for why), so only those two are still mocked via
-// vi.mock("../../infrastructure/backend/studyRoomApi", ...) below - listRooms/createRoom/
-// leaveRoom/listParticipants are exercised entirely through the sendMessage mock instead.
-vi.mock("../../infrastructure/backend/studyRoomApi", () => ({
-  joinRoom: vi.fn(),
-  subscribeToPresence: vi.fn(),
-}));
-
+// StudyRoomPanel.tsx's own header comment for why) - the mock for those two lives above, next to
+// producerTagApi's/audioRecorder's own direct-call mocks.
 vi.mock("../../infrastructure/video/videoCallClient", () => ({
   joinCall: vi.fn(),
   leaveCall: vi.fn(),
@@ -52,6 +73,12 @@ beforeEach(() => {
   vi.mocked(videoCallClient.joinCall).mockReset().mockResolvedValue(undefined);
   vi.mocked(videoCallClient.leaveCall).mockReset();
   vi.mocked(videoCallClient.onVideoCallEvent).mockReset().mockReturnValue(() => {});
+  vi.mocked(producerTagApi.subscribeToRoomProducerTags).mockReset().mockReturnValue(() => {});
+  vi.mocked(producerTagApi.downloadTagAudio).mockReset();
+  vi.mocked(producerTagApi.blobToBase64).mockReset().mockResolvedValue("ZmFrZQ==");
+  vi.mocked(audioRecorder.startRecording).mockReset();
+  vi.mocked(audioRecorder.stopRecording).mockReset();
+  vi.mocked(audioRecorder.getLastRecordingDurationMs).mockReset().mockReturnValue(4200);
 });
 
 describe("StudyRoomPanel", () => {
@@ -170,5 +197,122 @@ describe("StudyRoomPanel", () => {
     expect(videoCallClient.leaveCall).toHaveBeenCalled();
     // Back to the room-list view.
     expect(await screen.findByText("Thursday study group")).toBeInTheDocument();
+  });
+});
+
+describe("StudyRoomPanel — Producer Tags (v2 Task 14)", () => {
+  async function joinSampleRoom(overrides: Partial<Record<ExtensionMessage["type"], Handler>> = {}) {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }),
+        STUDY_ROOM_LIST_PARTICIPANTS: () => ({ ok: true, participants: [] }),
+        ...overrides,
+      })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+    fireEvent.click(screen.getByText("Join"));
+    await screen.findByText("Leave room");
+
+    return sendMessageSpy;
+  }
+
+  it("subscribes to the room's producer-tag broadcasts on join, and shows the recorder plus an empty state", async () => {
+    await joinSampleRoom();
+
+    expect(producerTagApi.subscribeToRoomProducerTags).toHaveBeenCalledWith("room-1", expect.any(Function));
+    expect(screen.getByText("Record a tag (10s max)")).toBeInTheDocument();
+    expect(screen.getByText("No producer tags sent to this room yet.")).toBeInTheDocument();
+  });
+
+  it("unsubscribes from producer-tag broadcasts on leave", async () => {
+    const unsubscribeTags = vi.fn();
+    vi.mocked(producerTagApi.subscribeToRoomProducerTags).mockReturnValue(unsubscribeTags);
+    await joinSampleRoom({ STUDY_ROOM_LEAVE: () => ({ ok: true }) });
+
+    fireEvent.click(screen.getByText("Leave room"));
+
+    await waitFor(() => expect(unsubscribeTags).toHaveBeenCalled());
+  });
+
+  it("records, uploads (base64-encoded), and sends a tag to the room via PRODUCER_TAG_UPLOAD then PRODUCER_TAG_SEND_TO_ROOM", async () => {
+    vi.mocked(audioRecorder.stopRecording).mockResolvedValue(
+      new Blob(["fake-audio"], { type: "audio/webm" })
+    );
+    const sendMessageSpy = await joinSampleRoom({
+      PRODUCER_TAG_UPLOAD: () => ({
+        ok: true,
+        tag: { id: "tag-1", userId: "user-a", audioUrl: "tag-1/clip.webm", durationMs: 4200, createdAt: "x" },
+      }),
+      PRODUCER_TAG_SEND_TO_ROOM: () => ({ ok: true }),
+    });
+
+    fireEvent.click(screen.getByText("Record a tag (10s max)"));
+    fireEvent.click(screen.getByText("Stop"));
+    await waitFor(() => expect(screen.getByText("Send to room")).not.toBeDisabled());
+
+    fireEvent.click(screen.getByText("Send to room"));
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "PRODUCER_TAG_SEND_TO_ROOM",
+        payload: { tagId: "tag-1", roomId: "room-1" },
+      })
+    );
+    expect(producerTagApi.blobToBase64).toHaveBeenCalled();
+    expect(sendMessageSpy).toHaveBeenCalledWith({
+      type: "PRODUCER_TAG_UPLOAD",
+      payload: { audioBase64: "ZmFrZQ==", mimeType: "audio/webm", durationMs: 4200 },
+    });
+  });
+
+  it("surfaces an error inline when sending to the room fails", async () => {
+    vi.mocked(audioRecorder.stopRecording).mockResolvedValue(new Blob(["x"], { type: "audio/webm" }));
+    await joinSampleRoom({
+      PRODUCER_TAG_UPLOAD: () => ({ ok: false, error: "Failed to upload the recorded audio." }),
+    });
+
+    fireEvent.click(screen.getByText("Record a tag (10s max)"));
+    fireEvent.click(screen.getByText("Stop"));
+    await waitFor(() => expect(screen.getByText("Send to room")).not.toBeDisabled());
+
+    fireEvent.click(screen.getByText("Send to room"));
+
+    expect(await screen.findByText(/Tag not sent/)).toHaveTextContent(
+      "Failed to upload the recorded audio."
+    );
+  });
+
+  it("renders a live producer-tag broadcast, resolves it via PRODUCER_TAG_FETCH_BY_ID, and plays it on demand", async () => {
+    const sendMessageSpy = await joinSampleRoom({
+      PRODUCER_TAG_FETCH_BY_ID: () => ({
+        ok: true,
+        tag: { id: "tag-1", userId: "user-c", audioUrl: "tag-1/clip.webm", durationMs: 4000, createdAt: "x" },
+      }),
+    });
+    vi.mocked(producerTagApi.downloadTagAudio).mockResolvedValue(new Blob(["audio-bytes"]));
+
+    // Simulate a live broadcast arriving over the (mocked) Realtime subscription - invokes the
+    // onTag callback StudyRoomPanel.tsx passed to subscribeToRoomProducerTags when it joined.
+    const onTag = vi.mocked(producerTagApi.subscribeToRoomProducerTags).mock.calls[0]![1];
+    onTag({ tagId: "tag-1", roomId: "room-1", senderUserId: "user-c", sentAt: "2026-01-01T00:00:00.000Z" });
+
+    // Shows up immediately (sender known), even before PRODUCER_TAG_FETCH_BY_ID resolves.
+    expect(await screen.findByText(/From user-c/)).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "PRODUCER_TAG_FETCH_BY_ID",
+        payload: { tagId: "tag-1" },
+      })
+    );
+    await waitFor(() => expect(screen.getByText(/From user-c — 4s/)).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("Play"));
+
+    await waitFor(() => expect(producerTagApi.downloadTagAudio).toHaveBeenCalledWith("tag-1/clip.webm"));
+    expect(document.querySelector("audio")).toBeInTheDocument();
   });
 });

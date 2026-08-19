@@ -28,6 +28,7 @@ import * as digestApi from "../infrastructure/backend/digestApi";
 import * as friendshipSettingsApi from "../infrastructure/backend/friendshipSettingsApi";
 import * as tempPasscodeApi from "../infrastructure/backend/tempPasscodeApi";
 import * as studyRoomApi from "../infrastructure/backend/studyRoomApi";
+import * as producerTagApi from "../infrastructure/backend/producerTagApi";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
@@ -645,6 +646,38 @@ async function routeMessage(
     case "STUDY_ROOM_LIST_PARTICIPANTS": {
       const participants = await studyRoomApi.listParticipants(message.payload.roomId);
       return { ok: true, participants };
+    }
+
+    case "PRODUCER_TAG_UPLOAD": {
+      // The Blob<->base64 round trip lives here (background context has atob/Blob/Uint8Array but
+      // no DOM) - see producerTagApi.ts's header comment and blobFromBase64's own comment for why
+      // this exists at all.
+      const blob = producerTagApi.blobFromBase64(message.payload.audioBase64, message.payload.mimeType);
+      const tag = await producerTagApi.uploadTag(blob, message.payload.durationMs);
+      return { ok: true, tag };
+    }
+
+    case "PRODUCER_TAG_SEND_TO_FRIEND": {
+      await producerTagApi.sendToFriend(message.payload.tagId, message.payload.friendUserId);
+      return { ok: true };
+    }
+
+    case "PRODUCER_TAG_SEND_TO_ROOM": {
+      await producerTagApi.sendToRoom(message.payload.tagId, message.payload.roomId);
+      return { ok: true };
+    }
+
+    case "PRODUCER_TAG_SENDS_FETCH": {
+      // fetchIncomingProducerTagSends already degrades to [] (never throws) when signed out or on
+      // a transient failure - see producerTagApi.ts - so FriendGroupPanel.tsx always gets an
+      // ok:true response, even with nothing to show.
+      const sends = await producerTagApi.fetchIncomingProducerTagSends(message.payload.sinceTimestamp);
+      return { ok: true, sends };
+    }
+
+    case "PRODUCER_TAG_FETCH_BY_ID": {
+      const tag = await producerTagApi.fetchProducerTagById(message.payload.tagId);
+      return { ok: true, tag };
     }
 
     default:
