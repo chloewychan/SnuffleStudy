@@ -35,6 +35,12 @@
 //      private `study-room-producer-tags:<roomId>` topic actually fires and is received by D's
 //      subscribed client within a few seconds, while C's attempt to even SUBSCRIBE to that same
 //      private topic is rejected outright (case 3: room delivery + live broadcast).
+//   6b. B (a genuine participant, not A) sends tag3 to room R1 - confirms A (R1's owner, who never
+//      joined - no study_room_participants row) can still read tag3's producer_tags row, read the
+//      producer_tag_sends row for B's send, and download the Storage object, all via the
+//      owner-equivalence branch 20260815000024 added to those three persisted-data SELECT policies
+//      (fix round 2's regression coverage for the review finding that 20260815000023 only gave A
+//      that equivalence at the Realtime Broadcast layer, not the persisted-data layer) (case 3b).
 //   7. producer_tag_sends UPDATE and DELETE are both genuinely denied for a normal authenticated
 //      client (B, a legitimate recipient) - live-tested, not assumed (case 4).
 //   8. The storage bucket is genuinely private: a signed-out (anon-role, no session) client's
@@ -451,6 +457,34 @@ async function main() {
     );
     await expectDenied("Case 3: C (not a room member) cannot download tag2's Storage object", () =>
       clientC.storage.from(BUCKET).download(tag2.path)
+    );
+
+    // --- Case 3b: room owner (never joined) reads a tag someone ELSE sent to their room ---
+    // Regression coverage for the review finding fixed by 20260815000024: 20260815000023 gave A
+    // (R1's owner, never a study_room_participants row) owner-equivalence on the realtime.messages
+    // Broadcast SEND/RECEIVE policies, but the three persisted-data SELECT policies that gate what a
+    // recipient can actually DO with a received broadcast (producer_tags, producer_tag_sends,
+    // storage.objects) still required genuine participant membership - an asymmetry that let A
+    // receive a live broadcast's metadata but never resolve it to real data. tag2 above doesn't
+    // exercise this: A is tag2's own OWNER, so producer_tags' unconditional "owner can manage their
+    // own producer tags" policy would let A read it regardless of whether the room-owner branch
+    // exists. This case uses B - a genuine participant with no ownership relationship to A - as the
+    // sender, so success here is only possible via the room-owner branch 20260815000024 added.
+    const tag3 = await uploadTagAs(clientB, userB.id, "tag3");
+    tagIds.push(tag3.tagId);
+    await expectOk("Case 3b: B sends tag3 to room R1", () => sendToRoomAs(clientB, userB.id, tag3.tagId, room.id));
+
+    await expectOk(
+      "Case 3b: A (room owner, not a participant) can read tag3's producer_tags row (sent by B, not A)",
+      () => clientA.from("producer_tags").select().eq("id", tag3.tagId).single()
+    );
+    await expectOk(
+      "Case 3b: A (room owner, not a participant) can read the producer_tag_sends row for B's send of tag3",
+      () => clientA.from("producer_tag_sends").select().eq("tag_id", tag3.tagId).single()
+    );
+    await expectOk(
+      "Case 3b: A (room owner, not a participant) can download tag3's Storage object",
+      () => clientA.storage.from(BUCKET).download(tag3.path)
     );
 
     // --- Case 4: producer_tag_sends UPDATE/DELETE genuinely denied ---
