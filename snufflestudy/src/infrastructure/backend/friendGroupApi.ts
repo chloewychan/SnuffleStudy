@@ -241,13 +241,23 @@ export async function leaveGroup(groupId: string, targetUserId?: string): Promis
   // at all.
   const selfUserId = await requireUserId();
 
-  const { error } = await supabase
+  // Fix round (Minor #1): `.select()` chained onto the delete so the response's `data` array lets
+  // us tell "row actually removed" apart from "RLS silently filtered to zero rows" - a bare
+  // `.delete()` with no `.select()` returns no data at all either way, so a caller who wasn't
+  // actually a member of this group (self-leave of a group they'd already left, or a non-owner
+  // attempting to remove someone else - both cases the DELETE policy's `using` clause denies by
+  // matching zero rows, not by throwing) would previously fall through as if the leave succeeded.
+  const { data, error } = await supabase
     .from("group_memberships")
     .delete()
     .eq("group_id", groupId)
-    .eq("user_id", targetUserId ?? selfUserId);
+    .eq("user_id", targetUserId ?? selfUserId)
+    .select();
   if (error) {
     throw new Error(error.message);
+  }
+  if (!data || data.length === 0) {
+    throw new Error("You aren't currently a member of that group.");
   }
 }
 

@@ -46,8 +46,14 @@
 //   8. Case 5: the service-role client rewrites that nudge's sent_at to (COOLDOWN_SECONDS + 1)s
 //      in the past (simulated elapsed time, per this task's instruction to avoid actually
 //      sleeping in the script) - a subsequent nudge from S to R now succeeds.
-//   9. Cleans up every row it created and all three test accounts via the service-role client.
-//  10. Prints a pass/fail summary and exits non-zero if anything failed.
+//   9. Fix round (Important #1, supabase/migrations/20260815000029_v2_nudges_require_shared_group.sql):
+//      Case 6 - case 5's nudge is backdated the same way, then S leaves the shared group with R
+//      entirely (both toggles left untouched, still on) - confirms live that
+//      users_share_a_group(S, R) is now false, then a nudge from S to R is rejected purely on the
+//      missing shared group. This is the exact live-confirmed review scenario: two users who once
+//      shared a group can no longer keep nudging each other forever after one of them leaves.
+//  10. Cleans up every row it created and all three test accounts via the service-role client.
+//  11. Prints a pass/fail summary and exits non-zero if anything failed.
 
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
@@ -198,7 +204,11 @@ async function main() {
     // instant they do, and migration 20260815000013's tightened INSERT policy means a plain
     // `.insert()` toward a non-group-mate (like the negative case just above) is now denied
     // outright rather than merely colliding with the trigger's row.
-    await createGroupWithMembers(userS.id, [userS.id, userR.id], `Verify Nudges G1 ${RUN_ID}`);
+    const sharedGroupId = await createGroupWithMembers(
+      userS.id,
+      [userS.id, userR.id],
+      `Verify Nudges G1 ${RUN_ID}`
+    );
     record("Setup: S and R share a group (C does not)", true);
 
     // S declares "I may nudge R" - written as S's own authenticated write (friendship_settings'
@@ -371,6 +381,65 @@ async function main() {
       "Case 5: a nudge after the cooldown has elapsed succeeds",
       !afterCooldownErr && !!afterCooldown,
       afterCooldownErr?.message
+    );
+
+    // --- Case 6 (Important #1 fix round): sender leaves the shared group entirely, both toggles
+    // left untouched (still on) -> rejected ---
+    // This is the exact live-confirmed scenario from code review: A and B share a group, both
+    // opt in, A leaves the group entirely, and A could still successfully nudge B forever -
+    // can_send_nudge() (supabase/migrations/20260815000007_v2_nudges.sql) never checked
+    // users_share_a_group() or any live group_memberships row, only the two friendship_settings
+    // toggles and the cooldown, which are never pruned on leave. Fixed by supabase/migrations/
+    // 20260815000029_v2_nudges_require_shared_group.sql - this case is its negative-case proof,
+    // specifically covering "used to share a group, then left" (not "never shared one at all",
+    // which case 2/3 already touch indirectly by construction - this is the sharper, exact-match
+    // regression case).
+    //
+    // Backdate case 5's nudge too (same technique as case 5's own setup), so this case isolates
+    // the group-membership floor specifically - without this, a rejection here would be
+    // ambiguous (could be the cooldown carried over from case 5's own nudge just above, not the
+    // missing shared group).
+    if (afterCooldown) {
+      const pastTimestamp2 = new Date(Date.now() - (COOLDOWN_SECONDS + 1) * 1000).toISOString();
+      const { error: rewriteErr2 } = await admin
+        .from("nudges")
+        .update({ sent_at: pastTimestamp2 })
+        .eq("id", afterCooldown.id);
+      record(
+        "Setup: backdate case 5's nudge too, so case 6 isolates the group-membership check",
+        !rewriteErr2,
+        rewriteErr2?.message
+      );
+    }
+
+    const { error: leaveErr } = await admin
+      .from("group_memberships")
+      .delete()
+      .eq("group_id", sharedGroupId)
+      .eq("user_id", userS.id);
+    record("Setup: S leaves the shared group with R (toggles left untouched)", !leaveErr, leaveErr?.message);
+
+    const { data: sharedAfterLeave, error: shareCheckErr } = await admin.rpc("users_share_a_group", {
+      p_user_a: userS.id,
+      p_user_b: userR.id,
+    });
+    const shareCheckPassed = !shareCheckErr && sharedAfterLeave === false;
+    record(
+      "Setup: users_share_a_group(S, R) is now false after S leaves",
+      shareCheckPassed,
+      shareCheckPassed ? undefined : (shareCheckErr?.message ?? `expected false, got ${sharedAfterLeave}`)
+    );
+
+    const { data: blockedByNoSharedGroup, error: noSharedGroupErr } = await sendNudgeAs(
+      clientS,
+      userS.id,
+      userR.id,
+      "still-here"
+    );
+    record(
+      "Case 6: nudge is rejected once sender and recipient no longer share any group, even with both toggles still on",
+      !!noSharedGroupErr && !blockedByNoSharedGroup,
+      noSharedGroupErr ? undefined : "insert unexpectedly succeeded"
     );
   } finally {
     await cleanup(userIds);

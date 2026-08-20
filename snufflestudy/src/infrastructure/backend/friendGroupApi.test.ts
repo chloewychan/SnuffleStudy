@@ -312,7 +312,13 @@ describe("friendGroupApi.leaveGroup", () => {
       data: { user: { id: "user-a" } },
       error: null,
     } as never);
-    const builder = makeBuilder({ data: null, error: null });
+    // Fix round (Minor #1): a non-empty array (a row was actually returned by `.select()`) so
+    // this test exercises the ordinary "row really was removed" path, not the new zero-rows
+    // guard - that guard has its own dedicated test below.
+    const builder = makeBuilder({
+      data: [{ group_id: "group-1", user_id: "user-a" }],
+      error: null,
+    });
     const fromSpy = vi.spyOn(supabase, "from").mockReturnValue(builder as never);
 
     await leaveGroup("group-1");
@@ -321,6 +327,7 @@ describe("friendGroupApi.leaveGroup", () => {
     expect(builder.delete).toHaveBeenCalledTimes(1);
     expect(builder.eq).toHaveBeenCalledWith("group_id", "group-1");
     expect(builder.eq).toHaveBeenCalledWith("user_id", "user-a");
+    expect(builder.select).toHaveBeenCalledTimes(1);
   });
 
   it("deletes the targetUserId's row instead of the caller's own when one is given (owner removes a member)", async () => {
@@ -328,7 +335,10 @@ describe("friendGroupApi.leaveGroup", () => {
       data: { user: { id: "owner-id" } },
       error: null,
     } as never);
-    const builder = makeBuilder({ data: null, error: null });
+    const builder = makeBuilder({
+      data: [{ group_id: "group-1", user_id: "member-to-remove" }],
+      error: null,
+    });
     const fromSpy = vi.spyOn(supabase, "from").mockReturnValue(builder as never);
 
     await leaveGroup("group-1", "member-to-remove");
@@ -361,6 +371,26 @@ describe("friendGroupApi.leaveGroup", () => {
     );
 
     await expect(leaveGroup("group-1")).rejects.toThrow("delete failed");
+  });
+
+  // Fix round (Minor #1): a bare `.delete()` with no `.select()` can't distinguish "row actually
+  // removed" from "RLS silently filtered to zero rows" (e.g. the caller wasn't actually a member
+  // of that group - a self-leave of a group already left, or a non-owner attempting to remove
+  // someone else). Postgres/PostgREST report that as a *successful* delete of zero rows, not an
+  // error - `error` is null and `data` is `[]` - so this case is deliberately distinct from the
+  // "delete fails" test above.
+  it("throws a clear error when the delete affects zero rows (RLS silently filtered it out)", async () => {
+    vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
+      data: { user: { id: "user-a" } },
+      error: null,
+    } as never);
+    const builder = makeBuilder({ data: [], error: null });
+    vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+
+    await expect(leaveGroup("group-1")).rejects.toThrow(
+      "You aren't currently a member of that group."
+    );
+    expect(builder.select).toHaveBeenCalledTimes(1);
   });
 });
 

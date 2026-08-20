@@ -493,12 +493,14 @@ async function routeMessage(
     case "GROUP_LEAVE": {
       // leaveGroup throws (not signed in, Postgres error) rather than returning ok:false - the
       // outer handleMessage try/catch (top of this file) turns that into { ok: false, error },
-      // same convention as GROUP_CREATE/GROUP_JOIN above. A denied delete (a non-owner trying to
-      // remove someone else) is not a throw at all - RLS silently filters it to zero affected
-      // rows, so this still resolves ok:true even though nothing was actually removed; the
-      // caller is expected to be the acting user themselves (self-leave) or a group owner who
-      // already knows they're the owner, matching every other GROUP_* case's thin-pass-through
-      // convention of trusting the server-side RLS policy as the real enforcement.
+      // same convention as GROUP_CREATE/GROUP_JOIN above. Fix round (Minor #1): a denied delete
+      // (a non-owner trying to remove someone else, or a self-leave of a group the caller wasn't
+      // actually a member of) is ALSO now a throw - RLS still silently filters it to zero
+      // affected rows at the database layer, but leaveGroup() itself now chains `.select()` onto
+      // the delete and throws "You aren't currently a member of that group." when the returned
+      // array is empty, rather than resolving as if the leave had succeeded. No change needed
+      // here: this case's existing thin-pass-through + the outer try/catch already surface that
+      // thrown error as { ok: false, error } correctly.
       await friendGroupApi.leaveGroup(message.payload.groupId, message.payload.targetUserId);
       return { ok: true };
     }

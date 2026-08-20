@@ -33,12 +33,43 @@
 -- invite codes for a group they've left - but since is_group_owner() is unaffected by leaving,
 -- they can always re-add themselves via this same policy's owner branch and regain that ability,
 -- so this is a minor friction, not a lockout.
+--
+-- Fix-round addendum (Important #2, adjudicated - not just a consequence for invite-code creation,
+-- stated plainly here): the same "is_group_owner() is unaffected by leaving" fact above means the
+-- re-join gap THIS PART 2 exists to close (see below) does not apply to the group's owner. Every
+-- non-owner member is fully gated on rejoin by Part 2's has_redeemed_invite_code() check plus the
+-- unredeem trigger below - but group_memberships' INSERT policy's owner branch
+-- (20260815000005:60-68) lets an owner re-insert their own membership row with ZERO invite code,
+-- any time, forever, because is_group_owner() only ever reads the immutable
+-- friend_groups.owner_user_id column and this schema has no ownership-transfer mechanism that
+-- could ever change it. This is intentional, not an oversight: it exposes no other user's data or
+-- access - only the owner's own pre-existing right to walk back into the group they created.
+-- Building real ownership-transfer or owner-specific re-join gating is a materially larger design
+-- change (there is no ownership-transfer mechanism anywhere in this schema to hook such gating
+-- into) that is out of scope for this fix round. Accepted asymmetry, deliberately, not a gap left
+-- open by mistake.
 create policy "member can leave or owner can remove a member"
   on group_memberships for delete
   using (
     user_id = auth.uid()
     or is_group_owner(group_memberships.group_id, auth.uid())
   );
+
+-- Fix-round addendum (Minor #2): why a departed owner can't retain kick power via this policy's
+-- own-branch, stated explicitly rather than left incidentally true. is_group_owner() reads only
+-- the immutable friend_groups.owner_user_id column (see the addendum above), so the `or
+-- is_group_owner(...)` branch above stays true for a departed owner forever - by itself that
+-- would let them keep DELETE-ing OTHER members' rows (kicking) after leaving. What actually blocks
+-- that: Postgres implicitly ANDs a table's SELECT policy onto every other operation's USING
+-- clause, including DELETE (documented Postgres RLS behavior, not something this schema opts into
+-- - see "Row Security Policies" in the Postgres docs: a DELETE's row must satisfy the target
+-- table's SELECT policy in addition to the DELETE policy's own USING clause). group_memberships'
+-- SELECT policy is is_group_member(group_id, auth.uid()) (20260815000003) - a departed owner is no
+-- longer a group_memberships row for that group, so is_group_member() is false for them, so the
+-- implicit SELECT-AND fails and the DELETE is blocked regardless of what the DELETE policy above
+-- says. This is a different mechanism than the WITH CHECK-style reasoning that guards INSERT/
+-- UPDATE (this policy has no WITH CHECK at all - DELETE doesn't use one) - it's the implicit
+-- SELECT-policy-AND, specifically.
 
 -- === Part 2: closing the re-join-without-a-fresh-invite gap ===
 --
