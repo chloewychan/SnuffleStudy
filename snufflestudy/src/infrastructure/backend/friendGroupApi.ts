@@ -26,16 +26,20 @@ export interface GroupMembership {
 
 // Invite codes are meant to be typed/read aloud/shared over chat, not pasted from a link - a
 // full crypto.randomUUID() (36 chars incl. hyphens) is impractical for that. 8 chars from a
-// 32-symbol alphabet is ~40 bits of entropy (32^8), short enough to type, long enough that
-// brute-forcing an unexpired code against `invite_codes`' RLS-gated read policy isn't
-// practical. Alphabet excludes visually-ambiguous characters (0/O, 1/I/L) since these codes
-// are meant to be read/typed by a human.
+// 31-symbol alphabet is ~40 bits of entropy, short enough to type, long enough that guessing an
+// outstanding code is not practical. Since the final review's Critical fix (see joinGroup below)
+// the only way to test a candidate code at all is one redeem_invite_code() RPC call per guess -
+// there is no listing/enumeration operation on invite_codes any more, so this entropy is now the
+// whole search space rather than a formality behind a broadly-readable table. Alphabet excludes
+// visually-ambiguous characters (0/O, 1/I/L) since these codes are meant to be read/typed by a
+// human.
 const INVITE_CODE_LENGTH = 8;
 const INVITE_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 // The plan doesn't specify an invite code lifetime - 7 days is a reasonable default for "share
-// this with a friend to join your group" without leaving stale codes readable indefinitely
-// (invite_codes' RLS select policy already restricts reads to unexpired+unused rows).
+// this with a friend to join your group" without leaving stale codes redeemable indefinitely
+// (redeem_invite_code() rejects anything past expires_at, and the code's creator can still see
+// their own unredeemed codes via invite_codes' narrowed SELECT policy).
 const INVITE_CODE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
 function generateInviteCodeString(): string {
@@ -141,59 +145,46 @@ export async function generateInviteCode(groupId: string): Promise<InviteCode> {
   };
 }
 
+// Joining is a single server-side transaction (the redeem_invite_code SECURITY DEFINER function,
+// supabase/migrations/20260815000025_v2_lock_down_invite_code_redemption.sql), NOT the
+// select-then-update-then-insert sequence this function used through v2's final review.
+//
+// That earlier sequence was only possible because invite_codes was readable and updatable by any
+// authenticated client, which the final review found to be a Critical vulnerability (finding C1):
+// the SELECT policy had no auth.uid() predicate at all, so a stranger could enumerate every
+// outstanding code in the project along with its group_id, and the UPDATE policy checked only
+// "unused and unexpired", so that same stranger could redeem any code they enumerated and then
+// satisfy group_memberships' has_redeemed_invite_code() gate to insert themselves into a group
+// they were never invited to. (This function's previous comment asserted the broad readability was
+// intentional and safe "per the plan's own spec" - that was wrong, and is the reasoning the fix
+// migration's header comment corrects at length. A code is a bearer secret: being able to READ
+// someone else's code is being able to USE it.)
+//
+// invite_codes now grants no client UPDATE at all and only lets a user SELECT codes they created
+// or personally redeemed, so neither the lookup nor the redemption can happen from here any more -
+// both live inside the function, which finds the row by exact code value (the bearer secret is the
+// authorization) and marks it redeemed. The membership insert moves in there too, which also
+// closes the non-atomicity noted in this function's old comment: one function body is one
+// transaction, so a failure can no longer burn a code without granting membership.
+//
+// Must run as the joining user's own authenticated session (never service-role) - the function
+// reads auth.uid() internally for both the redemption and the membership row.
 export async function joinGroup(code: string): Promise<GroupMembership> {
-  const userId = await requireUserId();
+  await requireUserId();
 
-  // invite_codes' "unexpired unused codes are readable" RLS policy already restricts this
-  // SELECT to rows where expires_at > now() and used_by is null - an expired or already-used
-  // code simply isn't visible, so this comes back empty/erroring rather than needing an
-  // explicit expiry check here.
-  const { data: invite, error: inviteError } = await supabase
-    .from("invite_codes")
-    .select()
-    .eq("code", code)
-    .single();
-  if (inviteError || !invite) {
-    throw new Error("Invite code not found, expired, or already used.");
+  // Returns the resulting group_memberships row as a single JSON object (the function is
+  // `returns group_memberships`, not `returns setof`/`returns table`, so PostgREST does not wrap
+  // it in an array). Every failure mode - unknown code, expired code, already-redeemed code -
+  // raises the same deliberately-indistinguishable exception inside the function, so a caller
+  // can't use this as an oracle for whether an arbitrary code exists; that exception arrives here
+  // as a normal PostgREST error and its message is already the user-facing wording this function
+  // used to produce itself.
+  const { data, error } = await supabase.rpc("redeem_invite_code", { p_code: code });
+  if (error || !data) {
+    throw new Error(error?.message ?? "Invite code not found, expired, or already used.");
   }
 
-  // Redeem the code BEFORE inserting the membership row - order matters, not just bookkeeping.
-  // group_memberships' INSERT policy (supabase/migrations/
-  // 20260815000005_v2_gate_group_membership_on_invite.sql) requires a matching invite_codes row
-  // with used_by = auth.uid() to ALREADY exist for this group, specifically so membership can
-  // never be granted by just knowing/guessing a group_id (invite_codes rows are broadly
-  // readable to any authenticated user per the plan's own spec, so a raw group_id is not a
-  // secret - only a *redeemed* code proves this user was actually invited). Redeeming first is
-  // what makes that check satisfiable; the original insert-then-redeem order left the check
-  // with nothing to find.
-  //
-  // This must run as the joining user's own authenticated session (never service-role) -
-  // invite_codes' "unused unexpired codes can be redeemed once" RLS policy's WITH CHECK
-  // requires used_by = auth.uid(), so a service-role write (which has no auth.uid()) would fail
-  // this check, and a different user's session couldn't satisfy it either.
-  //
-  // Not atomic with the membership insert below (no RPC/transaction wraps both) - if the
-  // membership insert fails after this succeeds, the code is burned with no membership granted.
-  // Same class of gap as createGroup()'s two inserts; a real fix would need a
-  // SECURITY DEFINER Postgres function called via .rpc() to wrap both in one transaction,
-  // which is beyond what this fix round asked for.
-  const { error: updateError } = await supabase
-    .from("invite_codes")
-    .update({ used_by: userId })
-    .eq("code", code);
-  if (updateError) {
-    throw new Error(updateError.message);
-  }
-
-  const { data: membership, error: membershipError } = await supabase
-    .from("group_memberships")
-    .insert({ group_id: invite.group_id, user_id: userId })
-    .select()
-    .single();
-  if (membershipError || !membership) {
-    throw new Error(membershipError?.message ?? "Failed to join group.");
-  }
-
+  const membership = data as { group_id: string; user_id: string; joined_at: string };
   return {
     groupId: membership.group_id,
     userId: membership.user_id,

@@ -218,59 +218,36 @@ describe("friendGroupApi.generateInviteCode", () => {
   });
 });
 
+// Rewritten for the final review's Critical fix (finding C1). joinGroup no longer does a
+// select-then-update-then-insert against invite_codes/group_memberships from the client - it makes
+// ONE redeem_invite_code RPC call, and the lookup/redemption/membership insert all happen inside
+// that SECURITY DEFINER function as a single transaction (supabase/migrations/
+// 20260815000025_v2_lock_down_invite_code_redemption.sql). invite_codes now grants the client no
+// UPDATE at all and only lets a user read codes they created or personally redeemed, so the old
+// three-step sequence is not merely discouraged, it is impossible - which is what these tests now
+// assert: no `.from()` call whatsoever.
 describe("friendGroupApi.joinGroup", () => {
-  it("looks up the invite code, redeems it, THEN inserts the membership row (in that order)", async () => {
+  it("redeems the code via the redeem_invite_code RPC and never touches invite_codes/group_memberships directly", async () => {
     vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
       data: { user: { id: "user-b" } },
       error: null,
     } as never);
-    const lookupBuilder = makeBuilder({
-      data: { code: "CODE1234", group_id: "group-1" },
-      error: null,
-    });
-    const insertBuilder = makeBuilder({
+    // The RPC is `returns group_memberships` (a single composite row), not `returns setof`/
+    // `returns table`, so PostgREST hands back one JSON object rather than an array - verified
+    // live against the project, and what joinGroup's mapping assumes.
+    const rpcSpy = vi.spyOn(supabase, "rpc").mockResolvedValue({
       data: { group_id: "group-1", user_id: "user-b", joined_at: "2026-01-02T00:00:00Z" },
       error: null,
-    });
-    const updateBuilder = makeBuilder({ data: null, error: null });
-    // Tracks the order tables were touched in, so the test can assert redemption happens
-    // BEFORE the membership insert - not just that both happened. This order is load-bearing
-    // (fix round 1): group_memberships' INSERT policy (supabase/migrations/
-    // 20260815000005_v2_gate_group_membership_on_invite.sql) requires a matching invite_codes
-    // row with used_by = auth.uid() to already exist, so redeeming after inserting membership
-    // would leave that check with nothing to find.
-    const callOrder: string[] = [];
-    let inviteCodesCallCount = 0;
-    vi.spyOn(supabase, "from").mockImplementation(((table: string) => {
-      if (table === "invite_codes") {
-        inviteCodesCallCount += 1;
-        if (inviteCodesCallCount === 1) {
-          callOrder.push("invite_codes:lookup");
-          return lookupBuilder;
-        }
-        callOrder.push("invite_codes:redeem");
-        return updateBuilder;
-      }
-      if (table === "group_memberships") {
-        callOrder.push("group_memberships:insert");
-        return insertBuilder;
-      }
-      throw new Error(`unexpected table ${table}`);
-    }) as never);
+    } as never);
+    const fromSpy = vi.spyOn(supabase, "from");
 
     const result = await joinGroup("CODE1234");
 
-    expect(callOrder).toEqual([
-      "invite_codes:lookup",
-      "invite_codes:redeem",
-      "group_memberships:insert",
-    ]);
-    expect(lookupBuilder.eq).toHaveBeenCalledWith("code", "CODE1234");
-    expect(insertBuilder.insert).toHaveBeenCalledWith({ group_id: "group-1", user_id: "user-b" });
-    // Redeeming must run as the joining user's own session - invite_codes' "unused unexpired
-    // codes can be redeemed once" RLS policy's WITH CHECK requires used_by = auth.uid().
-    expect(updateBuilder.update).toHaveBeenCalledWith({ used_by: "user-b" });
-    expect(updateBuilder.eq).toHaveBeenCalledWith("code", "CODE1234");
+    expect(rpcSpy).toHaveBeenCalledTimes(1);
+    expect(rpcSpy).toHaveBeenCalledWith("redeem_invite_code", { p_code: "CODE1234" });
+    // The load-bearing regression assertion for finding C1: any direct table access from this
+    // function would mean the client-side select/update redemption path had come back.
+    expect(fromSpy).not.toHaveBeenCalled();
     expect(result).toEqual({
       groupId: "group-1",
       userId: "user-b",
@@ -278,40 +255,38 @@ describe("friendGroupApi.joinGroup", () => {
     });
   });
 
-  it("throws when redeeming the code fails, without attempting the membership insert", async () => {
+  it("surfaces the RPC's own exception message (covers not-found, expired, and already-used - the function raises identically for all three)", async () => {
     vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
       data: { user: { id: "user-b" } },
       error: null,
     } as never);
-    const lookupBuilder = makeBuilder({
-      data: { code: "CODE1234", group_id: "group-1" },
-      error: null,
-    });
-    const updateBuilder = makeBuilder({ data: null, error: { message: "redeem failed" } });
-    const insertBuilder = makeBuilder({ data: null, error: null });
-    let inviteCodesCallCount = 0;
-    const fromSpy = vi.spyOn(supabase, "from").mockImplementation(((table: string) => {
-      if (table === "invite_codes") {
-        inviteCodesCallCount += 1;
-        return inviteCodesCallCount === 1 ? lookupBuilder : updateBuilder;
-      }
-      return insertBuilder;
-    }) as never);
-
-    await expect(joinGroup("CODE1234")).rejects.toThrow("redeem failed");
-    expect(fromSpy).not.toHaveBeenCalledWith("group_memberships");
-  });
-
-  it("throws a clear error when the code isn't found (covers not-found, expired, and already-used - RLS filters all three identically)", async () => {
-    vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
-      data: { user: { id: "user-b" } },
-      error: null,
+    vi.spyOn(supabase, "rpc").mockResolvedValue({
+      data: null,
+      error: { message: "Invite code not found, expired, or already used." },
     } as never);
-    vi.spyOn(supabase, "from").mockReturnValue(
-      makeBuilder({ data: null, error: { message: "no rows" } }) as never
-    );
 
     await expect(joinGroup("BADCODE")).rejects.toThrow(/not found, expired, or already used/i);
+  });
+
+  it("throws when the RPC returns no row and no error, rather than returning a half-built membership", async () => {
+    vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
+      data: { user: { id: "user-b" } },
+      error: null,
+    } as never);
+    vi.spyOn(supabase, "rpc").mockResolvedValue({ data: null, error: null } as never);
+
+    await expect(joinGroup("CODE1234")).rejects.toThrow(/not found, expired, or already used/i);
+  });
+
+  it("throws when not signed in, without calling the RPC at all", async () => {
+    vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
+      data: { user: null },
+      error: null,
+    } as never);
+    const rpcSpy = vi.spyOn(supabase, "rpc");
+
+    await expect(joinGroup("CODE1234")).rejects.toThrow("Not signed in.");
+    expect(rpcSpy).not.toHaveBeenCalled();
   });
 });
 

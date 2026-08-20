@@ -89,8 +89,14 @@
 //  16. Case 15 (fix round 2 - reviewer's explicit DELETE double-check): confirms DELETE is still
 //      denied for the authenticated role (no policy has ever granted it) and wasn't accidentally
 //      opened up while tightening INSERT.
-//  17. Cleans up every row and account it created via the service-role client.
-//  18. Prints a pass/fail summary and exits non-zero if anything failed.
+//  17. Case 16 (v2 final whole-branch review, Important finding I2): C - who shares no group with
+//      A - attempts to create a request naming A as the approving friend. Denied by the new
+//      users_share_a_group() floor on the INSERT policy
+//      (20260815000026_v2_temp_passcode_group_floor.sql). Every other request in this script
+//      targets B, with whom A shares G1, so nothing here previously exercised the cross-stranger
+//      case at all.
+//  18. Cleans up every row and account it created via the service-role client.
+//  19. Prints a pass/fail summary and exits non-zero if anything failed.
 
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
@@ -777,6 +783,61 @@ async function main() {
         "Case 15: R1 still exists after the denied DELETE attempt (not silently removed)",
         !!stillThere,
         stillThere ? "row present" : "row missing"
+      );
+    }
+
+    // === Case 16 (final whole-branch review, Important finding I2): the shared-group floor. ===
+    //
+    // Genuine gap in this script's existing coverage, not a duplicate of verify-rls.mjs's own I2
+    // check: every request created above names B, and A/B share group G1, so nothing here ever
+    // exercised a requester targeting someone they share NO group with. Case 13 looks adjacent but
+    // isn't - it targets self-assignment, which users_share_a_group(x, x) happily satisfies for
+    // any user who belongs to at least one group, so it was caught by the separate
+    // requester_user_id <> friend_user_id clause, never by a group floor.
+    //
+    // Before 20260815000026_v2_temp_passcode_group_floor.sql, the INSERT policy never checked that
+    // requester and assigned friend had any relationship at all, so any authenticated user who
+    // learned a stranger's UUID could put that stranger's real email address on the receiving end
+    // of a notification whose `hostname` they fully control. C is set up in this script precisely
+    // as "shares nothing with A or B" (alone in group G2), which makes this the natural home for
+    // the check from the temp-passcode side.
+    //
+    // The hostname below deliberately carries an HTML payload: it is the exact string that, before
+    // the companion fix in supabase/functions/send-temp-passcode-request/index.ts (escapeHtml),
+    // would have been interpolated raw into the outbound email's body. This check asserts the row
+    // can no longer be created at all - the escaping is the second, independent layer.
+    console.log(
+      "\n=== Case 16: a request cannot name a friend the requester shares no group with (Important fix, finding I2) ==="
+    );
+    {
+      const strangerTarget = await clientC
+        .from("temp_passcode_requests")
+        .insert({
+          session_id: sessionId,
+          hostname: "<img src=x onerror=alert(1)>evil.com",
+          requester_user_id: userC.id,
+          friend_user_id: userA.id,
+          status: "pending",
+          delivered_via: "email",
+        })
+        .select("id")
+        .single();
+      record(
+        "Case 16: C (no shared group with A) cannot create a request naming A as the approving friend",
+        !!strangerTarget.error,
+        strangerTarget.error
+          ? `denied — ${strangerTarget.error.message}`
+          : `NOT denied — got ${JSON.stringify(strangerTarget.data)}`
+      );
+
+      const { data: leaked } = await admin
+        .from("temp_passcode_requests")
+        .select("id")
+        .eq("requester_user_id", userC.id);
+      record(
+        "Case 16: no row was actually created by the rejected INSERT",
+        (leaked ?? []).length === 0,
+        `found ${leaked?.length ?? 0} row(s)`
       );
     }
   } finally {

@@ -12,7 +12,21 @@
 //   2. Signs in as each via the anon-key client (password auth) to get three separately-scoped,
 //      RLS-bound clients - these are what every check below actually queries through.
 //   3. Exercises the plain functional path from the Definition of Done: A signs in, creates a
-//      group, generates an invite code, B joins via that code.
+//      group, generates an invite code, B joins via that code - now through the
+//      redeem_invite_code RPC (see the final review's Critical finding C1 below), not the old
+//      client-side select-then-update-then-insert sequence.
+//
+// Two findings from v2's final whole-branch review are covered here specifically, both marked
+// inline with the finding id:
+//   - C1 (Critical): invite_codes' SELECT policy had no auth.uid() predicate and its UPDATE
+//     policy had no ownership predicate, so any authenticated stranger could enumerate every
+//     outstanding invite code in the project, redeem one, and thereby satisfy
+//     group_memberships' has_redeemed_invite_code() gate to join an arbitrary group. Covered by
+//     the "invite_codes (C1)" checks - both the negative half and the positive half (a real
+//     invitee, and the code's creator, must still work).
+//   - I2 (Important): temp_passcode_requests' INSERT policy had no shared-group floor, so a
+//     stranger could name an arbitrary user as the approving friend and get that user emailed.
+//     Covered by the "temp_passcode_requests (I2)" check.
 //   4. Runs one negative check per RLS guarantee from the plan, asserting the forbidden
 //      read/write actually fails (an explicit PostgREST error, not just an empty array) -
 //      chaining `.single()` after every check converts RLS's silent-filtering behavior on SELECT
@@ -204,38 +218,120 @@ async function main() {
         record("Functional: A generates an invite code", !inviteErr, inviteErr?.message);
       }
 
-      if (inviteCreated) {
-        const { data: lookup, error: lookupErr } = await clientB
+      // === C1 (final review, Critical): the negative half, run BEFORE the code is redeemed, so
+      // the code under test is a genuinely outstanding one - exactly the state the old policies
+      // left readable and redeemable by the entire authenticated world. C shares no group with
+      // A or B and was never given this (or any) code. ===
+      //
+      // (a) Enumeration. A bare, unfiltered `.select()` against invite_codes: under the old
+      // "unexpired unused codes are readable" policy (no auth.uid() predicate at all) this
+      // returned EVERY outstanding code in the project along with its group_id. Deliberately
+      // NOT `.single()`-chained - the whole point is to prove the unbounded listing form returns
+      // nothing, which is the fallback branch of expectDenied rather than its error branch.
+      await expectDenied("invite_codes (C1): C cannot enumerate invite codes at all", () =>
+        clientC.from("invite_codes").select()
+      );
+      // (b) Targeted read of one specific outstanding code A created. `.single()`-chained, so
+      // RLS's silent filtering becomes a hard error.
+      await expectDenied(
+        "invite_codes (C1): C cannot read a specific outstanding code A created for A's own group",
+        () => clientC.from("invite_codes").select().eq("code", inviteCode).single()
+      );
+      // (c) Direct redemption UPDATE - the second half of the old exploit chain. UPDATE is now
+      // revoked from `authenticated` entirely (20260815000025), so this fails at the Postgres
+      // GRANT layer, before RLS is even consulted.
+      await expectDenied(
+        "invite_codes (C1): C cannot redeem an outstanding code via a direct client UPDATE (grant revoked)",
+        () =>
+          clientC
+            .from("invite_codes")
+            .update({ used_by: userC.id })
+            .eq("code", inviteCode)
+            .select()
+            .single()
+      );
+      // (d) The full pre-fix exploit chain, replayed end-to-end against the ONLY redemption path
+      // that now exists (the redeem_invite_code RPC). Deliberately driven by what C can ACTUALLY
+      // obtain rather than by test-harness knowledge: C's own enumeration result from (a) is the
+      // input. Pre-fix that enumeration handed C every outstanding code in the project and this
+      // step joined an arbitrary group; post-fix it hands C nothing, so the best C can do is
+      // present a code they invented.
+      //
+      // Worth stating plainly, since it defines the boundary this fix actually establishes: an
+      // invite code is a bearer secret - the string IS the authorization, and the RPC cannot
+      // (and must not) distinguish a legitimate invitee presenting a code they were given from
+      // anyone else presenting the same string. What the fix removes is C's ability to OBTAIN a
+      // real code, which is what (a) and (b) above prove. This check completes the chain by
+      // confirming the RPC is also not an oracle: an unknown code fails with the same
+      // deliberately-indistinguishable exception as an expired or already-used one, so it cannot
+      // be used to probe which codes exist.
+      const { data: cEnumerated } = await clientC.from("invite_codes").select();
+      const cBestGuess = cEnumerated?.[0]?.code ?? generateInviteCodeString();
+      await expectDenied(
+        "invite_codes (C1): C cannot redeem their way into A's group via the redeem_invite_code RPC (full pre-fix exploit chain, replayed)",
+        () => clientC.rpc("redeem_invite_code", { p_code: cBestGuess })
+      );
+
+      // (e) The narrowed SELECT policy's positive half, so this fix is proven not to have simply
+      // made invite_codes unreadable to everyone: A created this code, so A must still be able to
+      // see it (that's how AccountPage.tsx shows the owner the code they just generated).
+      {
+        const { data: ownCode, error: ownCodeErr } = await clientA
           .from("invite_codes")
           .select()
           .eq("code", inviteCode)
           .single();
-        if (lookupErr || !lookup) {
-          record("Functional: B looks up the invite code", false, lookupErr?.message);
-        } else {
-          // Redeem BEFORE inserting membership - mirrors friendGroupApi.ts's joinGroup() order
-          // (fix round 1). group_memberships' INSERT policy (supabase/migrations/
-          // 20260815000005_v2_gate_group_membership_on_invite.sql) requires a matching
-          // invite_codes row with used_by = auth.uid() to already exist, so redemption must
-          // happen first or the membership insert's WITH CHECK has nothing to find.
-          const { error: markErr } = await clientB
-            .from("invite_codes")
-            .update({ used_by: userB.id })
-            .eq("code", inviteCode);
-          const { error: joinErr } = await clientB
-            .from("group_memberships")
-            .insert({ group_id: lookup.group_id, user_id: userB.id });
-          record(
-            "Functional: B joins the group via the invite code and redeems it",
-            !joinErr && !markErr,
-            joinErr?.message || markErr?.message
-          );
-        }
+        record(
+          "invite_codes (C1): A can still read a code A created (created_by = auth.uid())",
+          !ownCodeErr && ownCode?.code === inviteCode && ownCode?.group_id === joinGroupId,
+          ownCodeErr?.message ?? `got ${JSON.stringify(ownCode)}`
+        );
       }
 
-      // Sub-check from the invite_codes guarantee: a used code is no longer readable (by
-      // anyone, including the account that redeemed it - the RLS select policy only allows
-      // unexpired+unused rows through).
+      if (inviteCreated) {
+        // === C1 positive path: the legitimate invitee, actually given the code, still joins
+        // end-to-end through the new RPC. One call now does lookup + redemption + membership
+        // insert in a single transaction (supabase/migrations/
+        // 20260815000025_v2_lock_down_invite_code_redemption.sql), replacing the old
+        // select-then-update-then-insert sequence that finding C1 showed was exploitable. ===
+        const { data: redeemed, error: redeemErr } = await clientB.rpc("redeem_invite_code", {
+          p_code: inviteCode,
+        });
+        record(
+          "Functional (C1 positive path): B joins the group by redeeming the real code via the redeem_invite_code RPC",
+          !redeemErr && !!redeemed,
+          redeemErr?.message ?? `got ${JSON.stringify(redeemed)}`
+        );
+        record(
+          "Functional (C1 positive path): the RPC returns B's actual group_memberships row (group_id/user_id/joined_at)",
+          redeemed?.group_id === joinGroupId &&
+            redeemed?.user_id === userB.id &&
+            !!redeemed?.joined_at,
+          `got ${JSON.stringify(redeemed)}`
+        );
+        // Independently confirmed against the table itself, not just the RPC's own return value.
+        const { data: membershipRow } = await admin
+          .from("group_memberships")
+          .select()
+          .eq("group_id", joinGroupId)
+          .eq("user_id", userB.id)
+          .maybeSingle();
+        record(
+          "Functional (C1 positive path): the membership row really exists in group_memberships afterward",
+          !!membershipRow,
+          membershipRow ? "row present" : "row missing"
+        );
+        // Single-use is still enforced, now by the function's own unused-check under a row lock
+        // rather than by the (deleted) UPDATE policy's USING clause.
+        await expectDenied(
+          "invite_codes (C1): a second redemption of the same code is rejected by the RPC",
+          () => clientB.rpc("redeem_invite_code", { p_code: inviteCode })
+        );
+      }
+
+      // Sub-check from the invite_codes guarantee: a used code is not readable by an unrelated
+      // third party (C is neither its creator nor its redeemer, the only two predicates the
+      // narrowed SELECT policy allows).
       await expectDenied("invite_codes: a used code is unreadable (by C)", () =>
         clientC.from("invite_codes").select().eq("code", inviteCode).single()
       );
@@ -284,11 +380,18 @@ async function main() {
         // only checked user_id = auth.uid() - it never verified an actual invite-code
         // redemption, so any authenticated user who merely *learned* a group_id (never given a
         // code, never invited) could grant themselves membership directly via the REST API,
-        // bypassing friendGroupApi.ts's joinGroup() entirely. Reproduces the exact discovery
-        // path too: A generates a code for the private group that's never handed to B, but
-        // invite_codes' "unexpired unused codes are readable" policy lets *any* authenticated
-        // user read it (and thus learn group_id) before it's redeemed - proving the group_id
-        // alone was never secret, only a *redeemed* code should grant membership.
+        // bypassing friendGroupApi.ts's joinGroup() entirely.
+        //
+        // Restructured for the final review's C1 fix. This check used to obtain the group_id the
+        // way an attacker did at the time - by reading an undisclosed invite code A had created,
+        // since the old "unexpired unused codes are readable" policy let ANY authenticated user
+        // read any outstanding code. That discovery path is precisely what C1 closed, so the
+        // check now hands B the group_id directly from this script's own state, which is a
+        // STRICTLY STRONGER form of the same assertion: it grants the attacker knowledge they
+        // can no longer actually obtain, and proves the membership insert is denied even so. The
+        // "B can't read the undisclosed code either" half is asserted separately below, so the
+        // two guarantees stay independently visible in the summary rather than one silently
+        // depending on the other.
         const undisclosedCode = generateInviteCodeString();
         const { error: undisclosedCodeErr } = await clientA.from("invite_codes").insert({
           code: undisclosedCode,
@@ -303,30 +406,24 @@ async function main() {
             `setup failed: ${undisclosedCodeErr.message}`
           );
         } else {
-          const { data: discovered, error: discoverErr } = await clientB
-            .from("invite_codes")
-            .select()
-            .eq("code", undisclosedCode)
-            .single();
-          if (discoverErr || !discovered) {
-            record(
-              "group_memberships: B cannot self-insert membership without redeeming an invite code",
-              false,
-              `expected B to be able to read the unredeemed code's group_id (proving it isn't secret) - ${discoverErr?.message}`
-            );
-          } else {
-            // B never redeemed `undisclosedCode` - just read its group_id off it - then
-            // attempts to grant themselves membership directly. An INSERT whose WITH CHECK
-            // fails always throws an explicit RLS-violation error (unlike SELECT's silent
-            // filtering), so this is a hard "must fail" assertion by construction.
-            await expectDenied(
-              "group_memberships: B cannot self-insert membership without redeeming an invite code",
-              () =>
-                clientB
-                  .from("group_memberships")
-                  .insert({ group_id: discovered.group_id, user_id: userB.id })
-            );
-          }
+          // C1: B is a legitimate member of A's OTHER group, but is neither this code's creator
+          // nor its redeemer - the only two predicates invite_codes' narrowed SELECT policy
+          // allows. Being someone's friend elsewhere must not make their outstanding codes
+          // readable.
+          await expectDenied(
+            "invite_codes (C1): B cannot read an outstanding code A created for a group B isn't in",
+            () => clientB.from("invite_codes").select().eq("code", undisclosedCode).single()
+          );
+
+          // B never redeemed `undisclosedCode`, and attempts to grant themselves membership
+          // directly using the group_id. An INSERT whose WITH CHECK fails always throws an
+          // explicit RLS-violation error (unlike SELECT's silent filtering), so this is a hard
+          // "must fail" assertion by construction.
+          await expectDenied(
+            "group_memberships: B cannot self-insert membership without redeeming an invite code",
+            () =>
+              clientB.from("group_memberships").insert({ group_id: privateGroupId, user_id: userB.id })
+          );
         }
       }
     }
@@ -463,39 +560,48 @@ async function main() {
       // genuinely pending request never carries either at creation, so both are simply omitted
       // here now (see scripts/verify-temp-passcode.mjs's Cases 12-14 for the dedicated live proof
       // that this tightening is real/deliberate and that the legitimate insert path still works).
+      //
+      // Final review, Important finding I2 (migration
+      // 20260815000026_v2_temp_passcode_group_floor.sql): the INSERT policy now additionally
+      // requires users_share_a_group(requester_user_id, friend_user_id). This request was
+      // previously assigned to C, who shares no group with A - correct as a "third party" for the
+      // OLD checks, but no longer a legitimate insert at all. Reassigned to B (who joined A's
+      // group in the Functional section above, so the floor is satisfied), and the unrelated
+      // third party for the two negative checks below is now C. The guarantee under test is
+      // unchanged: "readable/writable only by the requester or the assigned friend".
       const { data: passcodeReq, error: passcodeErr } = await clientA
         .from("temp_passcode_requests")
         .insert({
           session_id: `rls-verify-session-${RUN_ID}`,
           hostname: "youtube.com",
           requester_user_id: userA.id,
-          friend_user_id: userC.id,
+          friend_user_id: userB.id,
           status: "pending",
           delivered_via: "email",
         })
         .select("id, session_id, hostname, requester_user_id, friend_user_id, status")
         .single();
       if (passcodeErr || !passcodeReq) {
-        record("temp_passcode_requests: A creates a request assigned to C", false, passcodeErr?.message);
+        record("temp_passcode_requests: A creates a request assigned to B (shared group)", false, passcodeErr?.message);
       } else {
-        record("temp_passcode_requests: A creates a request assigned to C", true);
+        record("temp_passcode_requests: A creates a request assigned to B (shared group)", true);
         // Narrowed selects here too (same rationale as the insert's own comment above) - the
-        // point of these two checks is RLS row-visibility specifically (B has no relationship to
+        // point of these two checks is RLS row-visibility specifically (C has no relationship to
         // this row at all), not the separate column-grant denial code_hash/code_salt would add
         // regardless of who's asking; a narrowed column list isolates that.
         await expectDenied(
-          "temp_passcode_requests: B (not requester, not assigned friend) cannot read the request",
+          "temp_passcode_requests: C (not requester, not assigned friend) cannot read the request",
           () =>
-            clientB
+            clientC
               .from("temp_passcode_requests")
               .select("id, session_id, hostname, requester_user_id, friend_user_id, status")
               .eq("id", passcodeReq.id)
               .single()
         );
         await expectDenied(
-          "temp_passcode_requests: B (not requester, not assigned friend) cannot write the request",
+          "temp_passcode_requests: C (not requester, not assigned friend) cannot write the request",
           () =>
-            clientB
+            clientC
               .from("temp_passcode_requests")
               .update({ status: "denied" })
               .eq("id", passcodeReq.id)
@@ -503,6 +609,36 @@ async function main() {
               .single()
         );
       }
+
+      // === I2 (final review, Important): temp_passcode_requests' shared-group floor. ===
+      //
+      // C shares no group with A. Before 20260815000026 the INSERT policy checked only
+      // requester_user_id = auth.uid(), the genuinely-pending column values, and
+      // requester_user_id <> friend_user_id - never that the two users had any relationship at
+      // all. So any authenticated user who learned another user's UUID could create a request
+      // naming that stranger as the approving friend, which (a) surfaces in the stranger's side
+      // panel via the friend-poll alarm and (b) causes send-temp-passcode-request to email the
+      // stranger's REAL address with the request's caller-controlled `hostname` in the body -
+      // previously interpolated into that email's HTML unescaped (fixed in the same commit, see
+      // supabase/functions/send-temp-passcode-request/index.ts's escapeHtml). Every other
+      // cross-user-targeting write in this schema already had this floor; this table was the sole
+      // exception.
+      await expectDenied(
+        "temp_passcode_requests (I2): C cannot create a request naming A (no shared group) as the approving friend",
+        () =>
+          clientC
+            .from("temp_passcode_requests")
+            .insert({
+              session_id: `rls-verify-session-${RUN_ID}`,
+              hostname: "<img src=x onerror=alert(1)>evil.com",
+              requester_user_id: userC.id,
+              friend_user_id: userA.id,
+              status: "pending",
+              delivered_via: "email",
+            })
+            .select("id")
+            .single()
+      );
     }
 
     // --- Guarantee 5 (producer_tag_sends): readable only by sender, recipient, or a member of

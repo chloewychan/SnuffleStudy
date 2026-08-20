@@ -37,6 +37,28 @@ function json(body: unknown, status: number): Response {
   });
 }
 
+// v2 final whole-branch review, Important finding I2 (client half): `hostname` reaches this
+// function entirely caller-controlled - messageRouter.ts passes whatever the side panel sent,
+// tempPasscodeApi.ts's createRequest() inserts it verbatim, and temp_passcode_requests.hostname
+// carries no CHECK constraint bounding its shape. It was previously interpolated raw into the
+// outbound email's HTML body, so an authenticated user could have arbitrary attacker-authored
+// markup delivered to another user's real inbox from this product's sending domain. The companion
+// migration (20260815000026_v2_temp_passcode_group_floor.sql) restricts WHO can be targeted; this
+// escaping makes the payload itself inert regardless.
+//
+// A hostname is a plain string rendered as text, never rich content, so full escaping of the five
+// HTML-significant characters is both sufficient and complete - there is deliberately no allowlist
+// or partial-passthrough here. `&` must be replaced first, or it would double-escape the
+// ampersands introduced by the later replacements.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // Hoisted to module scope (mirrors generate-coaching-message's fix-round-1 latency lesson) - a
 // warm Deno isolate reuses the same clients across invocations instead of reconstructing them
 // every request.
@@ -143,8 +165,13 @@ Deno.serve(async (req: Request) => {
           from: "SnuffleStudy <onboarding@resend.dev>",
           to: [friendEmail],
           subject: "A friend needs a temporary passcode",
+          // `row.hostname` is the only user-controlled value interpolated into this body (the rest
+          // is static copy, and `friendEmail` goes into the `to` array as JSON, never into the
+          // HTML) - escaped per escapeHtml's comment above.
           html:
-            `<p>A friend on SnuffleStudy is asking you to unlock <strong>${row.hostname}</strong> ` +
+            `<p>A friend on SnuffleStudy is asking you to unlock <strong>${escapeHtml(
+              row.hostname
+            )}</strong> ` +
             "for a limited time during their focus session.</p>" +
             "<p>Open SnuffleStudy's side panel to review and approve or deny this request.</p>",
         }),
