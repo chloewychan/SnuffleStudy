@@ -47,6 +47,12 @@ export type ExtensionMessage =
   | { type: "GROUP_GENERATE_INVITE_CODE"; payload: { groupId: string } }
   | { type: "GROUP_JOIN"; payload: { code: string } }
   | { type: "GROUP_LIST_MEMBERS"; payload: { groupId: string } }
+  // v2 follow-up (Item 2, post-final-review): routes to friendGroupApi.leaveGroup() ->
+  // group_memberships' new DELETE policy (supabase/migrations/20260815000028_v2_group_leave.sql).
+  // Omitted/undefined targetUserId means "leave my own membership row"; a group owner may instead
+  // pass a specific targetUserId to remove someone else (kick) - both are the same RLS-gated
+  // DELETE, just naming a different row.
+  | { type: "GROUP_LEAVE"; payload: { groupId: string; targetUserId?: string } }
   // v2 Task 7: routes to friendGroupApi.listMyGroups() - lets FriendGroupPanel.tsx discover
   // which group(s) the current user is in (so it can then GROUP_LIST_MEMBERS per group) without
   // the user having to paste a groupId in, unlike AccountPage.tsx's manual-entry flow.

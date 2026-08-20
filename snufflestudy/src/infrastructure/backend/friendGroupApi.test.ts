@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { supabase } from "./supabaseClient";
-import { createGroup, generateInviteCode, joinGroup, listMembers, listMyGroups } from "./friendGroupApi";
+import {
+  createGroup,
+  generateInviteCode,
+  joinGroup,
+  leaveGroup,
+  listMembers,
+  listMyGroups,
+} from "./friendGroupApi";
 
 // Spies on the supabaseClient module's exported singleton (the actual boundary friendGroupApi.ts
 // talks to in this codebase - mirrors this repo's existing style of vi.spyOn-ing an imported
@@ -20,6 +27,7 @@ function makeBuilder(result: { data: unknown; error: { message: string } | null 
     select: ReturnType<typeof vi.fn>;
     eq: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
     single: ReturnType<typeof vi.fn>;
     then: (resolve: (value: typeof result) => unknown, reject: (err: unknown) => unknown) => unknown;
   } = {
@@ -27,6 +35,7 @@ function makeBuilder(result: { data: unknown; error: { message: string } | null 
     select: vi.fn(),
     eq: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
     single: vi.fn(() => Promise.resolve(result)),
     then: (resolve, reject) => Promise.resolve(result).then(resolve, reject),
   };
@@ -34,6 +43,7 @@ function makeBuilder(result: { data: unknown; error: { message: string } | null 
   builder.select.mockReturnValue(builder);
   builder.eq.mockReturnValue(builder);
   builder.update.mockReturnValue(builder);
+  builder.delete.mockReturnValue(builder);
   return builder;
 }
 
@@ -287,6 +297,70 @@ describe("friendGroupApi.joinGroup", () => {
 
     await expect(joinGroup("CODE1234")).rejects.toThrow("Not signed in.");
     expect(rpcSpy).not.toHaveBeenCalled();
+  });
+});
+
+// v2 follow-up (Item 2, post-final-review): deletes a group_memberships row. Enforcement (who is
+// actually allowed to remove THIS row) is entirely the new RLS DELETE policy's job (supabase/
+// migrations/20260815000028_v2_group_leave.sql) - this function does no authorization of its own,
+// so these tests only cover what leaveGroup itself controls: which table/columns it targets, and
+// whether it resolves the target user_id to the caller (self-leave, the default) or to an
+// explicitly-passed targetUserId (owner-removes-someone-else).
+describe("friendGroupApi.leaveGroup", () => {
+  it("deletes the caller's own group_memberships row when no targetUserId is given (self-leave)", async () => {
+    vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
+      data: { user: { id: "user-a" } },
+      error: null,
+    } as never);
+    const builder = makeBuilder({ data: null, error: null });
+    const fromSpy = vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+
+    await leaveGroup("group-1");
+
+    expect(fromSpy).toHaveBeenCalledWith("group_memberships");
+    expect(builder.delete).toHaveBeenCalledTimes(1);
+    expect(builder.eq).toHaveBeenCalledWith("group_id", "group-1");
+    expect(builder.eq).toHaveBeenCalledWith("user_id", "user-a");
+  });
+
+  it("deletes the targetUserId's row instead of the caller's own when one is given (owner removes a member)", async () => {
+    vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
+      data: { user: { id: "owner-id" } },
+      error: null,
+    } as never);
+    const builder = makeBuilder({ data: null, error: null });
+    const fromSpy = vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+
+    await leaveGroup("group-1", "member-to-remove");
+
+    expect(fromSpy).toHaveBeenCalledWith("group_memberships");
+    expect(builder.eq).toHaveBeenCalledWith("group_id", "group-1");
+    expect(builder.eq).toHaveBeenCalledWith("user_id", "member-to-remove");
+    // Never the caller's own id in this branch.
+    expect(builder.eq).not.toHaveBeenCalledWith("user_id", "owner-id");
+  });
+
+  it("throws when not signed in, even with a targetUserId given, without touching the database", async () => {
+    vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
+      data: { user: null },
+      error: null,
+    } as never);
+    const fromSpy = vi.spyOn(supabase, "from");
+
+    await expect(leaveGroup("group-1", "member-to-remove")).rejects.toThrow("Not signed in.");
+    expect(fromSpy).not.toHaveBeenCalled();
+  });
+
+  it("throws the Postgres error message when the delete fails", async () => {
+    vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
+      data: { user: { id: "user-a" } },
+      error: null,
+    } as never);
+    vi.spyOn(supabase, "from").mockReturnValue(
+      makeBuilder({ data: null, error: { message: "delete failed" } }) as never
+    );
+
+    await expect(leaveGroup("group-1")).rejects.toThrow("delete failed");
   });
 });
 

@@ -179,6 +179,63 @@ describe("AccountPage — signed in", () => {
     expect(await screen.findByText(/user-a/i)).toBeInTheDocument();
   });
 
+  // v2 follow-up (Item 2, post-final-review): self-leave UI, gated behind window.confirm (see
+  // AccountPage.tsx's handleLeaveGroup comment for why a bare click felt too easy to mis-fire).
+  describe("leaving a group", () => {
+    it("leaves the group typed into Group ID after confirming", async () => {
+      const leaveSpy = vi.fn(async () => ({ ok: true }));
+      mockSignedIn({ GROUP_LEAVE: leaveSpy });
+      // jsdom does not implement window.confirm at all (not even a stub) - a plain assignment,
+      // not vi.spyOn (which requires the property to already be a function).
+      window.confirm = vi.fn(() => true);
+
+      render(<AccountPage />);
+      await waitFor(() => screen.getByLabelText("Group ID"));
+      fireEvent.change(screen.getByLabelText("Group ID"), { target: { value: "group-1" } });
+
+      fireEvent.click(screen.getByRole("button", { name: "Leave group" }));
+
+      await waitFor(() =>
+        expect(leaveSpy).toHaveBeenCalledWith({
+          type: "GROUP_LEAVE",
+          payload: { groupId: "group-1" },
+        })
+      );
+      expect(await screen.findByText(/you've left this group/i)).toBeInTheDocument();
+    });
+
+    it("does not send GROUP_LEAVE when the confirm dialog is cancelled", async () => {
+      const leaveSpy = vi.fn(async () => ({ ok: true }));
+      mockSignedIn({ GROUP_LEAVE: leaveSpy });
+      window.confirm = vi.fn(() => false);
+
+      render(<AccountPage />);
+      await waitFor(() => screen.getByLabelText("Group ID"));
+      fireEvent.change(screen.getByLabelText("Group ID"), { target: { value: "group-1" } });
+
+      fireEvent.click(screen.getByRole("button", { name: "Leave group" }));
+
+      // Give any stray microtask a chance to run before asserting the negative.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(leaveSpy).not.toHaveBeenCalled();
+    });
+
+    it("surfaces a server-side denial (e.g. a non-owner trying to remove someone else) as an error", async () => {
+      mockSignedIn({
+        GROUP_LEAVE: async () => ({ ok: false, error: "Could not leave the group." }),
+      });
+      window.confirm = vi.fn(() => true);
+
+      render(<AccountPage />);
+      await waitFor(() => screen.getByLabelText("Group ID"));
+      fireEvent.change(screen.getByLabelText("Group ID"), { target: { value: "group-1" } });
+
+      fireEvent.click(screen.getByRole("button", { name: "Leave group" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/could not leave the group/i);
+    });
+  });
+
   it("signs out and returns to the signed-out view", async () => {
     mockSignedIn({
       AUTH_SIGN_OUT: async () => ({ ok: true }),

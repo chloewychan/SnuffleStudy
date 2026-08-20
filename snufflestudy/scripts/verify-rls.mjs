@@ -196,6 +196,10 @@ async function main() {
     // --- Functional DoD path: sign in, create a group, generate an invite code, second
     // account joins via that code. ---
     let joinGroupId = null;
+    // Hoisted out of the block below (which is its own lexical scope) so Guarantee 6 further down
+    // - which needs the exact code B redeemed, to prove the AFTER DELETE trigger un-redeems it on
+    // leave - can still reference it.
+    let joinGroupInviteCode = null;
     {
       const { id: createdGroupId, error: groupErr } = await createGroupAsOwner(
         clientA,
@@ -206,6 +210,7 @@ async function main() {
       joinGroupId = createdGroupId;
 
       const inviteCode = generateInviteCodeString();
+      joinGroupInviteCode = inviteCode;
       let inviteCreated = false;
       if (joinGroupId) {
         const { error: inviteErr } = await clientA.from("invite_codes").insert({
@@ -676,6 +681,183 @@ async function main() {
                 .single()
           );
         }
+      }
+    }
+
+    // --- Guarantee 6 (group_memberships DELETE / group-leave, v2 follow-up Item 2,
+    // post-final-review, finding I4): a member can remove their own row (leave); a group owner
+    // can remove someone else's (kick); a non-owner, non-self member can do neither. Leaving/being
+    // kicked must also close the re-join-without-a-fresh-invite gap (migration
+    // 20260815000028_v2_group_leave.sql's AFTER DELETE trigger) and actually revoke downstream
+    // group-gated visibility, not just delete the membership row in isolation. Reuses A/joinGroupId
+    // (A = owner) and B's real redeemed `joinGroupInviteCode` from the Functional section at the
+    // top of this script - joinGroupId is never referenced again after this block, so mutating
+    // its membership here is safe. ---
+    if (joinGroupId) {
+      // (a) B leaves the group they legitimately redeemed into above.
+      const leftOk = await expectOk("group_memberships: B leaves A's group (deletes own row)", () =>
+        clientB.from("group_memberships").delete().eq("group_id", joinGroupId).eq("user_id", userB.id)
+      );
+      if (leftOk) {
+        const { data: goneRow } = await admin
+          .from("group_memberships")
+          .select()
+          .eq("group_id", joinGroupId)
+          .eq("user_id", userB.id)
+          .maybeSingle();
+        record(
+          "group_memberships: B's membership row is actually gone after leaving",
+          !goneRow,
+          goneRow ? "row still present" : undefined
+        );
+
+        // (d) re-join gap: the AFTER DELETE trigger must null out the code B redeemed, so
+        // has_redeemed_invite_code(joinGroupId, B) flips back to false.
+        const { data: hasRedeemedAfterLeave, error: hasRedeemedErr } = await admin.rpc(
+          "has_redeemed_invite_code",
+          { p_group_id: joinGroupId, p_user_id: userB.id }
+        );
+        record(
+          "group_memberships (re-join gap): has_redeemed_invite_code(joinGroupId, B) is false after leaving",
+          !hasRedeemedErr && hasRedeemedAfterLeave === false,
+          hasRedeemedErr?.message ?? `got ${hasRedeemedAfterLeave}`
+        );
+        const { data: codeRowAfterLeave } = await admin
+          .from("invite_codes")
+          .select("used_by")
+          .eq("code", joinGroupInviteCode)
+          .maybeSingle();
+        record(
+          "group_memberships (re-join gap): B's redeemed inviteCode has used_by nulled out (un-redeemed, not left permanently marked)",
+          codeRowAfterLeave?.used_by === null,
+          `got ${JSON.stringify(codeRowAfterLeave)}`
+        );
+
+        // (e) downstream visibility is actually revoked, not just the membership row: B (no
+        // longer a member) can no longer read A's friend_groups row for this group - a purely
+        // membership-gated guarantee (friend_groups' SELECT policy has no friendship_settings
+        // dependency), isolating "does leaving revoke visibility" from any friendship_settings
+        // toggle state.
+        await expectDenied(
+          "group_memberships (leave revokes visibility): B can no longer read A's friend_groups row after leaving",
+          () => clientB.from("friend_groups").select().eq("id", joinGroupId).single()
+        );
+
+        // Bonus, proving the re-join gap is closed end-to-end (not just the helper flipping false
+        // in isolation): B re-attempting to insert their own membership row directly, with no
+        // fresh invite code redeemed, must fail exactly like any other never-invited stranger.
+        await expectDenied(
+          "group_memberships (re-join gap): B cannot re-insert their own membership row without redeeming a fresh invite code",
+          () => clientB.from("group_memberships").insert({ group_id: joinGroupId, user_id: userB.id })
+        );
+      }
+
+      // (b)/(c) setup: A issues a fresh code, C redeems it (so there's a non-owner member other
+      // than B to kick), then B legitimately rejoins with a SECOND fresh code (proving the re-join
+      // fix doesn't block a genuinely NEW invite, only a reuse of the old one) so there are two
+      // non-owner members - the shape (c) needs to prove B cannot remove C.
+      const kickCode = generateInviteCodeString();
+      const { error: kickCodeErr } = await clientA.from("invite_codes").insert({
+        code: kickCode,
+        group_id: joinGroupId,
+        created_by: userA.id,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+      const { data: cJoined, error: cJoinErr } = kickCodeErr
+        ? { data: null, error: kickCodeErr }
+        : await clientC.rpc("redeem_invite_code", { p_code: kickCode });
+      record(
+        "group_memberships: C joins A's group (setup for the kick/non-owner-delete checks)",
+        !cJoinErr && !!cJoined,
+        (kickCodeErr ?? cJoinErr)?.message
+      );
+
+      const rejoinCode = generateInviteCodeString();
+      const { error: rejoinCodeErr } = await clientA.from("invite_codes").insert({
+        code: rejoinCode,
+        group_id: joinGroupId,
+        created_by: userA.id,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+      const { data: bRejoined, error: bRejoinErr } = rejoinCodeErr
+        ? { data: null, error: rejoinCodeErr }
+        : await clientB.rpc("redeem_invite_code", { p_code: rejoinCode });
+      record(
+        "group_memberships: B legitimately rejoins with a fresh invite code (setup for the non-owner-delete check)",
+        !bRejoinErr && !!bRejoined,
+        (rejoinCodeErr ?? bRejoinErr)?.message
+      );
+
+      if (cJoined && bRejoined) {
+        // (c) B (a non-owner, and not C) cannot delete C's row. `.select().single()` chained
+        // (this file's usual trick for turning RLS's silent zero-row filtering into a hard
+        // error) - a bare `.delete()` with no RETURNING would only prove the weaker "no rows
+        // reported" fallback, which the TRAP comment at the top of this file flags as strictly
+        // weaker evidence.
+        await expectDenied(
+          "group_memberships: a non-owner, non-self member (B) cannot delete another member's (C's) row",
+          () =>
+            clientB
+              .from("group_memberships")
+              .delete()
+              .eq("group_id", joinGroupId)
+              .eq("user_id", userC.id)
+              .select()
+              .single()
+        );
+        const { data: cStillThere } = await admin
+          .from("group_memberships")
+          .select()
+          .eq("group_id", joinGroupId)
+          .eq("user_id", userC.id)
+          .maybeSingle();
+        record(
+          "group_memberships: C's row is untouched after B's denied delete attempt",
+          !!cStillThere,
+          cStillThere ? undefined : "row missing - the denied delete actually went through"
+        );
+
+        // (b) the owner (A) removes C directly - the kick path.
+        const kickedOk = await expectOk(
+          "group_memberships: group owner (A) removes another member (C) directly (kick)",
+          () => clientA.from("group_memberships").delete().eq("group_id", joinGroupId).eq("user_id", userC.id)
+        );
+        if (kickedOk) {
+          const { data: cGoneRow } = await admin
+            .from("group_memberships")
+            .select()
+            .eq("group_id", joinGroupId)
+            .eq("user_id", userC.id)
+            .maybeSingle();
+          record(
+            "group_memberships: C's row is actually gone after being kicked by the owner",
+            !cGoneRow,
+            cGoneRow ? "row still present" : undefined
+          );
+        }
+      }
+
+      // Owner-leaves-their-own-group: the migration's documented judgment call is that an owner
+      // leaves via the exact same `user_id = auth.uid()` branch as anyone else, with no
+      // ownership-transfer requirement (there is no such mechanism in this schema). Run last in
+      // this block/script - nothing after this references joinGroupId or expects A to still be a
+      // member of it.
+      const ownerLeftOk = await expectOk(
+        "group_memberships: the group owner (A) can leave their own group the same way any member can",
+        () => clientA.from("group_memberships").delete().eq("group_id", joinGroupId).eq("user_id", userA.id)
+      );
+      if (ownerLeftOk) {
+        const { data: ownerGoneRow } = await admin
+          .from("group_memberships")
+          .select()
+          .eq("group_id", joinGroupId)
+          .eq("user_id", userA.id)
+          .maybeSingle();
+        record(
+          "group_memberships: the owner's own row is actually gone after leaving",
+          !ownerGoneRow,
+          ownerGoneRow ? "row still present" : undefined
+        );
       }
     }
   } finally {

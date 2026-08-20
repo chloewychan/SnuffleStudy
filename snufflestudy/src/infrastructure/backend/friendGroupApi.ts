@@ -214,6 +214,43 @@ export async function listMembers(groupId: string): Promise<GroupMembership[]> {
   }));
 }
 
+// v2 follow-up (Item 2, post-final-review): deletes the caller's own group_memberships row
+// (leave), or - when targetUserId is supplied - a different member's row (a group owner removing
+// someone else, i.e. a kick). Both are the exact same DELETE, just naming a different user_id; the
+// new RLS policy (supabase/migrations/20260815000028_v2_group_leave.sql - "member can leave or
+// owner can remove a member") is what actually decides whether the caller is allowed to remove
+// THIS particular row: their own row always qualifies via `user_id = auth.uid()`, and a
+// non-owner's attempt to remove someone else's row is denied server-side regardless of what this
+// function passes - this function does no authorization of its own, matching every other
+// function in this file (the RLS policy is the enforcement, per the Global Constraint).
+//
+// Same error-handling convention as createGroup/generateInviteCode/joinGroup above: throw with the
+// Postgres error message when present. A denied delete (wrong user attempting to remove someone
+// else) is NOT surfaced as a Postgres error here - RLS silently filters a DELETE to zero affected
+// rows rather than raising, the same "silent filtering, not an error" behavior this codebase's
+// verify-*.mjs scripts document repeatedly for SELECT/UPDATE. Since supabase-js's plain
+// `.delete()` (no `.select()`) doesn't report affected-row count either, this function cannot
+// distinguish "the row was removed" from "RLS silently allowed zero rows" purely from this call's
+// result - callers that need that distinction (this dispatch's messageRouter.ts case does not)
+// would need to add `.select()` and check the returned array, the same technique verify-rls.mjs's
+// own DELETE checks use.
+export async function leaveGroup(groupId: string, targetUserId?: string): Promise<void> {
+  // requireUserId() is called unconditionally (not just in the omitted-targetUserId branch) so an
+  // unauthenticated call always fails with this file's usual "Not signed in." message, matching
+  // every other function here, rather than falling through to a raw RLS denial with no caller id
+  // at all.
+  const selfUserId = await requireUserId();
+
+  const { error } = await supabase
+    .from("group_memberships")
+    .delete()
+    .eq("group_id", groupId)
+    .eq("user_id", targetUserId ?? selfUserId);
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 // v2 Task 7: same query shape as friendSync.ts's isInAnyGroup() (group_memberships filtered by
 // user_id, satisfiable under "members can read memberships of their own groups" RLS without any
 // special-cased policy), but returning the full rows instead of a boolean - needed by

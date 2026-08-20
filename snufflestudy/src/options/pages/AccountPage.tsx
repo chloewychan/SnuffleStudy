@@ -46,6 +46,16 @@ export function AccountPage() {
   const [membersError, setMembersError] = useState<string | null>(null);
   const [membersBusy, setMembersBusy] = useState(false);
 
+  // v2 follow-up (Item 2, post-final-review): self-leave only - reuses membersGroupId (the same
+  // manual-entry field "List members" already uses) rather than adding a second group-id input.
+  // Owner-removes-a-specific-member (kick) has no obvious home in this manual-entry-only UI (there
+  // is no per-row member list beyond the raw `members` array below) - GROUP_LEAVE's targetUserId
+  // stays capable of it, this page just doesn't build a control for it, per this dispatch's
+  // "primary must-have is self-leave, kick UI is a skippable nice-to-have" guidance.
+  const [leaveError, setLeaveError] = useState<string | null>(null);
+  const [leaveBusy, setLeaveBusy] = useState(false);
+  const [leftGroupId, setLeftGroupId] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -236,6 +246,38 @@ export function AccountPage() {
     }
   }
 
+  async function handleLeaveGroup() {
+    if (!membersGroupId) return;
+    // Minimal confirm per this dispatch's "a button and a confirm, not a new settings page"
+    // scope - matches the browser-native confirm this codebase doesn't otherwise use elsewhere,
+    // but leaving a group is destructive-ish (loses access to friends' shared data in that group)
+    // and irreversible without a fresh invite code, so a bare click felt too easy to mis-fire.
+    if (!window.confirm("Leave this group? You'll need a new invite code to rejoin.")) return;
+    setLeaveBusy(true);
+    setLeaveError(null);
+    try {
+      const res = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "GROUP_LEAVE",
+        payload: { groupId: membersGroupId },
+      });
+      if (!res.ok) {
+        setLeaveError(res.error ?? "Could not leave the group.");
+        return;
+      }
+      setLeftGroupId(membersGroupId);
+      setMembers(null);
+      if (group?.id === membersGroupId) {
+        setGroup(null);
+        setInviteCode(null);
+      }
+    } catch (err) {
+      console.error("Failed to leave group", err);
+      setLeaveError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLeaveBusy(false);
+    }
+  }
+
   if (!sessionLoaded) {
     return (
       <div className="account-page">
@@ -405,6 +447,19 @@ export function AccountPage() {
                   </li>
                 ))}
               </ul>
+            )}
+            <button
+              type="button"
+              onClick={() => void handleLeaveGroup()}
+              disabled={leaveBusy || !membersGroupId}
+            >
+              {leaveBusy ? "Leaving…" : "Leave group"}
+            </button>
+            {leaveError && (
+              <p role="alert">Couldn't leave the group: {leaveError}. Please try again.</p>
+            )}
+            {leftGroupId === membersGroupId && !leaveError && (
+              <p>You've left this group.</p>
             )}
           </section>
         </>
