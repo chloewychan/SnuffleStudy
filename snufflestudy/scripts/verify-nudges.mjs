@@ -203,9 +203,12 @@ async function main() {
 
     // S declares "I may nudge R" - written as S's own authenticated write (friendship_settings'
     // policies require user_id = auth.uid() for every operation). `.upsert()` (fix round 1, not
-    // `.insert()`): the trigger above already auto-created this exact (S, R) row - with
-    // send_live_nudges already true by its own column default - the moment R joined the group, so
-    // a plain `.insert()` here would now fail with a duplicate-key error.
+    // `.insert()`): the trigger above already auto-created this exact (S, R) row the moment R
+    // joined the group (send_live_nudges defaults false since migration
+    // 20260815000027_v2_default_legacy_visibility_to_false.sql - a v2 follow-up, this script's own
+    // explicit `send_live_nudges: true` below is what actually grants the toggle now, not the
+    // column default), so a plain `.insert()` here would still fail with a duplicate-key error
+    // regardless of the default.
     const { error: sSettingsErr } = await clientS
       .from("friendship_settings")
       .upsert(

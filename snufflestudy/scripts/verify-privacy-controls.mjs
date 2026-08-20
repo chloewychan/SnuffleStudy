@@ -240,11 +240,17 @@ async function main() {
         rowsAfterJoin.length === 2,
         `got ${rowsAfterJoin.length} row(s)`
       );
+      // v2 follow-up (Item 1, post-final-review, migration
+      // 20260815000027_v2_default_legacy_visibility_to_false.sql): the three pre-existing columns
+      // now default false too, closing finding I6 (they used to default true, in direct tension
+      // with the plan's own Global Constraint of "default to minimal visibility" and inconsistent
+      // with the five newer share_* toggles below, which have always defaulted false). All eight
+      // columns are now false on a freshly-created row.
       const allDefaults = rowsAfterJoin.every(
         (r) =>
-          r.receive_live_nudges === true &&
-          r.send_live_nudges === true &&
-          r.receive_daily_digest === true &&
+          r.receive_live_nudges === false &&
+          r.send_live_nudges === false &&
+          r.receive_daily_digest === false &&
           r.share_distraction_attempts === false &&
           r.share_current_domain === false &&
           r.share_goal_text === false &&
@@ -252,11 +258,26 @@ async function main() {
           r.share_full_history === false
       );
       record(
-        "Trigger: both auto-created rows have every column at its schema default (three pre-existing true, five new share_* false)",
+        "Trigger: both auto-created rows have every column at its schema default (all eight false, since migration 20260815000027)",
         allDefaults,
         allDefaults ? undefined : JSON.stringify(rowsAfterJoin)
       );
     }
+
+    // v2 follow-up (Item 1): every check below (Case 1 through the group-membership floor and the
+    // column-leak check) depends on F having the pre-existing BASELINE visibility of S's session
+    // events - friend_has_granted_live_visibility(), which reads send_live_nudges
+    // (supabase/migrations/20260815000006_v2_fix_session_status_events_visibility_recursion.sql) -
+    // since that's a prerequisite gate underneath every one of the five newer share_* toggles
+    // (each new helper embeds users_share_a_group() but NOT send_live_nudges directly; the row-
+    // level SELECT policy and every RPC below still separately require baseline visibility for a
+    // non-own row). Before migration 20260815000027 this was already true the moment S and F
+    // shared a group (send_live_nudges's old column default). Now it defaults false like
+    // everything else, so it must be explicitly granted here, or every case below would fail for
+    // a reason unrelated to what each case is actually testing.
+    await expectOk("Setup: S turns send_live_nudges ON toward F (baseline visibility floor for every case below)", () =>
+      updateSettingsAsSubject(clientS, userS.id, userF.id, { send_live_nudges: true })
+    );
 
     // --- Seed S's session_status_events ---
     const sessionId = `verify-privacy-${RUN_ID}`;

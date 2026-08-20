@@ -285,9 +285,12 @@ async function main() {
     //
     // v2 Task 10: F and S already share a group (set up just above), so migration
     // 20260815000012's group_memberships_create_friendship_settings trigger already auto-created
-    // this exact (F, S) row - with receive_daily_digest already true by its own column default -
-    // the moment F joined. A plain `.insert()` here would now fail with a duplicate-key error;
-    // `.upsert()` is robust to the row already existing while still proving F can write it.
+    // this exact (F, S) row the moment F joined (receive_daily_digest defaults false since
+    // migration 20260815000027_v2_default_legacy_visibility_to_false.sql - a v2 follow-up; this
+    // script's own explicit `receive_daily_digest: true` below is what actually grants the toggle
+    // now). A plain `.insert()` here would still fail with a duplicate-key error regardless of the
+    // default; `.upsert()` is robust to the row already existing while still proving F can write
+    // it.
     const { error: fOptInErr } = await clientF
       .from("friendship_settings")
       .upsert(

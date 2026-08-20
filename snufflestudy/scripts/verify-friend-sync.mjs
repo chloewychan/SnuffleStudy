@@ -160,8 +160,10 @@ async function main() {
     //
     // v2 Task 10: A and B already share a group by this point (set up just above), so migration
     // 20260815000012's group_memberships_create_friendship_settings trigger already auto-created
-    // this exact (A, B) row - with send_live_nudges already true by its own column default - the
-    // moment B joined. A plain `.insert()` here would now fail with a duplicate-key error;
+    // this exact (A, B) row the moment B joined (send_live_nudges defaults false since migration
+    // 20260815000027_v2_default_legacy_visibility_to_false.sql - a v2 follow-up; this script's own
+    // explicit `send_live_nudges: true` below is what actually grants the toggle now). A plain
+    // `.insert()` here would still fail with a duplicate-key error regardless of the default;
     // `.upsert()` is robust to the row already existing while still proving A can write it.
     const { error: enableErr } = await clientA
       .from("friendship_settings")
