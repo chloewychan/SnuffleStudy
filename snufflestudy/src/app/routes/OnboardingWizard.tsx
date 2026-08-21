@@ -10,11 +10,26 @@ interface OnboardingWizardProps {
   onComplete: () => void;
 }
 
-type Step = "name" | "pressure" | "duration" | "tracking" | "sites" | "passcode" | "review";
+type Step =
+  | "account"
+  | "name"
+  | "pressure"
+  | "duration"
+  | "tracking"
+  | "sites"
+  | "passcode"
+  | "review";
 
 export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [showWelcome, setShowWelcome] = useState(true);
-  const [step, setStep] = useState<Step>("name");
+  const [step, setStep] = useState<Step>("account");
+  // Onboarding's sign-in step (v3.1 Task 1) - namespaced accountAuth* state so it can't collide
+  // with this file's existing passcode* state used by the later hard-block-passcode step.
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountOtpRequested, setAccountOtpRequested] = useState(false);
+  const [accountOtpCode, setAccountOtpCode] = useState("");
+  const [accountAuthError, setAccountAuthError] = useState<string | null>(null);
+  const [accountAuthBusy, setAccountAuthBusy] = useState(false);
   // PRESSURE_PROFILES is a non-empty constant array defined in the domain module.
   const [pressureProfileId, setPressureProfileId] = useState(PRESSURE_PROFILES[0]!.id);
   const [focusMinutes, setFocusMinutes] = useState(25);
@@ -29,6 +44,51 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [passcodeSaving, setPasscodeSaving] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
+
+  async function handleAccountRequestOtp() {
+    setAccountAuthBusy(true);
+    setAccountAuthError(null);
+    try {
+      const res = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "AUTH_REQUEST_OTP",
+        payload: { email: accountEmail },
+      });
+      if (!res.ok) {
+        setAccountAuthError(res.error ?? "Could not send a sign-in code.");
+        return;
+      }
+      setAccountOtpRequested(true);
+    } catch (err) {
+      // sendMessage (chrome.runtime.sendMessage) can reject — e.g. "Could not establish
+      // connection. Receiving end does not exist." during service-worker startup races,
+      // or extension-context-invalidated.
+      console.error("Failed to request a sign-in code during onboarding", err);
+      setAccountAuthError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAccountAuthBusy(false);
+    }
+  }
+
+  async function handleAccountVerifyOtp() {
+    setAccountAuthBusy(true);
+    setAccountAuthError(null);
+    try {
+      const res = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "AUTH_VERIFY_OTP",
+        payload: { email: accountEmail, token: accountOtpCode },
+      });
+      if (!res.ok) {
+        setAccountAuthError(res.error ?? "Incorrect or expired code.");
+        return;
+      }
+      setStep("name");
+    } catch (err) {
+      console.error("Failed to verify sign-in code during onboarding", err);
+      setAccountAuthError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAccountAuthBusy(false);
+    }
+  }
 
   async function setPasscodeAndContinue() {
     setPasscodeSaving(true);
@@ -122,6 +182,71 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
 
   if (showWelcome) {
     return <WelcomeScreen onContinue={() => setShowWelcome(false)} />;
+  }
+
+  if (step === "account") {
+    return (
+      <div className="onboarding-step">
+        <h2>Sign in</h2>
+        <p>
+          Sign in to use friends, rooms, nudges, approvals, and synced accountability features.
+        </p>
+        {accountAuthError && (
+          <p role="alert" className="onboarding-step__error">
+            Couldn't sign in: {accountAuthError}. Please try again.
+          </p>
+        )}
+        {!accountOtpRequested ? (
+          <>
+            <label>
+              Email
+              <input
+                type="email"
+                required
+                value={accountEmail}
+                onChange={(e) => setAccountEmail(e.target.value)}
+              />
+            </label>
+            <div className="onboarding-step__actions">
+              <button onClick={() => setStep("name")} disabled={accountAuthBusy}>
+                Skip for now
+              </button>
+              <button
+                onClick={() => void handleAccountRequestOtp()}
+                disabled={accountAuthBusy || !accountEmail}
+              >
+                {accountAuthBusy ? "Sending…" : "Send sign-in code"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p>Check {accountEmail} for a 6-digit code.</p>
+            <label>
+              Code
+              <input
+                type="text"
+                inputMode="numeric"
+                required
+                value={accountOtpCode}
+                onChange={(e) => setAccountOtpCode(e.target.value)}
+              />
+            </label>
+            <div className="onboarding-step__actions">
+              <button onClick={() => setStep("name")} disabled={accountAuthBusy}>
+                Skip for now
+              </button>
+              <button
+                onClick={() => void handleAccountVerifyOtp()}
+                disabled={accountAuthBusy || accountOtpCode.length === 0}
+              >
+                {accountAuthBusy ? "Verifying…" : "Verify code"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
   }
 
   if (step === "name") {
@@ -235,7 +360,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
             Skip for now
           </button>
           <button
-            onClick={setPasscodeAndContinue}
+            onClick={() => void setPasscodeAndContinue()}
             disabled={passcode.length < 4 || passcodeSaving}
           >
             {passcodeSaving ? "Saving…" : "Set passcode"}
@@ -254,7 +379,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
           Couldn't save your settings: {finishError}. Please try again.
         </p>
       )}
-      <button onClick={finish} disabled={finishing}>
+      <button onClick={() => void finish()} disabled={finishing}>
         {finishing ? "Starting…" : "Start using SnuffleStudy"}
       </button>
     </div>
