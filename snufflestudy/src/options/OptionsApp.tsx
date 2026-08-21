@@ -10,8 +10,14 @@ import {
   registerOverlayContentScript,
   unregisterOverlayContentScript,
 } from "../background/contentScriptRegistration";
+import { HistoryPage } from "./pages/HistoryPage";
+import { AccountPage } from "./pages/AccountPage";
+import { FriendsPage } from "./pages/FriendsPage";
+
+type OptionsView = "settings" | "history" | "account" | "friends";
 
 export function OptionsApp() {
+  const [view, setView] = useState<OptionsView>("settings");
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -151,68 +157,213 @@ export function OptionsApp() {
 
   return (
     <div className="options-app">
-      <section>
-        <h2>Tracking</h2>
-        <label>
-          <input
-            type="radio"
-            checked={settings.trackingTier === "activity-only"}
-            onChange={() => handleTrackingTierChange("activity-only")}
-            disabled={trackingChanging}
-          />
-          Activity-only
-        </label>
-        <label>
-          <input
-            type="radio"
-            checked={settings.trackingTier === "detailed"}
-            onChange={() => handleTrackingTierChange("detailed")}
-            disabled={trackingChanging}
-          />
-          Detailed site tracking
-        </label>
-      </section>
-
-      <section>
-        <h2>Default restricted sites</h2>
-        <textarea
-          aria-label="Default restricted sites"
-          value={settings.defaultRestrictedSites.join("\n")}
-          onChange={(e) =>
-            updateSettings({ defaultRestrictedSites: e.target.value.split("\n").filter(Boolean) })
-          }
-        />
-      </section>
-
-      {saveError && (
-        <p role="alert">Couldn't save your changes: {saveError}. Please try again.</p>
-      )}
-
-      <section>
-        <h2>Hard-block passcode</h2>
-        <p>Share this with a friend, not with yourself. Setting a new passcode replaces the old one.</p>
-        <input
-          data-testid="old-passcode-input"
-          type="password"
-          placeholder="Current passcode (leave blank if you've never set one)"
-          value={oldPasscode}
-          onChange={(e) => setOldPasscode(e.target.value)}
-        />
-        <input
-          data-testid="passcode-input"
-          type="password"
-          placeholder="Passcode"
-          value={passcode}
-          onChange={(e) => setPasscode(e.target.value)}
-        />
-        <button onClick={handleSavePasscode} disabled={passcode.length < 4 || passcodeSaving}>
-          {passcodeSaving ? "Saving…" : "Save passcode"}
+      <nav className="options-app__nav">
+        <button
+          type="button"
+          aria-current={view === "settings" ? "page" : undefined}
+          disabled={view === "settings"}
+          onClick={() => setView("settings")}
+        >
+          Settings
         </button>
-        {passcodeError && (
-          <p role="alert">Couldn't save your passcode: {passcodeError}. Please try again.</p>
-        )}
-        {passcodeSaved && <p>Passcode saved.</p>}
-      </section>
+        <button
+          type="button"
+          aria-current={view === "history" ? "page" : undefined}
+          disabled={view === "history"}
+          onClick={() => setView("history")}
+        >
+          History
+        </button>
+        <button
+          type="button"
+          aria-current={view === "account" ? "page" : undefined}
+          disabled={view === "account"}
+          onClick={() => setView("account")}
+        >
+          Account
+        </button>
+        <button
+          type="button"
+          aria-current={view === "friends" ? "page" : undefined}
+          disabled={view === "friends"}
+          onClick={() => setView("friends")}
+        >
+          Friends
+        </button>
+      </nav>
+
+      {view === "history" && <HistoryPage />}
+
+      {view === "account" && <AccountPage />}
+
+      {view === "friends" && <FriendsPage />}
+
+      {view === "settings" && (
+        <>
+          <section>
+            <h2>Tracking</h2>
+            <label>
+              <input
+                type="radio"
+                checked={settings.trackingTier === "activity-only"}
+                onChange={() => handleTrackingTierChange("activity-only")}
+                disabled={trackingChanging}
+              />
+              Activity-only
+            </label>
+            <label>
+              <input
+                type="radio"
+                checked={settings.trackingTier === "detailed"}
+                onChange={() => handleTrackingTierChange("detailed")}
+                disabled={trackingChanging}
+              />
+              Detailed site tracking
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={settings.activityTrackingEnabled}
+                disabled={settings.trackingTier !== "activity-only"}
+                onChange={(e) => updateSettings({ activityTrackingEnabled: e.target.checked })}
+              />
+              Track idle/active status during focus sessions
+            </label>
+          </section>
+
+          <section>
+            <h2>Friends</h2>
+            <label>
+              <input
+                type="checkbox"
+                checked={settings.friendSyncEnabled}
+                onChange={(e) => updateSettings({ friendSyncEnabled: e.target.checked })}
+              />
+              Share session activity with my friend group
+            </label>
+            <p>
+              When on, generic session events (started, paused, distracted, completed, etc — never
+              a site name or your goal text) sync to your friend group, and the extension polls
+              for their activity while a session is active. Off by default.
+            </p>
+          </section>
+
+          <section>
+            <h2>Notifications</h2>
+            <p>
+              These only control whether THIS device shows a notification toast for friend
+              activity it has already received — they don't change what any friend can see. For
+              per-friend visibility controls, see the Friends page.
+            </p>
+            <label>
+              <input
+                type="checkbox"
+                checked={settings.liveNudgesNotificationsEnabled}
+                onChange={(e) =>
+                  updateSettings({ liveNudgesNotificationsEnabled: e.target.checked })
+                }
+              />
+              Show a notification when a friend sends me a live nudge
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={settings.digestNotificationsEnabled}
+                onChange={(e) => updateSettings({ digestNotificationsEnabled: e.target.checked })}
+              />
+              Show a notification for a friend's daily digest
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={settings.quietHours !== null}
+                onChange={(e) =>
+                  updateSettings({
+                    quietHours: e.target.checked ? { startHour: 22, endHour: 7 } : null,
+                  })
+                }
+              />
+              Quiet hours (suppress notification toasts during a window)
+            </label>
+            {settings.quietHours && (
+              <>
+                <label>
+                  Quiet hours start (0-23, local time)
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={settings.quietHours.startHour}
+                    onChange={(e) =>
+                      updateSettings({
+                        quietHours: {
+                          ...settings.quietHours!,
+                          startHour: Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  Quiet hours end (0-23, local time)
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={settings.quietHours.endHour}
+                    onChange={(e) =>
+                      updateSettings({
+                        quietHours: { ...settings.quietHours!, endHour: Number(e.target.value) },
+                      })
+                    }
+                  />
+                </label>
+              </>
+            )}
+          </section>
+
+          <section>
+            <h2>Default restricted sites</h2>
+            <textarea
+              aria-label="Default restricted sites"
+              value={settings.defaultRestrictedSites.join("\n")}
+              onChange={(e) =>
+                updateSettings({ defaultRestrictedSites: e.target.value.split("\n").filter(Boolean) })
+              }
+            />
+          </section>
+
+          {saveError && (
+            <p role="alert">Couldn't save your changes: {saveError}. Please try again.</p>
+          )}
+
+          <section>
+            <h2>Hard-block passcode</h2>
+            <p>Share this with a friend, not with yourself. Setting a new passcode replaces the old one.</p>
+            <input
+              data-testid="old-passcode-input"
+              type="password"
+              placeholder="Current passcode (leave blank if you've never set one)"
+              value={oldPasscode}
+              onChange={(e) => setOldPasscode(e.target.value)}
+            />
+            <input
+              data-testid="passcode-input"
+              type="password"
+              placeholder="Passcode"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+            />
+            <button onClick={handleSavePasscode} disabled={passcode.length < 4 || passcodeSaving}>
+              {passcodeSaving ? "Saving…" : "Save passcode"}
+            </button>
+            {passcodeError && (
+              <p role="alert">Couldn't save your passcode: {passcodeError}. Please try again.</p>
+            )}
+            {passcodeSaved && <p>Passcode saved.</p>}
+          </section>
+        </>
+      )}
     </div>
   );
 }

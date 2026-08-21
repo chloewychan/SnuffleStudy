@@ -3,10 +3,12 @@ import { handleMessage } from "../src/background/messageRouter";
 import { registerAlarmHandlers } from "../src/background/alarmHandlers";
 import { registerTabHandlers } from "../src/background/tabHandlers";
 import { registerIdleHandlers } from "../src/background/idleHandlers";
+import { registerActivityTrackingHandlers } from "../src/background/activityTrackingHandlers";
 
 export default defineBackground(() => {
   onMessage(handleMessage);
   registerAlarmHandlers();
   registerTabHandlers();
   registerIdleHandlers();
+  registerActivityTrackingHandlers();
 });

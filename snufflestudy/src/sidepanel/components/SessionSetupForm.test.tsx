@@ -142,6 +142,67 @@ describe("SessionSetupForm", () => {
     expect(permissionSpy).not.toHaveBeenCalled();
   });
 
+  it("pre-fills the goal field from initialGoal and passes taskBreakdownItemId through on create", async () => {
+    // Task Vault (app/routes/TaskVaultPage.tsx) "Start a session from this" flow: SidePanelApp
+    // passes the breakdown item's description as initialGoal and its id as taskBreakdownItemId.
+    const sendMessageSpy = vi
+      .spyOn(messenger, "sendMessage")
+      .mockResolvedValueOnce({ ok: true, session: { id: "session_1" } })
+      .mockResolvedValueOnce({ ok: true });
+
+    render(
+      <SessionSetupForm
+        settings={DEFAULT_USER_SETTINGS}
+        initialGoal="Chapter 6 of STAT231"
+        taskBreakdownItemId="item_1"
+      />
+    );
+
+    expect(screen.getByPlaceholderText("Finish 20 chemistry problems")).toHaveValue(
+      "Chapter 6 of STAT231"
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          type: "SESSION_CREATE",
+          payload: expect.objectContaining({
+            goal: "Chapter 6 of STAT231",
+            taskBreakdownItemId: "item_1",
+          }),
+        })
+      )
+    );
+  });
+
+  it("leaves the goal field empty and omits taskBreakdownItemId when neither is provided", async () => {
+    const sendMessageSpy = vi
+      .spyOn(messenger, "sendMessage")
+      .mockResolvedValueOnce({ ok: true, session: { id: "session_1" } })
+      .mockResolvedValueOnce({ ok: true });
+
+    render(<SessionSetupForm settings={DEFAULT_USER_SETTINGS} />);
+    expect(screen.getByPlaceholderText("Finish 20 chemistry problems")).toHaveValue("");
+
+    fireEvent.change(screen.getByPlaceholderText("Finish 20 chemistry problems"), {
+      target: { value: "Read chapter 3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          type: "SESSION_CREATE",
+          payload: expect.objectContaining({ goal: "Read chapter 3", taskBreakdownItemId: undefined }),
+        })
+      )
+    );
+  });
+
   it("does not request hard-block host permission in hard mode when no restricted sites are configured", async () => {
     const permissionSpy = vi.spyOn(permissionsApi, "requestHardBlockHostPermission");
     vi.spyOn(messenger, "sendMessage")

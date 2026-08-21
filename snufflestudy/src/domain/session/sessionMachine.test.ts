@@ -21,6 +21,11 @@ describe("sessionMachine", () => {
     expect(session.activityState).toBe("active");
   });
 
+  it("never sets taskBreakdownItemId itself - messageRouter.ts's SESSION_CREATE handler merges it in from the message payload, since CreateSessionInput doesn't carry it", () => {
+    const session = machine.createSession(input, "session_1", 1000);
+    expect(session.taskBreakdownItemId).toBeUndefined();
+  });
+
   it("sets activityState independently of interventionLevel", () => {
     const created = machine.createSession(input, "session_1", 1000);
     const idle = machine.setActivityState(created, "idle");

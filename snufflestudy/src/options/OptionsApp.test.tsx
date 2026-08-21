@@ -5,6 +5,7 @@ import * as messenger from "../infrastructure/messaging/extensionMessenger";
 import * as permissionsApi from "../infrastructure/browser/permissionsApi";
 import * as contentScriptRegistration from "../background/contentScriptRegistration";
 import { DEFAULT_USER_SETTINGS } from "../domain/settings/userSettings";
+import { HISTORY_LIST_LIMIT } from "./pages/HistoryPage";
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -84,6 +85,61 @@ describe("OptionsApp", () => {
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  it("shows the activity-tracking toggle enabled by default and saves it when turned off", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Track idle/active status during focus sessions"));
+
+    const toggle = screen.getByLabelText("Track idle/active status during focus sessions");
+    expect(toggle).toBeChecked();
+
+    fireEvent.click(toggle);
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "SETTINGS_SAVE",
+        payload: { ...DEFAULT_USER_SETTINGS, activityTrackingEnabled: false },
+      })
+    );
+  });
+
+  it("shows the friend-sync toggle off by default and saves it when turned on", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Share session activity with my friend group"));
+
+    const toggle = screen.getByLabelText("Share session activity with my friend group");
+    // v2 Task 6: friendSyncEnabled defaults to false (unlike activityTrackingEnabled's
+    // true-by-default) - it syncs to a remote friend group's backend, the more
+    // privacy-sensitive of the two, so it's opt-in.
+    expect(toggle).not.toBeChecked();
+
+    fireEvent.click(toggle);
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "SETTINGS_SAVE",
+        payload: { ...DEFAULT_USER_SETTINGS, friendSyncEnabled: true },
+      })
+    );
+  });
+
+  it("disables the activity-tracking toggle while the detailed tier is selected", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({
+      ok: true,
+      settings: { ...DEFAULT_USER_SETTINGS, trackingTier: "detailed" },
+    });
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Track idle/active status during focus sessions"));
+
+    expect(screen.getByLabelText("Track idle/active status during focus sessions")).toBeDisabled();
   });
 
   it("saves a hard-block passcode", async () => {
@@ -237,5 +293,150 @@ describe("OptionsApp", () => {
     // it succeeded — the user's typed value stays visible.
     expect(screen.getByTestId("passcode-input")).toHaveValue("1234");
     expect(screen.getByRole("button", { name: "Save passcode" })).not.toBeDisabled();
+  });
+
+  it("defaults to the Settings view and switches to History when its nav button is clicked", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") return { ok: true, settings: DEFAULT_USER_SETTINGS };
+      if (message.type === "SESSION_LIST_HISTORY") return { ok: true, sessions: [] };
+      return { ok: true };
+    });
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Detailed site tracking"));
+
+    // Settings content is visible by default, and History's data hasn't been requested yet.
+    expect(screen.queryByText("Session history")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+
+    expect(await screen.findByText("Session history")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Detailed site tracking")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(messenger.sendMessage).toHaveBeenCalledWith({
+        type: "SESSION_LIST_HISTORY",
+        payload: { limit: HISTORY_LIST_LIMIT },
+      })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(await screen.findByLabelText("Detailed site tracking")).toBeInTheDocument();
+  });
+
+  it("switches to the Friends view (v2 Task 10)", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") return { ok: true, settings: DEFAULT_USER_SETTINGS };
+      if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
+      return { ok: true };
+    });
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Detailed site tracking"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Friends" }));
+
+    expect(await screen.findByRole("heading", { name: "Friends" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Detailed site tracking")).not.toBeInTheDocument();
+  });
+
+  describe("Notifications (v2 Task 10 Part C - local, not server-enforced)", () => {
+    it("shows live-nudge and digest notification toggles enabled by default, and saves when turned off", async () => {
+      vi.spyOn(messenger, "sendMessage").mockResolvedValue({
+        ok: true,
+        settings: DEFAULT_USER_SETTINGS,
+      });
+      const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
+
+      render(<OptionsApp />);
+      await waitFor(() =>
+        screen.getByLabelText("Show a notification when a friend sends me a live nudge")
+      );
+
+      const liveNudgeToggle = screen.getByLabelText(
+        "Show a notification when a friend sends me a live nudge"
+      );
+      const digestToggle = screen.getByLabelText("Show a notification for a friend's daily digest");
+      expect(liveNudgeToggle).toBeChecked();
+      expect(digestToggle).toBeChecked();
+
+      fireEvent.click(liveNudgeToggle);
+
+      await waitFor(() =>
+        expect(sendMessageSpy).toHaveBeenCalledWith({
+          type: "SETTINGS_SAVE",
+          payload: { ...DEFAULT_USER_SETTINGS, liveNudgesNotificationsEnabled: false },
+        })
+      );
+    });
+
+    it("quiet hours are off by default; enabling shows start/end inputs and saves a default window", async () => {
+      vi.spyOn(messenger, "sendMessage").mockResolvedValue({
+        ok: true,
+        settings: DEFAULT_USER_SETTINGS,
+      });
+      const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
+
+      render(<OptionsApp />);
+      await waitFor(() =>
+        screen.getByLabelText("Quiet hours (suppress notification toasts during a window)")
+      );
+
+      const quietHoursToggle = screen.getByLabelText(
+        "Quiet hours (suppress notification toasts during a window)"
+      );
+      expect(quietHoursToggle).not.toBeChecked();
+      expect(screen.queryByLabelText(/Quiet hours start/)).not.toBeInTheDocument();
+
+      fireEvent.click(quietHoursToggle);
+
+      await waitFor(() =>
+        expect(sendMessageSpy).toHaveBeenCalledWith({
+          type: "SETTINGS_SAVE",
+          payload: { ...DEFAULT_USER_SETTINGS, quietHours: { startHour: 22, endHour: 7 } },
+        })
+      );
+    });
+
+    it("editing the quiet-hours start/end inputs saves the updated window", async () => {
+      vi.spyOn(messenger, "sendMessage").mockResolvedValue({
+        ok: true,
+        settings: { ...DEFAULT_USER_SETTINGS, quietHours: { startHour: 22, endHour: 7 } },
+      });
+      const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
+
+      render(<OptionsApp />);
+      await waitFor(() => screen.getByLabelText(/Quiet hours start/));
+
+      fireEvent.change(screen.getByLabelText(/Quiet hours start/), { target: { value: "21" } });
+
+      await waitFor(() =>
+        expect(sendMessageSpy).toHaveBeenCalledWith({
+          type: "SETTINGS_SAVE",
+          payload: {
+            ...DEFAULT_USER_SETTINGS,
+            quietHours: { startHour: 21, endHour: 7 },
+          },
+        })
+      );
+    });
+  });
+
+  it("switches to the Account view and requests the current auth session", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") return { ok: true, settings: DEFAULT_USER_SETTINGS };
+      if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
+      return { ok: true };
+    });
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByLabelText("Detailed site tracking"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Account" }));
+
+    expect(await screen.findByRole("heading", { name: "Account" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Detailed site tracking")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(messenger.sendMessage).toHaveBeenCalledWith({ type: "AUTH_GET_SESSION" })
+    );
   });
 });

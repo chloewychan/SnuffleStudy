@@ -49,6 +49,18 @@ export interface StudySession {
   distractionAttempts: number;
   recoveries: number;
   friendNudges: number;
+
+  // Set when this session was started from a Task Vault breakdown item (app/routes/
+  // TaskVaultPage.tsx via SessionSetupForm) - lets alarmHandlers.ts's natural-completion
+  // branch mark that item's completedAt. Purely additive/optional so it doesn't affect
+  // sessions started any other way. Deliberately NOT mirrored onto CreateSessionInput below -
+  // this file permits only two additive changes across v2 (SessionEventType in Task 2, this
+  // field in Task 4), so messageRouter.ts's SESSION_CREATE handler reads
+  // taskBreakdownItemId off the SESSION_CREATE message payload (shared/messages.ts, which
+  // has no such restriction) and merges it onto the StudySession that
+  // sessionMachine.createSession returns, rather than threading it through
+  // CreateSessionInput.
+  taskBreakdownItemId?: string;
 }
 
 export interface CreateSessionInput {
@@ -74,7 +86,12 @@ export type SessionEventType =
   | "HARD_BLOCK_UNLOCK"
   | "RECOVERY"
   | "SESSION_COMPLETED"
-  | "SESSION_ABANDONED";
+  | "SESSION_ABANDONED"
+  // Activity-only tracking tier (v2 Decision 3): logged data points, never an auto-pause -
+  // auto-pausing would remove user agency and repeat the "claims to know if you're really
+  // studying" mistake the product already avoids.
+  | "USER_WENT_IDLE"
+  | "USER_RETURNED_FROM_IDLE";
 
 export interface SessionEvent {
   id: string;

@@ -45,6 +45,29 @@ describe("sessionTypes", () => {
     expect(input.restrictionMode).toBe("soft");
   });
 
+  it("accepts an optional taskBreakdownItemId on StudySession (not on CreateSessionInput - that would be a third, unpermitted additive change to this file)", () => {
+    const session: StudySession = {
+      id: "session_1",
+      goal: "Chapter 6 of STAT231",
+      state: "SESSION_SETUP",
+      interventionLevel: "none",
+      activityState: "active",
+      createdAt: 1000,
+      focusDurationSeconds: 1500,
+      breakDurationSeconds: 300,
+      pressureProfileId: "gentle-encouragement",
+      allowedSites: [],
+      restrictedSites: [],
+      restrictionMode: "soft",
+      accountabilityUserIds: [],
+      distractionAttempts: 0,
+      recoveries: 0,
+      friendNudges: 0,
+      taskBreakdownItemId: "item_1",
+    };
+    expect(session.taskBreakdownItemId).toBe("item_1");
+  });
+
   it("accepts a SessionEvent", () => {
     const event: SessionEvent = {
       id: "event_1",

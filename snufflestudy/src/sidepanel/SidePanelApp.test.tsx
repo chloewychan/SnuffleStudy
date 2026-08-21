@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render, screen, waitFor, act, fireEvent } from "@testing-library/react";
 import { SidePanelApp } from "./SidePanelApp";
 import * as messenger from "../infrastructure/messaging/extensionMessenger";
 import { DEFAULT_USER_SETTINGS } from "../domain/settings/userSettings";
@@ -33,7 +33,9 @@ describe("SidePanelApp", () => {
     });
 
     render(<SidePanelApp />);
-    await waitFor(() => expect(screen.getByText("Meet Snuffles")).toBeInTheDocument());
+    // A fresh install (onboardingCompleted: false) shows OnboardingWizard's welcome screen
+    // first, before its "name" step ("Meet Snuffles").
+    await waitFor(() => expect(screen.getByText("Welcome to SnuffleStudy")).toBeInTheDocument());
   });
 
   it("shows the session setup form when onboarding is complete and there is no active session", async () => {
@@ -115,6 +117,26 @@ describe("SidePanelApp", () => {
     expect(screen.queryByRole("timer")).not.toBeInTheDocument();
   });
 
+  it("shows the abandoned screen instead of the timer when the session is ABANDONED", async () => {
+    const abandoned = machine.abandonSession(
+      machine.startSession(machine.createSession(input, "session_1", 0), 0),
+      100
+    );
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") {
+        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
+      }
+      if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session: abandoned };
+      return { ok: true };
+    });
+
+    render(<SidePanelApp />);
+
+    await waitFor(() => expect(screen.getByText("Session ended early")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Start another session" })).toBeInTheDocument();
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+  });
+
   it("ticks the countdown down every second while open, without needing to reopen the side panel", async () => {
     const start = Date.now();
     const session = machine.startSession(machine.createSession(input, "session_1", start), start);
@@ -165,6 +187,45 @@ describe("SidePanelApp", () => {
     await waitFor(() => expect(screen.queryByText("Loading…")).not.toBeInTheDocument());
     expect(await screen.findByRole("alert")).toHaveTextContent(/Could not establish connection/);
     expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  it("opens Task Vault and pre-fills the session goal from a breakdown item's 'Start a session from this' action", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") {
+        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
+      }
+      if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session: null };
+      if (message.type === "TASK_LIST") {
+        return {
+          ok: true,
+          tasks: [
+            {
+              id: "task_1",
+              title: "STAT231",
+              createdAt: 1000,
+              breakdown: [{ id: "item_1", description: "Chapter 6 of STAT231" }],
+            },
+          ],
+        };
+      }
+      return { ok: true };
+    });
+
+    render(<SidePanelApp />);
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText("Finish 20 chemistry problems")).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Task Vault" }));
+    await screen.findByText("Chapter 6 of STAT231");
+
+    fireEvent.click(screen.getByRole("button", { name: "Start a session from this" }));
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText("Finish 20 chemistry problems")).toHaveValue(
+        "Chapter 6 of STAT231"
+      )
+    );
   });
 
   it("does not crash or leave an unhandled rejection when End session's sendMessage rejects", async () => {

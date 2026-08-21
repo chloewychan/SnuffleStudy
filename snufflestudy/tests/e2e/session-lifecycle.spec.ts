@@ -57,6 +57,12 @@ test("a session can be created from the side panel and shows a running timer", a
   await expect(page.getByRole("timer")).toBeVisible();
 
   await page.getByRole("button", { name: "End session" }).click();
+
+  // v2 Task 4: an early/manually-ended session is kept as the active session and renders
+  // AbandonedScreen (mirroring CompletionScreen's natural-completion pattern) instead of
+  // snapping straight back to the setup form — see AbandonedScreen.tsx's own header comment.
+  await expect(page.getByText("Session ended early", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Start another session" }).click();
   await expect(page.getByPlaceholder("Finish 20 chemistry problems")).toBeVisible();
 });
 

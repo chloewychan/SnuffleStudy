@@ -6,11 +6,13 @@ import { handleAlarm } from "./alarmHandlers";
 import { stubFakeDeclarativeNetRequest } from "./testSupport/fakeDeclarativeNetRequest";
 import type { CreateSessionInput } from "../domain/session/sessionTypes";
 import type { UserSettings } from "../domain/settings/userSettings";
+import type { Task } from "../domain/tasks/taskTypes";
 
 beforeEach(() => {
   fakeBrowser.reset();
   stubFakeDeclarativeNetRequest();
   indexedDB.deleteDatabase("snufflestudy");
+  indexedDB.deleteDatabase("snufflestudy-tasks");
 });
 
 const createInput: CreateSessionInput = {
@@ -59,8 +61,15 @@ describe("messageRouter — full session lifecycle", () => {
     })) as { session: { state: string } };
     expect(ended.session.state).toBe("ABANDONED");
 
-    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
-    expect(active.session).toBeNull();
+    // The ABANDONED session is kept as the active session (mirrors alarmHandlers.ts's
+    // COMPLETED handling) so the UI can render AbandonedScreen - it isn't cleared until
+    // SESSION_DISMISS_ABANDONED.
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { id: string; state: string } | null;
+    };
+    expect(active.session).not.toBeNull();
+    expect(active.session?.id).toBe(sessionId);
+    expect(active.session?.state).toBe("ABANDONED");
   });
 
   it("shows a notification when a session is ended manually (abandoned)", async () => {
@@ -171,8 +180,12 @@ describe("messageRouter — SESSION_END hard-block enforcement", () => {
     expect(ended.ok).toBe(true);
     expect(ended.session.state).toBe("ABANDONED");
 
-    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
-    expect(active.session).toBeNull();
+    // Kept active (as ABANDONED) rather than cleared - see the full-lifecycle test above.
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string } | null;
+    };
+    expect(active.session).not.toBeNull();
+    expect(active.session?.state).toBe("ABANDONED");
   });
 
   it("rejects SESSION_END on a hard-mode session with a configured credential when given an incorrect passcode, leaving the session active", async () => {
@@ -221,8 +234,12 @@ describe("messageRouter — SESSION_END hard-block enforcement", () => {
     expect(ended.ok).toBe(true);
     expect(ended.session.state).toBe("ABANDONED");
 
-    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
-    expect(active.session).toBeNull();
+    // Kept active (as ABANDONED) rather than cleared - see the full-lifecycle test above.
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string } | null;
+    };
+    expect(active.session).not.toBeNull();
+    expect(active.session?.state).toBe("ABANDONED");
   });
 
   it("ends a soft-mode session normally regardless of whether a passcode field is present in the payload", async () => {
@@ -421,6 +438,49 @@ describe("messageRouter — SESSION_DISMISS_COMPLETED", () => {
   });
 });
 
+describe("messageRouter — SESSION_DISMISS_ABANDONED", () => {
+  it("clears an ABANDONED session when dismissed", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: created.session.id } });
+
+    const beforeDismiss = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string } | null;
+    };
+    expect(beforeDismiss.session?.state).toBe("ABANDONED");
+
+    const result = (await handleMessage({
+      type: "SESSION_DISMISS_ABANDONED",
+      payload: { sessionId: created.session.id },
+    })) as { ok: boolean };
+    expect(result.ok).toBe(true);
+
+    const afterDismiss = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: unknown };
+    expect(afterDismiss.session).toBeNull();
+  });
+
+  it("rejects dismissing a session that is not ABANDONED, leaving it untouched", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    const result = (await handleMessage({
+      type: "SESSION_DISMISS_ABANDONED",
+      payload: { sessionId: created.session.id },
+    })) as { ok: boolean; error: string };
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/FOCUSING/);
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string } | null;
+    };
+    expect(active.session?.state).toBe("FOCUSING");
+  });
+});
+
 describe("messageRouter — RETURN_TO_WORK_CLOSE_TAB", () => {
   it("closes the sender's tab when one is present", async () => {
     const removeSpy = vi.spyOn(chrome.tabs, "remove").mockResolvedValue(undefined);
@@ -448,5 +508,333 @@ describe("messageRouter — RETURN_TO_WORK_CLOSE_TAB", () => {
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/no tab/i);
     expect(removeSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("messageRouter — MARK_SITE_STUDY_RELATED", () => {
+  it("allowlists the hostname for the rest of the session", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    const result = (await handleMessage({
+      type: "MARK_SITE_STUDY_RELATED",
+      payload: { sessionId: created.session.id, hostname: "youtube.com" },
+    })) as { ok: boolean; session: { allowedSites: string[] } };
+
+    expect(result.ok).toBe(true);
+    expect(result.session.allowedSites).toContain("youtube.com");
+  });
+
+  // v2 Task 9, Part B: sessionMachine.recordRecovery existed since v1 but was never wired into
+  // any message handler - this is one of the two resolution paths that now call it (the other is
+  // RETURN_TO_WORK_CLOSE_TAB below). Only counts as a genuine recovery when there was an active
+  // warning (interventionLevel !== "none") at the time - DISTRACTION_ATTEMPT (via
+  // machine.warnSession) is what puts a session into that state.
+  it("records a recovery (increments recoveries, clears interventionLevel, logs a RECOVERY event) when there was an active warning", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleMessage({
+      type: "DISTRACTION_ATTEMPT",
+      payload: { sessionId: created.session.id, hostname: "youtube.com" },
+    });
+
+    const result = (await handleMessage({
+      type: "MARK_SITE_STUDY_RELATED",
+      payload: { sessionId: created.session.id, hostname: "youtube.com" },
+    })) as { ok: boolean; session: { recoveries: number; interventionLevel: string } };
+
+    expect(result.ok).toBe(true);
+    expect(result.session.recoveries).toBe(1);
+    expect(result.session.interventionLevel).toBe("none");
+
+    const events = (await handleMessage({
+      type: "SESSION_LIST_EVENTS",
+      payload: { sessionId: created.session.id },
+    })) as { events: { type: string }[] };
+    expect(events.events.map((e) => e.type)).toContain("RECOVERY");
+  });
+
+  it("does NOT record a recovery when there was no active warning (guards against inflating the count on routine use)", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    const result = (await handleMessage({
+      type: "MARK_SITE_STUDY_RELATED",
+      payload: { sessionId: created.session.id, hostname: "youtube.com" },
+    })) as { ok: boolean; session: { recoveries: number } };
+
+    expect(result.ok).toBe(true);
+    expect(result.session.recoveries).toBe(0);
+
+    const events = (await handleMessage({
+      type: "SESSION_LIST_EVENTS",
+      payload: { sessionId: created.session.id },
+    })) as { events: { type: string }[] };
+    expect(events.events.map((e) => e.type)).not.toContain("RECOVERY");
+  });
+});
+
+describe("messageRouter — RETURN_TO_WORK_CLOSE_TAB records a recovery when appropriate (v2 Task 9, Part B)", () => {
+  it("records a recovery when the active session has an active warning", async () => {
+    vi.spyOn(chrome.tabs, "remove").mockResolvedValue(undefined);
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleMessage({
+      type: "DISTRACTION_ATTEMPT",
+      payload: { sessionId: created.session.id, hostname: "youtube.com" },
+    });
+
+    const result = (await handleMessage(
+      { type: "RETURN_TO_WORK_CLOSE_TAB" },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender
+    )) as { ok: boolean };
+    expect(result.ok).toBe(true);
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { recoveries: number; interventionLevel: string };
+    };
+    expect(active.session.recoveries).toBe(1);
+    expect(active.session.interventionLevel).toBe("none");
+
+    const events = (await handleMessage({
+      type: "SESSION_LIST_EVENTS",
+      payload: { sessionId: created.session.id },
+    })) as { events: { type: string }[] };
+    expect(events.events.map((e) => e.type)).toContain("RECOVERY");
+  });
+
+  it("does NOT record a recovery when there was no active warning", async () => {
+    vi.spyOn(chrome.tabs, "remove").mockResolvedValue(undefined);
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+    await handleMessage(
+      { type: "RETURN_TO_WORK_CLOSE_TAB" },
+      { tab: { id: 7 } } as chrome.runtime.MessageSender
+    );
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { recoveries: number };
+    };
+    expect(active.session.recoveries).toBe(0);
+  });
+
+  it("does NOT throw when there is no active session at all (e.g. a stale/duplicate message)", async () => {
+    vi.spyOn(chrome.tabs, "remove").mockResolvedValue(undefined);
+
+    await expect(
+      handleMessage(
+        { type: "RETURN_TO_WORK_CLOSE_TAB" },
+        { tab: { id: 7 } } as chrome.runtime.MessageSender
+      )
+    ).resolves.toEqual({ ok: true });
+  });
+});
+
+describe("messageRouter — SESSION_LIST_HISTORY / SESSION_COUNT_BY_STATE / SESSION_LIST_EVENTS", () => {
+  it("lists an abandoned session via SESSION_LIST_HISTORY, newest first", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: created.session.id } });
+
+    const result = (await handleMessage({
+      type: "SESSION_LIST_HISTORY",
+      payload: {},
+    })) as { ok: boolean; sessions: { id: string; state: string }[] };
+
+    expect(result.ok).toBe(true);
+    expect(result.sessions.map((s) => s.id)).toContain(created.session.id);
+    expect(result.sessions.find((s) => s.id === created.session.id)?.state).toBe("ABANDONED");
+  });
+
+  it("filters SESSION_LIST_HISTORY by state, passing the HistoryQuery payload through directly", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: created.session.id } });
+
+    const result = (await handleMessage({
+      type: "SESSION_LIST_HISTORY",
+      payload: { state: "COMPLETED" },
+    })) as { ok: boolean; sessions: { id: string }[] };
+
+    expect(result.ok).toBe(true);
+    expect(result.sessions.map((s) => s.id)).not.toContain(created.session.id);
+  });
+
+  it("counts sessions by state via SESSION_COUNT_BY_STATE", async () => {
+    const abandonedSession = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: createInput,
+    })) as { session: { id: string } };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: abandonedSession.session.id } });
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: abandonedSession.session.id } });
+
+    const result = (await handleMessage({
+      type: "SESSION_COUNT_BY_STATE",
+      payload: { state: "ABANDONED" },
+    })) as { ok: boolean; count: number };
+
+    expect(result.ok).toBe(true);
+    expect(result.count).toBeGreaterThanOrEqual(1);
+  });
+
+  it("returns 0 from SESSION_COUNT_BY_STATE for a state with no matching sessions", async () => {
+    // beforeEach deletes the "snufflestudy" database, so this test starts from an empty store;
+    // no COMPLETED session has ever been archived here (SESSION_END always produces ABANDONED,
+    // never COMPLETED - see that handler's own comment in messageRouter.ts).
+    const result = (await handleMessage({
+      type: "SESSION_COUNT_BY_STATE",
+      payload: { state: "COMPLETED" },
+    })) as { ok: boolean; count: number };
+
+    expect(result.ok).toBe(true);
+    expect(result.count).toBe(0);
+  });
+
+  it("lists a session's recorded events via SESSION_LIST_EVENTS", async () => {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    await handleMessage({
+      type: "DISTRACTION_ATTEMPT",
+      payload: { sessionId: created.session.id, hostname: "youtube.com" },
+    });
+
+    const result = (await handleMessage({
+      type: "SESSION_LIST_EVENTS",
+      payload: { sessionId: created.session.id },
+    })) as { ok: boolean; events: { type: string; hostname?: string }[] };
+
+    expect(result.ok).toBe(true);
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toMatchObject({ type: "DISTRACTION_ATTEMPT", hostname: "youtube.com" });
+  });
+
+  it("returns an empty list from SESSION_LIST_EVENTS for a session with no recorded events", async () => {
+    const result = (await handleMessage({
+      type: "SESSION_LIST_EVENTS",
+      payload: { sessionId: "nonexistent-session" },
+    })) as { ok: boolean; events: unknown[] };
+
+    expect(result.ok).toBe(true);
+    expect(result.events).toEqual([]);
+  });
+});
+
+describe("messageRouter — TASK_CREATE / TASK_UPDATE / TASK_DELETE / TASK_LIST / TASK_ADD_BREAKDOWN_ITEM", () => {
+  it("creates a task and lists it", async () => {
+    const created = (await handleMessage({
+      type: "TASK_CREATE",
+      payload: { title: "STAT231" },
+    })) as { ok: boolean; task: { id: string; title: string; breakdown: unknown[] } };
+
+    expect(created.ok).toBe(true);
+    expect(created.task.title).toBe("STAT231");
+    expect(created.task.breakdown).toEqual([]);
+
+    const listed = (await handleMessage({ type: "TASK_LIST" })) as {
+      ok: boolean;
+      tasks: { id: string }[];
+    };
+    expect(listed.tasks.map((t) => t.id)).toContain(created.task.id);
+  });
+
+  it("adds a breakdown item to a task via TASK_ADD_BREAKDOWN_ITEM", async () => {
+    const created = (await handleMessage({
+      type: "TASK_CREATE",
+      payload: { title: "STAT231" },
+    })) as { task: { id: string } };
+
+    const result = (await handleMessage({
+      type: "TASK_ADD_BREAKDOWN_ITEM",
+      payload: { taskId: created.task.id, description: "Chapter 6 of STAT231" },
+    })) as { ok: boolean; task: { breakdown: { id: string; description: string }[] } };
+
+    expect(result.ok).toBe(true);
+    expect(result.task.breakdown).toHaveLength(1);
+    expect(result.task.breakdown[0]!.description).toBe("Chapter 6 of STAT231");
+  });
+
+  it("updates a task via TASK_UPDATE", async () => {
+    const created = (await handleMessage({
+      type: "TASK_CREATE",
+      payload: { title: "STAT231" },
+    })) as { task: Task };
+
+    await handleMessage({
+      type: "TASK_UPDATE",
+      payload: { ...created.task, title: "STAT231 (renamed)" },
+    });
+
+    const listed = (await handleMessage({ type: "TASK_LIST" })) as {
+      tasks: { id: string; title: string }[];
+    };
+    expect(listed.tasks.find((t) => t.id === created.task.id)?.title).toBe("STAT231 (renamed)");
+  });
+
+  it("deletes a task via TASK_DELETE", async () => {
+    const created = (await handleMessage({
+      type: "TASK_CREATE",
+      payload: { title: "STAT231" },
+    })) as { task: { id: string } };
+
+    const result = (await handleMessage({
+      type: "TASK_DELETE",
+      payload: { taskId: created.task.id },
+    })) as { ok: boolean };
+    expect(result.ok).toBe(true);
+
+    const listed = (await handleMessage({ type: "TASK_LIST" })) as { tasks: { id: string }[] };
+    expect(listed.tasks.map((t) => t.id)).not.toContain(created.task.id);
+  });
+});
+
+describe("messageRouter — SESSION_END does NOT mark a linked task breakdown item complete", () => {
+  // Fix round 1: breakdown-item completion only happens on natural completion
+  // (alarmHandlers.test.ts's "handleAlarm marks a linked task breakdown item's completedAt"
+  // block covers that path) - SESSION_END always represents an early/manual end (see that
+  // handler's own comment in messageRouter.ts) and must never mark anything done.
+  it("leaves the breakdown item's completedAt unset when a session with a taskBreakdownItemId is ended early via SESSION_END", async () => {
+    const createdTask = (await handleMessage({
+      type: "TASK_CREATE",
+      payload: { title: "STAT231" },
+    })) as { task: { id: string } };
+    const withItem = (await handleMessage({
+      type: "TASK_ADD_BREAKDOWN_ITEM",
+      payload: { taskId: createdTask.task.id, description: "Chapter 6 of STAT231" },
+    })) as { task: { breakdown: { id: string }[] } };
+    const breakdownItemId = withItem.task.breakdown[0]!.id;
+
+    const createdSession = (await handleMessage({
+      type: "SESSION_CREATE",
+      payload: { ...createInput, goal: "Chapter 6 of STAT231", taskBreakdownItemId: breakdownItemId },
+    })) as { session: { id: string; taskBreakdownItemId?: string } };
+    expect(createdSession.session.taskBreakdownItemId).toBe(breakdownItemId);
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: createdSession.session.id } });
+
+    await handleMessage({ type: "SESSION_END", payload: { sessionId: createdSession.session.id } });
+
+    const listed = (await handleMessage({ type: "TASK_LIST" })) as {
+      tasks: { id: string; breakdown: { id: string; completedAt?: number }[] }[];
+    };
+    const item = listed.tasks
+      .find((t) => t.id === createdTask.task.id)
+      ?.breakdown.find((i) => i.id === breakdownItemId);
+    expect(item?.completedAt).toBeUndefined();
   });
 });

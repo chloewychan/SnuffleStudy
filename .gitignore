@@ -5,3 +5,10 @@ dist/
 .wxt/
 .worktrees/
 .superpowers/
+.env
+.env.*
+!.env.example
+# supabase CLI link-state (which project a command targets) - deliberately never committed, per
+# the v2 tasks' standing convention of always passing --project-ref explicitly rather than
+# relying on ambient linked-project state (see task-11-report.md for why this line was added).
+supabase/.temp/

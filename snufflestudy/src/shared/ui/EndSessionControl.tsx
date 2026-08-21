@@ -55,8 +55,11 @@ export function EndSessionControl({ session }: EndSessionControlProps) {
         return;
       }
       // Success: the active-session subscription (useActiveSession's storage listener)
-      // will swap this view out once the background clears the active session. Nothing
-      // further to do here beyond leaving submitting=false in `finally` below.
+      // will swap this view out for AbandonedScreen once the background updates the active
+      // session to ABANDONED (kept active rather than cleared - see messageRouter.ts's
+      // SESSION_END handler - so the user gets an acknowledgment screen, mirroring the
+      // COMPLETED flow). Nothing further to do here beyond leaving submitting=false in
+      // `finally` below.
     } catch (err) {
       // sendMessage (chrome.runtime.sendMessage) can reject — e.g. "Could not establish
       // connection. Receiving end does not exist." during service-worker startup races,
