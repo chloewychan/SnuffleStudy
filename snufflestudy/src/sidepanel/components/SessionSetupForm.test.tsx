@@ -282,6 +282,32 @@ describe("SessionSetupForm", () => {
     );
   });
 
+  it("clamps out-of-range hours/minutes instead of letting them silently block submission", async () => {
+    // A number input with an out-of-range value fails the browser's native constraint
+    // validation (form.checkValidity() === false), which silently blocks the submit event
+    // entirely - handleSubmit never runs and no error is shown, unlike every other invalid
+    // state in this form (which surfaces via the `error`/alert mechanism). Clamping in
+    // onChange keeps state from ever holding an out-of-range value, so this can't happen.
+    const sendMessageSpy = vi
+      .spyOn(messenger, "sendMessage")
+      .mockResolvedValue({ ok: true, tasks: [] });
+
+    render(<SessionSetupForm settings={DEFAULT_USER_SETTINGS} />);
+    await waitFor(() => expect(sendMessageSpy).toHaveBeenCalledWith({ type: "TASK_LIST" }));
+
+    const hours = screen.getByLabelText(/hours/i) as HTMLInputElement;
+    const minutes = screen.getByLabelText(/minutes/i) as HTMLInputElement;
+
+    fireEvent.change(hours, { target: { value: "4" } });
+    expect(hours).toHaveValue(3);
+
+    fireEvent.change(minutes, { target: { value: "90" } });
+    expect(minutes).toHaveValue(59);
+
+    fireEvent.change(hours, { target: { value: "-1" } });
+    expect(hours).toHaveValue(0);
+  });
+
   it("renders Restriction Mode as a select with soft/hard options", async () => {
     const sendMessageSpy = vi
       .spyOn(messenger, "sendMessage")

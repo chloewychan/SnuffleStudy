@@ -129,7 +129,7 @@ export function SessionSetupForm({ settings, initialGoal, taskBreakdownItemId }:
             min={0}
             max={3}
             value={focusHours}
-            onChange={(e) => setFocusHours(Number(e.target.value))}
+            onChange={(e) => setFocusHours(Math.min(3, Math.max(0, Number(e.target.value) || 0)))}
           />
         </label>
         <label htmlFor="session-focus-minutes">
@@ -140,7 +140,7 @@ export function SessionSetupForm({ settings, initialGoal, taskBreakdownItemId }:
             min={0}
             max={59}
             value={focusMinutes}
-            onChange={(e) => setFocusMinutes(Number(e.target.value))}
+            onChange={(e) => setFocusMinutes(Math.min(59, Math.max(0, Number(e.target.value) || 0)))}
           />
         </label>
       </fieldset>
