@@ -48,9 +48,15 @@ describe("SidePanelApp", () => {
     });
 
     render(<SidePanelApp />);
-    await waitFor(() =>
-      expect(screen.getByPlaceholderText("Finish 20 chemistry problems")).toBeInTheDocument()
-    );
+    // The tab shell defaults to the "Bunny" tab (Task 3/10) - the session setup form now lives
+    // inside the "Study" tab (Task 6's StudyTab), reached via TabBar rather than shown by default.
+    await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Study" }));
+
+    // Goal is a <select> populated from the Task Vault (Task 5), not a free-text input with a
+    // placeholder - assert on the labeled control that actually exists now.
+    await waitFor(() => expect(screen.getByLabelText(/goal/i)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Start session" })).toBeInTheDocument();
   });
 
   it("shows the active session view with an End session control", async () => {
@@ -64,7 +70,12 @@ describe("SidePanelApp", () => {
     });
 
     render(<SidePanelApp />);
-    await waitFor(() => expect(screen.getByText("Finish 20 chemistry problems")).toBeInTheDocument());
+    // ActiveSessionView (Task 9) shows the goal twice by design - once as its own headline, once
+    // inside the reused SessionStatusCard (see ActiveSessionView.test.tsx for the same assertion
+    // shape and rationale) - so getAllByText/length is used instead of a single getByText.
+    await waitFor(() =>
+      expect(screen.getAllByText("Finish 20 chemistry problems").length).toBe(2)
+    );
     expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument();
   });
 
@@ -189,7 +200,7 @@ describe("SidePanelApp", () => {
     expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
-  it("opens Task Vault and pre-fills the session goal from a breakdown item's 'Start a session from this' action", async () => {
+  it("pre-fills the session goal from a Task Vault breakdown item's 'Start a session from this' action", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "SETTINGS_GET") {
         return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
@@ -212,19 +223,19 @@ describe("SidePanelApp", () => {
     });
 
     render(<SidePanelApp />);
-    await waitFor(() =>
-      expect(screen.getByPlaceholderText("Finish 20 chemistry problems")).toBeInTheDocument()
-    );
+    // Task Vault is no longer a separate routed view reached via its own button - it's embedded
+    // directly inside the "Study" tab (Task 6's StudyTab) alongside the session setup form.
+    await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Study" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Task Vault" }));
     await screen.findByText("Chapter 6 of STAT231");
 
     fireEvent.click(screen.getByRole("button", { name: "Start a session from this" }));
 
+    // Goal is a <select> populated from the Task Vault (Task 5), not a free-text input with a
+    // placeholder - assert on the labeled control's value instead.
     await waitFor(() =>
-      expect(screen.getByPlaceholderText("Finish 20 chemistry problems")).toHaveValue(
-        "Chapter 6 of STAT231"
-      )
+      expect(screen.getByLabelText(/goal/i)).toHaveValue("Chapter 6 of STAT231")
     );
   });
 
