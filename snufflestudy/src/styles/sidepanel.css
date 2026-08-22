@@ -1,0 +1,34 @@
+/* src/styles/sidepanel.css */
+.sp-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg);
+  font-family: var(--font-body);
+}
+
+.sp-header__title {
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.sp-header__mascot {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.sp-header__login-button {
+  margin-left: auto;
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
