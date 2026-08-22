@@ -11,7 +11,8 @@ describe("tokens.css", () => {
   it("defines the Figma-sourced palette and font tokens", () => {
     expect(tokensCss).toMatch(/--color-bg:\s*#fdfbfa/i);
     expect(tokensCss).toMatch(/--color-surface:\s*#f7e9dc/i);
-    expect(tokensCss).toMatch(/--color-accent:\s*#eabab7/i);
+    expect(tokensCss).toMatch(/--color-primary:\s*#eabab7/i);
+    expect(tokensCss).toMatch(/--color-accent:\s*#cfc1bd/i);
     expect(tokensCss).toMatch(/--color-text:\s*#796c6c/i);
     expect(tokensCss).toMatch(/--color-text-muted:\s*#a99d9d/i);
     expect(tokensCss).toMatch(/--font-display:\s*"Pangolin"/i);

@@ -4,8 +4,8 @@
   --color-surface: #f7e9dc;
   --color-text: #796c6c;
   --color-text-muted: #a99d9d;
-  --color-primary: #cfc1bd;
-  --color-accent: #eabab7;
+  --color-primary: #eabab7;
+  --color-accent: #cfc1bd;
   --color-warning: #d64b4b;
   --color-success: #2f9e5c;
   --color-caution: #d6a23a;
@@ -32,11 +32,11 @@
 
 @font-face {
   font-family: "Pangolin";
-  src: local("Pangolin");
+  src: local("Pangolin"), url("./fonts/pangolin-regular.ttf") format("truetype");
   font-display: swap;
 }
 @font-face {
   font-family: "Shantell Sans";
-  src: local("Shantell Sans");
+  src: local("Shantell Sans"), url("./fonts/shantell-sans-regular.ttf") format("truetype");
   font-display: swap;
 }
