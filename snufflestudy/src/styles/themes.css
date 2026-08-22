@@ -1,16 +1,16 @@
 /* src/styles/themes.css */
 :root[data-theme="dark"] {
-  --color-bg: #17171a;
-  --color-surface: #232327;
-  --color-text: #f2f2f2;
-  --color-text-muted: #a3a3a3;
+  --color-bg: #201c1c;
+  --color-surface: #2c2626;
+  --color-text: #f2ebe9;
+  --color-text-muted: #cfc1bd;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-bg: #17171a;
-    --color-surface: #232327;
-    --color-text: #f2f2f2;
-    --color-text-muted: #a3a3a3;
+    --color-bg: #201c1c;
+    --color-surface: #2c2626;
+    --color-text: #f2ebe9;
+    --color-text-muted: #cfc1bd;
   }
 }

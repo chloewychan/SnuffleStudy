@@ -1,13 +1,17 @@
 /* src/styles/tokens.css */
 :root {
-  --color-bg: #ffffff;
-  --color-surface: #f5f5f7;
-  --color-text: #1a1a1a;
-  --color-text-muted: #6b6b6b;
-  --color-primary: #6c4bd6;
+  --color-bg: #fdfbfa;
+  --color-surface: #f7e9dc;
+  --color-text: #796c6c;
+  --color-text-muted: #a99d9d;
+  --color-primary: #cfc1bd;
+  --color-accent: #eabab7;
   --color-warning: #d64b4b;
   --color-success: #2f9e5c;
   --color-caution: #d6a23a;
+
+  --font-display: "Pangolin", cursive;
+  --font-body: "Shantell Sans", sans-serif;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -24,4 +28,15 @@
 
   --motion-duration-fast: 120ms;
   --motion-duration-normal: 240ms;
+}
+
+@font-face {
+  font-family: "Pangolin";
+  src: local("Pangolin");
+  font-display: swap;
+}
+@font-face {
+  font-family: "Shantell Sans";
+  src: local("Shantell Sans");
+  font-display: swap;
 }
