@@ -9,6 +9,18 @@ describe("BunnyTab", () => {
     expect(screen.getByLabelText(/human name/i)).toHaveValue("Hooman");
   });
 
+  it("updates name fields when typed", () => {
+    render(<BunnyTab />);
+    const bunnyInput = screen.getByLabelText(/bunny name/i);
+    const humanInput = screen.getByLabelText(/human name/i);
+
+    fireEvent.change(bunnyInput, { target: { value: "Fluffball" } });
+    fireEvent.change(humanInput, { target: { value: "Alice" } });
+
+    expect(bunnyInput).toHaveValue("Fluffball");
+    expect(humanInput).toHaveValue("Alice");
+  });
+
   it("toggles Show Bunny", () => {
     render(<BunnyTab />);
     const toggle = screen.getByRole("checkbox", { name: /show bunny/i });

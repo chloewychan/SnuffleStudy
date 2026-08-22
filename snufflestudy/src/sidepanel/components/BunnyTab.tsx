@@ -33,16 +33,21 @@ export function BunnyTab() {
             onChange={(e) => setHumanName(e.target.value)}
           />
         </div>
-        <div className="sp-field sp-field--checkbox">
-          <input
-            id="show-bunny"
-            type="checkbox"
-            checked={showBunny}
-            onChange={(e) => setShowBunny(e.target.checked)}
-            aria-label="Show Bunny"
-          />
-          <label htmlFor="show-bunny">Show Bunny</label>
-        </div>
+        <label className="sp-field sp-field--toggle" htmlFor="show-bunny">
+          Show Bunny
+          <span className="sp-toggle">
+            <input
+              type="checkbox"
+              id="show-bunny"
+              className="sp-toggle__input"
+              checked={showBunny}
+              onChange={(e) => setShowBunny(e.target.checked)}
+            />
+            <span className="sp-toggle__track">
+              <span className="sp-toggle__knob" />
+            </span>
+          </span>
+        </label>
       </section>
 
       <section className="sp-card sp-bunny-tab__status">
