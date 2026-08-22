@@ -16,8 +16,8 @@
 }
 
 .sp-header__mascot {
-  width: 40px;
-  height: 40px;
+  width: var(--size-icon-md);
+  height: var(--size-icon-md);
   object-fit: contain;
 }
 
