@@ -23,9 +23,9 @@ export function SidePanelApp() {
   const { session, loading } = useActiveSession();
 
   const [activeTab, setActiveTab] = useState<SidePanelTab>("bunny");
-  // v2 Task 8: whether the active-session view has UnlockRequestPanel overlaid below its normal
-  // ActiveSessionView contents. Separate from `activeTab` above - `activeTab` only governs the
-  // no-active-session branch's tab routing (bunny/study/friends/settings), while a running
+  // v2 Task 8: whether the active-session view is showing UnlockRequestPanel instead of its
+  // normal ActiveSessionView contents. Separate from `activeTab` above - `activeTab` only governs
+  // the no-active-session branch's tab routing (bunny/study/friends/settings), while a running
   // session has its own dedicated render branch further below that doesn't go through
   // `activeTab` at all.
   const [showUnlockPanel, setShowUnlockPanel] = useState(false);
@@ -122,6 +122,33 @@ export function SidePanelApp() {
     );
   }
 
+  // v2 Task 8: the requester-side "request an unlock for a hostname" UI only makes sense while
+  // a session is actually running - reachable from a button in ActiveSessionView. Replaces this
+  // view's normal contents rather than overlaying them, same pattern as the COMPLETED/ABANDONED
+  // branches above swapping in a different screen entirely (restored from the pre-Task-10
+  // behavior - see SidePanelApp.tsx history - after Task 10 briefly overlaid this panel below
+  // ActiveSessionView instead; that stacked layout was reverted per product decision).
+  if (showUnlockPanel) {
+    return (
+      <>
+        <Header />
+        <UnlockRequestPanel session={session} onClose={() => setShowUnlockPanel(false)} />
+      </>
+    );
+  }
+
+  // v2 Task 12: same reachable-during-an-active-session, replaces-not-overlays treatment as
+  // UnlockRequestPanel above - a friend might be mid-session themselves when asked to
+  // approve/deny a temp-passcode request.
+  if (showTempPasscodePanel) {
+    return (
+      <>
+        <Header />
+        <TempPasscodePanel onClose={() => setShowTempPasscodePanel(false)} />
+      </>
+    );
+  }
+
   return (
     <>
       <Header />
@@ -130,12 +157,6 @@ export function SidePanelApp() {
         onShowUnlockPanel={() => setShowUnlockPanel(true)}
         onShowTempPasscodePanel={() => setShowTempPasscodePanel(true)}
       />
-      {showUnlockPanel && (
-        <UnlockRequestPanel session={session} onClose={() => setShowUnlockPanel(false)} />
-      )}
-      {showTempPasscodePanel && (
-        <TempPasscodePanel onClose={() => setShowTempPasscodePanel(false)} />
-      )}
     </>
   );
 }
