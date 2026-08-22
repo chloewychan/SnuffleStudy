@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { UserSettings } from "../../domain/settings/userSettings";
 import { PRESSURE_PROFILES } from "../../domain/pressure/pressureProfiles";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import { requestHardBlockHostPermission } from "../../infrastructure/browser/permissionsApi";
+import type { Task } from "../../domain/tasks/taskTypes";
 
 interface SessionSetupFormProps {
   settings: UserSettings;
@@ -15,11 +16,35 @@ interface SessionSetupFormProps {
 
 export function SessionSetupForm({ settings, initialGoal, taskBreakdownItemId }: SessionSetupFormProps) {
   const [goal, setGoal] = useState(initialGoal ?? "");
-  const [focusMinutes, setFocusMinutes] = useState(settings.defaultFocusDurationSeconds / 60);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [focusHours, setFocusHours] = useState(Math.floor(settings.defaultFocusDurationSeconds / 3600));
+  const [focusMinutes, setFocusMinutes] = useState(
+    Math.round((settings.defaultFocusDurationSeconds % 3600) / 60)
+  );
   const [pressureProfileId, setPressureProfileId] = useState(settings.pressureProfileId);
   const [restrictionMode, setRestrictionMode] = useState(settings.defaultRestrictionMode);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    sendMessage<{ ok: boolean; tasks?: Task[]; error?: string }>({ type: "TASK_LIST" })
+      .then((res) => {
+        if (!cancelled && res.ok && res.tasks) setTasks(res.tasks);
+      })
+      .catch((err) => {
+        // sendMessage (chrome.runtime.sendMessage) can reject — e.g. "Could not establish
+        // connection. Receiving end does not exist." during service-worker startup races,
+        // or extension-context-invalidated. Surface it via the existing `error` state
+        // instead of leaving an unhandled rejection with no signal to the user (the Goal
+        // select still renders, just without Task Vault options to choose from).
+        console.error("Failed to load tasks", err);
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -45,7 +70,7 @@ export function SessionSetupForm({ settings, initialGoal, taskBreakdownItemId }:
         type: "SESSION_CREATE",
         payload: {
           goal,
-          focusDurationSeconds: focusMinutes * 60,
+          focusDurationSeconds: focusHours * 3600 + focusMinutes * 60,
           breakDurationSeconds: settings.defaultBreakDurationSeconds,
           pressureProfileId,
           allowedSites: settings.defaultAllowedSites,
@@ -76,24 +101,49 @@ export function SessionSetupForm({ settings, initialGoal, taskBreakdownItemId }:
 
   return (
     <form className="session-setup-form" onSubmit={handleSubmit}>
-      <label>
+      <label className="sp-field" htmlFor="session-goal">
         Goal
-        <input
-          value={goal}
-          onChange={(e) => setGoal(e.target.value)}
-          placeholder="Finish 20 chemistry problems"
-        />
+        <select id="session-goal" value={goal} onChange={(e) => setGoal(e.target.value)}>
+          <option value="" disabled>
+            Choose a task from the Task Vault
+          </option>
+          {/* initialGoal (from the Task Vault "Start a session from this" flow) is a breakdown
+              item's description, which won't generally match any tasks[].title exactly - render
+              it as its own option so the select can display/hold it without forcing it into the
+              Task Vault list, while still letting the user pick a different task afterward. */}
+          {goal && !tasks.some((task) => task.title === goal) && <option value={goal}>{goal}</option>}
+          {tasks.map((task) => (
+            <option key={task.id} value={task.title}>
+              {task.title}
+            </option>
+          ))}
+        </select>
       </label>
-      <label>
-        Focus duration (minutes)
-        <input
-          type="number"
-          min={5}
-          max={180}
-          value={focusMinutes}
-          onChange={(e) => setFocusMinutes(Number(e.target.value))}
-        />
-      </label>
+      <fieldset className="sp-field">
+        <legend>Focus Duration</legend>
+        <label htmlFor="session-focus-hours">
+          Hours
+          <input
+            id="session-focus-hours"
+            type="number"
+            min={0}
+            max={3}
+            value={focusHours}
+            onChange={(e) => setFocusHours(Number(e.target.value))}
+          />
+        </label>
+        <label htmlFor="session-focus-minutes">
+          Minutes
+          <input
+            id="session-focus-minutes"
+            type="number"
+            min={0}
+            max={59}
+            value={focusMinutes}
+            onChange={(e) => setFocusMinutes(Number(e.target.value))}
+          />
+        </label>
+      </fieldset>
       <label>
         Pressure style
         <select value={pressureProfileId} onChange={(e) => setPressureProfileId(e.target.value)}>
@@ -104,25 +154,17 @@ export function SessionSetupForm({ settings, initialGoal, taskBreakdownItemId }:
           ))}
         </select>
       </label>
-      <fieldset>
-        <legend>Restriction mode</legend>
-        <label>
-          <input
-            type="radio"
-            checked={restrictionMode === "soft"}
-            onChange={() => setRestrictionMode("soft")}
-          />
-          Soft — nudge and escalate
-        </label>
-        <label>
-          <input
-            type="radio"
-            checked={restrictionMode === "hard"}
-            onChange={() => setRestrictionMode("hard")}
-          />
-          Hard — passcode required
-        </label>
-      </fieldset>
+      <label className="sp-field" htmlFor="session-restriction-mode">
+        Restriction Mode
+        <select
+          id="session-restriction-mode"
+          value={restrictionMode}
+          onChange={(e) => setRestrictionMode(e.target.value as "soft" | "hard")}
+        >
+          <option value="soft">Soft - nudge &amp; escalate</option>
+          <option value="hard">Hard</option>
+        </select>
+      </label>
       {error && <p role="alert">{error}</p>}
       <button type="submit" disabled={submitting}>
         {submitting ? "Starting…" : "Start session"}
