@@ -8,9 +8,20 @@ interface TaskVaultPageProps {
   // item's description and threads taskBreakdownItemId through SESSION_CREATE, so the ending
   // session can mark this item's completedAt (messageRouter.ts's SESSION_END handler).
   onStartSessionFromBreakdownItem: (params: { goal: string; taskBreakdownItemId: string }) => void;
+  // Fix 1 (final-review fix wave): fires with this component's own `tasks` list every time it
+  // changes (initial TASK_LIST load, create/delete/update/breakdown-item mutations). StudyTab.tsx
+  // uses this to mirror the list into a prop it hands to SessionSetupForm's Goal select, so a task
+  // created here is immediately selectable there too - without SessionSetupForm issuing its own,
+  // separate TASK_LIST fetch. Optional so this component still works unchanged when mounted
+  // standalone (e.g. this file's own tests, which don't pass it).
+  onTasksChanged?: (tasks: Task[]) => void;
 }
 
-export function TaskVaultPage({ onClose, onStartSessionFromBreakdownItem }: TaskVaultPageProps) {
+export function TaskVaultPage({
+  onClose,
+  onStartSessionFromBreakdownItem,
+  onTasksChanged,
+}: TaskVaultPageProps) {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -20,6 +31,15 @@ export function TaskVaultPage({ onClose, onStartSessionFromBreakdownItem }: Task
 
   const [breakdownDrafts, setBreakdownDrafts] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tasks !== null) onTasksChanged?.(tasks);
+    // onTasksChanged is a fresh closure from the parent on most renders (StudyTab.tsx passes
+    // `setTasks` directly, which is stable, but a future caller might not) - only `tasks` itself
+    // should gate re-firing this, matching the intent ("notify when the list changes") rather than
+    // re-running on every parent re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks]);
 
   useEffect(() => {
     let cancelled = false;

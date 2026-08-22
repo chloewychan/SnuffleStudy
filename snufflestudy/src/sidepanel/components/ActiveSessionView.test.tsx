@@ -161,6 +161,42 @@ describe("ActiveSessionView", () => {
     expect(screen.queryByText(/request an unlock/i)).not.toBeInTheDocument();
   });
 
+  it("does not list the current user as their own nudge target (Fix 4)", async () => {
+    // GROUP_LIST_MEMBERS returns every member of the group, including the current user
+    // themselves - AUTH_GET_SESSION resolves who that is, and the self row must be filtered out
+    // of the rendered/nudge-able list, while other friends still render normally.
+    const selfMember: GroupMembership = {
+      userId: "self-1",
+      groupId: "g1",
+      joinedAt: "2026-01-01T00:00:00Z",
+    };
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "AUTH_GET_SESSION") {
+        return { ok: true, session: { user: { id: "self-1" } } };
+      }
+      if (message.type === "GROUP_LIST_MEMBERS") {
+        return { ok: true, members: [selfMember, mockMember] };
+      }
+      return { ok: true };
+    });
+
+    render(
+      <ActiveSessionView
+        session={mockSession}
+        onShowUnlockPanel={vi.fn()}
+        onShowTempPasscodePanel={vi.fn()}
+      />
+    );
+
+    // The other friend (u2) still renders as a nudge target.
+    expect(await screen.findByRole("button", { name: /nudge u2/i })).toBeInTheDocument();
+    // The current user's own id never appears as a nudge target.
+    expect(screen.queryByText(/friend self-1/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /nudge self-1/i })
+    ).not.toBeInTheDocument();
+  });
+
   it("does not fetch study room members when the session has no accountabilityGroupId", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, members: [mockMember] });
     const { accountabilityGroupId, ...rest } = mockSession;

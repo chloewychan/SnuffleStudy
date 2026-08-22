@@ -20,6 +20,13 @@
 
   --size-icon-md: 40px;
   --size-meter-track-height: 15px;
+  /* Fix 8 (final-review fix wave): the Show Bunny toggle switch's dimensions - previously
+     hardcoded px values in sidepanel.css's .sp-toggle rules, violating this project's tokens-only
+     convention (same category of fix as --size-icon-md/--size-meter-track-height above). */
+  --size-toggle-width: 44px;
+  --size-toggle-height: 24px;
+  --size-toggle-knob-size: 20px;
+  --size-toggle-knob-offset: 2px;
 
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -33,13 +40,19 @@
   --motion-duration-normal: 240ms;
 }
 
+/* Fix 13 (final-review fix wave): converted from the original self-hosted TTFs to WOFF2 via
+   fontTools (TTFont(...).flavor = "woff2") - same glyph coverage/rendering, ~3.3-3.5x smaller
+   (pangolin-regular: 588,736 -> 177,784 bytes; shantell-sans-regular: 392,708 -> 112,908 bytes).
+   This extension only ever runs in Chrome/Firefox (see wxt.config.ts build targets), both of which
+   have supported WOFF2 for years, so the .ttf files were dropped rather than kept as a fallback
+   that would never actually be fetched but would still ship in the package. */
 @font-face {
   font-family: "Pangolin";
-  src: local("Pangolin"), url("./fonts/pangolin-regular.ttf") format("truetype");
+  src: local("Pangolin"), url("./fonts/pangolin-regular.woff2") format("woff2");
   font-display: swap;
 }
 @font-face {
   font-family: "Shantell Sans";
-  src: local("Shantell Sans"), url("./fonts/shantell-sans-regular.ttf") format("truetype");
+  src: local("Shantell Sans"), url("./fonts/shantell-sans-regular.woff2") format("woff2");
   font-display: swap;
 }

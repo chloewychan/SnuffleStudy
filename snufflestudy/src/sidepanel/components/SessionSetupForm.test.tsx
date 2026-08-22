@@ -259,6 +259,25 @@ describe("SessionSetupForm", () => {
     expect(screen.getByRole("option", { name: "Read chapter 4" })).toBeInTheDocument();
   });
 
+  it("uses the tasks prop instead of fetching its own TASK_LIST copy when the parent already owns a list (Fix 1)", async () => {
+    // StudyTab.tsx now owns the task list (fed by TaskVaultPage's onTasksChanged) and passes it
+    // down here as a prop - this component must render from that prop, not issue its own
+    // redundant TASK_LIST fetch, so a task created elsewhere shows up without a second round trip.
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
+
+    render(
+      <SessionSetupForm
+        settings={DEFAULT_USER_SETTINGS}
+        tasks={[{ id: "t1", title: "From parent", createdAt: 1, breakdown: [] }]}
+      />
+    );
+
+    expect(await screen.findByRole("option", { name: "From parent" })).toBeInTheDocument();
+    expect(sendMessageSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "TASK_LIST" })
+    );
+  });
+
   it("accepts hours and minutes for focus duration and sums them to seconds on submit", async () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "TASK_LIST") return { ok: true, tasks: [] };

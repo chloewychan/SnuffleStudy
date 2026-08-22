@@ -59,6 +59,44 @@ describe("SidePanelApp", () => {
     expect(screen.getByRole("button", { name: "Start session" })).toBeInTheDocument();
   });
 
+  it("routes each of the four tabs to its own distinct content (Fix 12: only Study was previously tested)", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") {
+        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
+      }
+      if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session: null };
+      return { ok: true };
+    });
+
+    render(<SidePanelApp />);
+    await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
+
+    // One real, source-verified heading per tab's actual content (not guessed): BunnyTab.tsx's
+    // <h2>About the Bun</h2>, TaskVaultPage.tsx's <h2>Task Vault</h2> (inside StudyTab),
+    // StudyRoomPanel.tsx's <h2>Study Rooms</h2> (inside FriendsTab), and
+    // TempPasscodePanel.tsx's <h2>Temporary passcode requests</h2> (inside SettingsTab). This is
+    // the single most transposition-prone spot in SidePanelApp.tsx's four-way conditional - would
+    // ship green even with two tabs swapped without a check like this covering all four.
+    const tabs = [
+      { tabName: "Bunny", heading: /^about the bun$/i },
+      { tabName: "Study", heading: /^task vault$/i },
+      { tabName: "Friends", heading: /^study rooms$/i },
+      { tabName: "Settings", heading: /^temporary passcode requests$/i },
+    ];
+
+    for (const { tabName, heading } of tabs) {
+      fireEvent.click(screen.getByRole("tab", { name: tabName }));
+      await waitFor(() => expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument());
+
+      // Only the clicked tab's content is mounted inside the shared tabpanel - every other tab's
+      // distinguishing heading must be absent.
+      for (const other of tabs) {
+        if (other.tabName === tabName) continue;
+        expect(screen.queryByRole("heading", { name: other.heading })).not.toBeInTheDocument();
+      }
+    }
+  });
+
   it("shows the active session view with an End session control", async () => {
     const session = machine.startSession(machine.createSession(input, "session_1", 0), 0);
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
@@ -123,6 +161,55 @@ describe("SidePanelApp", () => {
       expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument()
     );
     expect(screen.queryByRole("heading", { name: "Unlock requests" })).not.toBeInTheDocument();
+  });
+
+  it("replaces ActiveSessionView with TempPasscodePanel (not an overlay) when 'Temp passcode requests' is triggered, and restores it on close", async () => {
+    // Symmetric guard to the "Unlock requests" test above (Fix 12) - Task 10's regression test
+    // only covered the showUnlockPanel path even though SidePanelApp.tsx's showTempPasscodePanel
+    // branch is the exact same shape (see that branch's own "same reachable-during-an-active-
+    // session, replaces-not-overlays treatment as UnlockRequestPanel above" comment).
+    const session = machine.startSession(machine.createSession(input, "session_1", 0), 0);
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") {
+        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
+      }
+      if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session };
+      // TempPasscodePanel's own fetches on mount (AUTH_GET_SESSION/TEMP_PASSCODE_REQUESTS_FETCH) -
+      // given healthy, empty-but-ok responses so it renders cleanly, matching
+      // TempPasscodePanel.test.tsx's own conventions.
+      if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
+      if (message.type === "TEMP_PASSCODE_REQUESTS_FETCH") return { ok: true, requests: [] };
+      return { ok: true };
+    });
+
+    render(<SidePanelApp />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument()
+    );
+
+    // ActiveSessionView's own trigger button (distinct from TempPasscodePanel's own <h2> heading
+    // below - only one of the two exists in the DOM at a time).
+    fireEvent.click(screen.getByRole("button", { name: "Temp passcode requests" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Temporary passcode requests" })
+      ).toBeInTheDocument()
+    );
+    // ActiveSessionView's content is gone entirely, not merely covered - same crux as the
+    // Unlock-requests regression guard above.
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "End session" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument()
+    );
+    expect(
+      screen.queryByRole("heading", { name: "Temporary passcode requests" })
+    ).not.toBeInTheDocument();
   });
 
   it("shows a Pause control while FOCUSING, and a Resume control while PAUSED", async () => {

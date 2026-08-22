@@ -12,11 +12,24 @@ interface SessionSetupFormProps {
   // description, but the field stays freely editable afterward (it's only the initial value).
   initialGoal?: string;
   taskBreakdownItemId?: string;
+  // When provided, the Goal select is populated from this list instead of this component fetching
+  // its own TASK_LIST copy. StudyTab.tsx (which mounts this component right next to TaskVaultPage)
+  // passes its own task list here, sourced from TaskVaultPage's onTasksChanged callback - that's
+  // what keeps a task created in the Task Vault card immediately selectable in this Goal select
+  // (previously this component's own mount-only fetch never saw tasks created after it mounted -
+  // see Fix 1 in the final-review fix report). When omitted, this component fetches its own copy
+  // so it still works correctly when mounted standalone (e.g. this file's own tests).
+  tasks?: Task[];
 }
 
-export function SessionSetupForm({ settings, initialGoal, taskBreakdownItemId }: SessionSetupFormProps) {
+export function SessionSetupForm({
+  settings,
+  initialGoal,
+  taskBreakdownItemId,
+  tasks: tasksProp,
+}: SessionSetupFormProps) {
   const [goal, setGoal] = useState(initialGoal ?? "");
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [fetchedTasks, setFetchedTasks] = useState<Task[]>([]);
   const [focusHours, setFocusHours] = useState(Math.floor(settings.defaultFocusDurationSeconds / 3600));
   const [focusMinutes, setFocusMinutes] = useState(
     Math.round((settings.defaultFocusDurationSeconds % 3600) / 60)
@@ -27,10 +40,13 @@ export function SessionSetupForm({ settings, initialGoal, taskBreakdownItemId }:
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    // The parent already owns a task list (see the `tasks` prop comment above) - skip this
+    // component's own fetch entirely rather than issuing a redundant, duplicate TASK_LIST call.
+    if (tasksProp) return;
     let cancelled = false;
     sendMessage<{ ok: boolean; tasks?: Task[]; error?: string }>({ type: "TASK_LIST" })
       .then((res) => {
-        if (!cancelled && res.ok && res.tasks) setTasks(res.tasks);
+        if (!cancelled && res.ok && res.tasks) setFetchedTasks(res.tasks);
       })
       .catch((err) => {
         // sendMessage (chrome.runtime.sendMessage) can reject — e.g. "Could not establish
@@ -44,7 +60,9 @@ export function SessionSetupForm({ settings, initialGoal, taskBreakdownItemId }:
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [tasksProp]);
+
+  const tasks = tasksProp ?? fetchedTasks;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -144,7 +162,7 @@ export function SessionSetupForm({ settings, initialGoal, taskBreakdownItemId }:
           />
         </label>
       </fieldset>
-      <label>
+      <label className="sp-field">
         Pressure style
         <select value={pressureProfileId} onChange={(e) => setPressureProfileId(e.target.value)}>
           {PRESSURE_PROFILES.map((profile) => (

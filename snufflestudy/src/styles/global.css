@@ -10,8 +10,26 @@ body {
   margin: 0;
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: system-ui, sans-serif;
+  /* Fix 3 (final-review fix wave): --font-body is the app's intended body font (Shantell Sans),
+     but it was never actually applied here - the system-ui fallback was the only thing ever
+     rendering. This file is shared by the side panel, popup, options, and locked pages, so this
+     is a global default (with the same system-ui/sans-serif fallback chain preserved for when the
+     self-hosted @font-face hasn't loaded yet). */
+  font-family: var(--font-body), system-ui, sans-serif;
   font-size: var(--font-size-md);
+}
+
+/* Fix 3 (final-review fix wave): form controls don't inherit font-family from ancestors under most
+   browsers' default UA stylesheets, so without this, <select>/<input>/<button> render in the
+   platform font regardless of what `body` above sets - which is most of this app's on-screen text,
+   since it lives inside reused panel components (TaskVaultPage, FriendGroupPanel, StudyRoomPanel,
+   UnlockRequestPanel, TempPasscodePanel) rather than the newer .sp-* components that already set
+   font-family explicitly per-element. Scoped to these three control types only, so it doesn't
+   fight any existing intentional font-family override elsewhere. */
+select,
+input,
+button {
+  font-family: inherit;
 }
 
 .snuffles-overlay {

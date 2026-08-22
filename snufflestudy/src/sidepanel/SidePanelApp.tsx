@@ -98,10 +98,17 @@ export function SidePanelApp() {
       <>
         <Header />
         <TabBar active={activeTab} onSelect={setActiveTab} />
-        {activeTab === "bunny" && <BunnyTab />}
-        {activeTab === "study" && <StudyTab settings={settings} />}
-        {activeTab === "friends" && <FriendsTab />}
-        {activeTab === "settings" && <SettingsTab />}
+        {/* Fix 5 (final-review fix wave): TabBar.tsx's tab buttons already had role="tab"/
+            aria-selected but nothing tied them to their content - each tab button's
+            aria-controls="sp-tabpanel" now points at this single shared panel id (only one tab's
+            content is ever mounted at a time, so one id covers all four), and aria-labelledby
+            here points back at whichever tab is currently active. */}
+        <div role="tabpanel" id="sp-tabpanel" aria-labelledby={`sp-tab-${activeTab}`}>
+          {activeTab === "bunny" && <BunnyTab />}
+          {activeTab === "study" && <StudyTab settings={settings} />}
+          {activeTab === "friends" && <FriendsTab />}
+          {activeTab === "settings" && <SettingsTab />}
+        </div>
       </>
     );
   }

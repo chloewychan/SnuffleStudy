@@ -44,7 +44,17 @@ export function Header() {
         <button
           type="button"
           className="sp-header__login-button"
-          onClick={() => chrome.runtime.openOptionsPage()}
+          onClick={() => {
+            // Fix 6 (final-review fix wave): chrome.runtime.openOptionsPage() returns a Promise
+            // that can reject (e.g. extension-context-invalidated) - this codebase's standing
+            // convention is to never leave an async call triggered from a UI handler unhandled
+            // (see ActiveSessionView.tsx/SessionSetupForm.tsx's sendMessage calls for the same
+            // pattern). Promise.resolve(...) normalizes the case where a test mock's
+            // openOptionsPage() returns undefined instead of a real Promise.
+            void Promise.resolve(chrome.runtime.openOptionsPage()).catch((e) =>
+              console.error("Failed to open options page", e)
+            );
+          }}
         >
           Log-In
         </button>

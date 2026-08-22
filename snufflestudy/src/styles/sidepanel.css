@@ -35,6 +35,7 @@
 
 .sp-tabbar {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   padding: 0 var(--space-4) var(--space-3);
   border-bottom: 1px solid var(--color-accent);
@@ -93,12 +94,6 @@
   font-family: var(--font-body);
 }
 
-.sp-field--checkbox {
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 .sp-meter {
   margin-bottom: var(--space-3);
 }
@@ -132,8 +127,8 @@
 .sp-toggle {
   position: relative;
   display: inline-block;
-  width: 44px;
-  height: 24px;
+  width: var(--size-toggle-width);
+  height: var(--size-toggle-height);
 }
 
 .sp-toggle__input {
@@ -156,10 +151,10 @@
 
 .sp-toggle__knob {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
+  top: var(--size-toggle-knob-offset);
+  left: var(--size-toggle-knob-offset);
+  width: var(--size-toggle-knob-size);
+  height: var(--size-toggle-knob-size);
   border-radius: 50%;
   background: var(--color-bg);
   transition: transform var(--motion-duration-fast);
@@ -170,7 +165,34 @@
 }
 
 .sp-toggle__input:checked ~ .sp-toggle__track .sp-toggle__knob {
-  transform: translateX(20px);
+  transform: translateX(
+    calc(var(--size-toggle-width) - var(--size-toggle-knob-size) - (var(--size-toggle-knob-offset) * 2))
+  );
+}
+
+/* Fix 9 (final-review fix wave): .sp-toggle__input is opacity: 0 (correct technique for a custom
+   toggle control), but with no :focus-visible style on the visible track, keyboard users tabbing
+   to the Show Bunny toggle got no visible focus indicator at all. */
+.sp-toggle__input:focus-visible ~ .sp-toggle__track {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
+/* Fix 2 (final-review fix wave): global.css's .timer-ring__track uses stroke: var(--color-surface)
+   (#f7e9dc), but ActiveSessionView.tsx nests <TimerRing> inside a .sp-card, whose own background
+   is that exact same --color-surface - making the track invisible against its own card. The
+   progress arc (--color-primary, #eabab7) is also very low-contrast against #f7e9dc. Scoped here
+   rather than touching global.css/TimerRing.tsx (other consumers of .timer-ring may rely on the
+   current colors) - .sp-active-session__progress is already the specific-enough hook, since it's
+   the direct parent of the mounted <TimerRing>. --color-bg (#fdfbfa) restores a visible track
+   against the card, and --color-text (#796c6c) on --color-surface (#f7e9dc) is a real ~4.2:1
+   contrast ratio for the progress arc. */
+.sp-active-session__progress .timer-ring__track {
+  stroke: var(--color-bg);
+}
+
+.sp-active-session__progress .timer-ring__progress {
+  stroke: var(--color-text);
 }
 
 .sp-active-session__goal {

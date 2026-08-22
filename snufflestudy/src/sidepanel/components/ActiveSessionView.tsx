@@ -10,6 +10,15 @@ import { NUDGE_MESSAGES } from "../../domain/accountability/nudgeMessages";
 import type { StudySession } from "../../domain/session/sessionTypes";
 import type { GroupMembership } from "../../infrastructure/backend/friendGroupApi";
 
+// Minimal shape of AUTH_GET_SESSION's response this component needs - mirrors the same minimal
+// AuthUser/AuthSession shape duplicated in Header.tsx, AccountPage.tsx, and FriendGroupPanel.tsx.
+interface AuthUser {
+  id: string;
+}
+interface AuthSession {
+  user: AuthUser;
+}
+
 // First entry of the fixed NUDGE_MESSAGES catalog, used as this panel's default nudge text (a
 // friend can only pick from FriendGroupPanel's full picker - this Study Room panel sends the
 // same "encouraging check-in" every time, matching the Figma mock's single Nudge button per
@@ -56,6 +65,32 @@ export function ActiveSessionView({
   const [membersError, setMembersError] = useState<string | null>(null);
   const [nudgingUserId, setNudgingUserId] = useState<string | null>(null);
   const [nudgeError, setNudgeError] = useState<string | null>(null);
+  // Fix 4 (final-review fix wave): the current user is themselves a member of their own
+  // accountability group, so GROUP_LIST_MEMBERS' unfiltered rows would otherwise include a "Nudge
+  // yourself" row. Resolved the same way FriendGroupPanel.tsx's loadFriends() already does (via
+  // AUTH_GET_SESSION), then filtered out of the rendered list below.
+  const [selfUserId, setSelfUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    sendMessage<{ ok: boolean; session?: AuthSession | null; error?: string }>({
+      type: "AUTH_GET_SESSION",
+    })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.ok) setSelfUserId(res.session?.user.id ?? null);
+      })
+      .catch((err) => {
+        // sendMessage (chrome.runtime.sendMessage) can reject — same rationale as the
+        // GROUP_LIST_MEMBERS fetch below. Not resolving the current user's id just means the
+        // self-filter below is a no-op (self may render as a nudge target) - not a crash.
+        if (cancelled) return;
+        console.error("Failed to resolve current user for study room filtering", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!session.accountabilityGroupId) return;
@@ -114,6 +149,10 @@ export function ActiveSessionView({
       .finally(() => setNudgingUserId(null));
   }
 
+  // Fix 4: exclude the current user from their own study room's nudge-able list - see
+  // FriendGroupPanel.tsx's identical `member.userId !== userId` filter in loadFriends().
+  const nudgeableMembers = members.filter((member) => member.userId !== selfUserId);
+
   return (
     <div className="sp-tab-content sp-active-session">
       {/* Figma node 60:783 ("Example Goal Name") sits above the "Study Session in Progress"
@@ -156,10 +195,10 @@ export function ActiveSessionView({
         {membersError && (
           <p role="alert">Couldn't load your study room: {membersError}.</p>
         )}
-        {members.length === 0 && !membersError && <p>No one else in your study room yet.</p>}
-        {members.length > 0 && (
+        {nudgeableMembers.length === 0 && !membersError && <p>No one else in your study room yet.</p>}
+        {nudgeableMembers.length > 0 && (
           <ul className="sp-active-session__friend-list">
-            {members.map((member) => (
+            {nudgeableMembers.map((member) => (
               <li key={member.userId}>
                 {/* No `profiles` table exists yet (see friendGroupApi.ts's listMembers()
                     comment), so members are identified by raw user id - same convention already

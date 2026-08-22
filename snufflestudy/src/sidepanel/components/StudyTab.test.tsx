@@ -54,4 +54,38 @@ describe("StudyTab", () => {
       expect(screen.getByLabelText(/goal/i)).toHaveValue("Chapter 6 of STAT231")
     );
   });
+
+  it("makes a task created in the Task Vault card immediately selectable in the Goal select above it (Fix 1 regression guard)", async () => {
+    // Reproduces the exact final-review bug: a first-time user with no tasks yet creates their
+    // first task in TaskVaultPage, right below SessionSetupForm in the same StudyTab. Before Fix
+    // 1, SessionSetupForm's Goal select only fetched TASK_LIST once on its own mount and never saw
+    // this later creation, so the new task was never selectable and submitting failed validation
+    // ("Goal cannot be empty.").
+    const newTask = { id: "task_new", title: "New task", createdAt: 2, breakdown: [] };
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "TASK_LIST") return { ok: true, tasks: [] };
+      if (message.type === "TASK_CREATE") return { ok: true, task: newTask };
+      return { ok: true };
+    });
+
+    render(<StudyTab settings={DEFAULT_USER_SETTINGS} />);
+
+    // Confirms the Goal select starts out with nothing to pick beyond the disabled placeholder -
+    // the interesting assertion is what happens after creation, not before.
+    await waitFor(() => expect(screen.getByText("No tasks yet.")).toBeInTheDocument());
+    expect(screen.queryByRole("option", { name: "New task" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("STAT231"), { target: { value: "New task" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add task" }));
+
+    // The newly created task is immediately an option in SessionSetupForm's Goal select, in the
+    // same mounted StudyTab - no remount, no second fetch needed.
+    await waitFor(() =>
+      expect(screen.getByRole("option", { name: "New task" })).toBeInTheDocument()
+    );
+
+    // And it's actually selectable, not just rendered inert.
+    fireEvent.change(screen.getByLabelText(/goal/i), { target: { value: "New task" } });
+    expect(screen.getByLabelText(/goal/i)).toHaveValue("New task");
+  });
 });

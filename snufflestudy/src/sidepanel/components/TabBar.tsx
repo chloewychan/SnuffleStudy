@@ -18,9 +18,11 @@ export function TabBar({ active, onSelect }: TabBarProps) {
       {TABS.map(({ id, label }) => (
         <button
           key={id}
+          id={`sp-tab-${id}`}
           type="button"
           role="tab"
           aria-selected={id === active}
+          aria-controls="sp-tabpanel"
           className={`sp-tabbar__tab${id === active ? " sp-tabbar__tab--active" : ""}`}
           onClick={() => onSelect(id)}
         >
