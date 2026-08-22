@@ -35,7 +35,11 @@ const TOGGLE_FIELDS: { key: keyof FriendshipSettingsPatch; label: string }[] = [
   { key: "shareFullHistory", label: "Share my full session history with this friend" },
 ];
 
-export function FriendsPage() {
+interface FriendsPageProps {
+  onSignInClick?: () => void;
+}
+
+export function FriendsPage({ onSignInClick }: FriendsPageProps) {
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
   const [friendIds, setFriendIds] = useState<string[] | null>(null);
   const [settingsByFriend, setSettingsByFriend] = useState<Record<string, FriendshipSettings>>({});
@@ -181,7 +185,14 @@ export function FriendsPage() {
       {error && <p role="alert">Couldn't load friend settings: {error}. Please try again.</p>}
       {saveError && <p role="alert">Couldn't save: {saveError}. Please try again.</p>}
 
-      {!selfUserId && !error && <p>Sign in on the Account page to manage friend settings.</p>}
+      {!selfUserId && !error && (
+        <p>
+          Sign in on the Account page to manage friend settings.{" "}
+          <button type="button" onClick={onSignInClick}>
+            Sign in
+          </button>
+        </p>
+      )}
 
       {selfUserId && friendIds && friendIds.length === 0 && !error && (
         <p>No friends yet — join or create a group on the Account page first.</p>

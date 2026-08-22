@@ -196,7 +196,7 @@ export function OptionsApp() {
 
       {view === "account" && <AccountPage />}
 
-      {view === "friends" && <FriendsPage />}
+      {view === "friends" && <FriendsPage onSignInClick={() => setView("account")} />}
 
       {view === "settings" && (
         <>

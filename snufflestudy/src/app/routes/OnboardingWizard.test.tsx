@@ -13,6 +13,12 @@ function dismissWelcome() {
   fireEvent.click(screen.getByRole("button", { name: "Get started" }));
 }
 
+// The account (sign-in) step is the first step after Welcome as of v3.1; tests that exercise
+// steps further down the flow skip it the same way a signed-out user would.
+function skipAccountStep() {
+  fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
+}
+
 function skipPasscodeStep() {
   fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
 }
@@ -22,11 +28,15 @@ describe("OnboardingWizard", () => {
     render(<OnboardingWizard onComplete={vi.fn()} />);
 
     expect(screen.getByText(/consensual peer pressure/i)).toBeInTheDocument();
-    expect(screen.queryByText("Meet Snuffles")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Sign in to use friends, rooms, nudges, approvals/)
+    ).not.toBeInTheDocument();
 
     dismissWelcome();
 
-    expect(screen.getByText("Meet Snuffles")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Sign in to use friends, rooms, nudges, approvals/)
+    ).toBeInTheDocument();
   });
 
   it("walks through all steps and saves settings on completion", async () => {
@@ -36,6 +46,7 @@ describe("OnboardingWizard", () => {
     render(<OnboardingWizard onComplete={onComplete} />);
 
     dismissWelcome();
+    skipAccountStep(); // account -> name
     fireEvent.click(screen.getByRole("button", { name: "Continue" })); // name -> pressure
     fireEvent.click(screen.getByRole("button", { name: "Continue" })); // pressure -> duration
     fireEvent.click(screen.getByRole("button", { name: "Continue" })); // duration -> tracking
@@ -66,6 +77,7 @@ describe("OnboardingWizard", () => {
     render(<OnboardingWizard onComplete={vi.fn()} />);
 
     dismissWelcome();
+    skipAccountStep(); // account -> name
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
@@ -83,6 +95,7 @@ describe("OnboardingWizard", () => {
     render(<OnboardingWizard onComplete={vi.fn()} />);
 
     dismissWelcome();
+    skipAccountStep(); // account -> name
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
@@ -105,6 +118,7 @@ describe("OnboardingWizard", () => {
     render(<OnboardingWizard onComplete={onComplete} />);
 
     dismissWelcome();
+    skipAccountStep(); // account -> name
     fireEvent.click(screen.getByRole("button", { name: "Continue" })); // name -> pressure
     fireEvent.click(screen.getByRole("button", { name: "Continue" })); // pressure -> duration
     fireEvent.click(screen.getByRole("button", { name: "Continue" })); // duration -> tracking
@@ -135,6 +149,7 @@ describe("OnboardingWizard", () => {
     render(<OnboardingWizard onComplete={onComplete} />);
 
     dismissWelcome();
+    skipAccountStep(); // account -> name
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
@@ -166,6 +181,7 @@ describe("OnboardingWizard", () => {
     render(<OnboardingWizard onComplete={onComplete} />);
 
     dismissWelcome();
+    skipAccountStep(); // account -> name
     fireEvent.click(screen.getByRole("button", { name: "Continue" })); // name -> pressure
     fireEvent.click(screen.getByRole("button", { name: "Continue" })); // pressure -> duration
     fireEvent.click(screen.getByRole("button", { name: "Continue" })); // duration -> tracking
@@ -192,6 +208,7 @@ describe("OnboardingWizard", () => {
     async function reachPasscodeStep() {
       render(<OnboardingWizard onComplete={vi.fn()} />);
       dismissWelcome();
+      skipAccountStep(); // account -> name
       fireEvent.click(screen.getByRole("button", { name: "Continue" })); // name -> pressure
       fireEvent.click(screen.getByRole("button", { name: "Continue" })); // pressure -> duration
       fireEvent.click(screen.getByRole("button", { name: "Continue" })); // duration -> tracking
