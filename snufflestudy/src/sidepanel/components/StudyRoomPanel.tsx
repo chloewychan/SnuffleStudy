@@ -183,6 +183,38 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   // access from a full tab" (mediaPermissions.ts) is a real fix for this failure, not just noise.
   const [mediaError, setMediaError] = useState<{ message: string; actionable: boolean } | null>(null);
 
+  // v3.3 Task 9: one pair of flags does double duty, matching this component's existing preference
+  // for simple, shared local state over parallel-but-separate pieces of state. Before joining, they
+  // drive the two "join with camera/mic on" checkboxes below (default both true, preserving the
+  // pre-Task-9 "always publish both" behavior) and are read once by handleJoinRoom to build
+  // joinCall's `initial` param. Once joined, the SAME flags become the two in-room toggle buttons'
+  // on/off label, updated optimistically on click - per this task's brief, LiveKit's own publication
+  // state is the long-term source of truth, but simple local state is sufficient here.
+  const [cameraOn, setCameraOn] = useState(true);
+  const [micOn, setMicOn] = useState(true);
+
+  // Fire-and-forget the actual LiveKit toggle after optimistically flipping the button's label -
+  // videoCallClient.setCameraEnabled/setMicrophoneEnabled never reject (a failure, e.g. hitting the
+  // Chrome side-panel getUserMedia permission wall on a first-time camera-on toggle, is caught
+  // inside that module and re-emitted as the same "local-media-error" event join-time failures use,
+  // which the existing mediaError listener below already renders) - this .catch is defensive only,
+  // matching this codebase's standing rule against a bare async call in a UI handler.
+  function handleToggleCamera() {
+    const next = !cameraOn;
+    setCameraOn(next);
+    videoCallClient.setCameraEnabled(next).catch((err) => {
+      console.error("Failed to toggle camera", err);
+    });
+  }
+
+  function handleToggleMic() {
+    const next = !micOn;
+    setMicOn(next);
+    videoCallClient.setMicrophoneEnabled(next).catch((err) => {
+      console.error("Failed to toggle microphone", err);
+    });
+  }
+
   function loadRooms() {
     setLoadError(null);
     sendMessage<{ ok: boolean; rooms?: StudyRoom[]; error?: string }>({ type: "STUDY_ROOM_LIST" })
@@ -420,7 +452,9 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
     setMediaError(null);
     try {
       const { token } = await studyRoomApi.joinRoom(room.id);
-      await videoCallClient.joinCall(room.id, token);
+      // v3.3 Task 9: cameraOn/micOn reflect the room-list view's two pre-join toggles (default
+      // both true) - passed straight through as joinCall's `initial` param.
+      await videoCallClient.joinCall(room.id, token, { camera: cameraOn, microphone: micOn });
 
       const participantsRes = await sendMessage<{
         ok: boolean;
@@ -529,6 +563,15 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
 
         <div ref={gridRef} className="study-room-panel__grid" />
 
+        <div className="study-room-panel__media-toggles">
+          <button type="button" onClick={handleToggleCamera}>
+            Camera: {cameraOn ? "On" : "Off"}
+          </button>
+          <button type="button" onClick={handleToggleMic}>
+            Mic: {micOn ? "On" : "Off"}
+          </button>
+        </div>
+
         <section className="study-room-panel__presence">
           <h3>In this room ({participants.size})</h3>
           <ul>
@@ -603,6 +646,17 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
           {creating ? "Creating…" : "Create room"}
         </button>
         {createError && <p role="alert">Could not create room: {createError}</p>}
+      </section>
+
+      <section className="study-room-panel__media-toggles">
+        <label>
+          <input type="checkbox" checked={cameraOn} onChange={(e) => setCameraOn(e.target.checked)} />
+          Join with camera on
+        </label>
+        <label>
+          <input type="checkbox" checked={micOn} onChange={(e) => setMicOn(e.target.checked)} />
+          Join with mic on
+        </label>
       </section>
 
       <section className="study-room-panel__list">

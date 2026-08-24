@@ -130,7 +130,16 @@ function detachRoomListeners(room: Room): void {
 // call needs), but is kept in the signature both because the plan specifies it and because a
 // future provider swap may need the room identifier explicitly rather than only implicitly via
 // the token's own claims.
-export async function joinCall(roomId: string, token: string): Promise<void> {
+//
+// v3.3 Task 9: `initial` lets a caller join with camera and/or mic already off (e.g.
+// StudyRoomPanel.tsx's pre-join toggles) - both fields default to `true`, preserving today's
+// "always publish both" behavior exactly when the param is omitted entirely, so every pre-Task-9
+// call site keeps working unchanged.
+export async function joinCall(
+  roomId: string,
+  token: string,
+  initial?: { camera?: boolean; microphone?: boolean }
+): Promise<void> {
   void roomId;
 
   const url = import.meta.env.WXT_LIVEKIT_URL;
@@ -162,7 +171,7 @@ export async function joinCall(roomId: string, token: string): Promise<void> {
   // join with no local video/audio published rather than no call at all, consistent with this
   // codebase's established graceful-degradation posture for anything that can partially fail.
   try {
-    const cameraPublication = await room.localParticipant.setCameraEnabled(true);
+    const cameraPublication = await room.localParticipant.setCameraEnabled(initial?.camera ?? true);
     const track = cameraPublication?.track;
     if (track) {
       const element = track.attach();
@@ -184,9 +193,53 @@ export async function joinCall(roomId: string, token: string): Promise<void> {
   }
 
   try {
-    await room.localParticipant.setMicrophoneEnabled(true);
+    await room.localParticipant.setMicrophoneEnabled(initial?.microphone ?? true);
   } catch (err) {
     console.error("Could not enable local microphone", err);
+    emit({
+      type: "local-media-error",
+      kind: "microphone",
+      message: isMediaPermissionError(err) ? MEDIA_PERMISSION_HELP_MESSAGE : String(err),
+      actionable: isMediaPermissionError(err),
+    });
+  }
+}
+
+// v3.3 Task 9: mid-call camera/mic toggles. Thin wrappers around the same
+// room.localParticipant.setCameraEnabled/setMicrophoneEnabled calls joinCall's initial publish
+// already uses - stops/(re)starts exactly that one track without leaving or rejoining the call.
+// No-op if no call is active (mirrors leaveCall's own "safe to call when idle" convention) rather
+// than throwing, since StudyRoomPanel.tsx's toggle buttons are only ever rendered while a call is
+// actually joined, but a defensive no-op costs nothing and avoids an unhandled rejection if a
+// stray click races a leave.
+//
+// A failure (e.g. the Chrome side-panel getUserMedia permission wall on a first-time camera-on
+// toggle) is caught and re-emitted as the exact same "local-media-error" event joinCall's own
+// camera/mic try/catch blocks emit - not rethrown - so the "open a tab to grant access" affordance
+// StudyRoomPanel.tsx already renders off that event covers a mid-call toggle for free, with no new
+// UI-level error handling needed. Matches this file's existing "camera/mic access can partially
+// fail without tearing down anything else" posture.
+export async function setCameraEnabled(enabled: boolean): Promise<void> {
+  if (!currentRoom) return;
+  try {
+    await currentRoom.localParticipant.setCameraEnabled(enabled);
+  } catch (err) {
+    console.error("Could not toggle local camera", err);
+    emit({
+      type: "local-media-error",
+      kind: "camera",
+      message: isMediaPermissionError(err) ? MEDIA_PERMISSION_HELP_MESSAGE : String(err),
+      actionable: isMediaPermissionError(err),
+    });
+  }
+}
+
+export async function setMicrophoneEnabled(enabled: boolean): Promise<void> {
+  if (!currentRoom) return;
+  try {
+    await currentRoom.localParticipant.setMicrophoneEnabled(enabled);
+  } catch (err) {
+    console.error("Could not toggle local microphone", err);
     emit({
       type: "local-media-error",
       kind: "microphone",

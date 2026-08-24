@@ -41,11 +41,14 @@ vi.mock("livekit-client", () => {
     disconnect = vi.fn();
     localParticipant = {
       identity: "local-user",
-      setCameraEnabled: vi.fn().mockImplementation(() =>
-        cameraShouldFail
-          ? Promise.reject(cameraFailure)
-          : Promise.resolve({ track: { attach: vi.fn(() => document.createElement("video")) } })
-      ),
+      // v3.3 Task 9: mirrors the real SDK's behavior of resolving `undefined` (no publication)
+      // when called with `enabled: false` - needed so a camera-off join/toggle can be asserted to
+      // publish no local video track, not just that the call args were right.
+      setCameraEnabled: vi.fn().mockImplementation((enabled: boolean) => {
+        if (cameraShouldFail) return Promise.reject(cameraFailure);
+        if (!enabled) return Promise.resolve(undefined);
+        return Promise.resolve({ track: { attach: vi.fn(() => document.createElement("video")) } });
+      }),
       setMicrophoneEnabled: vi.fn().mockResolvedValue(undefined),
     };
     constructor() {
@@ -75,7 +78,13 @@ vi.mock("livekit-client", () => {
 });
 
 import { Room } from "livekit-client";
-import { joinCall, leaveCall, onVideoCallEvent } from "./videoCallClient";
+import {
+  joinCall,
+  leaveCall,
+  onVideoCallEvent,
+  setCameraEnabled,
+  setMicrophoneEnabled,
+} from "./videoCallClient";
 
 // Cast to reach the test-only `instances` static the mock factory above adds - the real
 // livekit-client `Room` class has no such thing, so this is deliberately typed against the fake
@@ -190,6 +199,45 @@ describe("videoCallClient.joinCall", () => {
     unsubscribe();
   });
 
+  // v3.3 Task 9: `initial` lets a caller join with camera and/or mic already off. Omitting it
+  // entirely (exercised by every test above this one) must preserve today's "always publish both"
+  // behavior exactly - covered separately here so a regression in the defaulting logic doesn't
+  // hide behind the many pre-existing tests that also happen to pass `true` implicitly.
+  it("passes initial.camera/initial.microphone straight through to setCameraEnabled/setMicrophoneEnabled", async () => {
+    await joinCall("room-1", "livekit-jwt", { camera: false, microphone: false });
+
+    const room = latestRoom();
+    expect(room.localParticipant.setCameraEnabled).toHaveBeenCalledWith(false);
+    expect(room.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(false);
+  });
+
+  it("defaults camera/microphone to true when `initial` is omitted entirely (today's behavior)", async () => {
+    await joinCall("room-1", "livekit-jwt");
+
+    const room = latestRoom();
+    expect(room.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
+    expect(room.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it("defaults a field to true when `initial` is given but that one field is omitted", async () => {
+    await joinCall("room-1", "livekit-jwt", { camera: false });
+
+    const room = latestRoom();
+    expect(room.localParticipant.setCameraEnabled).toHaveBeenCalledWith(false);
+    expect(room.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it("a camera-off join publishes no local video track (no local track-added event fires)", async () => {
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    const unsubscribe = onVideoCallEvent((event) => events.push(event as never));
+
+    await joinCall("room-1", "livekit-jwt", { camera: false, microphone: true });
+
+    const localVideoEvents = events.filter((e) => e.type === "track-added" && e.isLocal === true);
+    expect(localVideoEvents).toHaveLength(0);
+    unsubscribe();
+  });
+
   it("defensively leaves a previous call before joining a new one", async () => {
     await joinCall("room-1", "token-1");
     const firstRoom = latestRoom();
@@ -213,6 +261,51 @@ describe("videoCallClient.leaveCall", () => {
 
   it("is a safe no-op when no call is active", () => {
     expect(() => leaveCall()).not.toThrow();
+  });
+});
+
+// v3.3 Task 9: mid-call camera/mic toggles - StudyRoomPanel.tsx's two in-room toggle buttons call
+// these directly, independent of leaving/rejoining the call.
+describe("videoCallClient.setCameraEnabled / setMicrophoneEnabled", () => {
+  it("is a safe no-op when no call is active", async () => {
+    await expect(setCameraEnabled(false)).resolves.toBeUndefined();
+    await expect(setMicrophoneEnabled(false)).resolves.toBeUndefined();
+    expect(FakeRoomClass.instances).toHaveLength(0);
+  });
+
+  it("calls room.localParticipant.setCameraEnabled/setMicrophoneEnabled with the given value on the active room", async () => {
+    await joinCall("room-1", "livekit-jwt");
+    const room = latestRoom();
+    room.localParticipant.setCameraEnabled.mockClear();
+    room.localParticipant.setMicrophoneEnabled.mockClear();
+
+    await setCameraEnabled(false);
+    await setMicrophoneEnabled(false);
+
+    expect(room.localParticipant.setCameraEnabled).toHaveBeenCalledWith(false);
+    expect(room.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(false);
+
+    await setCameraEnabled(true);
+    expect(room.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
+  });
+
+  // Mirrors joinCall's own "actionable local-media-error" behavior for a first-time camera-on
+  // hitting the Chrome side-panel getUserMedia permission wall - StudyRoomPanel.tsx's existing
+  // "open a tab to grant access" affordance is driven entirely off this event, so a mid-call
+  // toggle failure must emit the same shape join-time failures do, not throw a bare rejection.
+  it("emits an actionable local-media-error (and does not reject) when a mid-call camera toggle fails", async () => {
+    await joinCall("room-1", "livekit-jwt");
+    FakeRoomClass.setCameraShouldFail(true, new DOMException("Permission dismissed", "NotAllowedError"));
+
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    const unsubscribe = onVideoCallEvent((event) => events.push(event as never));
+
+    await expect(setCameraEnabled(true)).resolves.toBeUndefined();
+
+    const mediaErrors = events.filter((e) => e.type === "local-media-error");
+    expect(mediaErrors).toHaveLength(1);
+    expect(mediaErrors[0]).toMatchObject({ kind: "camera", actionable: true });
+    unsubscribe();
   });
 });
 

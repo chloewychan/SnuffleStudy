@@ -44,6 +44,9 @@ vi.mock("../../infrastructure/video/videoCallClient", () => ({
   joinCall: vi.fn(),
   leaveCall: vi.fn(),
   onVideoCallEvent: vi.fn(() => () => {}),
+  // v3.3 Task 9: mid-call camera/mic toggles.
+  setCameraEnabled: vi.fn(),
+  setMicrophoneEnabled: vi.fn(),
 }));
 
 const sampleRoom = { id: "room-1", name: "Thursday study group", ownerUserId: "user-a", createdAt: "2026-01-01T00:00:00.000Z" };
@@ -79,6 +82,8 @@ beforeEach(() => {
   vi.mocked(videoCallClient.joinCall).mockReset().mockResolvedValue(undefined);
   vi.mocked(videoCallClient.leaveCall).mockReset();
   vi.mocked(videoCallClient.onVideoCallEvent).mockReset().mockReturnValue(() => {});
+  vi.mocked(videoCallClient.setCameraEnabled).mockReset().mockResolvedValue(undefined);
+  vi.mocked(videoCallClient.setMicrophoneEnabled).mockReset().mockResolvedValue(undefined);
   vi.mocked(producerTagApi.subscribeToRoomProducerTags).mockReset().mockReturnValue(() => {});
   vi.mocked(producerTagApi.downloadTagAudio).mockReset();
   vi.mocked(producerTagApi.blobToBase64).mockReset().mockResolvedValue("ZmFrZQ==");
@@ -152,7 +157,12 @@ describe("StudyRoomPanel", () => {
     // Joined-room view replaces the list view.
     expect(await screen.findByText("Leave room")).toBeInTheDocument();
     expect(studyRoomApi.joinRoom).toHaveBeenCalledWith("room-1");
-    expect(videoCallClient.joinCall).toHaveBeenCalledWith("room-1", "livekit-jwt");
+    // v3.3 Task 9: the two pre-join toggles default to on, so an unmodified join still passes
+    // { camera: true, microphone: true } - preserving today's "always publish both" behavior.
+    expect(videoCallClient.joinCall).toHaveBeenCalledWith("room-1", "livekit-jwt", {
+      camera: true,
+      microphone: true,
+    });
     expect(studyRoomApi.subscribeToPresence).toHaveBeenCalledWith("room-1", expect.any(Function));
     expect(screen.getByText("In this room (1)")).toBeInTheDocument();
   });
@@ -424,6 +434,129 @@ describe("StudyRoomPanel — Archive (v3.3 Task 6)", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("not the room owner");
     expect(screen.getByText("My own room")).toBeInTheDocument();
+  });
+});
+
+// v3.3 Task 9: camera/mic on/off toggle, both before joining and in-room. Mock-verified only - the
+// real "no track actually published"/"real permission wall" behavior needs real camera hardware or
+// a real LiveKit connection (deferred to Task 15's two-account QA pass, per that task's own DoD
+// item "camera/mic toggles work both pre-join and mid-call"). What's verified here: the right
+// videoCallClient export is called with the right boolean, and the pre-join toggles' values are
+// exactly what flows into joinCall's `initial` param.
+describe("StudyRoomPanel — Camera/Mic toggle (v3.3 Task 9)", () => {
+  it("defaults both pre-join toggles to on, preserving today's behavior when neither is touched", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+
+    expect(screen.getByLabelText("Join with camera on")).toBeChecked();
+    expect(screen.getByLabelText("Join with mic on")).toBeChecked();
+  });
+
+  it("unchecking the pre-join camera toggle passes { camera: false, microphone: true } to joinCall", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+
+    fireEvent.click(screen.getByLabelText("Join with camera on"));
+    fireEvent.click(screen.getByText("Join"));
+
+    await screen.findByText("Leave room");
+    expect(videoCallClient.joinCall).toHaveBeenCalledWith("room-1", "livekit-jwt", {
+      camera: false,
+      microphone: true,
+    });
+  });
+
+  it("unchecking the pre-join mic toggle passes { camera: true, microphone: false } to joinCall", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+
+    fireEvent.click(screen.getByLabelText("Join with mic on"));
+    fireEvent.click(screen.getByText("Join"));
+
+    await screen.findByText("Leave room");
+    expect(videoCallClient.joinCall).toHaveBeenCalledWith("room-1", "livekit-jwt", {
+      camera: true,
+      microphone: false,
+    });
+  });
+
+  it("mid-room: clicking the Camera toggle calls videoCallClient.setCameraEnabled(false) and flips its own label", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+    fireEvent.click(screen.getByText("Join"));
+    await screen.findByText("Leave room");
+
+    expect(screen.getByText("Camera: On")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Camera: On"));
+
+    expect(videoCallClient.setCameraEnabled).toHaveBeenCalledWith(false);
+    expect(await screen.findByText("Camera: Off")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Camera: Off"));
+    expect(videoCallClient.setCameraEnabled).toHaveBeenCalledWith(true);
+    expect(await screen.findByText("Camera: On")).toBeInTheDocument();
+  });
+
+  it("mid-room: clicking the Mic toggle calls videoCallClient.setMicrophoneEnabled(false) and flips its own label", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+    fireEvent.click(screen.getByText("Join"));
+    await screen.findByText("Leave room");
+
+    expect(screen.getByText("Mic: On")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Mic: On"));
+
+    expect(videoCallClient.setMicrophoneEnabled).toHaveBeenCalledWith(false);
+    expect(await screen.findByText("Mic: Off")).toBeInTheDocument();
+  });
+
+  // The existing "open a tab to grant access" affordance is unchanged - it's driven entirely off
+  // videoCallClient's own local-media-error event (see videoCallClient.test.ts's mid-call-toggle
+  // coverage for the emission side), so mid-room toggle failures reuse the exact same rendering
+  // path a join-time failure already exercises (covered above in the main describe block). This
+  // test only confirms the toggle click itself doesn't throw/crash when the underlying call
+  // rejects (defensive .catch in the handler).
+  it("does not crash the panel when a mid-room toggle's underlying call rejects", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+    vi.mocked(videoCallClient.setCameraEnabled).mockRejectedValue(new Error("boom"));
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+    fireEvent.click(screen.getByText("Join"));
+    await screen.findByText("Leave room");
+
+    fireEvent.click(screen.getByText("Camera: On"));
+
+    // The optimistic label still flips even though the underlying call rejected - local state,
+    // not the SDK call's outcome, drives the button's label per this task's brief.
+    expect(await screen.findByText("Camera: Off")).toBeInTheDocument();
   });
 });
 
