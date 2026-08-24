@@ -41,8 +41,13 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
 
-  async function handleRequestOtp(e: FormEvent) {
-    e.preventDefault();
+  // Shared by the initial "Send sign-in code" submit and the "Request a new code" resend button
+  // (v3.2 Task 4) — both just re-fire AUTH_REQUEST_OTP for the current email. otpCode is reset
+  // unconditionally on success: for the initial request it's already "" (nothing to reset), and
+  // for a resend it clears out whatever stale code the user had typed against the old OTP. Left
+  // untouched on failure — the resend button's own attempt failing shouldn't wipe input the user
+  // may still want to retry with (e.g. a transient network error, not necessarily a bad code).
+  async function requestOtp() {
     setAuthBusy(true);
     setAuthError(null);
     try {
@@ -55,6 +60,7 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
         return;
       }
       setOtpRequested(true);
+      setOtpCode("");
     } catch (err) {
       // sendMessage (chrome.runtime.sendMessage) can reject — e.g. "Could not establish
       // connection. Receiving end does not exist." during service-worker startup races,
@@ -64,6 +70,11 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
     } finally {
       setAuthBusy(false);
     }
+  }
+
+  async function handleRequestOtp(e: FormEvent) {
+    e.preventDefault();
+    await requestOtp();
   }
 
   async function handleVerifyOtp(e: FormEvent) {
@@ -145,6 +156,13 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
             )}
             <button type="submit" disabled={authBusy || otpCode.length === 0}>
               {authBusy ? "Verifying…" : "Verify code"}
+            </button>
+            {/* Static label rather than an authBusy-driven one like the other buttons here:
+                authBusy is shared with "Verify code" in this same view, so a busy-text swap
+                here would misleadingly read "Sending…" while a verify attempt (not a resend)
+                is actually in flight. Still correctly disabled during either action. */}
+            <button type="button" onClick={() => requestOtp()} disabled={authBusy}>
+              Request a new code
             </button>
             {!onSkip && (
               <button
