@@ -62,7 +62,10 @@ describe("digestApi.fetchDigestForDate", () => {
 
     const result = await fetchDigestForDate("2026-08-14");
 
-    expect(fromSpy).toHaveBeenCalledWith("daily_digests");
+    // v3.2 Task 5: reads from daily_digests_visible (a security_invoker view gating
+    // distraction_count by friendship_settings.share_distraction_attempts), not the raw table -
+    // see supabase/migrations/20260815000030_v3.2_digest_visible_view.sql.
+    expect(fromSpy).toHaveBeenCalledWith("daily_digests_visible");
     expect(builder.eq).toHaveBeenCalledWith("digest_date", "2026-08-14");
     expect(result).toEqual([
       {
@@ -145,7 +148,9 @@ describe("digestApi.pollNewDigests", () => {
     const since = new Date("2026-08-14T00:00:00.000Z").getTime();
     const result = await pollNewDigests(since);
 
-    expect(fromSpy).toHaveBeenCalledWith("daily_digests");
+    // v3.2 Task 5: same daily_digests_visible view - see the comment on the fetchDigestForDate
+    // test above.
+    expect(fromSpy).toHaveBeenCalledWith("daily_digests_visible");
     expect(builder.gt).toHaveBeenCalledWith("computed_at", new Date(since).toISOString());
     expect(result).toEqual({
       ok: true,

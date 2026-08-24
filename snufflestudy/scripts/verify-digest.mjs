@@ -39,6 +39,14 @@
 //      true) - opts in, AND shares a group with S. Calls compute_daily_digests(DATE_A) via the
 //      service-role RPC. F can then SELECT the resulting daily_digests row for S/DATE_A and sees
 //      the exact seeded counts.
+//   4b. v3.2 Task 5 (supabase/migrations/20260815000030_v3.2_digest_visible_view.sql): with S's
+//      row toward F still at share_distraction_attempts's schema default (false, never explicitly
+//      granted), F reads S's digest via the new daily_digests_visible view instead of the raw
+//      table and sees distraction_count folded to 0 while the other three aggregate fields stay
+//      real (negative case). S's own read of their own row via the same view always shows the
+//      real distraction_count regardless of that toggle (subject's-own-row case). S then grants F
+//      share_distraction_attempts, and F's re-read via the view now shows the real count
+//      (positive case).
 //   5. Case 2: N has NO friendship_settings row toward S at all (the default "opted out" state -
 //      supabase/migrations/20260815000007_v2_nudges.sql's can_send_nudge() comment documents
 //      this codebase's "no row = not opted in" convention, which this migration's
@@ -255,7 +263,10 @@ async function main() {
     const clientF = await signInAs(userF.email);
     const clientN = await signInAs(userN.email);
     const clientG = await signInAs(userG.email);
-    await signInAs(userS.email); // Not used directly below, but confirms S can sign in.
+    // v3.2 Task 5: kept (not discarded, unlike the earlier draft of this script) - needed below to
+    // prove the subject's own read of their own digest via daily_digests_visible always shows the
+    // real distraction_count, unaffected by their own share_distraction_attempts setting.
+    const clientS = await signInAs(userS.email);
     record("Setup: S, F, N, G signed in via anon-key client", true);
 
     // Fix round 1: S and F share a group - required for Case 1 to pass under the tightened
@@ -322,6 +333,95 @@ async function main() {
           `got completed=${rowForF.completed_sessions}, abandoned=${rowForF.abandoned_sessions}, distractions=${rowForF.distraction_count}, recovery_rate=${rowForF.recovery_rate}`
         );
       }
+    }
+
+    // --- v3.2 Task 5: daily-digest privacy enforcement for distraction_count
+    // (supabase/migrations/20260815000030_v3.2_digest_visible_view.sql). F already shares a group
+    // with S and has receive_daily_digest=true toward S (Case 1's own setup above), but S's row
+    // toward F (auto-created by the group-join trigger, 20260815000012) still has
+    // share_distraction_attempts at its schema default (false) - neither side has explicitly
+    // granted it yet. This is exactly the "share_distraction_attempts off, receive_daily_digest
+    // on" scenario this task's DoD calls for. Reads below go through the new daily_digests_visible
+    // view, not the raw table Case 1 above deliberately still reads from (proving the raw table's
+    // own aggregation is unaffected by the view - the redaction is additive, not a rewrite of what
+    // compute_daily_digests() stores).
+
+    // Negative case: F reads daily_digests_visible for S's DATE_A digest - distraction_count must
+    // fold to 0 (compute_daily_digests()'s own zero-distraction convention, a real valid 0, not a
+    // new sentinel), while completed_sessions/abandoned_sessions/recovery_rate - none of which has
+    // a Task 10 toggle of its own - still show S's real seeded values.
+    const visibleRowForFBefore = await expectOk(
+      "Task 5 negative: F reads S's DATE_A digest via daily_digests_visible with share_distraction_attempts off",
+      () =>
+        clientF
+          .from("daily_digests_visible")
+          .select()
+          .eq("subject_user_id", userS.id)
+          .eq("digest_date", DATE_A)
+          .single()
+    );
+    if (visibleRowForFBefore) {
+      record(
+        "Task 5 negative: distraction_count folds to 0 for F while other fields stay real (2 completed, 1 abandoned, recovery_rate=2/3)",
+        visibleRowForFBefore.distraction_count === 0 &&
+          visibleRowForFBefore.completed_sessions === 2 &&
+          visibleRowForFBefore.abandoned_sessions === 1 &&
+          Math.abs(visibleRowForFBefore.recovery_rate - 2 / 3) < 0.001,
+        `got distraction_count=${visibleRowForFBefore.distraction_count}, completed=${visibleRowForFBefore.completed_sessions}, abandoned=${visibleRowForFBefore.abandoned_sessions}, recovery_rate=${visibleRowForFBefore.recovery_rate}`
+      );
+    }
+
+    // Subject's-own-row case: S reading their own DATE_A digest via the same view always sees the
+    // real distraction_count (3), unaffected by S's own share_distraction_attempts setting toward
+    // F (still false/default at this point) - the view's `subject_user_id = auth.uid()` branch
+    // takes priority over the friendship_settings check entirely, regardless of what that setting
+    // is.
+    const ownRowForS = await expectOk(
+      "Task 5: S reads their own DATE_A digest via daily_digests_visible and always sees the real distraction_count",
+      () =>
+        clientS
+          .from("daily_digests_visible")
+          .select()
+          .eq("subject_user_id", userS.id)
+          .eq("digest_date", DATE_A)
+          .single()
+    );
+    if (ownRowForS) {
+      record(
+        "Task 5: S's own view of their own row shows distraction_count=3 (real value), not folded to 0",
+        ownRowForS.distraction_count === 3,
+        `got distraction_count=${ownRowForS.distraction_count}`
+      );
+    }
+
+    // Positive case: S explicitly grants F share_distraction_attempts (S's own row toward F - "the
+    // subject controls visibility of their own data", this codebase's established model per
+    // 20260815000012's comment) - F must now see the real distraction_count via the same view,
+    // proving the view surfaces real data once granted rather than always folding to 0.
+    const { error: sGrantErr } = await clientS
+      .from("friendship_settings")
+      .upsert(
+        { user_id: userS.id, friend_user_id: userF.id, share_distraction_attempts: true },
+        { onConflict: "user_id,friend_user_id" }
+      );
+    record("Setup: S grants F share_distraction_attempts", !sGrantErr, sGrantErr?.message);
+
+    const visibleRowForFAfter = await expectOk(
+      "Task 5 positive: F re-reads S's DATE_A digest via daily_digests_visible after S grants share_distraction_attempts",
+      () =>
+        clientF
+          .from("daily_digests_visible")
+          .select()
+          .eq("subject_user_id", userS.id)
+          .eq("digest_date", DATE_A)
+          .single()
+    );
+    if (visibleRowForFAfter) {
+      record(
+        "Task 5 positive: distraction_count now shows the real value (3) for F once S grants share_distraction_attempts",
+        visibleRowForFAfter.distraction_count === 3,
+        `got distraction_count=${visibleRowForFAfter.distraction_count}`
+      );
     }
 
     // --- Case 2: N (opted out - no friendship_settings row at all) sees nothing for S ---

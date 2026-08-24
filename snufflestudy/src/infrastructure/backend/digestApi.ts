@@ -83,7 +83,7 @@ async function queryDigestsForDate(
     if (!auth.userId) return { ok: true, digests: [] }; // Cleanly signed out - nothing to fetch, no-op.
 
     const { data, error } = await supabase
-      .from("daily_digests")
+      .from("daily_digests_visible")
       .select()
       .eq("digest_date", date)
       .order("subject_user_id", { ascending: true });
@@ -145,7 +145,7 @@ export async function pollNewDigests(
     if (!auth.userId) return { ok: true, digests: [] }; // Cleanly signed out - nothing to fetch, no-op.
 
     const { data, error } = await supabase
-      .from("daily_digests")
+      .from("daily_digests_visible")
       .select()
       .gt("computed_at", new Date(sinceTimestamp).toISOString())
       .order("computed_at", { ascending: true });
