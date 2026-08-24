@@ -4,8 +4,9 @@ import * as studyRoomApi from "../../infrastructure/backend/studyRoomApi";
 import * as videoCallClient from "../../infrastructure/video/videoCallClient";
 import * as producerTagApi from "../../infrastructure/backend/producerTagApi";
 import type { RoomProducerTagBroadcast } from "../../infrastructure/backend/producerTagApi";
-import type { StudyRoom, RoomParticipant } from "../../domain/rooms/studyRoom";
+import type { StudyRoom, RoomParticipant, RoomInvitee } from "../../domain/rooms/studyRoom";
 import type { ProducerTag } from "../../domain/rooms/producerTag";
+import type { GroupMembership } from "../../infrastructure/backend/friendGroupApi";
 import { ProducerTagRecorder } from "./ProducerTagRecorder";
 import { SignInForm } from "../../shared/ui/SignInForm";
 import { useDisplayNames } from "../../shared/ui/useDisplayNames";
@@ -122,6 +123,174 @@ function RoomProducerTagItem({ tag }: { tag: RoomProducerTagEntry }) {
   );
 }
 
+// v3.3 Task 13: the owner-only "Manage access" section for one room - lists the owner's friends
+// (via GROUP_LIST_MINE -> GROUP_LIST_MEMBERS, the same picker pattern LockedPage.tsx/
+// AccountPage.tsx already use, per this task's plan) with an add/remove toggle against each one,
+// backed by STUDY_ROOM_INVITEE_ADD/REMOVE/STUDY_ROOM_INVITEES_LIST. A separate component (not
+// inlined into the room-list <li> below) so its own friend/invitee fetch only ever runs for the
+// one room currently expanded, not once per owned room on every render.
+function ManageAccessSection({ roomId }: { roomId: string }) {
+  const [friendIds, setFriendIds] = useState<string[] | null>(null);
+  const [friendsError, setFriendsError] = useState<string | null>(null);
+
+  const [inviteeIds, setInviteeIds] = useState<Set<string> | null>(null);
+  const [inviteesError, setInviteesError] = useState<string | null>(null);
+
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+
+  // v3.3 Task 8: resolves each friend's userId to their human_name (falling back to the raw id,
+  // same as before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
+  const displayName = useDisplayNames(friendIds ?? []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // Friend picker - same GROUP_LIST_MINE -> GROUP_LIST_MEMBERS pattern LockedPage.tsx/
+    // AccountPage.tsx already use. Unlike LockedPage.tsx, this doesn't need selfUserId separately -
+    // the caller only ever reaches this section already knowing they're this room's owner (the
+    // room-list view below only renders this component when `room.ownerUserId === selfUserId`) -
+    // but GROUP_LIST_MEMBERS still returns the caller's own membership row alongside everyone
+    // else's, so it's filtered out the same way LockedPage.tsx does, by re-checking against
+    // AUTH_GET_SESSION rather than assuming which id in the results is "self".
+    sendMessage<{ ok: boolean; session?: { user: { id: string } } | null; error?: string }>({
+      type: "AUTH_GET_SESSION",
+    })
+      .then((sessionRes) => {
+        if (cancelled) return;
+        const selfId = sessionRes.ok ? (sessionRes.session?.user.id ?? null) : null;
+
+        sendMessage<{ ok: boolean; memberships?: GroupMembership[]; error?: string }>({
+          type: "GROUP_LIST_MINE",
+        })
+          .then((groupsRes) => {
+            if (cancelled) return;
+            if (!groupsRes.ok) {
+              setFriendsError(groupsRes.error ?? "Could not load your friends.");
+              return;
+            }
+            const memberships = groupsRes.memberships ?? [];
+            if (memberships.length === 0) {
+              setFriendIds([]);
+              return;
+            }
+            Promise.all(
+              memberships.map((m) =>
+                sendMessage<{ ok: boolean; members?: GroupMembership[]; error?: string }>({
+                  type: "GROUP_LIST_MEMBERS",
+                  payload: { groupId: m.groupId },
+                })
+              )
+            )
+              .then((memberResponses) => {
+                if (cancelled) return;
+                const ids = new Set<string>();
+                for (const memberRes of memberResponses) {
+                  if (!memberRes.ok || !memberRes.members) continue;
+                  for (const member of memberRes.members) {
+                    if (member.userId !== selfId) ids.add(member.userId);
+                  }
+                }
+                setFriendIds([...ids]);
+              })
+              .catch((err) => {
+                console.error("Failed to load group members for the invite picker", err);
+                if (!cancelled) setFriendsError(err instanceof Error ? err.message : String(err));
+              });
+          })
+          .catch((err) => {
+            console.error("Failed to load groups for the invite picker", err);
+            if (!cancelled) setFriendsError(err instanceof Error ? err.message : String(err));
+          });
+      })
+      .catch((err) => {
+        console.error("Failed to load current user for the invite picker", err);
+        if (!cancelled) setFriendsError(err instanceof Error ? err.message : String(err));
+      });
+
+    sendMessage<{ ok: boolean; invitees?: RoomInvitee[]; error?: string }>({
+      type: "STUDY_ROOM_INVITEES_LIST",
+      payload: { roomId },
+    })
+      .then((res) => {
+        if (cancelled) return;
+        if (!res.ok || !res.invitees) {
+          setInviteesError(res.error ?? "Could not load who's currently invited.");
+          return;
+        }
+        setInviteeIds(new Set(res.invitees.map((i) => i.userId)));
+      })
+      .catch((err) => {
+        console.error("Failed to load room invitees", err);
+        if (!cancelled) setInviteesError(err instanceof Error ? err.message : String(err));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [roomId]);
+
+  function handleToggleInvite(friendUserId: string, currentlyInvited: boolean) {
+    setBusyUserId(friendUserId);
+    setToggleError(null);
+    sendMessage<{ ok: boolean; error?: string }>({
+      type: currentlyInvited ? "STUDY_ROOM_INVITEE_REMOVE" : "STUDY_ROOM_INVITEE_ADD",
+      payload: { roomId, userId: friendUserId },
+    })
+      .then((res) => {
+        if (!res.ok) {
+          setToggleError(res.error ?? "Could not update this invite.");
+          return;
+        }
+        setInviteeIds((prev) => {
+          const next = new Set(prev ?? []);
+          if (currentlyInvited) {
+            next.delete(friendUserId);
+          } else {
+            next.add(friendUserId);
+          }
+          return next;
+        });
+      })
+      .catch((err) => {
+        console.error("Failed to update a room invite", err);
+        setToggleError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => setBusyUserId(null));
+  }
+
+  return (
+    <div className="study-room-panel__manage-access">
+      {friendsError && <p role="alert">Couldn't load your friends: {friendsError}.</p>}
+      {inviteesError && <p role="alert">Couldn't load invitees: {inviteesError}.</p>}
+      {friendIds === null || inviteeIds === null ? (
+        !friendsError && !inviteesError && <p>Loading…</p>
+      ) : friendIds.length === 0 ? (
+        <p>No friends available to invite yet - add a friend first.</p>
+      ) : (
+        <ul>
+          {friendIds.map((friendId) => {
+            const invited = inviteeIds.has(friendId);
+            return (
+              <li key={friendId}>
+                <span>{displayName(friendId)}</span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleInvite(friendId, invited)}
+                  disabled={busyUserId === friendId}
+                >
+                  {busyUserId === friendId ? "Updating…" : invited ? "Remove access" : "Invite"}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {toggleError && <p role="alert">{toggleError}</p>}
+    </div>
+  );
+}
+
 export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   // v3.2 Task 2: this panel had no auth check at all before this task - mirrors the auth-check
   // half of FriendGroupPanel.tsx's loadFriends() (AUTH_GET_SESSION -> selfUserId), not its
@@ -152,6 +321,13 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   // so archiving one room's button doesn't disable every other room's Archive/Join buttons too.
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
+
+  // v3.3 Task 13: at most one room's "Manage access" section is expanded at a time, mirroring
+  // HistoryPage.tsx's identical single-expanded-id pattern (expandedSessionId) rather than a
+  // per-room boolean map - there's no need for more than one open at once, and this keeps
+  // ManageAccessSection's own friend/invitee fetch from running once per owned room on every
+  // render.
+  const [manageAccessRoomId, setManageAccessRoomId] = useState<string | null>(null);
 
   const [participants, setParticipants] = useState<Map<string, RoomParticipant>>(new Map());
 
@@ -684,6 +860,19 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
                   >
                     {archivingId === room.id ? "Archiving…" : "Archive this room"}
                   </button>
+                )}
+                {room.ownerUserId === selfUserId && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setManageAccessRoomId((prev) => (prev === room.id ? null : room.id))
+                    }
+                  >
+                    {manageAccessRoomId === room.id ? "Hide manage access" : "Manage access"}
+                  </button>
+                )}
+                {room.ownerUserId === selfUserId && manageAccessRoomId === room.id && (
+                  <ManageAccessSection roomId={room.id} />
                 )}
               </li>
             ))}

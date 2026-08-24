@@ -41,3 +41,14 @@ export interface PresenceChangeEvent {
   eventType: "INSERT" | "UPDATE" | "DELETE";
   participant: RoomParticipant;
 }
+
+// v3.3 Task 13: a row in study_room_invitees - one explicit grant of future-visibility/join
+// access to `userId` for `roomId`, given by the room's owner (`invitedBy`, always the owner - see
+// this file's own RLS-shaped "owner can manage invitees" policy, which is the only INSERT path).
+// Mirrors GroupMembership's plain camelCased row-mapping convention exactly.
+export interface RoomInvitee {
+  roomId: string;
+  userId: string;
+  invitedBy: string;
+  invitedAt: string;
+}

@@ -739,6 +739,21 @@ async function routeMessage(
       return { ok: true };
     }
 
+    case "STUDY_ROOM_INVITEE_ADD": {
+      await studyRoomApi.addInvitee(message.payload.roomId, message.payload.userId);
+      return { ok: true };
+    }
+
+    case "STUDY_ROOM_INVITEE_REMOVE": {
+      await studyRoomApi.removeInvitee(message.payload.roomId, message.payload.userId);
+      return { ok: true };
+    }
+
+    case "STUDY_ROOM_INVITEES_LIST": {
+      const invitees = await studyRoomApi.listInvitees(message.payload.roomId);
+      return { ok: true, invitees };
+    }
+
     case "PRODUCER_TAG_UPLOAD": {
       // The Blob<->base64 round trip lives here (background context has atob/Blob/Uint8Array but
       // no DOM) - see producerTagApi.ts's header comment and blobFromBase64's own comment for why

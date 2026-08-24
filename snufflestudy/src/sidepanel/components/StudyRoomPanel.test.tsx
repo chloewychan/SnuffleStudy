@@ -437,6 +437,175 @@ describe("StudyRoomPanel — Archive (v3.3 Task 6)", () => {
   });
 });
 
+// v3.3 Task 13: invite-only study rooms - the owner-only "Manage access" section. Same
+// AUTH_GET_SESSION default ("user-self") as the Archive block above, so `ownRoom` (owned by
+// "user-self") exercises the visible/enabled path.
+describe("StudyRoomPanel — Manage access (v3.3 Task 13)", () => {
+  const ownRoom = {
+    id: "room-2",
+    name: "My own room",
+    ownerUserId: "user-self",
+    createdAt: "2026-01-01T00:00:00.000Z",
+  };
+
+  const memberships = [{ groupId: "group-1", userId: "user-self", joinedAt: "2026-01-01T00:00:00.000Z" }];
+  const members = [
+    { groupId: "group-1", userId: "user-self", joinedAt: "2026-01-01T00:00:00.000Z" },
+    { groupId: "group-1", userId: "friend-1", joinedAt: "2026-01-01T00:00:00.000Z" },
+  ];
+
+  it("does not show a Manage access button for a room this user does not own", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+
+    expect(screen.queryByText("Manage access")).not.toBeInTheDocument();
+  });
+
+  it("shows a Manage access button for a room this user owns, expanding to list friends via GROUP_LIST_MINE/GROUP_LIST_MEMBERS with an Invite toggle", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
+        GROUP_LIST_MINE: () => ({ ok: true, memberships }),
+        GROUP_LIST_MEMBERS: () => ({ ok: true, members }),
+        STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
+      })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("My own room");
+
+    fireEvent.click(screen.getByText("Manage access"));
+
+    expect(await screen.findByText("friend-1")).toBeInTheDocument();
+    expect(screen.getByText("Invite")).toBeInTheDocument();
+    // The caller's own membership row is excluded from the friend list.
+    expect(screen.queryByText("user-self")).not.toBeInTheDocument();
+  });
+
+  it("shows Remove access for a friend already invited (STUDY_ROOM_INVITEES_LIST)", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
+        GROUP_LIST_MINE: () => ({ ok: true, memberships }),
+        GROUP_LIST_MEMBERS: () => ({ ok: true, members }),
+        STUDY_ROOM_INVITEES_LIST: () => ({
+          ok: true,
+          invitees: [{ roomId: "room-2", userId: "friend-1", invitedBy: "user-self", invitedAt: "2026-01-01T00:00:00.000Z" }],
+        }),
+      })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("My own room");
+    fireEvent.click(screen.getByText("Manage access"));
+
+    expect(await screen.findByText("Remove access")).toBeInTheDocument();
+  });
+
+  it("invites a friend via STUDY_ROOM_INVITEE_ADD and flips the toggle to Remove access", async () => {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
+        GROUP_LIST_MINE: () => ({ ok: true, memberships }),
+        GROUP_LIST_MEMBERS: () => ({ ok: true, members }),
+        STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
+        STUDY_ROOM_INVITEE_ADD: () => ({ ok: true }),
+      })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("My own room");
+    fireEvent.click(screen.getByText("Manage access"));
+    await screen.findByText("Invite");
+
+    fireEvent.click(screen.getByText("Invite"));
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "STUDY_ROOM_INVITEE_ADD",
+        payload: { roomId: "room-2", userId: "friend-1" },
+      })
+    );
+    expect(await screen.findByText("Remove access")).toBeInTheDocument();
+  });
+
+  it("removes an invite via STUDY_ROOM_INVITEE_REMOVE and flips the toggle back to Invite", async () => {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
+        GROUP_LIST_MINE: () => ({ ok: true, memberships }),
+        GROUP_LIST_MEMBERS: () => ({ ok: true, members }),
+        STUDY_ROOM_INVITEES_LIST: () => ({
+          ok: true,
+          invitees: [{ roomId: "room-2", userId: "friend-1", invitedBy: "user-self", invitedAt: "2026-01-01T00:00:00.000Z" }],
+        }),
+        STUDY_ROOM_INVITEE_REMOVE: () => ({ ok: true }),
+      })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("My own room");
+    fireEvent.click(screen.getByText("Manage access"));
+    await screen.findByText("Remove access");
+
+    fireEvent.click(screen.getByText("Remove access"));
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "STUDY_ROOM_INVITEE_REMOVE",
+        payload: { roomId: "room-2", userId: "friend-1" },
+      })
+    );
+    expect(await screen.findByText("Invite")).toBeInTheDocument();
+  });
+
+  it("shows the error inline and leaves the toggle unchanged when STUDY_ROOM_INVITEE_ADD fails", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
+        GROUP_LIST_MINE: () => ({ ok: true, memberships }),
+        GROUP_LIST_MEMBERS: () => ({ ok: true, members }),
+        STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
+        STUDY_ROOM_INVITEE_ADD: () => ({ ok: false, error: "not the room owner" }),
+      })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("My own room");
+    fireEvent.click(screen.getByText("Manage access"));
+    await screen.findByText("Invite");
+
+    fireEvent.click(screen.getByText("Invite"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("not the room owner");
+    expect(screen.getByText("Invite")).toBeInTheDocument();
+  });
+
+  it("hides the section again when Manage access is toggled a second time", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
+        GROUP_LIST_MINE: () => ({ ok: true, memberships }),
+        GROUP_LIST_MEMBERS: () => ({ ok: true, members }),
+        STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
+      })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("My own room");
+
+    fireEvent.click(screen.getByText("Manage access"));
+    await screen.findByText("Invite");
+
+    fireEvent.click(screen.getByText("Hide manage access"));
+    expect(screen.queryByText("Invite")).not.toBeInTheDocument();
+  });
+});
+
 // v3.3 Task 9: camera/mic on/off toggle, both before joining and in-room. Mock-verified only - the
 // real "no track actually published"/"real permission wall" behavior needs real camera hardware or
 // a real LiveKit connection (deferred to Task 15's two-account QA pass, per that task's own DoD

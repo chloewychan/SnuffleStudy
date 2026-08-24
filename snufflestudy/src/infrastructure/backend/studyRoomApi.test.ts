@@ -8,6 +8,9 @@ import {
   listParticipants,
   subscribeToPresence,
   archiveRoom,
+  addInvitee,
+  removeInvitee,
+  listInvitees,
 } from "./studyRoomApi";
 
 // Spies on the supabaseClient module's exported singleton, same boundary/style as
@@ -22,6 +25,7 @@ function makeBuilder(result: { data: unknown; error: { message: string } | null 
   const builder: {
     insert: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
     select: ReturnType<typeof vi.fn>;
     eq: ReturnType<typeof vi.fn>;
     is: ReturnType<typeof vi.fn>;
@@ -31,6 +35,7 @@ function makeBuilder(result: { data: unknown; error: { message: string } | null 
   } = {
     insert: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
     select: vi.fn(),
     eq: vi.fn(),
     is: vi.fn(),
@@ -40,6 +45,7 @@ function makeBuilder(result: { data: unknown; error: { message: string } | null 
   };
   builder.insert.mockReturnValue(builder);
   builder.update.mockReturnValue(builder);
+  builder.delete.mockReturnValue(builder);
   builder.select.mockReturnValue(builder);
   builder.eq.mockReturnValue(builder);
   builder.is.mockReturnValue(builder);
@@ -248,6 +254,96 @@ describe("studyRoomApi.listParticipants", () => {
     expect(result).toEqual([
       { roomId: "room-1", userId: "user-b", joinedAt: "2026-01-01T00:05:00.000Z", leftAt: null },
     ]);
+  });
+});
+
+const sampleInviteeRow = {
+  room_id: "room-1",
+  user_id: "user-b",
+  invited_by: "user-a",
+  invited_at: "2026-01-01T00:00:00.000Z",
+};
+
+describe("studyRoomApi.addInvitee", () => {
+  it("inserts a study_room_invitees row with invited_by set to the caller's own id", async () => {
+    mockGetUser("user-a");
+    const builder = makeBuilder({ data: null, error: null });
+    const fromSpy = vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+
+    await addInvitee("room-1", "user-b");
+
+    expect(fromSpy).toHaveBeenCalledWith("study_room_invitees");
+    expect(builder.insert).toHaveBeenCalledWith({
+      room_id: "room-1",
+      user_id: "user-b",
+      invited_by: "user-a",
+    });
+  });
+
+  it("throws when not signed in, without touching the database", async () => {
+    mockGetUser(null);
+    const fromSpy = vi.spyOn(supabase, "from");
+
+    await expect(addInvitee("room-1", "user-b")).rejects.toThrow("Not signed in.");
+    expect(fromSpy).not.toHaveBeenCalled();
+  });
+
+  it("throws with the Postgres error message when the insert is denied (not the room's owner)", async () => {
+    mockGetUser("user-c");
+    vi.spyOn(supabase, "from").mockReturnValue(
+      makeBuilder({ data: null, error: { message: "new row violates row-level security policy" } }) as never
+    );
+
+    await expect(addInvitee("room-1", "user-b")).rejects.toThrow(
+      "new row violates row-level security policy"
+    );
+  });
+});
+
+describe("studyRoomApi.removeInvitee", () => {
+  it("deletes the study_room_invitees row for the given room/user pair", async () => {
+    mockGetUser("user-a");
+    const builder = makeBuilder({ data: null, error: null });
+    const fromSpy = vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+
+    await removeInvitee("room-1", "user-b");
+
+    expect(fromSpy).toHaveBeenCalledWith("study_room_invitees");
+    expect(builder.eq).toHaveBeenCalledWith("room_id", "room-1");
+    expect(builder.eq).toHaveBeenCalledWith("user_id", "user-b");
+  });
+
+  it("throws with the Postgres error message when the delete fails", async () => {
+    mockGetUser("user-a");
+    vi.spyOn(supabase, "from").mockReturnValue(
+      makeBuilder({ data: null, error: { message: "delete failed" } }) as never
+    );
+
+    await expect(removeInvitee("room-1", "user-b")).rejects.toThrow("delete failed");
+  });
+});
+
+describe("studyRoomApi.listInvitees", () => {
+  it("returns every invitee row RLS hands back for a room, mapped", async () => {
+    mockGetUser("user-a");
+    const builder = makeBuilder({ data: [sampleInviteeRow], error: null });
+    const fromSpy = vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+
+    const result = await listInvitees("room-1");
+
+    expect(fromSpy).toHaveBeenCalledWith("study_room_invitees");
+    expect(builder.eq).toHaveBeenCalledWith("room_id", "room-1");
+    expect(result).toEqual([
+      { roomId: "room-1", userId: "user-b", invitedBy: "user-a", invitedAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+  });
+
+  it("throws when not signed in, without touching the database", async () => {
+    mockGetUser(null);
+    const fromSpy = vi.spyOn(supabase, "from");
+
+    await expect(listInvitees("room-1")).rejects.toThrow("Not signed in.");
+    expect(fromSpy).not.toHaveBeenCalled();
   });
 });
 

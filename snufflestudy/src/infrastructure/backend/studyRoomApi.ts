@@ -1,5 +1,10 @@
 import { supabase } from "./supabaseClient";
-import type { StudyRoom, RoomParticipant, PresenceChangeEvent } from "../../domain/rooms/studyRoom";
+import type {
+  StudyRoom,
+  RoomParticipant,
+  PresenceChangeEvent,
+  RoomInvitee,
+} from "../../domain/rooms/studyRoom";
 
 // v2 Task 13: Study Rooms.
 //
@@ -63,6 +68,13 @@ interface RoomParticipantRow {
   left_at: string | null;
 }
 
+interface RoomInviteeRow {
+  room_id: string;
+  user_id: string;
+  invited_by: string;
+  invited_at: string;
+}
+
 function toStudyRoom(row: StudyRoomRow): StudyRoom {
   return {
     id: row.id,
@@ -78,6 +90,15 @@ function toRoomParticipant(row: RoomParticipantRow): RoomParticipant {
     userId: row.user_id,
     joinedAt: row.joined_at,
     leftAt: row.left_at,
+  };
+}
+
+function toRoomInvitee(row: RoomInviteeRow): RoomInvitee {
+  return {
+    roomId: row.room_id,
+    userId: row.user_id,
+    invitedBy: row.invited_by,
+    invitedAt: row.invited_at,
   };
 }
 
@@ -278,4 +299,68 @@ export function subscribeToPresence(
   return () => {
     supabase.removeChannel(channel);
   };
+}
+
+// v3.3 Task 13: invite-only study rooms. addInvitee/removeInvitee/listInvitees are all thin,
+// message-routed CRUD (see messageRouter.ts's STUDY_ROOM_INVITEE_ADD/REMOVE/STUDY_ROOM_INVITEES_LIST
+// cases) - no live-callback or DOM/media coupling, so unlike joinRoom/subscribeToPresence above
+// there's no reason for these to bypass this codebase's normal message-passing convention.
+//
+// Same requireUserId()+throw convention as createRoom/joinRoom/leaveRoom/archiveRoom. Server-side
+// RLS ("owner can manage invitees for their own room", supabase/migrations/
+// ..._v3.3_study_room_invitees.sql) is what actually enforces owner-only for add/remove - these
+// functions don't pre-check ownership client-side, matching this file's existing "trust RLS,
+// don't re-derive its verdict" convention (see listRooms's own comment on the same point).
+
+// Inserts a study_room_invitees row. invited_by is always the CALLER's own verified id (never
+// trusted from the caller as a parameter) - the RLS policy's `with check` requires
+// `sr.owner_user_id = auth.uid()` for this room regardless of what invited_by claims, so setting
+// it to anything other than the caller's own id here would just make the insert itself fail; using
+// the caller's own id is both the correct value and the only value that can ever succeed.
+export async function addInvitee(roomId: string, userId: string): Promise<void> {
+  const callerId = await requireUserId();
+
+  const { error } = await supabase
+    .from("study_room_invitees")
+    .insert({ room_id: roomId, user_id: userId, invited_by: callerId });
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+// Deletes a study_room_invitees row. Per the plan's DoD, this is deliberately "future joins only" -
+// it does NOT touch study_room_participants, so an invitee currently mid-call (an existing
+// participant row) is not force-disconnected by having their invite revoked; only their ability to
+// be newly discovered/join again later is removed (study_rooms' SELECT policy and
+// study_room_participants' INSERT policy both check study_room_invitees, but an already-inserted
+// participant row's own SELECT/UPDATE policies don't).
+export async function removeInvitee(roomId: string, userId: string): Promise<void> {
+  await requireUserId();
+
+  const { error } = await supabase
+    .from("study_room_invitees")
+    .delete()
+    .eq("room_id", roomId)
+    .eq("user_id", userId);
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+// Lists invitees for a room. No client-side owner check - study_room_invitees' own SELECT
+// surface (the "owner can manage invitees" ALL policy's using-clause, plus "invitee can read their
+// own invitation") means a non-owner, non-invitee caller simply gets back an empty list under RLS,
+// same trust-RLS convention as listRooms/listParticipants above.
+export async function listInvitees(roomId: string): Promise<RoomInvitee[]> {
+  await requireUserId();
+
+  const { data, error } = await supabase
+    .from("study_room_invitees")
+    .select()
+    .eq("room_id", roomId);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((row) => toRoomInvitee(row as RoomInviteeRow));
 }

@@ -189,6 +189,24 @@ export type ExtensionMessage =
   // anywhere in this schema - see the migration's own header comment). Throws on failure (not
   // signed in, update error) - same outer-catch convention as STUDY_ROOM_LEAVE above.
   | { type: "STUDY_ROOM_ARCHIVE"; payload: { roomId: string } }
+  // v3.3 Task 13: routes to studyRoomApi.addInvitee - StudyRoomPanel.tsx's owner-only "Manage
+  // access" section, granting a friend future visibility/join access to a room. Owner-only is
+  // enforced entirely server-side (study_room_invitees' "owner can manage invitees for their own
+  // room" RLS policy - see supabase/migrations/..._v3.3_study_room_invitees.sql), not by this
+  // message or studyRoomApi.ts pre-checking anything client-side - same convention as
+  // STUDY_ROOM_ARCHIVE/STUDY_ROOM_CREATE. Throws on failure (not signed in, not the room's owner,
+  // duplicate invite) - the outer handleMessage try/catch turns that into ok:false.
+  | { type: "STUDY_ROOM_INVITEE_ADD"; payload: { roomId: string; userId: string } }
+  // v3.3 Task 13: routes to studyRoomApi.removeInvitee - the same "Manage access" section's revoke
+  // action. Per the plan's DoD, this only affects FUTURE visibility/join attempts - it does not
+  // touch study_room_participants, so an invitee currently mid-call is not force-disconnected (see
+  // studyRoomApi.ts's removeInvitee comment). Same outer-catch convention as above.
+  | { type: "STUDY_ROOM_INVITEE_REMOVE"; payload: { roomId: string; userId: string } }
+  // v3.3 Task 13: routes to studyRoomApi.listInvitees - seeds the "Manage access" section's
+  // current invitee list. Payload/response shapes mirror GROUP_LIST_MEMBERS's pattern (a roomId in
+  // place of a groupId), per this task's plan. RLS (not this message) restricts who actually gets
+  // non-empty results back - same trust-RLS convention as STUDY_ROOM_LIST.
+  | { type: "STUDY_ROOM_INVITEES_LIST"; payload: { roomId: string } }
   // v2 Task 14: routes to producerTagApi.uploadTag - the sidepanel's recording flow, once
   // audioRecorder.ts's stopRecording() has resolved. audioBase64/mimeType exist ONLY because a raw
   // Blob cannot cross chrome.runtime.sendMessage under this codebase's default (JSON) message

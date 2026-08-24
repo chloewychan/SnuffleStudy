@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import { handleMessage } from "./messageRouter";
 import * as studyRoomApi from "../infrastructure/backend/studyRoomApi";
-import type { StudyRoom, RoomParticipant } from "../domain/rooms/studyRoom";
+import type { StudyRoom, RoomParticipant, RoomInvitee } from "../domain/rooms/studyRoom";
 
 beforeEach(() => {
   fakeBrowser.reset();
@@ -116,6 +116,80 @@ describe("messageRouter — STUDY_ROOM_*", () => {
 
     const result = (await handleMessage({
       type: "STUDY_ROOM_LIST_PARTICIPANTS",
+      payload: { roomId: "room-1" },
+    })) as { ok: boolean; error?: string };
+
+    expect(result).toEqual({ ok: false, error: "select failed" });
+  });
+
+  // v3.3 Task 13: STUDY_ROOM_INVITEE_ADD/REMOVE/STUDY_ROOM_INVITEES_LIST - thin pass-throughs,
+  // same convention as every case above.
+  it("STUDY_ROOM_INVITEE_ADD calls studyRoomApi.addInvitee with the given roomId/userId", async () => {
+    const spy = vi.spyOn(studyRoomApi, "addInvitee").mockResolvedValue(undefined);
+
+    const result = (await handleMessage({
+      type: "STUDY_ROOM_INVITEE_ADD",
+      payload: { roomId: "room-1", userId: "user-b" },
+    })) as { ok: boolean };
+
+    expect(spy).toHaveBeenCalledWith("room-1", "user-b");
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("STUDY_ROOM_INVITEE_ADD propagates a thrown error as ok:false (outer handleMessage catch)", async () => {
+    vi.spyOn(studyRoomApi, "addInvitee").mockRejectedValue(new Error("not the owner"));
+
+    const result = (await handleMessage({
+      type: "STUDY_ROOM_INVITEE_ADD",
+      payload: { roomId: "room-1", userId: "user-b" },
+    })) as { ok: boolean; error?: string };
+
+    expect(result).toEqual({ ok: false, error: "not the owner" });
+  });
+
+  it("STUDY_ROOM_INVITEE_REMOVE calls studyRoomApi.removeInvitee with the given roomId/userId", async () => {
+    const spy = vi.spyOn(studyRoomApi, "removeInvitee").mockResolvedValue(undefined);
+
+    const result = (await handleMessage({
+      type: "STUDY_ROOM_INVITEE_REMOVE",
+      payload: { roomId: "room-1", userId: "user-b" },
+    })) as { ok: boolean };
+
+    expect(spy).toHaveBeenCalledWith("room-1", "user-b");
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("STUDY_ROOM_INVITEE_REMOVE propagates a thrown error as ok:false (outer handleMessage catch)", async () => {
+    vi.spyOn(studyRoomApi, "removeInvitee").mockRejectedValue(new Error("delete failed"));
+
+    const result = (await handleMessage({
+      type: "STUDY_ROOM_INVITEE_REMOVE",
+      payload: { roomId: "room-1", userId: "user-b" },
+    })) as { ok: boolean; error?: string };
+
+    expect(result).toEqual({ ok: false, error: "delete failed" });
+  });
+
+  it("STUDY_ROOM_INVITEES_LIST calls studyRoomApi.listInvitees with the given roomId", async () => {
+    const invitees: RoomInvitee[] = [
+      { roomId: "room-1", userId: "user-b", invitedBy: "user-a", invitedAt: "2026-01-01T00:00:00.000Z" },
+    ];
+    const spy = vi.spyOn(studyRoomApi, "listInvitees").mockResolvedValue(invitees);
+
+    const result = (await handleMessage({
+      type: "STUDY_ROOM_INVITEES_LIST",
+      payload: { roomId: "room-1" },
+    })) as { ok: boolean; invitees: RoomInvitee[] };
+
+    expect(spy).toHaveBeenCalledWith("room-1");
+    expect(result).toEqual({ ok: true, invitees });
+  });
+
+  it("STUDY_ROOM_INVITEES_LIST propagates a thrown error as ok:false (outer handleMessage catch)", async () => {
+    vi.spyOn(studyRoomApi, "listInvitees").mockRejectedValue(new Error("select failed"));
+
+    const result = (await handleMessage({
+      type: "STUDY_ROOM_INVITEES_LIST",
       payload: { roomId: "room-1" },
     })) as { ok: boolean; error?: string };
 
