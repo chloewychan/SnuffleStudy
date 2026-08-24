@@ -207,6 +207,27 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
     loadRooms();
   }, []);
 
+  // QA-discovered bug (v3.2 Task 9): the joined-room view (and its <div ref={gridRef}> grid
+  // container below) only mounts once handleJoinRoom calls setJoinedRoom(room) - but
+  // videoCallClient.joinCall publishes the local camera/mic and emits "track-added" for them
+  // SYNCHRONOUSLY, DURING the call, well before that happens. At that moment gridRef.current is
+  // still null, so the track-added handler below silently drops the tile via `?.appendChild`
+  // (no throw, no error - it just never entered the DOM). Every real join therefore lost its own
+  // camera/mic preview, deterministically, every time - and any remote participant whose track
+  // arrived in that same window (e.g. one already publishing when this client connects) would
+  // hit the identical gap. Fix: whenever the grid container actually becomes available (i.e.
+  // joinedRoom flips true and this component re-renders), re-attach any tile that was already
+  // created but never made it into the live DOM - independent of exactly when track-added fired
+  // relative to the mount, so this doesn't just narrow the race, it removes it.
+  useEffect(() => {
+    if (!joinedRoom) return;
+    for (const tile of tileRefs.current.values()) {
+      if (tile.parentElement !== gridRef.current) {
+        gridRef.current?.appendChild(tile);
+      }
+    }
+  }, [joinedRoom]);
+
   // Video event wiring - registered once for the component's lifetime (videoCallClient is a
   // singleton with at most one active call, so there's nothing to re-subscribe per room).
   useEffect(() => {

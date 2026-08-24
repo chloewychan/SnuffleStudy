@@ -156,6 +156,42 @@ describe("StudyRoomPanel", () => {
     expect(screen.getByText("In this room (1)")).toBeInTheDocument();
   });
 
+  // QA-discovered bug (v3.2 Task 9): videoCallClient.joinCall publishes the local camera/mic
+  // and emits "track-added" synchronously, DURING the call - well before handleJoinRoom's later
+  // setJoinedRoom(room), which is what actually mounts the joined-room view's <div ref={gridRef}>
+  // grid container. Every previous test here mocks joinCall as a bare mockResolvedValue that
+  // never emits anything during the call, so none of them exercised this ordering at all. This
+  // test mimics the real videoCallClient's behavior (emit before resolving) to catch it.
+  it("still attaches a track that was emitted before the joined-room view finished mounting", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+
+    let capturedListener: ((event: videoCallClient.VideoCallEvent) => void) | null = null;
+    vi.mocked(videoCallClient.onVideoCallEvent).mockImplementation((listener) => {
+      capturedListener = listener;
+      return () => {};
+    });
+    const videoElement = document.createElement("video");
+    vi.mocked(videoCallClient.joinCall).mockImplementation(async () => {
+      capturedListener?.({
+        type: "track-added",
+        participantIdentity: "user-self",
+        isLocal: true,
+        element: videoElement,
+      });
+    });
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+
+    fireEvent.click(screen.getByText("Join"));
+    await screen.findByText("Leave room");
+
+    await waitFor(() => expect(videoElement.isConnected).toBe(true));
+  });
+
   it("surfaces a join error inline and does not get stuck showing the joined view", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
