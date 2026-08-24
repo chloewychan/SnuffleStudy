@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- QA-discovered (v3.2 Task 9): WXT auto-generates manifest.options_ui from this entrypoint
+         and that overrides whatever wxt.config.ts's top-level manifest.options_ui says, so
+         open_in_tab has to be set here instead. Chrome's default (embedded inside
+         chrome://extensions/?options=<id>) silently blocks both window.confirm()/alert()/
+         prompt() and getUserMedia() - see wxt.config.ts's own comment for the full reasoning. -->
+    <meta name="manifest.open_in_tab" content="true" />
     <title>SnuffleStudy</title>
   </head>
   <body>

@@ -28,6 +28,13 @@ export default defineConfig({
     side_panel: {
       default_path: "sidepanel.html",
     },
+    // QA-discovered (v3.2 Task 9): options.html needs open_in_tab: true (Chrome's embedded
+    // chrome://extensions/?options=<id> view silently blocks window.confirm()/alert()/prompt()
+    // and getUserMedia() - see AccountPage.tsx's/mediaPermissions.ts's own comments). WXT
+    // auto-generates manifest.options_ui from the options entrypoint itself and that overrides
+    // whatever's set here, so the actual setting lives in
+    // entrypoints/options/index.html's <meta name="manifest.open_in_tab"> tag instead - this
+    // comment exists so the setting doesn't look silently unconfigured from this file alone.
     // A cross-origin navigation from a web page to a chrome-extension:// URL (the
     // declarativeNetRequest hard-block redirect to locked.html) and a content-script-initiated
     // fetch of an extension-bundled asset (the overlay's sprite images, requested by the host
