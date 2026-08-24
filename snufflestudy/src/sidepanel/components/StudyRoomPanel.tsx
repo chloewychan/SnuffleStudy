@@ -559,7 +559,7 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
             type="text"
             value={newRoomName}
             onChange={(e) => setNewRoomName(e.target.value)}
-            placeholder="e.g. Thursday study group"
+            placeholder="e.g. Thursday study session"
             disabled={creating}
           />
         </label>
@@ -570,7 +570,7 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
       </section>
 
       <section className="study-room-panel__list">
-        <h3>Rooms in your groups</h3>
+        <h3>Rooms among your friends</h3>
         {loadError && <p role="alert">Could not load rooms: {loadError}</p>}
         {rooms === null && !loadError && <p>Loading…</p>}
         {rooms !== null && rooms.length === 0 && <p>No study rooms yet — create one to get started.</p>}

@@ -280,7 +280,7 @@ describe("FriendGroupPanel — send a nudge (v2 Task 7)", () => {
     render(<FriendGroupPanel onClose={() => {}} />);
 
     expect(
-      await screen.findByText("Sign in to nudge friends in your study group.")
+      await screen.findByText("Sign in to nudge friends.")
     ).toBeInTheDocument();
     // Two independent SignInForm instances render (this section's, and the digest section's
     // below - both gate on the same signed-out state) - getAllByLabelText, not getByLabelText.

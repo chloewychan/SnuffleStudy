@@ -101,11 +101,14 @@ describe("AccountPage — signed in", () => {
     });
   }
 
-  it("creates a group and then generates an invite code for it", async () => {
+  // v3.3 Task 5: "Invite a friend" collapses the old two-step create-group/generate-invite-code
+  // flow into one action - one click sends both GROUP_CREATE (with an auto-generated, never-shown
+  // name) and GROUP_GENERATE_INVITE_CODE, and only the resulting invite code renders.
+  it("invites a friend: one click creates a group and generates an invite code for it", async () => {
     mockSignedIn({
       GROUP_CREATE: async () => ({
         ok: true,
-        group: { id: "group-1", name: "Study Buddies", ownerUserId: "user-a", createdAt: "2026-01-01T00:00:00Z" },
+        group: { id: "group-1", name: "Friends of a@example.com", ownerUserId: "user-a", createdAt: "2026-01-01T00:00:00Z" },
       }),
       GROUP_GENERATE_INVITE_CODE: async () => ({
         ok: true,
@@ -120,27 +123,22 @@ describe("AccountPage — signed in", () => {
     });
 
     render(<AccountPage />);
-    await waitFor(() => screen.getByLabelText("Group name"));
+    await waitFor(() => screen.getByRole("button", { name: "Invite a friend" }));
 
-    fireEvent.change(screen.getByLabelText("Group name"), { target: { value: "Study Buddies" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create group" }));
-
-    expect(await screen.findByText(/created "study buddies"/i)).toBeInTheDocument();
-    expect(messenger.sendMessage).toHaveBeenCalledWith({
-      type: "GROUP_CREATE",
-      payload: { name: "Study Buddies" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Generate invite code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Invite a friend" }));
 
     expect(await screen.findByText("ABCD1234")).toBeInTheDocument();
+    expect(messenger.sendMessage).toHaveBeenCalledWith({
+      type: "GROUP_CREATE",
+      payload: { name: "Friends of a@example.com" },
+    });
     expect(messenger.sendMessage).toHaveBeenCalledWith({
       type: "GROUP_GENERATE_INVITE_CODE",
       payload: { groupId: "group-1" },
     });
   });
 
-  it("joins a group by invite code", async () => {
+  it("adds a friend by invite code", async () => {
     mockSignedIn({
       GROUP_JOIN: async () => ({
         ok: true,
@@ -152,7 +150,7 @@ describe("AccountPage — signed in", () => {
     await waitFor(() => screen.getByLabelText("Invite code"));
 
     fireEvent.change(screen.getByLabelText("Invite code"), { target: { value: "code1234" } });
-    fireEvent.click(screen.getByRole("button", { name: "Join group" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add friend" }));
 
     await waitFor(() =>
       expect(messenger.sendMessage).toHaveBeenCalledWith({
@@ -162,7 +160,7 @@ describe("AccountPage — signed in", () => {
     );
   });
 
-  it("lists members for a given group id", async () => {
+  it("lists members for a given friend list id", async () => {
     mockSignedIn({
       GROUP_LIST_MEMBERS: async () => ({
         ok: true,
@@ -171,9 +169,9 @@ describe("AccountPage — signed in", () => {
     });
 
     render(<AccountPage />);
-    await waitFor(() => screen.getByLabelText("Group ID"));
+    await waitFor(() => screen.getByLabelText("Friend list ID"));
 
-    fireEvent.change(screen.getByLabelText("Group ID"), { target: { value: "group-1" } });
+    fireEvent.change(screen.getByLabelText("Friend list ID"), { target: { value: "group-1" } });
     fireEvent.click(screen.getByRole("button", { name: "List members" }));
 
     expect(await screen.findByText(/user-a/i)).toBeInTheDocument();
@@ -187,17 +185,17 @@ describe("AccountPage — signed in", () => {
   // with an inline two-click confirmation that works in every context this page can be viewed
   // in. These tests now click the button twice (arm, then confirm) instead of mocking
   // window.confirm.
-  describe("leaving a group", () => {
-    it("leaves the group typed into Group ID after confirming inline", async () => {
+  describe("leaving your friends list", () => {
+    it("leaves the friend list typed into Friend list ID after confirming inline", async () => {
       const leaveSpy = vi.fn(async () => ({ ok: true }));
       mockSignedIn({ GROUP_LEAVE: leaveSpy });
 
       render(<AccountPage />);
-      await waitFor(() => screen.getByLabelText("Group ID"));
-      fireEvent.change(screen.getByLabelText("Group ID"), { target: { value: "group-1" } });
+      await waitFor(() => screen.getByLabelText("Friend list ID"));
+      fireEvent.change(screen.getByLabelText("Friend list ID"), { target: { value: "group-1" } });
 
-      fireEvent.click(screen.getByRole("button", { name: "Leave group" }));
-      fireEvent.click(await screen.findByRole("button", { name: /yes, leave group/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Leave" }));
+      fireEvent.click(await screen.findByRole("button", { name: /yes, leave/i }));
 
       await waitFor(() =>
         expect(leaveSpy).toHaveBeenCalledWith({
@@ -205,7 +203,7 @@ describe("AccountPage — signed in", () => {
           payload: { groupId: "group-1" },
         })
       );
-      expect(await screen.findByText(/you've left this group/i)).toBeInTheDocument();
+      expect(await screen.findByText(/you've left your friends list/i)).toBeInTheDocument();
     });
 
     it("does not send GROUP_LEAVE when the inline confirmation is cancelled", async () => {
@@ -213,31 +211,31 @@ describe("AccountPage — signed in", () => {
       mockSignedIn({ GROUP_LEAVE: leaveSpy });
 
       render(<AccountPage />);
-      await waitFor(() => screen.getByLabelText("Group ID"));
-      fireEvent.change(screen.getByLabelText("Group ID"), { target: { value: "group-1" } });
+      await waitFor(() => screen.getByLabelText("Friend list ID"));
+      fireEvent.change(screen.getByLabelText("Friend list ID"), { target: { value: "group-1" } });
 
-      fireEvent.click(screen.getByRole("button", { name: "Leave group" }));
+      fireEvent.click(screen.getByRole("button", { name: "Leave" }));
       fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
 
       // Give any stray microtask a chance to run before asserting the negative.
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(leaveSpy).not.toHaveBeenCalled();
-      expect(screen.getByRole("button", { name: "Leave group" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Leave" })).toBeInTheDocument();
     });
 
     it("surfaces a server-side denial (e.g. a non-owner trying to remove someone else) as an error", async () => {
       mockSignedIn({
-        GROUP_LEAVE: async () => ({ ok: false, error: "Could not leave the group." }),
+        GROUP_LEAVE: async () => ({ ok: false, error: "Could not leave your friends list." }),
       });
 
       render(<AccountPage />);
-      await waitFor(() => screen.getByLabelText("Group ID"));
-      fireEvent.change(screen.getByLabelText("Group ID"), { target: { value: "group-1" } });
+      await waitFor(() => screen.getByLabelText("Friend list ID"));
+      fireEvent.change(screen.getByLabelText("Friend list ID"), { target: { value: "group-1" } });
 
-      fireEvent.click(screen.getByRole("button", { name: "Leave group" }));
-      fireEvent.click(await screen.findByRole("button", { name: /yes, leave group/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Leave" }));
+      fireEvent.click(await screen.findByRole("button", { name: /yes, leave/i }));
 
-      expect(await screen.findByRole("alert")).toHaveTextContent(/could not leave the group/i);
+      expect(await screen.findByRole("alert")).toHaveTextContent(/could not leave your friends list/i);
     });
   });
 
@@ -255,9 +253,9 @@ describe("AccountPage — signed in", () => {
   });
 
   // v3.2 Task 8: account/data deletion, gated behind a confirmation step - same convention as
-  // "leaving a group" above (see AccountPage.tsx's handleDeleteAccount comment). QA-discovered
-  // bug (v3.2 Task 9): same window.confirm-in-an-embedded-options-page fix as "leaving a
-  // group" above.
+  // "leaving your friends list" above (see AccountPage.tsx's handleDeleteAccount comment).
+  // QA-discovered bug (v3.2 Task 9): same window.confirm-in-an-embedded-options-page fix as
+  // "leaving your friends list" above.
   describe("deleting the account", () => {
     it("deletes the account after confirming inline, and returns to the signed-out view", async () => {
       const deleteSpy = vi.fn(async () => ({ ok: true }));

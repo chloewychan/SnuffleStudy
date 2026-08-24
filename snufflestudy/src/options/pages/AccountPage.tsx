@@ -20,7 +20,6 @@ export function AccountPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
 
-  const [groupName, setGroupName] = useState("");
   const [group, setGroup] = useState<FriendGroup | null>(null);
   const [groupError, setGroupError] = useState<string | null>(null);
   const [groupBusy, setGroupBusy] = useState(false);
@@ -144,49 +143,45 @@ export function AccountPage() {
     }
   }
 
-  async function handleCreateGroup(e: React.FormEvent) {
-    e.preventDefault();
+  // v3.3 Task 5: "Invite a friend" collapses what used to be two separate steps (create a
+  // named group, then separately click "Generate invite code") into one action. The friend
+  // group this still creates underneath is an implementation detail - its name is
+  // auto-generated and never shown anywhere in this UI; only the resulting invite code is
+  // (see docs/implementation_plans/V3.3_Implementation_Plan.md Task 5). The real
+  // pairwise-friendship rebuild that would remove the group entirely is out of scope this
+  // version.
+  async function handleInviteAFriend() {
     setGroupBusy(true);
     setGroupError(null);
+    setInviteError(null);
     try {
-      const res = await sendMessage<{ ok: boolean; group?: FriendGroup; error?: string }>({
+      const autoName = `Friends of ${session?.user.email ?? "me"}`;
+      const createRes = await sendMessage<{ ok: boolean; group?: FriendGroup; error?: string }>({
         type: "GROUP_CREATE",
-        payload: { name: groupName },
+        payload: { name: autoName },
       });
-      if (!res.ok || !res.group) {
-        setGroupError(res.error ?? "Could not create the group.");
+      if (!createRes.ok || !createRes.group) {
+        setGroupError(createRes.error ?? "Could not set up a friend invite.");
         return;
       }
-      setGroup(res.group);
-      setMembersGroupId(res.group.id);
-      setInviteCode(null);
-      setGroupName("");
+      setGroup(createRes.group);
+      setMembersGroupId(createRes.group.id);
+
+      setInviteBusy(true);
+      const inviteRes = await sendMessage<{ ok: boolean; inviteCode?: InviteCode; error?: string }>({
+        type: "GROUP_GENERATE_INVITE_CODE",
+        payload: { groupId: createRes.group.id },
+      });
+      if (!inviteRes.ok || !inviteRes.inviteCode) {
+        setInviteError(inviteRes.error ?? "Could not generate an invite code.");
+        return;
+      }
+      setInviteCode(inviteRes.inviteCode);
     } catch (err) {
-      console.error("Failed to create group", err);
+      console.error("Failed to invite a friend", err);
       setGroupError(err instanceof Error ? err.message : String(err));
     } finally {
       setGroupBusy(false);
-    }
-  }
-
-  async function handleGenerateInvite() {
-    if (!group) return;
-    setInviteBusy(true);
-    setInviteError(null);
-    try {
-      const res = await sendMessage<{ ok: boolean; inviteCode?: InviteCode; error?: string }>({
-        type: "GROUP_GENERATE_INVITE_CODE",
-        payload: { groupId: group.id },
-      });
-      if (!res.ok || !res.inviteCode) {
-        setInviteError(res.error ?? "Could not generate an invite code.");
-        return;
-      }
-      setInviteCode(res.inviteCode);
-    } catch (err) {
-      console.error("Failed to generate invite code", err);
-      setInviteError(err instanceof Error ? err.message : String(err));
-    } finally {
       setInviteBusy(false);
     }
   }
@@ -255,7 +250,7 @@ export function AccountPage() {
         payload: { groupId: membersGroupId },
       });
       if (!res.ok) {
-        setLeaveError(res.error ?? "Could not leave the group.");
+        setLeaveError(res.error ?? "Could not leave your friends list.");
         return;
       }
       setLeftGroupId(membersGroupId);
@@ -312,9 +307,9 @@ export function AccountPage() {
             <h3>Delete account</h3>
             <p>
               Permanently deletes your account and every record tied to it across SnuffleStudy's
-              servers - friend groups, study rooms, Producer Tags, digests, nudges, and everything
-              else. This cannot be undone. See the Privacy page for the full list of what's stored
-              and where.
+              servers - friend connections, study rooms, Producer Tags, digests, nudges, and
+              everything else. This cannot be undone. See the Privacy page for the full list of
+              what's stored and where.
             </p>
             {!deleteConfirming ? (
               <button type="button" onClick={() => setDeleteConfirming(true)} disabled={deleteBusy}>
@@ -323,9 +318,9 @@ export function AccountPage() {
             ) : (
               <div role="alertdialog" aria-label="Confirm account deletion">
                 <p>
-                  <strong>Are you sure?</strong> This removes your friend groups (or hands them
-                  off to another member), study room history, Producer Tags, digests, and every
-                  other record tied to your account, everywhere. This cannot be undone.
+                  <strong>Are you sure?</strong> This removes your friend connections (or hands
+                  them off to another friend), study room history, Producer Tags, digests, and
+                  every other record tied to your account, everywhere. This cannot be undone.
                 </p>
                 <button
                   type="button"
@@ -349,49 +344,33 @@ export function AccountPage() {
           </section>
 
           <section>
-            <h3>Create a friend group</h3>
-            <form onSubmit={handleCreateGroup}>
-              <label>
-                Group name
-                <input
-                  type="text"
-                  required
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                />
-              </label>
-              <button type="submit" disabled={groupBusy || !groupName}>
-                {groupBusy ? "Creating…" : "Create group"}
-              </button>
-            </form>
+            <h3>Invite a friend</h3>
+            <p>Generates a one-time invite code you can share with a friend to connect.</p>
+            <button
+              type="button"
+              onClick={() => void handleInviteAFriend()}
+              disabled={groupBusy || inviteBusy}
+            >
+              {groupBusy || inviteBusy ? "Setting up your invite…" : "Invite a friend"}
+            </button>
             {groupError && (
-              <p role="alert">Couldn't create the group: {groupError}. Please try again.</p>
+              <p role="alert">Couldn't set up a friend invite: {groupError}. Please try again.</p>
             )}
-            {group && (
-              <div>
-                <p>
-                  Created "{group.name}" ({group.id}).
-                </p>
-                <button type="button" onClick={() => void handleGenerateInvite()} disabled={inviteBusy}>
-                  {inviteBusy ? "Generating…" : "Generate invite code"}
-                </button>
-                {inviteError && (
-                  <p role="alert">
-                    Couldn't generate an invite code: {inviteError}. Please try again.
-                  </p>
-                )}
-                {inviteCode && (
-                  <p>
-                    Invite code: <strong>{inviteCode.code}</strong> (expires{" "}
-                    {new Date(inviteCode.expiresAt).toLocaleString()})
-                  </p>
-                )}
-              </div>
+            {inviteError && (
+              <p role="alert">
+                Couldn't generate an invite code: {inviteError}. Please try again.
+              </p>
+            )}
+            {inviteCode && (
+              <p>
+                Invite code: <strong>{inviteCode.code}</strong> (expires{" "}
+                {new Date(inviteCode.expiresAt).toLocaleString()})
+              </p>
             )}
           </section>
 
           <section>
-            <h3>Join a friend group</h3>
+            <h3>Add a friend</h3>
             <form onSubmit={handleJoinGroup}>
               <label>
                 Invite code
@@ -403,19 +382,19 @@ export function AccountPage() {
                 />
               </label>
               <button type="submit" disabled={joinBusy || !joinCode}>
-                {joinBusy ? "Joining…" : "Join group"}
+                {joinBusy ? "Adding…" : "Add friend"}
               </button>
             </form>
             {joinError && (
-              <p role="alert">Couldn't join the group: {joinError}. Please try again.</p>
+              <p role="alert">Couldn't add your friend: {joinError}. Please try again.</p>
             )}
           </section>
 
           <section>
-            <h3>Group members</h3>
+            <h3>Your friends</h3>
             <form onSubmit={handleListMembers}>
               <label>
-                Group ID
+                Friend list ID
                 <input
                   type="text"
                   required
@@ -445,13 +424,13 @@ export function AccountPage() {
                 onClick={() => setLeaveConfirming(true)}
                 disabled={leaveBusy || !membersGroupId}
               >
-                Leave group
+                Leave
               </button>
             ) : (
-              <div role="alertdialog" aria-label="Confirm leaving the group">
-                <p>Leave this group? You'll need a new invite code to rejoin.</p>
+              <div role="alertdialog" aria-label="Confirm leaving your friends list">
+                <p>Leave your friends list? You'll need a new invite code to reconnect.</p>
                 <button type="button" onClick={() => void handleLeaveGroup()} disabled={leaveBusy}>
-                  {leaveBusy ? "Leaving…" : "Yes, leave group"}
+                  {leaveBusy ? "Leaving…" : "Yes, leave"}
                 </button>
                 <button
                   type="button"
@@ -463,10 +442,10 @@ export function AccountPage() {
               </div>
             )}
             {leaveError && (
-              <p role="alert">Couldn't leave the group: {leaveError}. Please try again.</p>
+              <p role="alert">Couldn't leave: {leaveError}. Please try again.</p>
             )}
             {leftGroupId === membersGroupId && !leaveError && (
-              <p>You've left this group.</p>
+              <p>You've left your friends list.</p>
             )}
           </section>
         </>

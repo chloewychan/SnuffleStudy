@@ -283,11 +283,11 @@ export function OptionsApp() {
                 checked={settings.friendSyncEnabled}
                 onChange={(e) => updateSettings({ friendSyncEnabled: e.target.checked })}
               />
-              Share session activity with my friend group
+              Share session activity with my friends
             </label>
             <p>
               When on, generic session events (started, paused, distracted, completed, etc — never
-              a site name or your goal text) sync to your friend group, and the extension polls
+              a site name or your goal text) sync to your friends, and the extension polls
               for their activity while a session is active. Off by default.
             </p>
           </section>

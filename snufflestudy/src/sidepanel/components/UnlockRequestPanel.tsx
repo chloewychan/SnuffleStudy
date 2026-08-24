@@ -227,7 +227,7 @@ export function UnlockRequestPanel({ session, onClose }: UnlockRequestPanelProps
       {isSessionActive && (
         <section className="unlock-request-panel__request">
           <h3>Request an unlock</h3>
-          <p>Ask a friend in your group to unlock a site for the rest of this session.</p>
+          <p>Ask a friend to unlock a site for the rest of this session.</p>
           {blockedHostnames.length > 0 && (
             <div className="unlock-request-panel__suggestions">
               {blockedHostnames.map((hostname) => (

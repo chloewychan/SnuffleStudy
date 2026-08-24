@@ -89,7 +89,7 @@ export function LockedPage() {
           .then((groupsRes) => {
             if (cancelled) return;
             if (!groupsRes.ok) {
-              setFriendsError(groupsRes.error ?? "Could not load your groups.");
+              setFriendsError(groupsRes.error ?? "Could not load your friends.");
               return;
             }
             const memberships = groupsRes.memberships ?? [];
@@ -281,7 +281,7 @@ export function LockedPage() {
               </label>
             )}
             {friendIds && friendIds.length === 0 && !friendsError && (
-              <p>No friends available to ask yet - join a group first.</p>
+              <p>No friends available to ask yet - add a friend first.</p>
             )}
             <button
               type="button"

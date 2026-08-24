@@ -482,7 +482,7 @@ describe("StudyRoomPanel — signed-out gate (v3.2 Task 2)", () => {
       await screen.findByText("Sign in to create or join a study room with your friends.")
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
-    expect(screen.queryByText("Rooms in your groups")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rooms among your friends")).not.toBeInTheDocument();
     expect(screen.queryByText("New room name")).not.toBeInTheDocument();
   });
 

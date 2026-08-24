@@ -112,11 +112,11 @@ describe("OptionsApp", () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
 
     render(<OptionsApp />);
-    await waitFor(() => screen.getByLabelText("Share session activity with my friend group"));
+    await waitFor(() => screen.getByLabelText("Share session activity with my friends"));
 
-    const toggle = screen.getByLabelText("Share session activity with my friend group");
+    const toggle = screen.getByLabelText("Share session activity with my friends");
     // v2 Task 6: friendSyncEnabled defaults to false (unlike activityTrackingEnabled's
-    // true-by-default) - it syncs to a remote friend group's backend, the more
+    // true-by-default) - it syncs to a remote friend-group backend, the more
     // privacy-sensitive of the two, so it's opt-in.
     expect(toggle).not.toBeChecked();
 

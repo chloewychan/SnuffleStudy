@@ -71,8 +71,8 @@ export function PrivacyPolicyPage() {
             <strong>Auth</strong> - your email address, used only for email one-time-code sign-in.
           </li>
           <li>
-            <strong>Postgres (database)</strong> - if you use friend groups, study rooms, or
-            Producer Tags: your friend groups and memberships, invite codes, per-friend privacy
+            <strong>Postgres (database)</strong> - if you add friends, use study rooms, or
+            Producer Tags: your friend connections, invite codes, per-friend privacy
             toggles, generic session-status events (session started/paused/distracted/completed,
             etc. - never a site name or your goal text, and only synced at all if you turn on
             "Share session activity" in Settings), unlock requests and temporary-passcode
@@ -128,8 +128,8 @@ export function PrivacyPolicyPage() {
         <h3>What we don't do</h3>
         <p>
           No analytics or advertising trackers, no selling your data, no browsing history sent
-          anywhere unless you explicitly opt into "Share session activity" with your own friend
-          group - and even then, only generic event types, never site names or your goal text.
+          anywhere unless you explicitly opt into "Share session activity" with your own friends
+          - and even then, only generic event types, never site names or your goal text.
         </p>
       </section>
 

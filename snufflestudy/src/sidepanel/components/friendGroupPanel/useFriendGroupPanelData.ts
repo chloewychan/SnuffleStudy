@@ -179,7 +179,7 @@ export function useFriendGroupPanelData() {
           type: "GROUP_LIST_MINE",
         }).then((groupsRes) => {
           if (!groupsRes.ok) {
-            setFriendsError(groupsRes.error ?? "Could not load your groups.");
+            setFriendsError(groupsRes.error ?? "Could not load your friends.");
             return undefined;
           }
           const memberships = groupsRes.memberships ?? [];

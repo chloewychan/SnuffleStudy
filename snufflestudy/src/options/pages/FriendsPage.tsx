@@ -77,7 +77,7 @@ export function FriendsPage({ onSignInClick }: FriendsPageProps) {
           type: "GROUP_LIST_MINE",
         }).then((groupsRes) => {
           if (!groupsRes.ok) {
-            setError(groupsRes.error ?? "Could not load your groups.");
+            setError(groupsRes.error ?? "Could not load your friends.");
             return undefined;
           }
           const memberships = groupsRes.memberships ?? [];
@@ -195,7 +195,7 @@ export function FriendsPage({ onSignInClick }: FriendsPageProps) {
       )}
 
       {selfUserId && friendIds && friendIds.length === 0 && !error && (
-        <p>No friends yet — join or create a group on the Account page first.</p>
+        <p>No friends yet — add a friend on the Account page first.</p>
       )}
 
       {selfUserId &&
@@ -207,8 +207,8 @@ export function FriendsPage({ onSignInClick }: FriendsPageProps) {
               <h3>{friendId}</h3>
               {!settings && (
                 <p>
-                  No settings row yet for this friend — you may not share a group with them, or
-                  they joined before this feature existed.
+                  No settings row yet for this friend — you may not have added each other as
+                  friends yet, or they joined before this feature existed.
                 </p>
               )}
               {settings &&

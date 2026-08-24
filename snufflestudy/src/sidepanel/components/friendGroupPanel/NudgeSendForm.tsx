@@ -78,11 +78,11 @@ export function NudgeSendForm({
       {friendIds && friendIds.length === 0 && !friendsError && (
         selfUserId === null ? (
           <div className="friend-group-panel__sign-in">
-            <p>Sign in to nudge friends in your study group.</p>
+            <p>Sign in to nudge friends.</p>
             <SignInForm onSignedIn={() => onFriendsReload()} />
           </div>
         ) : (
-          <p>No friends to nudge yet — join a group first.</p>
+          <p>No friends to nudge yet — add a friend first.</p>
         )
       )}
       {friendIds && friendIds.length > 0 && (
