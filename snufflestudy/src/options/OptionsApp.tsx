@@ -14,6 +14,7 @@ import { HistoryPage } from "./pages/HistoryPage";
 import { AccountPage } from "./pages/AccountPage";
 import { FriendsPage } from "./pages/FriendsPage";
 import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
+import { isMediaPermissionError } from "../infrastructure/media/mediaPermissions";
 
 type OptionsView = "settings" | "history" | "account" | "friends" | "privacy";
 
@@ -28,6 +29,38 @@ export function OptionsApp() {
   const [passcodeSaved, setPasscodeSaved] = useState(false);
   const [passcodeError, setPasscodeError] = useState<string | null>(null);
   const [passcodeSaving, setPasscodeSaving] = useState(false);
+
+  // QA-discovered bug (v3.2 Task 9): Study Room video/audio and Producer Tag recording both call
+  // getUserMedia() from the sidepanel, which - a documented Chrome platform limitation, not a
+  // per-user mistake - can never display the permission prompt at all. This page (options.html)
+  // opened as a real, full standalone tab CAN show it; the grant is per-origin, so once granted
+  // here the sidepanel can use it without prompting again. See mediaPermissions.ts.
+  const [mediaGrantStatus, setMediaGrantStatus] = useState<"idle" | "granting" | "granted" | "error">(
+    "idle"
+  );
+  const [mediaGrantError, setMediaGrantError] = useState<string | null>(null);
+
+  async function handleGrantMediaAccess() {
+    setMediaGrantStatus("granting");
+    setMediaGrantError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      // Only requesting the grant here - not actually starting a call or recording, so stop
+      // every track immediately rather than leaving the camera/mic light on for no reason.
+      stream.getTracks().forEach((track) => track.stop());
+      setMediaGrantStatus("granted");
+    } catch (err) {
+      console.error("Failed to grant camera/microphone access", err);
+      setMediaGrantStatus("error");
+      setMediaGrantError(
+        isMediaPermissionError(err)
+          ? "Permission was denied. Check this tab's camera/microphone site settings and try again."
+          : err instanceof Error
+            ? err.message
+            : String(err)
+      );
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -330,6 +363,28 @@ export function OptionsApp() {
                   />
                 </label>
               </>
+            )}
+          </section>
+
+          <section>
+            <h2>Camera &amp; microphone access</h2>
+            <p>
+              Study Rooms (video/audio) and Producer Tags (voice clips) need camera/microphone
+              access. The side panel can't show that permission prompt itself — grant it once
+              here, in this full tab, and the side panel will be able to use it afterward.
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleGrantMediaAccess()}
+              disabled={mediaGrantStatus === "granting"}
+            >
+              {mediaGrantStatus === "granting" ? "Requesting…" : "Grant camera & microphone access"}
+            </button>
+            {mediaGrantStatus === "granted" && (
+              <p>Camera and microphone access granted — you can close this tab now.</p>
+            )}
+            {mediaGrantStatus === "error" && (
+              <p role="alert">Couldn't grant access: {mediaGrantError}. Please try again.</p>
             )}
           </section>
 

@@ -24,11 +24,17 @@ vi.mock("livekit-client", () => {
   // have it apply to whichever instance that call constructs, without needing to reach into the
   // instance before it exists.
   let cameraShouldFail = false;
+  // The exact error setCameraEnabled rejects with when cameraShouldFail is true - defaults to a
+  // plain Error (the original mock's shape, kept for tests that only care about graceful
+  // degradation); a test asserting on error CLASSIFICATION overrides this to a real DOMException,
+  // matching what the browser actually rejects getUserMedia with.
+  let cameraFailure: unknown = new Error("Permission denied");
 
   class FakeRoom {
     static instances: FakeRoom[] = [];
-    static setCameraShouldFail(value: boolean) {
+    static setCameraShouldFail(value: boolean, failure?: unknown) {
       cameraShouldFail = value;
+      if (failure !== undefined) cameraFailure = failure;
     }
     private listeners: Record<string, Listener[]> = {};
     connect = vi.fn().mockResolvedValue(undefined);
@@ -37,7 +43,7 @@ vi.mock("livekit-client", () => {
       identity: "local-user",
       setCameraEnabled: vi.fn().mockImplementation(() =>
         cameraShouldFail
-          ? Promise.reject(new Error("Permission denied"))
+          ? Promise.reject(cameraFailure)
           : Promise.resolve({ track: { attach: vi.fn(() => document.createElement("video")) } })
       ),
       setMicrophoneEnabled: vi.fn().mockResolvedValue(undefined),
@@ -85,7 +91,7 @@ const FakeRoomClass = Room as unknown as {
     };
     emit: (event: string, ...args: unknown[]) => void;
   }>;
-  setCameraShouldFail: (value: boolean) => void;
+  setCameraShouldFail: (value: boolean, failure?: unknown) => void;
 };
 
 function latestRoom() {
@@ -100,7 +106,7 @@ function fakeTrack(element: HTMLMediaElement) {
 
 beforeEach(() => {
   FakeRoomClass.instances.length = 0;
-  FakeRoomClass.setCameraShouldFail(false);
+  FakeRoomClass.setCameraShouldFail(false, new Error("Permission denied"));
   vi.stubEnv("WXT_LIVEKIT_URL", "wss://fake.livekit.cloud");
 });
 
@@ -151,6 +157,37 @@ describe("videoCallClient.joinCall", () => {
     const room = latestRoom();
     expect(room.connect).toHaveBeenCalled();
     expect(room.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
+  });
+
+  // QA-discovered bug (v3.2 Task 9): a camera/mic failure used to only console.error, with no
+  // way for StudyRoomPanel.tsx to ever learn it happened - a real join with no local video
+  // published looked identical to one that simply never got a chance to say why. Uses a real
+  // DOMException("...", "NotAllowedError") - the actual shape a Chrome side panel's blocked
+  // permission prompt rejects with (see mediaPermissions.ts) - not a generic Error.
+  it("emits an actionable local-media-error when the camera fails with NotAllowedError", async () => {
+    FakeRoomClass.setCameraShouldFail(true, new DOMException("Permission dismissed", "NotAllowedError"));
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    const unsubscribe = onVideoCallEvent((event) => events.push(event as never));
+
+    await joinCall("room-1", "livekit-jwt");
+
+    const mediaErrors = events.filter((e) => e.type === "local-media-error");
+    expect(mediaErrors).toHaveLength(1);
+    expect(mediaErrors[0]).toMatchObject({ kind: "camera", actionable: true });
+    unsubscribe();
+  });
+
+  it("emits a non-actionable local-media-error for a genuinely missing device", async () => {
+    FakeRoomClass.setCameraShouldFail(true, new DOMException("Requested device not found", "NotFoundError"));
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    const unsubscribe = onVideoCallEvent((event) => events.push(event as never));
+
+    await joinCall("room-1", "livekit-jwt");
+
+    const mediaErrors = events.filter((e) => e.type === "local-media-error");
+    expect(mediaErrors).toHaveLength(1);
+    expect(mediaErrors[0]).toMatchObject({ kind: "camera", actionable: false });
+    unsubscribe();
   });
 
   it("defensively leaves a previous call before joining a new one", async () => {

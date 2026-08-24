@@ -147,4 +147,26 @@ describe("ProducerTagRecorder", () => {
     // Falls back to the record step (no preview to show) rather than getting stuck.
     expect(screen.getByText("Record a tag (10s max)")).toBeInTheDocument();
   });
+
+  // QA-discovered bug (v3.2 Task 9): getUserMedia() rejects with a real but genuinely confusing
+  // browser message ("Permission dismissed") when this panel can't show the permission prompt at
+  // all (a Chrome side-panel limitation - see mediaPermissions.ts). A real DOMException, not a
+  // plain Error - the previous test's plain Error is a different, non-actionable failure.
+  it("replaces the raw browser message with a clear one and offers a fix action for a NotAllowedError", async () => {
+    vi.mocked(audioRecorder.stopRecording).mockRejectedValue(
+      new DOMException("Permission dismissed", "NotAllowedError")
+    );
+    const tabsCreateSpy = vi.spyOn(chrome.tabs, "create").mockReturnValue(undefined as never);
+
+    render(<ProducerTagRecorder onSend={vi.fn()} sending={false} sendLabel="Send" />);
+    fireEvent.click(screen.getByText("Record a tag (10s max)"));
+    fireEvent.click(screen.getByText("Stop"));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/can't be requested from this panel/i);
+    expect(alert).not.toHaveTextContent("Permission dismissed");
+
+    fireEvent.click(screen.getByRole("button", { name: /open a tab to grant access/i }));
+    expect(tabsCreateSpy).toHaveBeenCalledWith({ url: expect.stringContaining("options.html") });
+  });
 });

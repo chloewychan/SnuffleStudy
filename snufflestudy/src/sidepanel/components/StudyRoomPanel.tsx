@@ -8,6 +8,7 @@ import type { StudyRoom, RoomParticipant } from "../../domain/rooms/studyRoom";
 import type { ProducerTag } from "../../domain/rooms/producerTag";
 import { ProducerTagRecorder } from "./ProducerTagRecorder";
 import { SignInForm } from "../../shared/ui/SignInForm";
+import { openMediaPermissionTab } from "../../infrastructure/media/mediaPermissions";
 
 // v2 Task 13: Study Rooms.
 //
@@ -165,6 +166,12 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   const unsubscribePresenceRef = useRef<(() => void) | null>(null);
   const unsubscribeRoomTagsRef = useRef<(() => void) | null>(null);
 
+  // QA-discovered bug (v3.2 Task 9): local-media-error used to have nowhere to go but
+  // console.error - a real join with no local video/audio published looked identical to one that
+  // never got a chance to say why. actionable === true specifically means "grant camera/mic
+  // access from a full tab" (mediaPermissions.ts) is a real fix for this failure, not just noise.
+  const [mediaError, setMediaError] = useState<{ message: string; actionable: boolean } | null>(null);
+
   function loadRooms() {
     setLoadError(null);
     sendMessage<{ ok: boolean; rooms?: StudyRoom[]; error?: string }>({ type: "STUDY_ROOM_LIST" })
@@ -264,6 +271,8 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
           tile.remove();
         }
         tileRefs.current.clear();
+      } else if (event.type === "local-media-error") {
+        setMediaError({ message: event.message, actionable: event.actionable });
       }
     });
     return unsubscribe;
@@ -368,6 +377,7 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   async function handleJoinRoom(room: StudyRoom) {
     setJoining(room.id);
     setJoinError(null);
+    setMediaError(null);
     try {
       const { token } = await studyRoomApi.joinRoom(room.id);
       await videoCallClient.joinCall(room.id, token);
@@ -429,6 +439,7 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
       setParticipants(new Map());
       setRoomTags([]);
       setTagSendError(null);
+      setMediaError(null);
       setLeaving(false);
     }
   }
@@ -488,6 +499,19 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
         </section>
 
         {joinError && <p role="alert">{joinError}</p>}
+        {mediaError && (
+          <p role="alert">
+            {mediaError.message}
+            {mediaError.actionable && (
+              <>
+                {" "}
+                <button type="button" onClick={openMediaPermissionTab}>
+                  Open a tab to grant access
+                </button>
+              </>
+            )}
+          </p>
+        )}
 
         <section className="study-room-panel__producer-tags">
           <h3>Producer tags</h3>

@@ -192,6 +192,73 @@ describe("StudyRoomPanel", () => {
     await waitFor(() => expect(videoElement.isConnected).toBe(true));
   });
 
+  // QA-discovered bug (v3.2 Task 9): a local-media-error used to have nowhere to go - the join
+  // still "succeeded" (joinedRoom set, presence loaded) with silently no video/audio and no way
+  // for the user to learn why. Confirms the actionable case renders a working fix action.
+  it("shows an actionable guidance message and opens a tab to grant access on a local-media-error", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+    const tabsCreateSpy = vi.spyOn(chrome.tabs, "create").mockReturnValue(undefined as never);
+
+    let capturedListener: ((event: videoCallClient.VideoCallEvent) => void) | null = null;
+    vi.mocked(videoCallClient.onVideoCallEvent).mockImplementation((listener) => {
+      capturedListener = listener;
+      return () => {};
+    });
+    vi.mocked(videoCallClient.joinCall).mockImplementation(async () => {
+      capturedListener?.({
+        type: "local-media-error",
+        kind: "camera",
+        message: "Camera/microphone access can't be requested from this panel.",
+        actionable: true,
+      });
+    });
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+    fireEvent.click(screen.getByText("Join"));
+    await screen.findByText("Leave room");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/can't be requested from this panel/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /open a tab to grant access/i }));
+    expect(tabsCreateSpy).toHaveBeenCalledWith({ url: expect.stringContaining("options.html") });
+  });
+
+  // A genuinely missing/broken device isn't fixable by opening a tab - confirms the guidance
+  // button only appears for the actionable (Chrome side-panel permission) case.
+  it("does not show the grant-access button for a non-actionable local-media-error", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+
+    let capturedListener: ((event: videoCallClient.VideoCallEvent) => void) | null = null;
+    vi.mocked(videoCallClient.onVideoCallEvent).mockImplementation((listener) => {
+      capturedListener = listener;
+      return () => {};
+    });
+    vi.mocked(videoCallClient.joinCall).mockImplementation(async () => {
+      capturedListener?.({
+        type: "local-media-error",
+        kind: "camera",
+        message: "Requested device not found",
+        actionable: false,
+      });
+    });
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+    fireEvent.click(screen.getByText("Join"));
+    await screen.findByText("Leave room");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Requested device not found");
+    expect(screen.queryByRole("button", { name: /open a tab to grant access/i })).not.toBeInTheDocument();
+  });
+
   it("surfaces a join error inline and does not get stuck showing the joined view", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })

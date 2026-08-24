@@ -439,4 +439,47 @@ describe("OptionsApp", () => {
       expect(messenger.sendMessage).toHaveBeenCalledWith({ type: "AUTH_GET_SESSION" })
     );
   });
+
+  // QA-discovered bug (v3.2 Task 9): Study Rooms/Producer Tags call getUserMedia() from the
+  // sidepanel, which can never show the permission prompt at all (a Chrome platform limitation -
+  // see mediaPermissions.ts). This page, opened as a full tab, is the one place that CAN show it -
+  // this section is the actual fix action, not just a diagnostic message.
+  describe("camera & microphone access", () => {
+    let getUserMediaMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      getUserMediaMock = vi.fn();
+      Object.defineProperty(navigator, "mediaDevices", {
+        value: { getUserMedia: getUserMediaMock },
+        configurable: true,
+      });
+    });
+
+    it("requests camera+mic access, stops the tracks immediately, and confirms success", async () => {
+      const track = { stop: vi.fn() };
+      getUserMediaMock.mockResolvedValue({ getTracks: () => [track] });
+      vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
+
+      render(<OptionsApp />);
+      await waitFor(() => screen.getByText("Grant camera & microphone access"));
+
+      fireEvent.click(screen.getByText("Grant camera & microphone access"));
+
+      expect(getUserMediaMock).toHaveBeenCalledWith({ audio: true, video: true });
+      expect(await screen.findByText(/access granted/i)).toBeInTheDocument();
+      expect(track.stop).toHaveBeenCalled();
+    });
+
+    it("surfaces a clear message when the grant fails", async () => {
+      getUserMediaMock.mockRejectedValue(new DOMException("Permission dismissed", "NotAllowedError"));
+      vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
+
+      render(<OptionsApp />);
+      await waitFor(() => screen.getByText("Grant camera & microphone access"));
+
+      fireEvent.click(screen.getByText("Grant camera & microphone access"));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/permission was denied/i);
+    });
+  });
 });

@@ -1,4 +1,5 @@
 import { Room, RoomEvent, type RemoteParticipant, type RemoteTrack, type RemoteTrackPublication } from "livekit-client";
+import { MEDIA_PERMISSION_HELP_MESSAGE, isMediaPermissionError } from "../media/mediaPermissions";
 
 // v2 Task 13: Study Rooms - the LiveKit room-join wrapper. Per this task's brief, this is "the
 // one file any future video-provider swap should touch" - every livekit-client type/import stays
@@ -47,7 +48,14 @@ export type VideoCallEvent =
   | { type: "track-added"; participantIdentity: string; isLocal: boolean; element: HTMLMediaElement }
   | { type: "track-removed"; participantIdentity: string; isLocal: boolean; element: HTMLMediaElement }
   | { type: "participant-disconnected"; participantIdentity: string }
-  | { type: "disconnected" };
+  | { type: "disconnected" }
+  // QA-discovered bug (v3.2 Task 9): setCameraEnabled/setMicrophoneEnabled failing below used to
+  // only console.error and otherwise degrade completely silently - a real join with no local
+  // video/audio published looked identical, from the UI's perspective, to one where the panel
+  // simply never got a chance to say why. `actionable` is true specifically for the Chrome
+  // side-panel permission-prompt limitation (see mediaPermissions.ts) - StudyRoomPanel.tsx offers
+  // the "open a tab to grant access" fix only then, not for a genuinely missing/broken device.
+  | { type: "local-media-error"; kind: "camera" | "microphone"; message: string; actionable: boolean };
 
 type VideoCallEventListener = (event: VideoCallEvent) => void;
 
@@ -167,12 +175,24 @@ export async function joinCall(roomId: string, token: string): Promise<void> {
     }
   } catch (err) {
     console.error("Could not enable local camera", err);
+    emit({
+      type: "local-media-error",
+      kind: "camera",
+      message: isMediaPermissionError(err) ? MEDIA_PERMISSION_HELP_MESSAGE : String(err),
+      actionable: isMediaPermissionError(err),
+    });
   }
 
   try {
     await room.localParticipant.setMicrophoneEnabled(true);
   } catch (err) {
     console.error("Could not enable local microphone", err);
+    emit({
+      type: "local-media-error",
+      kind: "microphone",
+      message: isMediaPermissionError(err) ? MEDIA_PERMISSION_HELP_MESSAGE : String(err),
+      actionable: isMediaPermissionError(err),
+    });
   }
 }
 

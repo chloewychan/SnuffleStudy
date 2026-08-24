@@ -1,5 +1,10 @@
 import { useRef, useState } from "react";
 import * as audioRecorder from "../../infrastructure/audio/audioRecorder";
+import {
+  MEDIA_PERMISSION_HELP_MESSAGE,
+  isMediaPermissionError,
+  openMediaPermissionTab,
+} from "../../infrastructure/media/mediaPermissions";
 
 interface ProducerTagRecorderProps {
   onSend: (blob: Blob, durationMs: number) => void;
@@ -26,6 +31,12 @@ export function ProducerTagRecorder({ onSend, sending, sendLabel, sendDisabled }
   const [recording, setRecording] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [recordError, setRecordError] = useState<string | null>(null);
+  // QA-discovered bug (v3.2 Task 9): getUserMedia() rejects with a real but genuinely confusing
+  // browser message ("Permission dismissed") when this panel can't show the permission prompt at
+  // all (a Chrome side-panel limitation, not a per-user mistake - see mediaPermissions.ts).
+  // Replaced with our own clear message + an actual fix action, instead of passing the raw
+  // browser text straight through.
+  const [recordErrorActionable, setRecordErrorActionable] = useState(false);
   const [preview, setPreview] = useState<{ blob: Blob; url: string; durationMs: number } | null>(null);
 
   const tickTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -46,7 +57,14 @@ export function ProducerTagRecorder({ onSend, sending, sendLabel, sendDisabled }
       setPreview({ blob, url: URL.createObjectURL(blob), durationMs });
     } catch (err) {
       console.error("Failed to stop recording", err);
-      setRecordError(err instanceof Error ? err.message : String(err));
+      setRecordError(
+        isMediaPermissionError(err)
+          ? MEDIA_PERMISSION_HELP_MESSAGE
+          : err instanceof Error
+            ? err.message
+            : String(err)
+      );
+      setRecordErrorActionable(isMediaPermissionError(err));
     } finally {
       setRecording(false);
     }
@@ -54,6 +72,7 @@ export function ProducerTagRecorder({ onSend, sending, sendLabel, sendDisabled }
 
   function handleStart() {
     setRecordError(null);
+    setRecordErrorActionable(false);
     if (preview) {
       URL.revokeObjectURL(preview.url);
       setPreview(null);
@@ -119,7 +138,19 @@ export function ProducerTagRecorder({ onSend, sending, sendLabel, sendDisabled }
         </div>
       )}
 
-      {recordError && <p role="alert">Could not record: {recordError}</p>}
+      {recordError && (
+        <p role="alert">
+          Could not record: {recordError}
+          {recordErrorActionable && (
+            <>
+              {" "}
+              <button type="button" onClick={openMediaPermissionTab}>
+                Open a tab to grant access
+              </button>
+            </>
+          )}
+        </p>
+      )}
     </div>
   );
 }
