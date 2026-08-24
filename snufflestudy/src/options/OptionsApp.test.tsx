@@ -7,6 +7,13 @@ import * as contentScriptRegistration from "../background/contentScriptRegistrat
 import { DEFAULT_USER_SETTINGS } from "../domain/settings/userSettings";
 import { HISTORY_LIST_LIMIT } from "./pages/HistoryPage";
 
+// v3.3 Task 7: the Tracking/Friends/Notifications/Default-restricted-sites/Hard-block-passcode
+// assertions below (everything except the "camera & microphone access" describe block at the
+// bottom) now exercise that behavior indirectly through the extracted
+// sidepanel/components/settingsTab/SettingsPage.tsx, which OptionsApp.tsx's "settings" view
+// renders directly - not duplicated logic. Assertions are unchanged from before the extraction:
+// SettingsPage renders the exact same labels/testids/messages, so OptionsApp's own observable
+// behavior (this file's actual subject) is identical.
 beforeEach(() => {
   vi.restoreAllMocks();
 });

@@ -72,21 +72,25 @@ describe("SidePanelApp", () => {
     await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
 
     // One real, source-verified heading per tab's actual content (not guessed): BunnyTab.tsx's
-    // <h2>About the Bun</h2>, TaskVaultPage.tsx's <h2>Task Vault</h2> (inside StudyTab), and
-    // StudyRoomPanel.tsx's <h2>Study Rooms</h2> (inside FriendsTab). This is the single most
+    // <h2>About the Bun</h2>, TaskVaultPage.tsx's <h2>Task Vault</h2> (inside StudyTab),
+    // StudyRoomPanel.tsx's <h2>Study Rooms</h2> (inside FriendsTab), and (v3.3 Task 7)
+    // SettingsPage.tsx's <h2>Tracking</h2> - the first section of the sidepanel Settings tab's now
+    // real (no longer empty-placeholder) default "settings" sub-view. This is the single most
     // transposition-prone spot in SidePanelApp.tsx's four-way conditional - would ship green even
     // with two tabs swapped without a check like this covering all four.
     //
-    // v3.3 Task 1 moved TempPasscodePanel.tsx's <h2>Temporary passcode requests</h2> (previously
-    // this test's Settings-tab heading) and UnlockRequestPanel.tsx's <h2>Unlock requests</h2> from
-    // SettingsTab.tsx into FriendsTab.tsx, below its existing StudyRoomPanel/FriendGroupPanel, and
-    // left SettingsTab.tsx emptied as a placeholder until Task 7 rebuilds it. Settings therefore
-    // has no distinguishing heading of its own right now - it's checked separately below via its
-    // empty placeholder container instead.
+    // v3.3 Task 1 moved TempPasscodePanel.tsx's <h2>Temporary passcode requests</h2> and
+    // UnlockRequestPanel.tsx's <h2>Unlock requests</h2> from SettingsTab.tsx into FriendsTab.tsx,
+    // below its existing StudyRoomPanel/FriendGroupPanel, leaving SettingsTab.tsx emptied as a
+    // placeholder. v3.3 Task 7 then rebuilt that placeholder into a real Settings/Account/Friends/
+    // History sub-nav (SettingsTab.test.tsx covers that sub-nav's own four-way switch in detail) -
+    // this test only needs SettingsTab's default "settings" sub-view to have its own distinguishing
+    // heading again, same as the other three tabs.
     const tabs = [
       { tabName: "Bunny", heading: /^about the bun$/i },
       { tabName: "Study", heading: /^task vault$/i },
       { tabName: "Friends", heading: /^study rooms$/i },
+      { tabName: "Settings", heading: /^tracking$/i },
     ];
 
     for (const { tabName, heading } of tabs) {
@@ -94,23 +98,14 @@ describe("SidePanelApp", () => {
       await waitFor(() => expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument());
 
       // Only the clicked tab's content is mounted inside the shared tabpanel - every other tab's
-      // distinguishing heading must be absent, and Settings's empty placeholder must not be
-      // mounted either.
+      // distinguishing heading must be absent.
       for (const other of tabs) {
         if (other.tabName === tabName) continue;
         expect(screen.queryByRole("heading", { name: other.heading })).not.toBeInTheDocument();
       }
-      expect(document.querySelector(".sp-settings-tab")).not.toBeInTheDocument();
-    }
-
-    // Settings tab (v3.3 Task 1): SettingsTab.tsx renders only its empty placeholder - Task 7
-    // rebuilds it into a real sub-navigated surface. Confirms it mounts with none of the other
-    // three tabs' content, rather than asserting a heading it deliberately doesn't have yet.
-    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
-    await waitFor(() => expect(document.querySelector(".sp-settings-tab")).toBeInTheDocument());
-    expect(document.querySelector(".sp-settings-tab")).toBeEmptyDOMElement();
-    for (const { heading } of tabs) {
-      expect(screen.queryByRole("heading", { name: heading })).not.toBeInTheDocument();
+      if (tabName !== "Settings") {
+        expect(document.querySelector(".sp-settings-tab")).not.toBeInTheDocument();
+      }
     }
   });
 
