@@ -59,6 +59,17 @@ export function AccountPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteConfirming, setDeleteConfirming] = useState(false);
 
+  // v3.3 Task 14: "set/change your password" for an already-signed-in user - the recovery path
+  // for any account created before this feature shipped (no password yet, since a password used
+  // to be optional), and the normal way to change a password later. No longer the primary way a
+  // password gets set (that's now mandatory at signup, inside SignInForm.tsx's create-account
+  // branch) - this is a secondary action, always available while signed in.
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordSetAt, setPasswordSetAt] = useState<number | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -106,11 +117,42 @@ export function AccountPage() {
       setGroup(null);
       setInviteCode(null);
       setMembers(null);
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setPasswordSetAt(null);
     } catch (err) {
       console.error("Failed to sign out", err);
       setAuthError(err instanceof Error ? err.message : String(err));
     } finally {
       setAuthBusy(false);
+    }
+  }
+
+  // v3.3 Task 14: sets or changes the signed-in user's password via AUTH_SET_PASSWORD (same
+  // message SignInForm.tsx's create-account step uses). Submit is disabled until both fields are
+  // non-empty and match - same "genuinely disabled, not just visually" contract as
+  // SignInForm.tsx's own password step.
+  async function handleSetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPasswordBusy(true);
+    setPasswordError(null);
+    try {
+      const res = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "AUTH_SET_PASSWORD",
+        payload: { password: newPassword },
+      });
+      if (!res.ok) {
+        setPasswordError(res.error ?? "Could not set your password.");
+        return;
+      }
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setPasswordSetAt(Date.now());
+    } catch (err) {
+      console.error("Failed to set a password", err);
+      setPasswordError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPasswordBusy(false);
     }
   }
 
@@ -140,6 +182,9 @@ export function AccountPage() {
       setGroup(null);
       setInviteCode(null);
       setMembers(null);
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setPasswordSetAt(null);
     } catch (err) {
       console.error("Failed to delete account", err);
       setDeleteError(err instanceof Error ? err.message : String(err));
@@ -306,6 +351,48 @@ export function AccountPage() {
               {authBusy ? "Signing out…" : "Sign out"}
             </button>
             {authError && <p role="alert">Couldn't sign out: {authError}. Please try again.</p>}
+          </section>
+
+          <section>
+            <h3>Password</h3>
+            <p>
+              Set or change the password used by "Sign in with a password." If your account
+              predates this feature, it may not have one yet - setting one here also fixes that.
+            </p>
+            <form onSubmit={(e) => void handleSetPassword(e)}>
+              <label>
+                New password
+                <input
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </label>
+              <label>
+                Confirm new password
+                <input
+                  type="password"
+                  required
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={
+                  passwordBusy ||
+                  !newPassword ||
+                  newPassword !== confirmNewPassword
+                }
+              >
+                {passwordBusy ? "Saving…" : "Set password"}
+              </button>
+            </form>
+            {passwordError && (
+              <p role="alert">Couldn't set your password: {passwordError}. Please try again.</p>
+            )}
+            {passwordSetAt !== null && !passwordError && <p>Password updated.</p>}
           </section>
 
           <section>

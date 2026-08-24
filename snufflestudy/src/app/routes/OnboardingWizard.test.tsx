@@ -236,7 +236,13 @@ describe("OnboardingWizard", () => {
       ).toBe(false);
     });
 
-    it('advances to "name" after a successful AUTH_REQUEST_OTP -> AUTH_VERIFY_OTP round trip', async () => {
+    // v3.3 Task 14: SignInForm now splits into a top-level Create account/Sign in choice
+    // (Decision 6). These two tests route through the Sign in branch's "Email me a code" option
+    // - the unchanged round trip that still calls onSignedIn directly with no password step, the
+    // closest analog to what they covered before the split. SignInForm.test.tsx and
+    // AccountPage.test.tsx's "creating a new account" block cover the create-account branch's
+    // mandatory password step directly.
+    it('advances to "name" after a successful AUTH_REQUEST_OTP -> AUTH_VERIFY_OTP round trip via "Email me a code"', async () => {
       const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
         async (message: any) => {
           if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
@@ -250,11 +256,14 @@ describe("OnboardingWizard", () => {
       render(<OnboardingWizard onComplete={vi.fn()} />);
       dismissWelcome();
 
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
+
       fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
       fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
 
       await screen.findByLabelText("Code");
-      fireEvent.change(screen.getByLabelText("Code"), { target: { value: "123456" } });
+      fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
       fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
 
       expect(await screen.findByText("Meet Snuffles")).toBeInTheDocument();
@@ -264,7 +273,7 @@ describe("OnboardingWizard", () => {
       });
       expect(sendMessageSpy).toHaveBeenCalledWith({
         type: "AUTH_VERIFY_OTP",
-        payload: { email: "a@example.com", token: "123456" },
+        payload: { email: "a@example.com", token: "12345678" },
       });
     });
 
@@ -280,16 +289,55 @@ describe("OnboardingWizard", () => {
       render(<OnboardingWizard onComplete={vi.fn()} />);
       dismissWelcome();
 
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
+
       fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
       fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
 
       await screen.findByLabelText("Code");
-      fireEvent.change(screen.getByLabelText("Code"), { target: { value: "000000" } });
+      fireEvent.change(screen.getByLabelText("Code"), { target: { value: "00000000" } });
       fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(/token has expired or is invalid/i);
       expect(screen.queryByText("Meet Snuffles")).not.toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    });
+
+    // v3.3 Task 14 DoD: "'Skip for now' in onboarding still fully skips, at any point in either
+    // branch, with no partial state blocking a later attempt." — covered in depth at the
+    // component level by SignInForm.test.tsx; this is the one end-to-end check from the actual
+    // OnboardingWizard call site, for the create-account branch's mandatory password step
+    // specifically (the step most at risk of trapping onSkip since it comes after a real
+    // AUTH_VERIFY_OTP success).
+    it('"Skip for now" still advances past the create-account password step, with no AUTH_SET_PASSWORD sent', async () => {
+      const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+        async (message: any) => {
+          if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
+          if (message.type === "AUTH_VERIFY_OTP") {
+            return { ok: true, session: { user: { id: "user-a", email: "a@example.com" } } };
+          }
+          return { ok: true };
+        }
+      );
+
+      render(<OnboardingWizard onComplete={vi.fn()} />);
+      dismissWelcome();
+
+      fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
+      fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+      await screen.findByLabelText("Code");
+      fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
+      fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+
+      await screen.findByLabelText("Password");
+      fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
+
+      expect(screen.getByText("Meet Snuffles")).toBeInTheDocument();
+      expect(sendMessageSpy).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: "AUTH_SET_PASSWORD" })
+      );
     });
   });
 

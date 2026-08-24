@@ -333,7 +333,9 @@ describe("UnlockRequestPanel — signed-out gate (v3.2 Task 2)", () => {
     expect(
       await screen.findByText("Sign in to see or resolve unlock requests from friends.")
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    // v3.3 Task 14: SignInForm's entry state is now a Create account/Sign in choice (Decision
+    // 6), not a bare email field.
+    expect(screen.getByRole("button", { name: "Create account" })).toBeInTheDocument();
     expect(screen.queryByText("No pending unlock requests from friends.")).not.toBeInTheDocument();
   });
 

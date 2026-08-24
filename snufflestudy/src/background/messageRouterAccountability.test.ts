@@ -95,6 +95,69 @@ describe("messageRouter — AUTH_*", () => {
     expect(result).toEqual({ ok: false, error: "Token has expired or is invalid" });
   });
 
+  // v3.3 Task 14: password auth.
+  it("AUTH_SET_PASSWORD calls updateUser with the given password", async () => {
+    const spy = vi.spyOn(supabase.auth, "updateUser").mockResolvedValue({
+      data: { user: { id: "user-a" } },
+      error: null,
+    } as never);
+
+    const result = (await handleMessage({
+      type: "AUTH_SET_PASSWORD",
+      payload: { password: "correct-horse-battery-staple" },
+    })) as { ok: boolean };
+
+    expect(spy).toHaveBeenCalledWith({ password: "correct-horse-battery-staple" });
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("AUTH_SET_PASSWORD surfaces a Supabase error as ok:false", async () => {
+    vi.spyOn(supabase.auth, "updateUser").mockResolvedValue({
+      data: { user: null },
+      error: { message: "Password should be at least 6 characters" },
+    } as never);
+
+    const result = (await handleMessage({
+      type: "AUTH_SET_PASSWORD",
+      payload: { password: "x" },
+    })) as { ok: boolean; error?: string };
+
+    expect(result).toEqual({ ok: false, error: "Password should be at least 6 characters" });
+  });
+
+  it("AUTH_SIGN_IN_PASSWORD calls signInWithPassword with the given email/password", async () => {
+    const fakeSession = { access_token: "tok", user: { id: "user-a" } };
+    const spy = vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
+      data: { session: fakeSession, user: fakeSession.user },
+      error: null,
+    } as never);
+
+    const result = (await handleMessage({
+      type: "AUTH_SIGN_IN_PASSWORD",
+      payload: { email: "a@example.com", password: "correct-horse-battery-staple" },
+    })) as { ok: boolean; session: unknown };
+
+    expect(spy).toHaveBeenCalledWith({
+      email: "a@example.com",
+      password: "correct-horse-battery-staple",
+    });
+    expect(result).toEqual({ ok: true, session: fakeSession });
+  });
+
+  it("AUTH_SIGN_IN_PASSWORD surfaces a Supabase error (e.g. wrong password) as ok:false", async () => {
+    vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
+      data: { session: null, user: null },
+      error: { message: "Invalid login credentials" },
+    } as never);
+
+    const result = (await handleMessage({
+      type: "AUTH_SIGN_IN_PASSWORD",
+      payload: { email: "a@example.com", password: "wrong" },
+    })) as { ok: boolean; error?: string };
+
+    expect(result).toEqual({ ok: false, error: "Invalid login credentials" });
+  });
+
   it("AUTH_SIGN_OUT calls signOut", async () => {
     const spy = vi.spyOn(supabase.auth, "signOut").mockResolvedValue({ error: null } as never);
 

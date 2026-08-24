@@ -7,6 +7,18 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
+// v3.3 Task 14: SignInForm now splits into a top-level Create account/Sign in choice (Decision
+// 6). These "signed out" tests exercise the Sign in branch's "Email me a code" option - the
+// unchanged OTP round trip that still calls onSignedIn directly with no password step (the
+// account already exists) - since that's the closest analog to what these tests covered before
+// the split. SignInForm.test.tsx has full coverage of both branches (including the mandatory
+// create-account password step) at the component level; the account-creation branch is covered
+// end to end from this page's own call site in the "creating a new account" describe block below.
+function goToSignInWithCode() {
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
+}
+
 describe("AccountPage — signed out", () => {
   it("shows the email step, then the code step after requesting an OTP", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
@@ -16,7 +28,8 @@ describe("AccountPage — signed out", () => {
     });
 
     render(<AccountPage />);
-    await waitFor(() => screen.getByLabelText("Email"));
+    await waitFor(() => screen.getByRole("button", { name: "Sign in" }));
+    goToSignInWithCode();
 
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
@@ -39,18 +52,19 @@ describe("AccountPage — signed out", () => {
     });
 
     render(<AccountPage />);
-    await waitFor(() => screen.getByLabelText("Email"));
+    await waitFor(() => screen.getByRole("button", { name: "Sign in" }));
+    goToSignInWithCode();
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
     await screen.findByLabelText("Code");
 
-    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "123456" } });
+    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
     fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
 
     expect(await screen.findByText(/signed in as a@example.com/i)).toBeInTheDocument();
     expect(messenger.sendMessage).toHaveBeenCalledWith({
       type: "AUTH_VERIFY_OTP",
-      payload: { email: "a@example.com", token: "123456" },
+      payload: { email: "a@example.com", token: "12345678" },
     });
   });
 
@@ -65,15 +79,78 @@ describe("AccountPage — signed out", () => {
     });
 
     render(<AccountPage />);
-    await waitFor(() => screen.getByLabelText("Email"));
+    await waitFor(() => screen.getByRole("button", { name: "Sign in" }));
+    goToSignInWithCode();
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
     await screen.findByLabelText("Code");
 
-    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "000000" } });
+    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "00000000" } });
     fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/token has expired or is invalid/i);
+  });
+
+  // v3.3 Task 14: creating a brand-new account requires both a verified code AND matching
+  // passwords - exercised end to end from this page's own call site (SignInForm.test.tsx covers
+  // the component's internal mechanics, e.g. the disabled-submit assertion, in more detail).
+  describe("creating a new account", () => {
+    it("does not sign in after a bare verified code - a password must be set first", async () => {
+      vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+        if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
+        if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
+        if (message.type === "AUTH_VERIFY_OTP") {
+          return { ok: true, session: { user: { id: "user-new", email: "new@example.com" } } };
+        }
+        return { ok: true };
+      });
+
+      render(<AccountPage />);
+      await waitFor(() => screen.getByRole("button", { name: "Create account" }));
+      fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new@example.com" } });
+      fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+      await screen.findByLabelText("Code");
+
+      fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
+      fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+
+      await screen.findByLabelText("Password");
+      expect(screen.queryByText(/signed in as/i)).not.toBeInTheDocument();
+    });
+
+    it("signs in once a verified code AND a matching password both succeed", async () => {
+      vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+        if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
+        if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
+        if (message.type === "AUTH_VERIFY_OTP") {
+          return { ok: true, session: { user: { id: "user-new", email: "new@example.com" } } };
+        }
+        if (message.type === "AUTH_SET_PASSWORD") return { ok: true };
+        return { ok: true };
+      });
+
+      render(<AccountPage />);
+      await waitFor(() => screen.getByRole("button", { name: "Create account" }));
+      fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new@example.com" } });
+      fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+      await screen.findByLabelText("Code");
+
+      fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
+      fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+
+      await screen.findByLabelText("Password");
+      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "correct-horse" } });
+      fireEvent.change(screen.getByLabelText("Confirm password"), {
+        target: { value: "correct-horse" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+
+      expect(await screen.findByText(/signed in as new@example.com/i)).toBeInTheDocument();
+    });
   });
 
   it("surfaces an error instead of hanging when the initial session fetch rejects", async () => {
@@ -100,6 +177,118 @@ describe("AccountPage — signed in", () => {
       return { ok: true };
     });
   }
+
+  // v3.3 Task 14: "set/change your password" for an already-signed-in user - the recovery path
+  // for a pre-existing no-password account (created before this feature shipped), and the normal
+  // way to change a password later.
+  describe("password", () => {
+    it("disables Set password until both fields are filled and match (genuinely disabled, not just visual)", async () => {
+      mockSignedIn();
+      render(<AccountPage />);
+      await waitFor(() => screen.getByText(/signed in as a@example.com/i));
+
+      const submitButton = screen.getByRole("button", { name: "Set password" });
+      expect(submitButton).toBeDisabled();
+
+      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
+      expect(submitButton).toBeDisabled();
+
+      fireEvent.change(screen.getByLabelText("Confirm new password"), {
+        target: { value: "does-not-match" },
+      });
+      expect(submitButton).toBeDisabled();
+
+      fireEvent.change(screen.getByLabelText("Confirm new password"), {
+        target: { value: "new-pw" },
+      });
+      expect(submitButton).not.toBeDisabled();
+    });
+
+    it("sets a password via AUTH_SET_PASSWORD and shows confirmation", async () => {
+      const setPasswordSpy = vi.fn(async () => ({ ok: true }));
+      mockSignedIn({ AUTH_SET_PASSWORD: setPasswordSpy });
+
+      render(<AccountPage />);
+      await waitFor(() => screen.getByText(/signed in as a@example.com/i));
+
+      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("Confirm new password"), {
+        target: { value: "new-pw" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+
+      await waitFor(() =>
+        expect(setPasswordSpy).toHaveBeenCalledWith({
+          type: "AUTH_SET_PASSWORD",
+          payload: { password: "new-pw" },
+        })
+      );
+      expect(await screen.findByText("Password updated.")).toBeInTheDocument();
+    });
+
+    it("surfaces a server-side failure as an error", async () => {
+      mockSignedIn({
+        AUTH_SET_PASSWORD: async () => ({
+          ok: false,
+          error: "Password should be at least 6 characters",
+        }),
+      });
+
+      render(<AccountPage />);
+      await waitFor(() => screen.getByText(/signed in as a@example.com/i));
+
+      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "x" } });
+      fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "x" } });
+      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /password should be at least 6 characters/i
+      );
+      expect(screen.queryByText("Password updated.")).not.toBeInTheDocument();
+    });
+  });
+
+  // v3.3 Task 14 DoD: "An account created before this feature shipped (no password set) can
+  // still sign in via 'Email me a code,' and can set a password afterward from AccountPage.tsx."
+  it("a pre-existing no-password account signs in via code, then sets a password afterward", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
+      if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
+      if (message.type === "AUTH_VERIFY_OTP") {
+        return { ok: true, session: { user: { id: "user-legacy", email: "legacy@example.com" } } };
+      }
+      if (message.type === "AUTH_SET_PASSWORD") return { ok: true };
+      return { ok: true };
+    });
+
+    render(<AccountPage />);
+    await waitFor(() => screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "legacy@example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+    await screen.findByLabelText("Code");
+
+    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+
+    // Signed in via code alone - no password step tacked on for the sign-in branch.
+    expect(await screen.findByText(/signed in as legacy@example.com/i)).toBeInTheDocument();
+
+    // The recovery path: set a password now, from AccountPage's own "Password" section.
+    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "fresh-pw" } });
+    fireEvent.change(screen.getByLabelText("Confirm new password"), {
+      target: { value: "fresh-pw" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+
+    expect(await screen.findByText("Password updated.")).toBeInTheDocument();
+    expect(messenger.sendMessage).toHaveBeenCalledWith({
+      type: "AUTH_SET_PASSWORD",
+      payload: { password: "fresh-pw" },
+    });
+  });
 
   // v3.3 Task 5: "Invite a friend" collapses the old two-step create-group/generate-invite-code
   // flow into one action - one click sends both GROUP_CREATE (with an auto-generated, never-shown
@@ -249,7 +438,10 @@ describe("AccountPage — signed in", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
-    expect(await screen.findByLabelText("Email")).toBeInTheDocument();
+    // v3.3 Task 14: the signed-out view is now SignInForm's entry choice, not a bare email
+    // field - see SignInForm.test.tsx for full coverage of the Create account/Sign in split.
+    expect(await screen.findByRole("button", { name: "Create account" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
 
   // v3.2 Task 8: account/data deletion, gated behind a confirmation step - same convention as
@@ -268,7 +460,9 @@ describe("AccountPage — signed in", () => {
       fireEvent.click(await screen.findByRole("button", { name: /yes, permanently delete/i }));
 
       await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith({ type: "AUTH_DELETE_ACCOUNT" }));
-      expect(await screen.findByLabelText("Email")).toBeInTheDocument();
+      // v3.3 Task 14: the signed-out view is now SignInForm's entry choice, not a bare email
+      // field.
+      expect(await screen.findByRole("button", { name: "Create account" })).toBeInTheDocument();
     });
 
     it("does not send AUTH_DELETE_ACCOUNT when the inline confirmation is cancelled", async () => {

@@ -860,7 +860,9 @@ describe("StudyRoomPanel — signed-out gate (v3.2 Task 2)", () => {
     expect(
       await screen.findByText("Sign in to create or join a study room with your friends.")
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    // v3.3 Task 14: SignInForm's entry state is now a Create account/Sign in choice (Decision
+    // 6), not a bare email field.
+    expect(screen.getByRole("button", { name: "Create account" })).toBeInTheDocument();
     expect(screen.queryByText("Rooms among your friends")).not.toBeInTheDocument();
     expect(screen.queryByText("New room name")).not.toBeInTheDocument();
   });
@@ -905,16 +907,22 @@ describe("StudyRoomPanel — signed-out gate (v3.2 Task 2)", () => {
     render(<StudyRoomPanel onClose={() => {}} />);
     await screen.findByText("Sign in to create or join a study room with your friends.");
 
+    // v3.3 Task 14: SignInForm's entry state is now a Create account/Sign in choice (Decision
+    // 6) - navigate the Sign in branch's "Email me a code" option to reach the same
+    // AUTH_REQUEST_OTP/AUTH_VERIFY_OTP round trip this test covered before the split.
+    fireEvent.click(screen.getByText("Sign in"));
+    fireEvent.click(screen.getByText("Email me a code"));
+
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.com" } });
     fireEvent.click(screen.getByText("Send sign-in code"));
     await screen.findByLabelText("Code");
-    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "123456" } });
+    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
     fireEvent.click(screen.getByText("Verify code"));
 
     expect(await screen.findByText("Thursday study group")).toBeInTheDocument();
     expect(sendMessageSpy).toHaveBeenCalledWith({
       type: "AUTH_VERIFY_OTP",
-      payload: { email: "a@b.com", token: "123456" },
+      payload: { email: "a@b.com", token: "12345678" },
     });
   });
 });

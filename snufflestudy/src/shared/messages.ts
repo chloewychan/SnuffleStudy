@@ -51,6 +51,18 @@ export type ExtensionMessage =
   // path is used here).
   | { type: "AUTH_REQUEST_OTP"; payload: { email: string } }
   | { type: "AUTH_VERIFY_OTP"; payload: { email: string; token: string } }
+  // v3.3 Task 14: password auth. AUTH_SET_PASSWORD is used both by SignInForm.tsx's mandatory
+  // create-account password step (after a verified AUTH_VERIFY_OTP, before onSignedIn fires) and
+  // by AccountPage.tsx's "set/change your password" action for an already-signed-in user (the
+  // recovery path for any account created before this feature shipped, and the normal way to
+  // change a password later) - both route through supabase.auth.updateUser({ password }), which
+  // requires an existing session (see messageRouter.ts's AUTH_SET_PASSWORD case). Response shape:
+  // { ok: boolean; error?: string }.
+  | { type: "AUTH_SET_PASSWORD"; payload: { password: string } }
+  // Sign-in branch's "Sign in with a password" peer option (SignInForm.tsx) -
+  // supabase.auth.signInWithPassword({ email, password }). Response shape mirrors
+  // AUTH_VERIFY_OTP's: { ok: boolean; session?: <session>; error?: string }.
+  | { type: "AUTH_SIGN_IN_PASSWORD"; payload: { email: string; password: string } }
   | { type: "AUTH_SIGN_OUT" }
   | { type: "AUTH_GET_SESSION" }
   | { type: "GROUP_CREATE"; payload: { name: string } }

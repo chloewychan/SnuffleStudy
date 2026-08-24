@@ -494,6 +494,35 @@ async function routeMessage(
       return { ok: true, session: data.session };
     }
 
+    // v3.3 Task 14: mandatory create-account password step (SignInForm.tsx, after a verified
+    // AUTH_VERIFY_OTP) and AccountPage.tsx's "set/change your password" action both route here.
+    // updateUser({ password }) requires an existing session - both call sites only ever invoke
+    // this while already signed in (a freshly-verified OTP session, or an already-signed-in
+    // AccountPage user), matching supabase-js's own requirement (confirmed against the installed
+    // @supabase/auth-js 2.112.3 .d.ts: `updateUser(attributes: UserAttributes, options?)` where
+    // UserAttributes.password is `string | undefined`, returning `UserResponse` -
+    // `{ data: { user }, error: null } | { data: null, error: AuthError }`).
+    case "AUTH_SET_PASSWORD": {
+      const { error } = await supabase.auth.updateUser({ password: message.payload.password });
+      if (error) return { ok: false, error: error.message };
+      return { ok: true };
+    }
+
+    // v3.3 Task 14: the sign-in branch's "Sign in with a password" peer option (SignInForm.tsx) -
+    // confirmed against the installed @supabase/auth-js 2.112.3 .d.ts: `signInWithPassword(
+    // credentials: SignInWithPasswordCredentials): Promise<AuthTokenResponsePassword>`, where
+    // SignInWithPasswordCredentials accepts `{ email, password }` and AuthTokenResponsePassword
+    // resolves to `{ data: { user, session, weakPassword? }, error: null } | { data: {...:
+    // null}, error: AuthError }` - same `data.session` shape AUTH_VERIFY_OTP already returns.
+    case "AUTH_SIGN_IN_PASSWORD": {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: message.payload.email,
+        password: message.payload.password,
+      });
+      if (error) return { ok: false, error: error.message };
+      return { ok: true, session: data.session };
+    }
+
     case "AUTH_SIGN_OUT": {
       const { error } = await supabase.auth.signOut();
       if (error) return { ok: false, error: error.message };

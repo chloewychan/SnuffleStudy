@@ -283,8 +283,10 @@ describe("FriendGroupPanel — send a nudge (v2 Task 7)", () => {
       await screen.findByText("Sign in to nudge friends.")
     ).toBeInTheDocument();
     // Two independent SignInForm instances render (this section's, and the digest section's
-    // below - both gate on the same signed-out state) - getAllByLabelText, not getByLabelText.
-    expect(screen.getAllByLabelText("Email").length).toBeGreaterThan(0);
+    // below - both gate on the same signed-out state) - getAllByRole, not getByRole. v3.3 Task
+    // 14: SignInForm's entry state is now a Create account/Sign in choice (Decision 6), not a
+    // bare email field - "Create account" is the entry-state signal each instance renders.
+    expect(screen.getAllByRole("button", { name: "Create account" }).length).toBeGreaterThan(0);
     expect(screen.queryByText(/No friends to nudge yet/)).not.toBeInTheDocument();
   });
 
