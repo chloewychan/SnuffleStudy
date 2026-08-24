@@ -31,8 +31,14 @@
 // pages, not relevant inside an isolated shadow tree with no host-page elements to reset.
 export const overlayStyles = `
 :host {
-  --color-surface: #f5f5f7;
+  --color-surface: #f7e9dc;
+  --color-primary: #eabab7;
+  --color-btn-hover: #f6cbc0;
+  --color-accent: #cfc1bd;
+  --color-text: #796c6c;
   --radius-md: 8px;
+  --radius-sm: 4px;
+  --space-1: 4px;
   --space-3: 16px;
 }
 
@@ -46,5 +52,24 @@ export const overlayStyles = `
   border-radius: var(--radius-md);
   padding: var(--space-3);
   box-shadow: 0 4px 16px rgb(0 0 0 / 0.2);
+}
+
+/* Mirrors global.css's base button rule (see src/styles/global.css) - duplicated here because
+   this Shadow Root can't inherit tokens.css's :root custom properties (see file header comment). */
+.snuffles-overlay--warning button {
+  background: rgb(from var(--color-surface) r g b / 0.5);
+  color: var(--color-text);
+  border: 2px solid rgb(from var(--color-btn-hover) r g b / 0.5);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.snuffles-overlay--warning button:hover {
+  background: var(--color-btn-hover);
+}
+
+.snuffles-overlay--warning button:active {
+  background: var(--color-accent);
 }
 `;

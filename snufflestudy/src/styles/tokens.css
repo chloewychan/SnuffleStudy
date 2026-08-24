@@ -10,6 +10,9 @@
   --color-success: #2f9e5c;
   --color-caution: #d6a23a;
 
+  --color-btn-hover: #f6cbc0;
+  --color-btn-disabled: #e5dbd2;
+
   --font-display: "Pangolin", cursive;
   --font-body: "Shantell Sans", sans-serif;
 

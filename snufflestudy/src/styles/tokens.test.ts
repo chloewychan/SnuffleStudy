@@ -15,6 +15,8 @@ describe("tokens.css", () => {
     expect(tokensCss).toMatch(/--color-accent:\s*#cfc1bd/i);
     expect(tokensCss).toMatch(/--color-text:\s*#796c6c/i);
     expect(tokensCss).toMatch(/--color-text-muted:\s*#a99d9d/i);
+    expect(tokensCss).toMatch(/--color-btn-hover:\s*#f6cbc0/i);
+    expect(tokensCss).toMatch(/--color-btn-disabled:\s*#e5dbd2/i);
     expect(tokensCss).toMatch(/--font-display:\s*"Pangolin"/i);
     expect(tokensCss).toMatch(/--font-body:\s*"Shantell Sans"/i);
   });

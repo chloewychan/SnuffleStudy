@@ -65,7 +65,8 @@
 }
 
 .sp-card {
-  background: var(--color-surface);
+  background: transparent;
+  border: 2px solid rgb(from var(--color-accent) r g b / 0.5);
   border-radius: var(--radius-lg);
   padding: var(--space-4);
 }
@@ -80,7 +81,7 @@
 .sp-field {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   font-family: var(--font-body);
   color: var(--color-text);
   margin-bottom: var(--space-3);
@@ -107,7 +108,9 @@
 
 .sp-meter__track {
   height: var(--size-meter-track-height);
-  background: var(--color-bg);
+  /* .sp-card is now a transparent/outlined container (no --color-surface fill), so the track
+     needs its own visible background rather than relying on contrast against the old card fill. */
+  background: var(--color-accent);
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
@@ -178,17 +181,15 @@
   outline-offset: 2px;
 }
 
-/* Fix 2 (final-review fix wave): global.css's .timer-ring__track uses stroke: var(--color-surface)
-   (#f7e9dc), but ActiveSessionView.tsx nests <TimerRing> inside a .sp-card, whose own background
-   is that exact same --color-surface - making the track invisible against its own card. The
-   progress arc (--color-primary, #eabab7) is also very low-contrast against #f7e9dc. Scoped here
-   rather than touching global.css/TimerRing.tsx (other consumers of .timer-ring may rely on the
-   current colors) - .sp-active-session__progress is already the specific-enough hook, since it's
-   the direct parent of the mounted <TimerRing>. --color-bg (#fdfbfa) restores a visible track
-   against the card, and --color-text (#796c6c) on --color-surface (#f7e9dc) is a real ~4.2:1
-   contrast ratio for the progress arc. */
+/* Fix 2 (final-review fix wave), updated for the transparent .sp-card treatment: global.css's
+   .timer-ring__track defaults to stroke: var(--color-surface), and ActiveSessionView.tsx nests
+   <TimerRing> inside a .sp-card - which no longer has a fill at all, so any track color that
+   matches the page background behind it (--color-bg) would be just as invisible as the original
+   surface-on-surface bug this fix addressed. --color-accent gives the track real contrast against
+   that transparent backdrop; scoped here (not in global.css/TimerRing.tsx) since other consumers
+   of .timer-ring may rely on the current colors. */
 .sp-active-session__progress .timer-ring__track {
-  stroke: var(--color-bg);
+  stroke: var(--color-accent);
 }
 
 .sp-active-session__progress .timer-ring__progress {

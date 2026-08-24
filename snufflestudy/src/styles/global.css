@@ -32,6 +32,52 @@ button {
   font-family: inherit;
 }
 
+/* select/input default to the platform's own text color (usually black), not this app's
+   --color-text - explicit here since it's an inherited property form controls don't reliably
+   pick up from ancestors (same class of gap as the font-family fix above). */
+select,
+input {
+  color: var(--color-text);
+}
+
+/* Base button style - replaces the browser's native grey chrome with the app's palette.
+   Kept as a single bare-element rule (not a class) so it reaches every plain <button> across
+   locked/options/popup/sidepanel via global.css, per the single-consistent-style decision.
+   Class-based buttons like .sp-header__login-button/.sp-tabbar__tab already set their own
+   background/border, so their higher specificity wins over this base rule unchanged.
+   Fill/stroke use `rgb(from <token> r g b / 0.5)` (relative color syntax) so the 50% versions
+   stay derived from the real tokens instead of duplicating their hex values. */
+button {
+  background: rgb(from var(--color-surface) r g b / 0.5);
+  color: var(--color-text);
+  border: 2px solid rgb(from var(--color-btn-hover) r g b / 0.5);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  transition: background var(--motion-duration-fast), border-color var(--motion-duration-fast);
+}
+
+button:hover:not(:disabled) {
+  background: var(--color-btn-hover);
+}
+
+button:active:not(:disabled) {
+  background: var(--color-accent);
+}
+
+button:disabled {
+  background: var(--color-btn-disabled);
+  color: var(--color-text-muted);
+  border-color: transparent;
+  cursor: not-allowed;
+}
+
+/* Same a11y pattern as .sp-toggle__input:focus-visible (Fix 9, final-review fix wave). */
+button:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+
 .snuffles-overlay {
   position: fixed;
   z-index: 2147483647;
