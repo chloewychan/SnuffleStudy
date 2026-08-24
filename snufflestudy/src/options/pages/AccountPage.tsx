@@ -47,11 +47,13 @@ export function AccountPage() {
   const [leaveError, setLeaveError] = useState<string | null>(null);
   const [leaveBusy, setLeaveBusy] = useState(false);
   const [leftGroupId, setLeftGroupId] = useState<string | null>(null);
+  const [leaveConfirming, setLeaveConfirming] = useState(false);
 
   // v3.2 Task 8: account/data deletion. Same busy/error state shape as every other destructive
   // action on this page (handleSignOut, handleLeaveGroup).
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteConfirming, setDeleteConfirming] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,19 +112,12 @@ export function AccountPage() {
 
   // v3.2 Task 8: routes to AUTH_DELETE_ACCOUNT -> accountApi.deleteAccount() -> the
   // delete-account Edge Function. Confirmation step per this task's own DoD ("irreversible"),
-  // matching handleLeaveGroup's established window.confirm convention on this same page rather
-  // than inventing a new modal/typed-confirmation pattern - the wording here is stronger since
-  // deleting an account is a strictly bigger, unrecoverable action than leaving one group.
+  // rendered inline in this page's own JSX (deleteConfirming) rather than a browser-native
+  // window.confirm() - see handleLeaveGroup's comment above for why: Chrome silently suppresses
+  // confirm()/alert()/prompt() with no visible dialog at all when this Options page is shown
+  // embedded inside chrome://extensions, which is its default presentation.
   async function handleDeleteAccount() {
-    if (
-      !window.confirm(
-        "Permanently delete your SnuffleStudy account? This removes your friend groups (or " +
-          "hands them off to another member), study room history, Producer Tags, digests, and " +
-          "every other record tied to your account, everywhere. This cannot be undone."
-      )
-    ) {
-      return;
-    }
+    setDeleteConfirming(false);
     setDeleteBusy(true);
     setDeleteError(null);
     try {
@@ -241,13 +236,17 @@ export function AccountPage() {
     }
   }
 
+  // QA-discovered bug (v3.2 Task 9): this used to gate on window.confirm(), but Chrome silently
+  // no-ops synchronous confirm()/alert()/prompt() calls - no dialog, no error, nothing - when
+  // this Options page is shown embedded inside chrome://extensions (options_ui.open_in_tab is
+  // false, WXT's default, never overridden in wxt.config.ts), which is how Chrome opens an
+  // extension's Options page by default. The `if (!window.confirm(...)) return` guard always
+  // silently short-circuited in that context, so the button appeared to do nothing at all.
+  // Fixed by moving the confirmation into this page's own JSX (leaveConfirming) instead of a
+  // browser-native dialog, which works identically regardless of how this page is being shown.
   async function handleLeaveGroup() {
     if (!membersGroupId) return;
-    // Minimal confirm per this dispatch's "a button and a confirm, not a new settings page"
-    // scope - matches the browser-native confirm this codebase doesn't otherwise use elsewhere,
-    // but leaving a group is destructive-ish (loses access to friends' shared data in that group)
-    // and irreversible without a fresh invite code, so a bare click felt too easy to mis-fire.
-    if (!window.confirm("Leave this group? You'll need a new invite code to rejoin.")) return;
+    setLeaveConfirming(false);
     setLeaveBusy(true);
     setLeaveError(null);
     try {
@@ -317,9 +316,33 @@ export function AccountPage() {
               else. This cannot be undone. See the Privacy page for the full list of what's stored
               and where.
             </p>
-            <button type="button" onClick={() => void handleDeleteAccount()} disabled={deleteBusy}>
-              {deleteBusy ? "Deleting…" : "Delete account"}
-            </button>
+            {!deleteConfirming ? (
+              <button type="button" onClick={() => setDeleteConfirming(true)} disabled={deleteBusy}>
+                Delete account
+              </button>
+            ) : (
+              <div role="alertdialog" aria-label="Confirm account deletion">
+                <p>
+                  <strong>Are you sure?</strong> This removes your friend groups (or hands them
+                  off to another member), study room history, Producer Tags, digests, and every
+                  other record tied to your account, everywhere. This cannot be undone.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteAccount()}
+                  disabled={deleteBusy}
+                >
+                  {deleteBusy ? "Deleting…" : "Yes, permanently delete my account"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirming(false)}
+                  disabled={deleteBusy}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
             {deleteError && (
               <p role="alert">Couldn't delete your account: {deleteError}. Please try again.</p>
             )}
@@ -416,13 +439,29 @@ export function AccountPage() {
                 ))}
               </ul>
             )}
-            <button
-              type="button"
-              onClick={() => void handleLeaveGroup()}
-              disabled={leaveBusy || !membersGroupId}
-            >
-              {leaveBusy ? "Leaving…" : "Leave group"}
-            </button>
+            {!leaveConfirming ? (
+              <button
+                type="button"
+                onClick={() => setLeaveConfirming(true)}
+                disabled={leaveBusy || !membersGroupId}
+              >
+                Leave group
+              </button>
+            ) : (
+              <div role="alertdialog" aria-label="Confirm leaving the group">
+                <p>Leave this group? You'll need a new invite code to rejoin.</p>
+                <button type="button" onClick={() => void handleLeaveGroup()} disabled={leaveBusy}>
+                  {leaveBusy ? "Leaving…" : "Yes, leave group"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLeaveConfirming(false)}
+                  disabled={leaveBusy}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
             {leaveError && (
               <p role="alert">Couldn't leave the group: {leaveError}. Please try again.</p>
             )}

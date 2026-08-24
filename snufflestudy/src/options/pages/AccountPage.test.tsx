@@ -179,21 +179,25 @@ describe("AccountPage — signed in", () => {
     expect(await screen.findByText(/user-a/i)).toBeInTheDocument();
   });
 
-  // v2 follow-up (Item 2, post-final-review): self-leave UI, gated behind window.confirm (see
-  // AccountPage.tsx's handleLeaveGroup comment for why a bare click felt too easy to mis-fire).
+  // v2 follow-up (Item 2, post-final-review): self-leave UI, gated behind a confirmation step
+  // (see AccountPage.tsx's handleLeaveGroup comment for why a bare click felt too easy to
+  // mis-fire). QA-discovered bug (v3.2 Task 9): this used to be window.confirm(), which Chrome
+  // silently no-ops with zero visible dialog when this Options page is shown embedded inside
+  // chrome://extensions (this repo's default, per options_ui.open_in_tab: false) - replaced
+  // with an inline two-click confirmation that works in every context this page can be viewed
+  // in. These tests now click the button twice (arm, then confirm) instead of mocking
+  // window.confirm.
   describe("leaving a group", () => {
-    it("leaves the group typed into Group ID after confirming", async () => {
+    it("leaves the group typed into Group ID after confirming inline", async () => {
       const leaveSpy = vi.fn(async () => ({ ok: true }));
       mockSignedIn({ GROUP_LEAVE: leaveSpy });
-      // jsdom does not implement window.confirm at all (not even a stub) - a plain assignment,
-      // not vi.spyOn (which requires the property to already be a function).
-      window.confirm = vi.fn(() => true);
 
       render(<AccountPage />);
       await waitFor(() => screen.getByLabelText("Group ID"));
       fireEvent.change(screen.getByLabelText("Group ID"), { target: { value: "group-1" } });
 
       fireEvent.click(screen.getByRole("button", { name: "Leave group" }));
+      fireEvent.click(await screen.findByRole("button", { name: /yes, leave group/i }));
 
       await waitFor(() =>
         expect(leaveSpy).toHaveBeenCalledWith({
@@ -204,33 +208,34 @@ describe("AccountPage — signed in", () => {
       expect(await screen.findByText(/you've left this group/i)).toBeInTheDocument();
     });
 
-    it("does not send GROUP_LEAVE when the confirm dialog is cancelled", async () => {
+    it("does not send GROUP_LEAVE when the inline confirmation is cancelled", async () => {
       const leaveSpy = vi.fn(async () => ({ ok: true }));
       mockSignedIn({ GROUP_LEAVE: leaveSpy });
-      window.confirm = vi.fn(() => false);
 
       render(<AccountPage />);
       await waitFor(() => screen.getByLabelText("Group ID"));
       fireEvent.change(screen.getByLabelText("Group ID"), { target: { value: "group-1" } });
 
       fireEvent.click(screen.getByRole("button", { name: "Leave group" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
 
       // Give any stray microtask a chance to run before asserting the negative.
       await new Promise((resolve) => setTimeout(resolve, 0));
       expect(leaveSpy).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Leave group" })).toBeInTheDocument();
     });
 
     it("surfaces a server-side denial (e.g. a non-owner trying to remove someone else) as an error", async () => {
       mockSignedIn({
         GROUP_LEAVE: async () => ({ ok: false, error: "Could not leave the group." }),
       });
-      window.confirm = vi.fn(() => true);
 
       render(<AccountPage />);
       await waitFor(() => screen.getByLabelText("Group ID"));
       fireEvent.change(screen.getByLabelText("Group ID"), { target: { value: "group-1" } });
 
       fireEvent.click(screen.getByRole("button", { name: "Leave group" }));
+      fireEvent.click(await screen.findByRole("button", { name: /yes, leave group/i }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(/could not leave the group/i);
     });
@@ -249,32 +254,34 @@ describe("AccountPage — signed in", () => {
     expect(await screen.findByLabelText("Email")).toBeInTheDocument();
   });
 
-  // v3.2 Task 8: account/data deletion, gated behind window.confirm - same convention as
-  // "leaving a group" above (see AccountPage.tsx's handleDeleteAccount comment).
+  // v3.2 Task 8: account/data deletion, gated behind a confirmation step - same convention as
+  // "leaving a group" above (see AccountPage.tsx's handleDeleteAccount comment). QA-discovered
+  // bug (v3.2 Task 9): same window.confirm-in-an-embedded-options-page fix as "leaving a
+  // group" above.
   describe("deleting the account", () => {
-    it("deletes the account after confirming, and returns to the signed-out view", async () => {
+    it("deletes the account after confirming inline, and returns to the signed-out view", async () => {
       const deleteSpy = vi.fn(async () => ({ ok: true }));
       mockSignedIn({ AUTH_DELETE_ACCOUNT: deleteSpy });
-      window.confirm = vi.fn(() => true);
 
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
       fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+      fireEvent.click(await screen.findByRole("button", { name: /yes, permanently delete/i }));
 
       await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith({ type: "AUTH_DELETE_ACCOUNT" }));
       expect(await screen.findByLabelText("Email")).toBeInTheDocument();
     });
 
-    it("does not send AUTH_DELETE_ACCOUNT when the confirm dialog is cancelled", async () => {
+    it("does not send AUTH_DELETE_ACCOUNT when the inline confirmation is cancelled", async () => {
       const deleteSpy = vi.fn(async () => ({ ok: true }));
       mockSignedIn({ AUTH_DELETE_ACCOUNT: deleteSpy });
-      window.confirm = vi.fn(() => false);
 
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
       fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
 
       // Give any stray microtask a chance to run before asserting the negative.
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -286,12 +293,12 @@ describe("AccountPage — signed in", () => {
       mockSignedIn({
         AUTH_DELETE_ACCOUNT: async () => ({ ok: false, error: "Failed to delete your account." }),
       });
-      window.confirm = vi.fn(() => true);
 
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
       fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+      fireEvent.click(await screen.findByRole("button", { name: /yes, permanently delete/i }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
         /couldn.t delete your account: failed to delete your account/i
