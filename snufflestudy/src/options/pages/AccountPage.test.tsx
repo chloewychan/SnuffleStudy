@@ -21,7 +21,7 @@ describe("AccountPage — signed out", () => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
 
-    expect(await screen.findByText(/check a@example.com for a 6-digit code/i)).toBeInTheDocument();
+    expect(await screen.findByText(/check a@example.com for an 8-digit code/i)).toBeInTheDocument();
     expect(messenger.sendMessage).toHaveBeenCalledWith({
       type: "AUTH_REQUEST_OTP",
       payload: { email: "a@example.com" },

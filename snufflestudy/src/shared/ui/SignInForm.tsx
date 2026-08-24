@@ -137,7 +137,7 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
         </form>
       ) : (
         <form onSubmit={handleVerifyOtp}>
-          <p>Check {email} for a 6-digit code.</p>
+          <p>Check {email} for an 8-digit code.</p>
           <label>
             Code
             <input

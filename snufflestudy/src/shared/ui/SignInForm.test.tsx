@@ -77,7 +77,7 @@ describe("SignInForm", () => {
     );
     // Email is preserved (still shown in the "Check ... for a code" copy); the stale entered
     // code is cleared out since it was only ever valid against the previous OTP.
-    expect(screen.getByText(/check a@example\.com for a 6-digit code/i)).toBeInTheDocument();
+    expect(screen.getByText(/check a@example\.com for an 8-digit code/i)).toBeInTheDocument();
     expect(screen.getByLabelText("Code")).toHaveValue("");
   });
 
