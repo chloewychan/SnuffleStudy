@@ -65,9 +65,17 @@ export function FriendGroupPanel({ onClose }: FriendGroupPanelProps) {
     // manually refreshing wouldn't pick up new nudges without closing/reopening the panel
     // - both fetches now run together, matching what "Refresh" implies. v2 Task 9: the
     // daily digest fetch joins the same "Refresh means refresh everything" convention. v2
-    // Task 14: producer tags join the same convention. loadFriends is deliberately excluded,
-    // matching the pre-split behavior exactly.
+    // Task 14: producer tags join the same convention.
+    //
+    // QA-discovered bug (v3.2 Task 9 two-account run): loadFriends was never added here -
+    // not a considered exclusion despite an earlier comment claiming otherwise (checked via
+    // git history: it was simply never wired in when it was introduced, and every later fix
+    // round preserved that gap rather than questioning it). Consequence: once a panel is
+    // mounted, a friend who joins the shared group afterward never appears for the
+    // already-open side, in either direction, no matter how many times Refresh is clicked -
+    // only fully closing and reopening the panel re-triggers the mount-only loadFriends().
     loadEvents();
+    loadFriends();
     loadNudges();
     loadDigests();
     loadProducerTags();

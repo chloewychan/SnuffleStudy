@@ -172,6 +172,22 @@ describe("FriendGroupPanel — friend activity (pre-existing behavior)", () => {
     await waitFor(() => expect(callsOfType(sendMessageSpy, "NUDGES_FETCH")).toHaveLength(2));
   });
 
+  // QA-discovered bug (v3.2 Task 9 two-account run): the group owner's friend list never
+  // re-fetched after a second account joined mid-session - Refresh explicitly excluded
+  // loadFriends (an omission carried forward through every earlier "Refresh means refresh
+  // everything" fix round, not a considered exclusion - see git history on the exclusion
+  // comment), so a newly-joined member never appeared for anyone whose panel was already open.
+  it("also rediscovers friends via GROUP_LIST_MINE when the Refresh button is clicked", async () => {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+    await waitFor(() => expect(callsOfType(sendMessageSpy, "GROUP_LIST_MINE")).toHaveLength(1));
+
+    fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
+
+    await waitFor(() => expect(callsOfType(sendMessageSpy, "GROUP_LIST_MINE")).toHaveLength(2));
+  });
+
   it("calls onClose when Close is clicked", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
     const onClose = vi.fn();

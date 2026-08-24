@@ -4,8 +4,8 @@ interface FriendEventFeedProps {
   events: FriendEvent[] | null;
   error: string | null;
   loading: boolean;
-  // Refreshes events, incoming nudges, the digest, and producer tags together - see
-  // FriendGroupPanel's own handleRefresh comment for why loadFriends is deliberately excluded.
+  // Refreshes events, the friend list, incoming nudges, the digest, and producer tags together
+  // - see FriendGroupPanel's own handleRefresh for the full set.
   onRefresh: () => void;
 }
 
