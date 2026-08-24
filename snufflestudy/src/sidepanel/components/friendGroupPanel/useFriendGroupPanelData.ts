@@ -220,6 +220,28 @@ export function useFriendGroupPanelData() {
     loadNudges();
     loadDigests();
     loadProducerTags();
+
+    // QA-discovered bug (v3.3 QA pass): none of the five load* fetches above ever ran again while
+    // this panel stayed mounted - only a fresh mount or a manual Refresh click (handleRefresh in
+    // FriendGroupPanel.tsx) re-fetched anything. The background friend-poll alarm
+    // (alarmHandlers.ts) polls Supabase and fires a chrome.notifications toast on its own
+    // "roughly once a minute" cadence (infrastructure/browser/alarmsApi.ts's own header comment),
+    // but never told this already-open panel's own React state to refetch - a nudge sent while a
+    // recipient's Friends tab was already open simply never appeared until they happened to
+    // switch tabs away and back (which only "worked" as a side effect of SidePanelApp.tsx
+    // unmounting/remounting this panel via its `{activeTab === "friends" && <FriendsTab />}`
+    // conditional rendering, re-running this same mount effect). This interval closes that gap by
+    // re-running the exact same five fetches on the same ~1-minute cadence the backend alarm
+    // already uses, matching the v3.2 QA script's own item 4 expectation ("within a few
+    // seconds... give it a full poll cycle if it doesn't appear instantly").
+    const intervalId = setInterval(() => {
+      loadEvents();
+      loadFriends();
+      loadNudges();
+      loadDigests();
+      loadProducerTags();
+    }, 60_000);
+    return () => clearInterval(intervalId);
   }, []);
 
   function dismissNudge(nudgeId: string) {

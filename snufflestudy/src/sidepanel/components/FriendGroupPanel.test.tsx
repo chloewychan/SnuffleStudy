@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { FriendGroupPanel } from "./FriendGroupPanel";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
@@ -35,6 +35,15 @@ beforeEach(() => {
   vi.mocked(audioRecorder.getLastRecordingDurationMs).mockReset().mockReturnValue(4200);
   vi.mocked(producerTagApi.blobToBase64).mockReset().mockResolvedValue("ZmFrZQ==");
   vi.mocked(producerTagApi.downloadTagAudio).mockReset();
+});
+
+// Fake timers are only enabled WITHIN the one test below that needs to control the auto-refresh
+// interval directly - same reasoning ProducerTagRecorder.test.tsx's own identical safety net
+// documents: React Testing Library's waitFor/findBy* helpers poll via the global setTimeout too,
+// so leaving fake timers on globally would deadlock every other test in this file. Harmless no-op
+// for every test that never enables them.
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 const sampleEvent: FriendEvent = {
@@ -170,6 +179,33 @@ describe("FriendGroupPanel — friend activity (pre-existing behavior)", () => {
     fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
 
     await waitFor(() => expect(callsOfType(sendMessageSpy, "NUDGES_FETCH")).toHaveLength(2));
+  });
+
+  // QA-discovered bug (v3.3 QA pass): a nudge sent while the recipient's Friends tab was already
+  // open and mounted never appeared unless the user manually clicked Refresh or switched away to
+  // another tab and back (which happens to remount this panel via SidePanelApp.tsx's conditional
+  // `{activeTab === "friends" && <FriendsTab />}` rendering, re-triggering the mount-only fetch -
+  // that "fix" was a coincidence of tab-switching causing a remount, not any deliberate refresh
+  // path). The background friend-poll alarm (alarmHandlers.ts) polls Supabase roughly once a
+  // minute and fires a chrome.notifications toast, but never told this already-mounted panel's own
+  // React state to refetch - there was no live-update path at all, only mount and manual Refresh.
+  // Matches the behavior the v3.2 QA script's own item 4 documents as expected ("within a few
+  // seconds... give it a full poll cycle if it doesn't appear instantly") - this test proves that
+  // promise is actually kept now, on the same "roughly once a minute" cadence
+  // infrastructure/browser/alarmsApi.ts's own header comment documents for the backend alarm.
+  it("automatically refetches incoming nudges on a timer, with no manual Refresh click or remount needed", async () => {
+    vi.useFakeTimers();
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+    // Flush the mount effect's own microtask before advancing the interval timer - mirrors
+    // ProducerTagRecorder.test.tsx's identical fake-timer-with-async-mock convention.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(callsOfType(sendMessageSpy, "NUDGES_FETCH")).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(callsOfType(sendMessageSpy, "NUDGES_FETCH")).toHaveLength(2);
   });
 
   // QA-discovered bug (v3.2 Task 9 two-account run): the group owner's friend list never
