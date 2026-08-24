@@ -3,6 +3,7 @@ import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { UnlockRequest } from "../../infrastructure/backend/unlockRequestApi";
 import type { StudySession, SessionEvent } from "../../domain/session/sessionTypes";
 import { SignInForm } from "../../shared/ui/SignInForm";
+import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 
 interface UnlockRequestPanelProps {
   // The currently active session, or null if none - the requester-side "request an unlock"
@@ -213,6 +214,10 @@ export function UnlockRequestPanel({ session, onClose }: UnlockRequestPanelProps
       ? []
       : (requests ?? []).filter((r) => r.status === "pending" && r.requesterUserId !== selfUserId);
 
+  // v3.3 Task 8: resolves each requester's userId to their human_name (falling back to the raw
+  // id, same as before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
+  const displayName = useDisplayNames(pendingFromOthers.map((r) => r.requesterUserId));
+
   return (
     <div className="unlock-request-panel">
       <header className="unlock-request-panel__header">
@@ -300,7 +305,7 @@ export function UnlockRequestPanel({ session, onClose }: UnlockRequestPanelProps
                 {pendingFromOthers.map((r) => (
                   <li key={r.id}>
                     <span>
-                      {r.requesterUserId} wants to unlock {r.hostname}
+                      {displayName(r.requesterUserId)} wants to unlock {r.hostname}
                     </span>
                     <button
                       type="button"

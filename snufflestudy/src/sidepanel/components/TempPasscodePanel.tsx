@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { TempPasscodeRequest } from "../../domain/accountability/tempPasscodeRequest";
 import { SignInForm } from "../../shared/ui/SignInForm";
+import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 
 interface TempPasscodePanelProps {
   onClose: () => void;
@@ -159,6 +160,10 @@ export function TempPasscodePanel({ onClose }: TempPasscodePanelProps) {
           (r) => r.friendUserId === selfUserId && r.status === "approved" && revealedCodes[r.id]
         );
 
+  // v3.3 Task 8: resolves each requester's userId to their human_name (falling back to the raw
+  // id, same as before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
+  const displayName = useDisplayNames(pendingForMe.map((r) => r.requesterUserId));
+
   return (
     <div className="temp-passcode-panel">
       <header className="temp-passcode-panel__header">
@@ -197,7 +202,7 @@ export function TempPasscodePanel({ onClose }: TempPasscodePanelProps) {
                 {pendingForMe.map((r) => (
                   <li key={r.id}>
                     <span>
-                      {r.requesterUserId} wants a temporary passcode for {r.hostname}
+                      {displayName(r.requesterUserId)} wants a temporary passcode for {r.hostname}
                     </span>
                     <button
                       type="button"

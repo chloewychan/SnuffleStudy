@@ -217,6 +217,26 @@ export type ExtensionMessage =
   // { ok: true, tag: null } (not a throw) if the tag genuinely doesn't exist/isn't visible, mirroring
   // maybeSingle()'s own null-not-error distinction.
   | { type: "PRODUCER_TAG_FETCH_BY_ID"; payload: { tagId: string } }
+  // v3.3 Task 8: routes to profileApi.getMyProfile() - BunnyTab.tsx's on-mount fetch. Returns
+  // profile: null (not a throw, not an error) when the signed-in user has no profiles row yet -
+  // BunnyTab.tsx's own stub-default fallback ("Snuffles"/"Hooman") handles that. Throws on a real
+  // failure (not signed in, query error) - the outer handleMessage try/catch turns that into
+  // ok:false, same convention as FRIENDSHIP_SETTINGS_LIST.
+  | { type: "PROFILE_GET_MINE" }
+  // v3.3 Task 8: routes to profileApi.saveMyProfile() - BunnyTab.tsx's Save action. Upserts (see
+  // profileApi.ts's own comment on why - no trigger pre-creates a profiles row the way
+  // friendship_settings' does), so this also handles a user's very first save. Throws on failure
+  // (not signed in, upsert error) - same outer-catch convention as above.
+  | { type: "PROFILE_SAVE_MINE"; payload: { humanName?: string; bunnyName?: string } }
+  // v3.3 Task 8: routes to profileApi.fetchProfilesByIds() - shared/ui/useDisplayNames.ts's one
+  // fetch, reused at every raw-userId display site this task's plan names (NudgeSendForm's friend
+  // picker, StudyRoomPanel's participant list, TempPasscodePanel's/UnlockRequestPanel's requester
+  // lines, LockedPage.tsx's friend picker, AccountPage.tsx's friend list). Never throws (see
+  // profileApi.ts) - RLS (not this message, not client-side filtering) is what actually restricts
+  // which of the requested userIds come back: only the caller's own profile, or a group-mate's. An
+  // id with no matching profile (or no human_name set) is simply omitted from the result, which
+  // useDisplayNames.ts's resolver falls back to rendering as the raw id for.
+  | { type: "PROFILES_FETCH_BY_IDS"; payload: { userIds: string[] } }
   // v3.2 Task 8: routes to accountApi.deleteAccount() - AccountPage.tsx's "Delete account"
   // action, gated behind its own confirm() prompt (same irreversible-action convention as
   // GROUP_LEAVE's confirm in AccountPage.tsx) before this message is ever sent. No payload - the

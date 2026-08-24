@@ -6,6 +6,7 @@ import type {
   InviteCode,
 } from "../../infrastructure/backend/friendGroupApi";
 import { SignInForm, type SignInFormSession } from "../../shared/ui/SignInForm";
+import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 
 // v3.2 Task 1: the OTP email/code sign-in state and AUTH_REQUEST_OTP/AUTH_VERIFY_OTP round trip
 // this page used to own inline now live in the shared SignInForm - this page just holds the
@@ -36,6 +37,10 @@ export function AccountPage() {
   const [members, setMembers] = useState<GroupMembership[] | null>(null);
   const [membersError, setMembersError] = useState<string | null>(null);
   const [membersBusy, setMembersBusy] = useState(false);
+
+  // v3.3 Task 8: resolves each friend's userId to their human_name (falling back to the raw id,
+  // same as before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
+  const displayName = useDisplayNames((members ?? []).map((m) => m.userId));
 
   // v2 follow-up (Item 2, post-final-review): self-leave only - reuses membersGroupId (the same
   // manual-entry field "List members" already uses) rather than adding a second group-id input.
@@ -413,7 +418,7 @@ export function AccountPage() {
               <ul>
                 {members.map((m) => (
                   <li key={m.userId}>
-                    {m.userId} — joined {new Date(m.joinedAt).toLocaleString()}
+                    {displayName(m.userId)} — joined {new Date(m.joinedAt).toLocaleString()}
                   </li>
                 ))}
               </ul>

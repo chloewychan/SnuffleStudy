@@ -8,6 +8,7 @@ import type { StudyRoom, RoomParticipant } from "../../domain/rooms/studyRoom";
 import type { ProducerTag } from "../../domain/rooms/producerTag";
 import { ProducerTagRecorder } from "./ProducerTagRecorder";
 import { SignInForm } from "../../shared/ui/SignInForm";
+import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 import { openMediaPermissionTab } from "../../infrastructure/media/mediaPermissions";
 
 // v2 Task 13: Study Rooms.
@@ -153,6 +154,10 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   const [archiveError, setArchiveError] = useState<string | null>(null);
 
   const [participants, setParticipants] = useState<Map<string, RoomParticipant>>(new Map());
+
+  // v3.3 Task 8: resolves each participant's userId to their human_name (falling back to the raw
+  // id, same as before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
+  const displayName = useDisplayNames([...participants.keys()]);
 
   // v2 Task 14: producer tags broadcast live into the currently-joined room (Part D - Realtime
   // Broadcast, not the friend-poll alarm; see producerTagApi.ts's sendToRoom/
@@ -528,7 +533,7 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
           <h3>In this room ({participants.size})</h3>
           <ul>
             {[...participants.values()].map((p) => (
-              <li key={p.userId}>{p.userId}</li>
+              <li key={p.userId}>{displayName(p.userId)}</li>
             ))}
           </ul>
         </section>

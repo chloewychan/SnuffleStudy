@@ -2,6 +2,7 @@ import { useState } from "react";
 import { sendMessage } from "../../../infrastructure/messaging/extensionMessenger";
 import { NUDGE_MESSAGES } from "../../../domain/accountability/nudgeMessages";
 import { SignInForm } from "../../../shared/ui/SignInForm";
+import { useDisplayNames } from "../../../shared/ui/useDisplayNames";
 
 interface NudgeSendFormProps {
   friendsLoading: boolean;
@@ -35,6 +36,10 @@ export function NudgeSendForm({
   const [sendBusy, setSendBusy] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendSuccess, setSendSuccess] = useState<string | null>(null);
+
+  // v3.3 Task 8: resolves each friend id to their human_name (falling back to the raw id, same as
+  // before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
+  const displayName = useDisplayNames(friendIds ?? []);
 
   function handleSendNudge(friendId: string, messageId: string) {
     if (!friendId) return;
@@ -95,7 +100,7 @@ export function NudgeSendForm({
             >
               {friendIds.map((id) => (
                 <option key={id} value={id}>
-                  {id}
+                  {displayName(id)}
                 </option>
               ))}
             </select>

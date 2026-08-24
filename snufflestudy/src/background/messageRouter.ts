@@ -30,6 +30,7 @@ import * as tempPasscodeApi from "../infrastructure/backend/tempPasscodeApi";
 import * as studyRoomApi from "../infrastructure/backend/studyRoomApi";
 import * as producerTagApi from "../infrastructure/backend/producerTagApi";
 import * as accountApi from "../infrastructure/backend/accountApi";
+import * as profileApi from "../infrastructure/backend/profileApi";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
@@ -713,6 +714,30 @@ async function routeMessage(
     case "PRODUCER_TAG_FETCH_BY_ID": {
       const tag = await producerTagApi.fetchProducerTagById(message.payload.tagId);
       return { ok: true, tag };
+    }
+
+    case "PROFILE_GET_MINE": {
+      // getMyProfile throws (not signed in, query error) rather than returning ok:false - the
+      // outer handleMessage try/catch turns that into { ok: false, error }, same convention as
+      // FRIENDSHIP_SETTINGS_LIST above. profile: null is a normal, non-error result (no profiles
+      // row yet) - see profileApi.ts's own comment.
+      const profile = await profileApi.getMyProfile();
+      return { ok: true, profile };
+    }
+
+    case "PROFILE_SAVE_MINE": {
+      // saveMyProfile throws on failure (not signed in, upsert error) - same outer-catch
+      // convention as above.
+      const profile = await profileApi.saveMyProfile(message.payload);
+      return { ok: true, profile };
+    }
+
+    case "PROFILES_FETCH_BY_IDS": {
+      // fetchProfilesByIds already degrades to [] (never throws) on any failure - see
+      // profileApi.ts - so useDisplayNames.ts always gets an ok:true response, even with nothing
+      // to show.
+      const profiles = await profileApi.fetchProfilesByIds(message.payload.userIds);
+      return { ok: true, profiles };
     }
 
     case "AUTH_DELETE_ACCOUNT": {

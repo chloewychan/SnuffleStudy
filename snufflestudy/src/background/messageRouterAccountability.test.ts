@@ -18,6 +18,8 @@ import type { UnlockRequest } from "../infrastructure/backend/unlockRequestApi";
 import * as digestApi from "../infrastructure/backend/digestApi";
 import type { DigestSummary } from "../infrastructure/backend/digestApi";
 import * as accountApi from "../infrastructure/backend/accountApi";
+import * as profileApi from "../infrastructure/backend/profileApi";
+import type { Profile } from "../infrastructure/backend/profileApi";
 import { IndexedDbTaskRepository } from "../infrastructure/storage/taskRepository";
 
 beforeEach(() => {
@@ -384,6 +386,95 @@ describe("messageRouter — DIGEST_FETCH (v2 Task 9)", () => {
     })) as { ok: boolean; digests: DigestSummary[] };
 
     expect(result).toEqual({ ok: true, digests: [] });
+  });
+});
+
+describe("messageRouter — PROFILE_* (v3.3 Task 8)", () => {
+  const sampleProfile: Profile = {
+    userId: "user-a",
+    humanName: "Alice",
+    bunnyName: "Fluffball",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("PROFILE_GET_MINE calls profileApi.getMyProfile and returns its result", async () => {
+    const spy = vi.spyOn(profileApi, "getMyProfile").mockResolvedValue(sampleProfile);
+
+    const result = (await handleMessage({ type: "PROFILE_GET_MINE" })) as {
+      ok: boolean;
+      profile: Profile;
+    };
+
+    expect(spy).toHaveBeenCalled();
+    expect(result).toEqual({ ok: true, profile: sampleProfile });
+  });
+
+  it("PROFILE_GET_MINE returns profile: null (not an error) when no row exists yet", async () => {
+    vi.spyOn(profileApi, "getMyProfile").mockResolvedValue(null);
+
+    const result = (await handleMessage({ type: "PROFILE_GET_MINE" })) as {
+      ok: boolean;
+      profile: Profile | null;
+    };
+
+    expect(result).toEqual({ ok: true, profile: null });
+  });
+
+  it("PROFILE_GET_MINE propagates a thrown error as ok:false (e.g. not signed in)", async () => {
+    vi.spyOn(profileApi, "getMyProfile").mockRejectedValue(new Error("Not signed in."));
+
+    const result = (await handleMessage({ type: "PROFILE_GET_MINE" })) as {
+      ok: boolean;
+      error?: string;
+    };
+
+    expect(result).toEqual({ ok: false, error: "Not signed in." });
+  });
+
+  it("PROFILE_SAVE_MINE calls profileApi.saveMyProfile with the given patch", async () => {
+    const spy = vi.spyOn(profileApi, "saveMyProfile").mockResolvedValue(sampleProfile);
+
+    const result = (await handleMessage({
+      type: "PROFILE_SAVE_MINE",
+      payload: { humanName: "Alice", bunnyName: "Fluffball" },
+    })) as { ok: boolean; profile: Profile };
+
+    expect(spy).toHaveBeenCalledWith({ humanName: "Alice", bunnyName: "Fluffball" });
+    expect(result).toEqual({ ok: true, profile: sampleProfile });
+  });
+
+  it("PROFILE_SAVE_MINE propagates a thrown error as ok:false", async () => {
+    vi.spyOn(profileApi, "saveMyProfile").mockRejectedValue(new Error("Not signed in."));
+
+    const result = (await handleMessage({
+      type: "PROFILE_SAVE_MINE",
+      payload: { humanName: "Alice" },
+    })) as { ok: boolean; error?: string };
+
+    expect(result).toEqual({ ok: false, error: "Not signed in." });
+  });
+
+  it("PROFILES_FETCH_BY_IDS calls profileApi.fetchProfilesByIds with the given userIds", async () => {
+    const spy = vi.spyOn(profileApi, "fetchProfilesByIds").mockResolvedValue([sampleProfile]);
+
+    const result = (await handleMessage({
+      type: "PROFILES_FETCH_BY_IDS",
+      payload: { userIds: ["user-a", "user-stranger"] },
+    })) as { ok: boolean; profiles: Profile[] };
+
+    expect(spy).toHaveBeenCalledWith(["user-a", "user-stranger"]);
+    expect(result).toEqual({ ok: true, profiles: [sampleProfile] });
+  });
+
+  it("PROFILES_FETCH_BY_IDS returns ok:true with [] when fetchProfilesByIds degrades to [] (never throws)", async () => {
+    vi.spyOn(profileApi, "fetchProfilesByIds").mockResolvedValue([]);
+
+    const result = (await handleMessage({
+      type: "PROFILES_FETCH_BY_IDS",
+      payload: { userIds: ["user-stranger"] },
+    })) as { ok: boolean; profiles: Profile[] };
+
+    expect(result).toEqual({ ok: true, profiles: [] });
   });
 });
 

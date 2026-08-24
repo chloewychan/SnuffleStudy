@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { TempPasscodeRequest } from "../../domain/accountability/tempPasscodeRequest";
 import type { GroupMembership } from "../../infrastructure/backend/friendGroupApi";
+import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 
 // Minimal shape of what AUTH_GET_SESSION's response carries that this page actually needs -
 // mirrors FriendGroupPanel.tsx's identical minimal AuthUser/AuthSession shapes.
@@ -38,12 +39,17 @@ export function LockedPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
 
   // Friend picker - same GROUP_LIST_MINE -> GROUP_LIST_MEMBERS pattern FriendGroupPanel.tsx/
-  // UnlockRequestPanel.tsx already use (no `profiles` table exists, so friends are shown as raw
-  // user ids - see friendGroupApi.ts's listMembers() comment).
+  // UnlockRequestPanel.tsx already use. v3.3 Task 8: friends are now shown by human_name where
+  // one exists (useDisplayNames.ts below), falling back to the raw user id exactly like before
+  // this task for anyone with no profile/name set.
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
   const [friendIds, setFriendIds] = useState<string[] | null>(null);
   const [friendsError, setFriendsError] = useState<string | null>(null);
   const [selectedFriendId, setSelectedFriendId] = useState("");
+
+  // v3.3 Task 8: resolves each friend id to their human_name (falling back to the raw id, same as
+  // before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
+  const displayName = useDisplayNames(friendIds ?? []);
 
   const [tempRequest, setTempRequest] = useState<TempPasscodeRequest | null>(null);
   const [tempBusy, setTempBusy] = useState(false);
@@ -274,7 +280,7 @@ export function LockedPage() {
                 >
                   {friendIds.map((id) => (
                     <option key={id} value={id}>
-                      {id}
+                      {displayName(id)}
                     </option>
                   ))}
                 </select>

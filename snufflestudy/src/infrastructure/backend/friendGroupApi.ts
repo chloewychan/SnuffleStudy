@@ -192,12 +192,13 @@ export async function joinGroup(code: string): Promise<GroupMembership> {
   };
 }
 
-// There is no `profiles` table in this schema (see the migration files) - member identity here
-// is limited to whatever group_memberships itself has, i.e. raw user_ids. Joining to
-// auth.users directly isn't available to the anon/authenticated client role (auth.users is
-// Postgres-internal, not exposed via PostgREST), so this returns bare user_ids. A future task
-// that wants friend-facing display names would need a `profiles` table populated via a trigger
-// or Edge Function - out of scope for Task 5.
+// Member identity here is limited to whatever group_memberships itself has, i.e. raw user_ids.
+// Joining to auth.users directly isn't available to the anon/authenticated client role
+// (auth.users is Postgres-internal, not exposed via PostgREST), so this returns bare user_ids -
+// unchanged by v3.3 Task 8's `profiles` table on purpose: this function stays a plain read of
+// group_memberships, and every UI call site that wants a friendlier label resolves userId ->
+// human_name itself via shared/ui/useDisplayNames.ts (PROFILES_FETCH_BY_IDS), rather than this
+// function doing an implicit join no caller asked for.
 export async function listMembers(groupId: string): Promise<GroupMembership[]> {
   const { data, error } = await supabase
     .from("group_memberships")
