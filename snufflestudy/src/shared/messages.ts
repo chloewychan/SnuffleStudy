@@ -124,22 +124,22 @@ export type ExtensionMessage =
       payload: { sessionId: string; hostname: string; friendUserId: string };
     }
   // v2 Task 12: routes to tempPasscodeApi.approveRequest - the assigned friend's approve action
-  // (TempPasscodePanel.tsx). Returns the plaintext code exactly once, in this response only -
-  // never stored anywhere. Throws on failure (not the assigned friend, already resolved, Edge
-  // Function error) - same outer-catch convention as above.
+  // (TempPasscodePanel.tsx). v3.3 Task 10: no code is generated or returned anymore - approval
+  // alone is the security boundary. Throws on failure (not the assigned friend, already resolved,
+  // Edge Function error) - same outer-catch convention as above.
   | { type: "TEMP_PASSCODE_APPROVE"; payload: { requestId: string } }
   // v2 Task 12: routes to tempPasscodeApi.denyRequest - the assigned friend's deny action
   // (TempPasscodePanel.tsx), the plan's UI brief calls for "an approve/deny action" though only
   // approveRequest appears in the plan's literal Interfaces line - deny needs no server-side
-  // crypto (it never touches code_hash/code_salt), so it's a direct client-side table update,
-  // unlike TEMP_PASSCODE_APPROVE. Throws on failure (already resolved / not the assigned friend) -
-  // same outer-catch convention as above.
+  // logic, so it's a direct client-side table update, unlike TEMP_PASSCODE_APPROVE. Throws on
+  // failure (already resolved / not the assigned friend) - same outer-catch convention as above.
   | { type: "TEMP_PASSCODE_DENY"; payload: { requestId: string } }
-  // v2 Task 12: routes to tempPasscodeApi.redeemCode - LockedPage.tsx's requester-side "enter the
-  // code" action, once the request's status is 'approved'. On {ok:true}, redeemCode itself also
-  // performs the actual unlock (unlockHardBlockRuleForHostname + scheduleTempUnlockRelockAlarm) -
-  // this case is a thin pass-through, same convention as HARD_BLOCK_VERIFY_PASSCODE.
-  | { type: "TEMP_PASSCODE_REDEEM"; payload: { requestId: string; code: string } }
+  // v3.3 Task 10: replaces TEMP_PASSCODE_REDEEM - routes to tempPasscodeApi.claimApproval.
+  // LockedPage.tsx's requester-side auto-claim, fired once the request's status is 'approved' (no
+  // code to enter anymore). On {ok:true}, claimApproval itself also performs the actual unlock
+  // (unlockHardBlockRuleForHostname + scheduleTempUnlockRelockAlarm), after a fresh RLS-gated
+  // re-read of the row server-side (Decision 3 - never trusts a client-supplied hostname/expiry).
+  | { type: "TEMP_PASSCODE_CLAIM_APPROVAL"; payload: { requestId: string } }
   // v2 Task 12: routes to tempPasscodeApi.fetchRelevantTempPasscodeRequests - the on-demand
   // counterpart to the background's alarm-driven poll (alarmHandlers.ts calls
   // tempPasscodeApi.pollRelevantTempPasscodeRequests directly, mirroring

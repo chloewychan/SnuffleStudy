@@ -16,6 +16,7 @@ import * as digestApi from "../infrastructure/backend/digestApi";
 import type { FriendDigest } from "../infrastructure/backend/digestApi";
 import * as tempPasscodeApi from "../infrastructure/backend/tempPasscodeApi";
 import type { TempPasscodeRequest } from "../domain/accountability/tempPasscodeRequest";
+import * as declarativeNetRequestApi from "../infrastructure/browser/declarativeNetRequestApi";
 import * as producerTagApi from "../infrastructure/backend/producerTagApi";
 import type { IncomingProducerTag } from "../infrastructure/backend/producerTagApi";
 import * as friendSync from "./friendSync";
@@ -1180,11 +1181,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
         friendUserId: "user-b",
         requesterUserId: "user-a",
         status: "pending",
-        codeHash: "",
-        codeSalt: "",
         expiresAt: 0,
-        failedAttempts: 0,
-        lockedUntil: undefined,
         ...overrides,
       };
     }
@@ -1216,7 +1213,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       expect(digestPollSpy).toHaveBeenCalledTimes(1);
     });
 
-    it("notifies the requester when their own request was approved", async () => {
+    it("notifies the requester when their own request was approved, with copy that says it's already unlocked (no code to ask for)", async () => {
       mockFriendSyncEligible("user-a");
       vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
         ok: true,
@@ -1232,6 +1229,80 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
 
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
 
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "temp-passcode-temp-1",
+        expect.objectContaining({
+          title: "Temporary passcode approved",
+          message: "youtube.com is now unlocked for a limited time.",
+        })
+      );
+    });
+
+    // v3.3 Task 10: an approved temp-passcode request is now applied directly from the background
+    // poll (applyApprovedTempPasscodeRequest), the same "silently extend what the user is already
+    // allowed to do" pattern applyApprovedUnlockRequest already uses - no code/redemption step
+    // in between anymore. Verified against the REAL chrome.declarativeNetRequest state (mirrors
+    // the handleTempUnlockRelockAlarm describe block's own ruleExistsFor helper/style below),
+    // not just a spy on the unlock function, so this proves the DNR rule is actually gone, not
+    // just that some function got called.
+    it("unlocks the hostname's real DNR rule when the requester's own request was approved", async () => {
+      const created = (await handleMessage({
+        type: "SESSION_CREATE",
+        payload: { ...createInput, restrictedSites: ["youtube.com"], restrictionMode: "hard" },
+      })) as { session: { id: string } };
+      await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+      const rulesBefore = await chrome.declarativeNetRequest.getDynamicRules();
+      expect(
+        rulesBefore.some((rule) => rule.condition.requestDomains?.includes("youtube.com"))
+      ).toBe(true);
+
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleTempPasscodeRequest({
+            requesterUserId: "user-a",
+            status: "approved",
+            hostname: "youtube.com",
+            expiresAt: Date.now() + 15 * 60 * 1000,
+          }),
+        ],
+      });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      const rulesAfter = await chrome.declarativeNetRequest.getDynamicRules();
+      expect(
+        rulesAfter.some((rule) => rule.condition.requestDomains?.includes("youtube.com"))
+      ).toBe(false);
+    });
+
+    // A failure in applyApprovedTempPasscodeRequest (e.g. the DNR API itself unavailable) must not
+    // prevent the notification from still firing - mirrors applyApprovedUnlockRequest's own
+    // best-effort-then-notify-anyway posture (that function's errors aren't caught/asserted either
+    // - a thrown error there would bubble up through pollUnlockRequestUpdates's own outer
+    // try/catch and simply skip the notification for that poll tick, same as here).
+    it("still sends the approval notification even if applying the unlock throws", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleTempPasscodeRequest({
+            requesterUserId: "user-a",
+            status: "approved",
+            hostname: "youtube.com",
+          }),
+        ],
+      });
+      vi.spyOn(declarativeNetRequestApi, "unlockHardBlockRuleForHostname").mockRejectedValue(
+        new Error("DNR API unavailable")
+      );
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(consoleErrorSpy).toHaveBeenCalled();
       expect(createNotificationSpy).toHaveBeenCalledWith(
         "temp-passcode-temp-1",
         expect.objectContaining({ title: "Temporary passcode approved" })

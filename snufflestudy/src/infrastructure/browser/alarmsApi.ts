@@ -38,11 +38,13 @@ export function isFriendPollAlarm(alarm: chrome.alarms.Alarm): boolean {
 }
 
 // v2 Task 12: schedules the DNR re-lock for a single hostname's temp-passcode unlock, at the
-// exact expiresAt the redeem-temp-passcode Edge Function returned. Deliberately its OWN alarm,
-// not a reuse of FRIEND_POLL_ALARM above - a temp-passcode redemption must re-lock regardless of
-// friend-sync enablement/group-membership/session-active-ness (FRIEND_POLL_ALARM's own
-// eligibility gating in alarmHandlers.ts's handleFriendPollAlarm checks exactly those unrelated
-// conditions, none of which should be able to suppress a re-lock the user is depending on).
+// exact expiresAt approve-temp-passcode returned (v3.3 Task 10: previously the now-deleted
+// redeem-temp-passcode Edge Function's expiresAt - approval alone sets expires_at now, there is
+// no separate redemption step). Deliberately its OWN alarm, not a reuse of FRIEND_POLL_ALARM
+// above - a temp-passcode unlock must re-lock regardless of friend-sync enablement/
+// group-membership/session-active-ness (FRIEND_POLL_ALARM's own eligibility gating in
+// alarmHandlers.ts's handleFriendPollAlarm checks exactly those unrelated conditions, none of
+// which should be able to suppress a re-lock the user is depending on).
 //
 // Named per-hostname (not a single shared name) via a fixed prefix - one unlock per hostname at a
 // time is the realistic case (a second temp-passcode approval for the SAME hostname while one is

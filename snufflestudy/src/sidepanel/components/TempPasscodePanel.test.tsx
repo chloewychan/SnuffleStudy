@@ -16,10 +16,7 @@ const pendingForMe: TempPasscodeRequest = {
   friendUserId: "user-self",
   requesterUserId: "user-a",
   status: "pending",
-  codeHash: "",
-  codeSalt: "",
   expiresAt: 0,
-  failedAttempts: 0,
 };
 
 // Mirrors UnlockRequestPanel.test.tsx's routeSendMessage helper exactly.
@@ -29,7 +26,7 @@ function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Ha
   const defaults: Partial<Record<ExtensionMessage["type"], Handler>> = {
     AUTH_GET_SESSION: () => ({ ok: true, session: { user: { id: "user-self" } } }),
     TEMP_PASSCODE_REQUESTS_FETCH: () => ({ ok: true, requests: [] }),
-    TEMP_PASSCODE_APPROVE: () => ({ ok: true, code: "483920" }),
+    TEMP_PASSCODE_APPROVE: () => ({ ok: true }),
     TEMP_PASSCODE_DENY: () => ({ ok: true }),
   };
   return (msg: ExtensionMessage) => {
@@ -85,8 +82,10 @@ describe("TempPasscodePanel", () => {
     await waitFor(() => expect(screen.getByText("No pending temporary passcode requests.")).toBeInTheDocument());
   });
 
-  it("approving a request reveals the plaintext code, clearly displayed and copyable", async () => {
-    const approveSpy = vi.fn(() => ({ ok: true, code: "483920" }));
+  // v3.3 Task 10: approving no longer returns or reveals a code - the request simply leaves the
+  // pending list once approved, no further UI needed on the approver's side.
+  it("approving a request removes it from the pending list, with no code shown anywhere", async () => {
+    const approveSpy = vi.fn(() => ({ ok: true }));
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
         TEMP_PASSCODE_REQUESTS_FETCH: () => ({ ok: true, requests: [pendingForMe] }),
@@ -100,39 +99,38 @@ describe("TempPasscodePanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
 
     await waitFor(() =>
-      expect(screen.getByLabelText("Temporary passcode for youtube.com")).toHaveValue("483920")
+      expect(
+        screen.queryByText("user-a wants a temporary passcode for youtube.com")
+      ).not.toBeInTheDocument()
     );
     expect(approveSpy).toHaveBeenCalledWith(
       expect.objectContaining({ type: "TEMP_PASSCODE_APPROVE", payload: { requestId: "temp-1" } })
     );
-    // The pending-request list entry for this request is gone once resolved (approved).
-    expect(
-      screen.queryByText("user-a wants a temporary passcode for youtube.com")
-    ).not.toBeInTheDocument();
+    // No code UI of any kind - "Codes to relay to your friend" section is gone entirely.
+    expect(screen.queryByText("Codes to relay to your friend")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
   });
 
-  it("copying the revealed code writes it to the clipboard and shows confirmation", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      value: { writeText },
-      configurable: true,
-    });
+  it("shows a server-side rejection when approving fails", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
         TEMP_PASSCODE_REQUESTS_FETCH: () => ({ ok: true, requests: [pendingForMe] }),
-        TEMP_PASSCODE_APPROVE: () => ({ ok: true, code: "483920" }),
+        TEMP_PASSCODE_APPROVE: () => ({ ok: false, error: "Request is already denied, not pending" }),
       })
     );
 
     render(<TempPasscodePanel onClose={() => {}} />);
     await waitFor(() => expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument());
+
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
-
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith("483920"));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Copied!" })).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText("Request is already denied, not pending")).toBeInTheDocument()
+    );
+    // Still listed as pending - approval failed, so it wasn't optimistically removed.
+    expect(
+      screen.getByText("user-a wants a temporary passcode for youtube.com")
+    ).toBeInTheDocument();
   });
 
   it("denying a request removes it from the pending list", async () => {

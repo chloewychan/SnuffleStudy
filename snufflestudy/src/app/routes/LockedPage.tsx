@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { TempPasscodeRequest } from "../../domain/accountability/tempPasscodeRequest";
 import type { GroupMembership } from "../../infrastructure/backend/friendGroupApi";
@@ -15,9 +15,9 @@ interface AuthSession {
 
 const STATUS_LABEL: Record<TempPasscodeRequest["status"], string> = {
   pending: "Waiting for your friend to respond…",
-  approved: "Approved — ask your friend for the code.",
+  approved: "Approved — unlocking…",
   denied: "Denied.",
-  expired: "This code has expired.",
+  expired: "This request has expired.",
 };
 
 export function LockedPage() {
@@ -55,9 +55,12 @@ export function LockedPage() {
   const [tempBusy, setTempBusy] = useState(false);
   const [tempError, setTempError] = useState<string | null>(null);
 
-  const [redeemCodeInput, setRedeemCodeInput] = useState("");
-  const [redeemBusy, setRedeemBusy] = useState(false);
-  const [redeemError, setRedeemError] = useState<string | null>(null);
+  // v3.3 Task 10: no code to enter anymore - once tempRequest.status is "approved", an effect
+  // below auto-claims it (TEMP_PASSCODE_CLAIM_APPROVAL) and navigates on success. claimAttemptedRef
+  // makes that claim idempotent per request id (a Set, not a single boolean, since a denied/expired
+  // request can be re-asked, producing a new request id to track independently).
+  const claimAttemptedRef = useRef<Set<string>>(new Set());
+  const [claimError, setClaimError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -220,31 +223,46 @@ export function LockedPage() {
       .finally(() => setTempBusy(false));
   }
 
-  async function handleRedeem(e: FormEvent) {
-    e.preventDefault();
-    if (!tempRequest) return;
-    setRedeemError(null);
-    setRedeemBusy(true);
+  // v3.3 Task 10: no code to enter anymore - once a friend approves, this auto-claims the request
+  // (TEMP_PASSCODE_CLAIM_APPROVAL) instead of waiting for the user to type anything. Runs whenever
+  // tempRequest's status is (or becomes) "approved", guarded by claimAttemptedRef so it fires at
+  // most once per request id - both handleRefreshTempRequestStatus's poll above and the background
+  // poll's own notification (alarmHandlers.ts) can independently lead here, and re-renders must
+  // not refire an already-in-flight-or-done claim. On success, navigates exactly like the
+  // permanent-passcode flow above; on failure, this leaves claimError set for the inline
+  // error/retry UI below.
+  useEffect(() => {
+    if (!tempRequest || tempRequest.status !== "approved") return;
+    if (claimAttemptedRef.current.has(tempRequest.id)) return;
+    claimAttemptedRef.current.add(tempRequest.id);
+    setClaimError(null);
 
-    try {
-      const response = await sendMessage<{ ok: boolean }>({
-        type: "TEMP_PASSCODE_REDEEM",
-        payload: { requestId: tempRequest.id, code: redeemCodeInput },
+    sendMessage<{ ok: boolean }>({
+      type: "TEMP_PASSCODE_CLAIM_APPROVAL",
+      payload: { requestId: tempRequest.id },
+    })
+      .then((res) => {
+        if (!res.ok) {
+          setClaimError("This pass couldn't be claimed — it may have expired. Ask again.");
+          return;
+        }
+        // Same success navigation as the permanent-passcode flow above.
+        window.location.href = `https://${site}`;
+      })
+      .catch((err) => {
+        console.error("Failed to claim an approved temp passcode request", err);
+        setClaimError(err instanceof Error ? err.message : String(err));
       });
+  }, [tempRequest, site]);
 
-      if (!response.ok) {
-        setRedeemError("Incorrect code, or temporarily locked after repeated attempts.");
-        return;
-      }
-
-      // Same success navigation as the permanent-passcode flow above.
-      window.location.href = `https://${site}`;
-    } catch (err) {
-      console.error("Failed to redeem temp passcode", err);
-      setRedeemError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setRedeemBusy(false);
-    }
+  // Clears this request id from claimAttemptedRef and replaces tempRequest with a new object
+  // (same fields, new reference) so the effect above's dependency check sees a change and re-fires
+  // the claim - a plain in-place mutation wouldn't trigger a re-run.
+  function handleRetryClaim() {
+    if (!tempRequest) return;
+    claimAttemptedRef.current.delete(tempRequest.id);
+    setClaimError(null);
+    setTempRequest({ ...tempRequest });
   }
 
   return (
@@ -309,21 +327,14 @@ export function LockedPage() {
               </button>
             )}
 
-            {tempRequest.status === "approved" && (
-              <form onSubmit={handleRedeem}>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={redeemCodeInput}
-                  onChange={(e) => setRedeemCodeInput(e.target.value)}
-                  placeholder="Code from your friend"
-                />
-                <button type="submit" disabled={redeemBusy}>
-                  {redeemBusy ? "Checking…" : "Unlock with code"}
+            {tempRequest.status === "approved" && claimError && (
+              <div>
+                <p role="alert">{claimError}</p>
+                <button type="button" onClick={handleRetryClaim}>
+                  Retry
                 </button>
-              </form>
+              </div>
             )}
-            {redeemError && <p role="alert">{redeemError}</p>}
 
             {(tempRequest.status === "denied" || tempRequest.status === "expired") && (
               <button

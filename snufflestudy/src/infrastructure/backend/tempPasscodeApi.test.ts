@@ -8,7 +8,7 @@ import {
   createRequest,
   denyRequest,
   approveRequest,
-  redeemCode,
+  claimApproval,
   fetchRelevantTempPasscodeRequests,
   pollRelevantTempPasscodeRequests,
 } from "./tempPasscodeApi";
@@ -93,8 +93,6 @@ const sampleRow = {
   status: "pending",
   expires_at: null,
   delivered_via: "email+in_app",
-  failed_attempts: 0,
-  locked_until: null,
   requested_at: "2026-01-01T00:00:00.000Z",
   resolved_at: null,
 };
@@ -124,11 +122,7 @@ describe("tempPasscodeApi.createRequest", () => {
       friendUserId: "user-b",
       requesterUserId: "user-a",
       status: "pending",
-      codeHash: "",
-      codeSalt: "",
       expiresAt: 0,
-      failedAttempts: 0,
-      lockedUntil: undefined,
     });
   });
 
@@ -224,15 +218,15 @@ describe("tempPasscodeApi.denyRequest", () => {
 });
 
 describe("tempPasscodeApi.approveRequest", () => {
-  it("invokes approve-temp-passcode and returns the plaintext code", async () => {
+  it("invokes approve-temp-passcode and returns hostname/expiresAt, no code", async () => {
     const invokeMock = mockInvoke(() =>
-      Promise.resolve({ data: { code: "483920", hostname: "youtube.com", expiresAt: 123 }, error: null })
+      Promise.resolve({ data: { hostname: "youtube.com", expiresAt: 123 }, error: null })
     );
 
     const result = await approveRequest("req-1");
 
     expect(invokeMock).toHaveBeenCalledWith("approve-temp-passcode", { body: { requestId: "req-1" } });
-    expect(result).toEqual({ code: "483920" });
+    expect(result).toEqual({ hostname: "youtube.com", expiresAt: 123 });
   });
 
   it("throws when the Edge Function returns an error", async () => {
@@ -241,21 +235,34 @@ describe("tempPasscodeApi.approveRequest", () => {
     await expect(approveRequest("req-1")).rejects.toThrow("Not authorized");
   });
 
-  it("throws when the response has no code", async () => {
+  it("throws when the response is missing hostname/expiresAt", async () => {
     mockInvoke(() => Promise.resolve({ data: {}, error: null }));
 
     await expect(approveRequest("req-1")).rejects.toThrow();
   });
 });
 
-describe("tempPasscodeApi.redeemCode", () => {
-  it("on a successful redemption, unlocks the hostname's DNR rule and schedules the re-lock alarm", async () => {
-    mockInvoke(() =>
-      Promise.resolve({
-        data: { ok: true, hostname: "youtube.com", expiresAt: 1_800_000_000_000 },
-        error: null,
-      })
-    );
+// v3.3 Task 10, Decision 3: claimApproval replaces redeemCode - there is no code to submit
+// anymore. It performs a fresh, RLS-gated read of the request row itself (never trusts a
+// client-supplied hostname/expiry), then - on a genuinely approved, unexpired row - performs the
+// actual unlock locally, same as redeemCode used to on a successful redemption.
+describe("tempPasscodeApi.claimApproval", () => {
+  function makeApprovedBuilder(overrides: Partial<{ hostname: string; status: string; expires_at: string | null }> = {}) {
+    return makeBuilder({
+      data: {
+        hostname: "youtube.com",
+        status: "approved",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+        ...overrides,
+      },
+      error: null,
+    });
+  }
+
+  it("on a genuinely approved, unexpired row, unlocks the hostname's DNR rule and schedules the re-lock alarm", async () => {
+    const futureExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    const builder = makeApprovedBuilder({ expires_at: futureExpiresAt });
+    vi.spyOn(supabase, "from").mockReturnValue(builder as never);
     const unlockSpy = vi
       .spyOn(declarativeNetRequestApi, "unlockHardBlockRuleForHostname")
       .mockResolvedValue(undefined);
@@ -263,52 +270,63 @@ describe("tempPasscodeApi.redeemCode", () => {
       .spyOn(alarmsApi, "scheduleTempUnlockRelockAlarm")
       .mockImplementation(() => {});
 
-    const result = await redeemCode("req-1", "483920");
+    const result = await claimApproval("req-1");
 
     expect(result).toEqual({ ok: true });
+    expect(builder.eq).toHaveBeenCalledWith("id", "req-1");
+    expect(builder.eq).toHaveBeenCalledWith("status", "approved");
     expect(unlockSpy).toHaveBeenCalledWith("youtube.com");
-    expect(scheduleSpy).toHaveBeenCalledWith("youtube.com", 1_800_000_000_000);
+    expect(scheduleSpy).toHaveBeenCalledWith("youtube.com", new Date(futureExpiresAt).getTime());
   });
 
-  it("returns ok:false without unlocking anything when the Edge Function reports a logical failure", async () => {
-    mockInvoke(() => Promise.resolve({ data: { ok: false, error: "Incorrect code" }, error: null }));
+  it("returns ok:false without unlocking anything when the row read is denied/missing (RLS, wrong id, not approved)", async () => {
+    const builder = makeBuilder({ data: null, error: { message: "denied" } });
+    vi.spyOn(supabase, "from").mockReturnValue(builder as never);
     const unlockSpy = vi.spyOn(declarativeNetRequestApi, "unlockHardBlockRuleForHostname");
 
-    const result = await redeemCode("req-1", "000000");
+    const result = await claimApproval("req-1");
 
     expect(result).toEqual({ ok: false });
     expect(unlockSpy).not.toHaveBeenCalled();
   });
 
-  it("returns ok:false when the invoke itself errors (non-2xx / network)", async () => {
-    mockInvoke(() => Promise.resolve({ data: null, error: { message: "network error" } }));
+  it("returns ok:false without unlocking anything when the row's expires_at has already passed", async () => {
+    const builder = makeApprovedBuilder({ expires_at: new Date(Date.now() - 60_000).toISOString() });
+    vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+    const unlockSpy = vi.spyOn(declarativeNetRequestApi, "unlockHardBlockRuleForHostname");
 
-    const result = await redeemCode("req-1", "483920");
+    const result = await claimApproval("req-1");
 
     expect(result).toEqual({ ok: false });
+    expect(unlockSpy).not.toHaveBeenCalled();
   });
 
-  it("returns ok:false, never throws, when invoke rejects outright", async () => {
-    mockInvoke(() => Promise.reject(new Error("offline")));
+  it("returns ok:false, never throws, when the query itself throws", async () => {
+    vi.spyOn(supabase, "from").mockImplementation(() => {
+      throw new Error("offline");
+    });
 
-    await expect(redeemCode("req-1", "483920")).resolves.toEqual({ ok: false });
+    await expect(claimApproval("req-1")).resolves.toEqual({ ok: false });
   });
 
-  it("still reports ok:true (server-side success already recorded) even if the local unlock step itself throws", async () => {
-    mockInvoke(() =>
-      Promise.resolve({
-        data: { ok: true, hostname: "youtube.com", expiresAt: 1_800_000_000_000 },
-        error: null,
-      })
-    );
+  // Unlike the old redeemCode (which wrapped only its local-unlock step in a nested try/catch so a
+  // DNR failure couldn't turn a genuine server-side redemption into a reported failure),
+  // claimApproval's spec (Task 10's Interfaces block) wraps the whole body in one outer
+  // try/catch - a thrown local-unlock error here is indistinguishable from any other failure and
+  // correctly surfaces as ok:false, matching the plan's given implementation exactly.
+  it("returns ok:false and logs when the local unlock step itself throws", async () => {
+    const builder = makeApprovedBuilder({
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    });
+    vi.spyOn(supabase, "from").mockReturnValue(builder as never);
     vi.spyOn(declarativeNetRequestApi, "unlockHardBlockRuleForHostname").mockRejectedValue(
       new Error("DNR API unavailable")
     );
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const result = await redeemCode("req-1", "483920");
+    const result = await claimApproval("req-1");
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: false });
     expect(consoleErrorSpy).toHaveBeenCalled();
   });
 });
@@ -374,12 +392,12 @@ describe("tempPasscodeApi.fetchRelevantTempPasscodeRequests / pollRelevantTempPa
     }
   });
 
-  // v2 Task 12 regression test (mirrors sessionStatusSyncApi.test.ts's Task 10 regression test):
-  // proves the fetch never requests code_hash/code_salt, regardless of caller - this is the
-  // client-side half of the DoD's explicit requirement ("confirm temp_passcode_requests.code_hash
-  // is never queryable ... from the client"); the live half is verify-temp-passcode.mjs's direct
-  // assertion against the real table under RLS/column grants.
-  it("never requests code_hash/code_salt - selects only the fixed narrowed column list", async () => {
+  // v2 Task 12 regression test (mirrors sessionStatusSyncApi.test.ts's Task 10 regression test).
+  // v3.3 Task 10: code_hash/code_salt/failed_attempts/locked_until no longer exist on this table
+  // at all (migration 20260815000036_v3.3_temp_passcode_no_code.sql), so this now just pins the
+  // exact narrowed column list - the live half is verify-temp-passcode.mjs's direct assertion
+  // against the real table under RLS.
+  it("selects only the fixed narrowed column list (no code_hash/code_salt/failed_attempts/locked_until)", async () => {
     mockSignedIn("user-a");
     const builder = makeBuilder({ data: [], error: null });
     vi.spyOn(supabase, "from").mockReturnValue(builder as never);
@@ -390,9 +408,11 @@ describe("tempPasscodeApi.fetchRelevantTempPasscodeRequests / pollRelevantTempPa
     const selectArg = builder.select.mock.calls[0]![0] as string;
     expect(selectArg).not.toContain("code_hash");
     expect(selectArg).not.toContain("code_salt");
+    expect(selectArg).not.toContain("failed_attempts");
+    expect(selectArg).not.toContain("locked_until");
     expect(selectArg).toBe(
       "id, session_id, hostname, requester_user_id, friend_user_id, status, expires_at, " +
-        "delivered_via, failed_attempts, locked_until, requested_at, resolved_at"
+        "delivered_via, requested_at, resolved_at"
     );
   });
 });

@@ -4,6 +4,7 @@ import {
   cancelFriendPollAlarm,
   isTempUnlockRelockAlarm,
   hostnameFromTempUnlockRelockAlarm,
+  scheduleTempUnlockRelockAlarm,
 } from "../infrastructure/browser/alarmsApi";
 import { ChromeStorageRepository } from "../infrastructure/storage/chromeStorageRepository";
 import { IndexedDbSessionRepository } from "../infrastructure/storage/indexedDbRepository";
@@ -13,6 +14,7 @@ import { showNotification } from "../infrastructure/browser/notificationsApi";
 import {
   clearHardBlockRules,
   lockHardBlockRuleForHostname,
+  unlockHardBlockRuleForHostname,
 } from "../infrastructure/browser/declarativeNetRequestApi";
 import { pollNewEventsForFriends } from "../infrastructure/backend/sessionStatusSyncApi";
 import { pollIncomingNudges } from "../infrastructure/backend/nudgeApi";
@@ -22,6 +24,7 @@ import {
 } from "../infrastructure/backend/unlockRequestApi";
 import { pollNewDigests } from "../infrastructure/backend/digestApi";
 import { pollRelevantTempPasscodeRequests } from "../infrastructure/backend/tempPasscodeApi";
+import type { TempPasscodeRequest } from "../domain/accountability/tempPasscodeRequest";
 import { pollIncomingProducerTagSends } from "../infrastructure/backend/producerTagApi";
 import { nudgeMessageText } from "../domain/accountability/nudgeMessages";
 import { isWithinQuietHours } from "../domain/settings/userSettings";
@@ -281,6 +284,28 @@ async function pollDigestUpdates(userId: string): Promise<void> {
   }
 }
 
+// v3.3 Task 10: applies an approved temp-passcode request the same way
+// applyApprovedUnlockRequest (above) applies an approved unlock request - "silently extend what
+// the user is already allowed to do", safe to run unattended from this background poll (Global
+// Constraints: a background poll never triggers a disruptive UI action on its own; unlocking a
+// single already-approved hostname is exactly the kind of non-disruptive extension that's fine
+// here, unlike ending a session). Unlike applyApprovedUnlockRequest, this doesn't mutate
+// allowedSites on a StudySession - hard-mode temp passcodes work through the DNR rule/relock-alarm
+// mechanism (unlockHardBlockRuleForHostname + scheduleTempUnlockRelockAlarm), same as
+// tempPasscodeApi.ts's claimApproval does when the user is looking at LockedPage.tsx directly.
+// This means the unlock can happen from the background poll alone, without the user ever
+// reopening LockedPage.tsx after their friend approves.
+async function applyApprovedTempPasscodeRequest(req: TempPasscodeRequest): Promise<void> {
+  try {
+    await unlockHardBlockRuleForHostname(req.hostname);
+    if (req.expiresAt) {
+      scheduleTempUnlockRelockAlarm(req.hostname, req.expiresAt);
+    }
+  } catch (err) {
+    console.error("Failed to apply an approved temp passcode request", err);
+  }
+}
+
 // v2 Task 12: fifth stream on this same alarm - temp passcode requests. Reuses Task 6's
 // alarm/notification path per this task's brief ("extend Task 6's shared poll... add a fifth"),
 // not a new one. Same "only advance the cursor on confirmed success" discipline as the four
@@ -288,14 +313,14 @@ async function pollDigestUpdates(userId: string): Promise<void> {
 // setLastTempPasscodePollAt) so a failure here never affects, and is never affected by, the other
 // four cursors.
 //
-// Unlike pollUnlockRequestUpdates's approved case, an approved temp-passcode request does NOT
-// trigger any local session mutation here - the actual unlock only happens when the requester
-// successfully redeems the code (tempPasscodeApi.ts's redeemCode, which requires the plaintext
-// code obtained out-of-band from the friend - this poll never sees or transmits it). This
-// function's whole job is notification: tell the requester their request was approved/denied/
-// expired (so they know to go enter - or stop waiting for - a code), and tell the friend about a
-// new pending request directed at them (so they know to open the panel and review it) - same two
-// directions pollUnlockRequestUpdates covers, adapted to this table's own status set.
+// v3.3 Task 10: an approved request's status branch now calls applyApprovedTempPasscodeRequest
+// (above) before notifying - mirrors pollUnlockRequestUpdates's approved case exactly, replacing
+// the old "the actual unlock only happens when the requester redeems a code" design (there is no
+// code anymore; approval alone is the security boundary). Notification copy also changes to match
+// - the requester doesn't need to do anything further, so the toast says the site is already
+// unlocked rather than telling them to go get a code from their friend. The other direction is
+// unchanged: telling the friend about a new pending request directed at them, so they know to
+// open the panel and review it.
 async function pollTempPasscodeUpdates(userId: string): Promise<void> {
   try {
     const now = Date.now();
@@ -310,10 +335,11 @@ async function pollTempPasscodeUpdates(userId: string): Promise<void> {
     for (const req of result.requests) {
       if (req.requesterUserId === userId) {
         if (req.status === "approved") {
+          await applyApprovedTempPasscodeRequest(req);
           showNotification(
             `temp-passcode-${req.id}`,
             "Temporary passcode approved",
-            `Ask your friend for the code to unlock ${req.hostname}.`
+            `${req.hostname} is now unlocked for a limited time.`
           );
         } else if (req.status === "denied") {
           showNotification(

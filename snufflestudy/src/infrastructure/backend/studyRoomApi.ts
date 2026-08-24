@@ -170,12 +170,13 @@ export async function archiveRoom(roomId: string): Promise<void> {
 // LiveKit token to actually join the video call, and generating that token is exactly what
 // generate-livekit-token exists for, so returning it here (rather than a second, separate call)
 // is the natural single round trip. Documented here as the deliberate interpretation, same as
-// tempPasscodeApi.ts's own joinRoom-shaped precedent (approveRequest returning `{ code }`).
+// tempPasscodeApi.ts's own joinRoom-shaped precedent (approveRequest returning an
+// Edge-Function-derived object beyond the plan's literal signature).
 //
 // Unlike tempPasscodeApi.ts's fire-and-forget email leg, both steps here are awaited and either
 // can fail the whole call - there is no useful "partial join" (a participant row with no video
 // token is a dead end the UI can't do anything with), so this does not follow this codebase's
-// graceful-degradation convention the way e.g. redeemCode does; it throws on either failure.
+// graceful-degradation convention the way e.g. claimApproval does; it throws on either failure.
 export async function joinRoom(roomId: string): Promise<{ token: string }> {
   const userId = await requireUserId();
 

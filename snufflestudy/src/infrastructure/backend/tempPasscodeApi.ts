@@ -6,14 +6,16 @@ import {
 import { scheduleTempUnlockRelockAlarm } from "../browser/alarmsApi";
 
 // v2 Task 12: Temporary Passcodes for Hard Mode.
+// v3.3 Task 10: the human-relayed code is gone entirely - code_hash/code_salt/failed_attempts/
+// locked_until are dropped from temp_passcode_requests (migration
+// 20260815000036_v3.3_temp_passcode_no_code.sql), so this column list and the row/type mapping
+// below shrink to match. Approval alone is the security boundary now; there is nothing left to
+// hash, salt, or lock out.
 //
 // The exact, explicit column list every query against temp_passcode_requests in this file must
-// use - deliberately excludes code_hash/code_salt (see tempPasscodeRequest.ts's header comment
-// for the full rationale, and supabase/migrations/20260815000016_v2_temp_passcode_hard_mode.sql
-// for the column-level GRANT that makes a bare `.select()` hard-error for these two columns
-// server-side too, not just a client-side convention). requested_at/resolved_at are included
-// here (needed for queryRelevantSince's `.or()`/`.order()` filter below) but deliberately NOT
-// surfaced on the public TempPasscodeRequest type - see toTempPasscodeRequest.
+// use. requested_at/resolved_at are included here (needed for queryRelevantSince's `.or()`/
+// `.order()` filter below) but deliberately NOT surfaced on the public TempPasscodeRequest type -
+// see toTempPasscodeRequest.
 // Deliberately a single, un-concatenated string literal (not built via `+`) - supabase-js's
 // `.select(...)` overloads only pick the specific "known columns" typed overload for a genuine
 // string LITERAL type; a `const` built by concatenating two literals widens to plain `string` at
@@ -22,7 +24,7 @@ import { scheduleTempUnlockRelockAlarm } from "../browser/alarmsApi";
 // Mirrors sessionStatusSyncApi.ts's BASELINE_EVENT_COLUMNS, which is a single-line literal for the
 // exact same reason.
 const TEMP_PASSCODE_COLUMNS =
-  "id, session_id, hostname, requester_user_id, friend_user_id, status, expires_at, delivered_via, failed_attempts, locked_until, requested_at, resolved_at";
+  "id, session_id, hostname, requester_user_id, friend_user_id, status, expires_at, delivered_via, requested_at, resolved_at";
 
 interface TempPasscodeRequestRow {
   id: string;
@@ -33,8 +35,6 @@ interface TempPasscodeRequestRow {
   status: string;
   expires_at: string | null;
   delivered_via: string;
-  failed_attempts: number;
-  locked_until: string | null;
   requested_at: string;
   resolved_at: string | null;
 }
@@ -47,12 +47,7 @@ function toTempPasscodeRequest(row: TempPasscodeRequestRow): TempPasscodeRequest
     friendUserId: row.friend_user_id,
     requesterUserId: row.requester_user_id,
     status: row.status as TempPasscodeRequest["status"],
-    // Never populated with a real value - see tempPasscodeRequest.ts's header comment.
-    codeHash: "",
-    codeSalt: "",
     expiresAt: row.expires_at ? new Date(row.expires_at).getTime() : 0,
-    failedAttempts: row.failed_attempts,
-    lockedUntil: row.locked_until ? new Date(row.locked_until).getTime() : undefined,
   };
 }
 
@@ -164,60 +159,55 @@ export async function denyRequest(requestId: string): Promise<void> {
   }
 }
 
-// Invokes the approve-temp-passcode Edge Function - see that function's header comment for why
-// code generation/hashing must happen server-side. supabase.functions.invoke(...) automatically
-// forwards the caller's bearer token, which the Edge Function uses to verify the caller IS this
-// request's friend_user_id (never trusts a client-supplied claim). Returns the plaintext code
-// exactly once, in this response only - it is never written anywhere.
-export async function approveRequest(requestId: string): Promise<{ code: string }> {
-  const { data, error } = await supabase.functions.invoke<{ code?: string; error?: string }>(
-    "approve-temp-passcode",
-    { body: { requestId } }
-  );
-  if (error || !data?.code) {
+// Invokes the approve-temp-passcode Edge Function - verifies caller identity/status server-side
+// (see that function's header comment). supabase.functions.invoke(...) automatically forwards the
+// caller's bearer token, which the Edge Function uses to verify the caller IS this request's
+// friend_user_id (never trusts a client-supplied claim). v3.3 Task 10: no code is generated or
+// returned anymore - approval alone is the security boundary, so the response only carries what
+// the approving friend's own UI needs to confirm the action succeeded.
+export async function approveRequest(
+  requestId: string
+): Promise<{ hostname: string; expiresAt: number }> {
+  const { data, error } = await supabase.functions.invoke<{
+    hostname?: string;
+    expiresAt?: number;
+    error?: string;
+  }>("approve-temp-passcode", { body: { requestId } });
+  if (error || !data?.hostname || typeof data.expiresAt !== "number") {
     throw new Error(data?.error ?? error?.message ?? "Failed to approve temp passcode request.");
   }
-  return { code: data.code };
+  return { hostname: data.hostname, expiresAt: data.expiresAt };
 }
 
-// Invokes the redeem-temp-passcode Edge Function, then - on a successful redemption - performs
-// the actual unlock itself: this is the one place that knows both "redemption succeeded
-// server-side" and "which hostname/expiry to act on" (per this task's brief), reading hostname/
-// expiresAt straight off the Edge Function's own success response rather than a second fetch.
-// Never throws (graceful degradation, matching this codebase's established
-// *Api.ts convention) - a network failure, a non-2xx response, or a logical `ok: false` (wrong
-// code, expired, locked, not approved) all resolve to `{ ok: false }` rather than rejecting.
-export async function redeemCode(requestId: string, code: string): Promise<{ ok: boolean }> {
+// v3.3 Task 10, Decision 3: replaces redeemCode. There is no code to submit anymore - approval
+// alone is the security boundary - so this performs a fresh, RLS-gated read of the request row
+// itself (hostname/status/expires_at) rather than trusting anything the client already has cached
+// (a stale or crafted client payload must not be able to claim access to a hostname the server
+// never actually approved). temp_passcode_requests' existing "requester or assigned friend can
+// read" RLS policy is what actually stops anyone but the real requester from claiming - this
+// function does no additional identity check of its own, matching every other function in this
+// file's "the RLS policy is the enforcement" convention.
+//
+// Never throws (graceful degradation, matching this codebase's established *Api.ts convention) -
+// a network failure, a denied/missing row, or an already-expired window all resolve to
+// `{ ok: false }` rather than rejecting.
+export async function claimApproval(requestId: string): Promise<{ ok: boolean }> {
   try {
-    const { data, error } = await supabase.functions.invoke<{
-      ok?: boolean;
-      hostname?: string;
-      expiresAt?: number;
-      error?: string;
-    }>("redeem-temp-passcode", { body: { requestId, code } });
-
-    if (error || !data?.ok) {
-      return { ok: false };
+    const { data, error } = await supabase
+      .from("temp_passcode_requests")
+      .select("hostname, status, expires_at")
+      .eq("id", requestId)
+      .eq("status", "approved")
+      .single();
+    if (error || !data) return { ok: false };
+    if (data.expires_at && new Date(data.expires_at).getTime() <= Date.now()) return { ok: false };
+    await unlockHardBlockRuleForHostname(data.hostname);
+    if (data.expires_at) {
+      scheduleTempUnlockRelockAlarm(data.hostname, new Date(data.expires_at).getTime());
     }
-
-    // Best-effort: the server already recorded a successful redemption (failed_attempts reset,
-    // etc.) by this point - a failure in the local unlock step below must not turn that genuine
-    // server-side success into a reported failure (the user would see "incorrect code" for a code
-    // that was, in fact, correct). Logged, not silently swallowed.
-    if (data.hostname) {
-      try {
-        await unlockHardBlockRuleForHostname(data.hostname);
-        if (data.expiresAt) {
-          scheduleTempUnlockRelockAlarm(data.hostname, data.expiresAt);
-        }
-      } catch (err) {
-        console.error("Redemption succeeded server-side, but the local unlock step failed", err);
-      }
-    }
-
     return { ok: true };
   } catch (err) {
-    console.error("Failed to redeem temp passcode", err);
+    console.error("Failed to claim an approved temp passcode request", err);
     return { ok: false };
   }
 }

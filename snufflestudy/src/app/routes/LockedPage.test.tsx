@@ -83,10 +83,7 @@ describe("LockedPage", () => {
         friendUserId: "user-b",
         requesterUserId: "user-a",
         status: "pending",
-        codeHash: "",
-        codeSalt: "",
         expiresAt: 0,
-        failedAttempts: 0,
       },
     }));
     mockMessages({ TEMP_PASSCODE_CREATE: createSpy });
@@ -107,9 +104,13 @@ describe("LockedPage", () => {
     });
   });
 
-  it("shows a code-entry field once the request is approved, and navigates to the site on a correct code", async () => {
+  // v3.3 Task 10: no code to enter anymore - once the request's status is "approved", LockedPage
+  // auto-claims it (TEMP_PASSCODE_CLAIM_APPROVAL) and navigates on success, with no user action in
+  // between.
+  it("auto-claims an approved request and navigates to the site, with no code entry anywhere", async () => {
     delete (window as any).location;
     (window as any).location = { href: "" };
+    const claimSpy = vi.fn(() => ({ ok: true }));
 
     mockMessages({
       TEMP_PASSCODE_CREATE: () => ({
@@ -121,13 +122,10 @@ describe("LockedPage", () => {
           friendUserId: "user-b",
           requesterUserId: "user-a",
           status: "approved",
-          codeHash: "",
-          codeSalt: "",
           expiresAt: 0,
-          failedAttempts: 0,
         },
       }),
-      TEMP_PASSCODE_REDEEM: () => ({ ok: true }),
+      TEMP_PASSCODE_CLAIM_APPROVAL: claimSpy,
     });
     render(<LockedPage />);
 
@@ -135,17 +133,15 @@ describe("LockedPage", () => {
       expect(screen.getByRole("button", { name: "Request a temporary passcode" })).toBeEnabled()
     );
     fireEvent.click(screen.getByRole("button", { name: "Request a temporary passcode" }));
-
-    await waitFor(() => expect(screen.getByPlaceholderText("Code from your friend")).toBeInTheDocument());
-    fireEvent.change(screen.getByPlaceholderText("Code from your friend"), {
-      target: { value: "483920" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Unlock with code" }));
 
     await waitFor(() => expect(window.location.href).toBe("https://youtube.com"));
+    // mockMessages' dispatcher (above) calls each handler with message.payload, not the whole
+    // message - so this asserts the payload TEMP_PASSCODE_CLAIM_APPROVAL received, not the type.
+    expect(claimSpy).toHaveBeenCalledWith({ requestId: "req-1" });
+    expect(screen.queryByPlaceholderText("Code from your friend")).not.toBeInTheDocument();
   });
 
-  it("shows an error on an incorrect temp passcode redemption, without navigating away", async () => {
+  it("shows an inline error with a retry button when claiming an approved request fails, without navigating away", async () => {
     mockMessages({
       TEMP_PASSCODE_CREATE: () => ({
         ok: true,
@@ -156,13 +152,10 @@ describe("LockedPage", () => {
           friendUserId: "user-b",
           requesterUserId: "user-a",
           status: "approved",
-          codeHash: "",
-          codeSalt: "",
           expiresAt: 0,
-          failedAttempts: 0,
         },
       }),
-      TEMP_PASSCODE_REDEEM: () => ({ ok: false }),
+      TEMP_PASSCODE_CLAIM_APPROVAL: () => ({ ok: false }),
     });
     render(<LockedPage />);
 
@@ -170,17 +163,50 @@ describe("LockedPage", () => {
       expect(screen.getByRole("button", { name: "Request a temporary passcode" })).toBeEnabled()
     );
     fireEvent.click(screen.getByRole("button", { name: "Request a temporary passcode" }));
-
-    await waitFor(() => expect(screen.getByPlaceholderText("Code from your friend")).toBeInTheDocument());
-    fireEvent.change(screen.getByPlaceholderText("Code from your friend"), {
-      target: { value: "000000" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Unlock with code" }));
 
     await waitFor(() =>
       expect(
-        screen.getByText("Incorrect code, or temporarily locked after repeated attempts.")
+        screen.getByText("This pass couldn't be claimed — it may have expired. Ask again.")
       ).toBeInTheDocument()
     );
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+  });
+
+  it("retrying a failed claim re-fires TEMP_PASSCODE_CLAIM_APPROVAL for the same request", async () => {
+    delete (window as any).location;
+    (window as any).location = { href: "" };
+    let attempt = 0;
+    const claimSpy = vi.fn(() => {
+      attempt += 1;
+      return { ok: attempt > 1 };
+    });
+
+    mockMessages({
+      TEMP_PASSCODE_CREATE: () => ({
+        ok: true,
+        request: {
+          id: "req-1",
+          sessionId: "session-1",
+          hostname: "youtube.com",
+          friendUserId: "user-b",
+          requesterUserId: "user-a",
+          status: "approved",
+          expiresAt: 0,
+        },
+      }),
+      TEMP_PASSCODE_CLAIM_APPROVAL: claimSpy,
+    });
+    render(<LockedPage />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Request a temporary passcode" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Request a temporary passcode" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(window.location.href).toBe("https://youtube.com"));
+    expect(claimSpy).toHaveBeenCalledTimes(2);
   });
 });

@@ -622,10 +622,10 @@ async function routeMessage(
 
     case "TEMP_PASSCODE_APPROVE": {
       // approveRequest throws on failure (not the assigned friend, already resolved, Edge
-      // Function error) - same outer-catch convention as above. Returns the plaintext code
-      // exactly once, in this response only.
-      const { code } = await tempPasscodeApi.approveRequest(message.payload.requestId);
-      return { ok: true, code };
+      // Function error) - same outer-catch convention as above. v3.3 Task 10: no code is
+      // generated/returned anymore - approval alone is the security boundary.
+      await tempPasscodeApi.approveRequest(message.payload.requestId);
+      return { ok: true };
     }
 
     case "TEMP_PASSCODE_DENY": {
@@ -635,13 +635,14 @@ async function routeMessage(
       return { ok: true };
     }
 
-    case "TEMP_PASSCODE_REDEEM": {
-      // redeemCode never throws (see tempPasscodeApi.ts) - it resolves to { ok: false } for
-      // every failure path (wrong code, expired, locked, network/invoke error), and on success
-      // has already performed the actual local unlock (unlockHardBlockRuleForHostname +
+    case "TEMP_PASSCODE_CLAIM_APPROVAL": {
+      // v3.3 Task 10: replaces TEMP_PASSCODE_REDEEM - there is no code to submit anymore.
+      // claimApproval never throws (see tempPasscodeApi.ts) - it resolves to { ok: false } for
+      // every failure path (RLS-denied/missing row, expired, network/invoke error), and on
+      // success has already performed the actual local unlock (unlockHardBlockRuleForHostname +
       // scheduleTempUnlockRelockAlarm) itself. This case is a thin pass-through, same convention
       // as HARD_BLOCK_VERIFY_PASSCODE.
-      const result = await tempPasscodeApi.redeemCode(message.payload.requestId, message.payload.code);
+      const result = await tempPasscodeApi.claimApproval(message.payload.requestId);
       return result;
     }
 

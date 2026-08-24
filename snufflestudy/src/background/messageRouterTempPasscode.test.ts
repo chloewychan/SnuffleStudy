@@ -3,7 +3,9 @@
 // exported functions (this repo's established test style) so these cases are verified to route
 // to the right underlying call with the right arguments, entirely offline - no real network call
 // is ever made, and no chrome.declarativeNetRequest/chrome.alarms side effect is exercised here
-// (tempPasscodeApi.redeemCode's own unit tests, tempPasscodeApi.test.ts, already cover that).
+// (tempPasscodeApi.claimApproval's own unit tests, tempPasscodeApi.test.ts, already cover that).
+// v3.3 Task 10: TEMP_PASSCODE_APPROVE's response no longer carries a code (approval alone is the
+// security boundary now); TEMP_PASSCODE_REDEEM is replaced by TEMP_PASSCODE_CLAIM_APPROVAL.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import { handleMessage } from "./messageRouter";
@@ -22,11 +24,7 @@ const sampleRequest: TempPasscodeRequest = {
   friendUserId: "user-b",
   requesterUserId: "user-a",
   status: "pending",
-  codeHash: "",
-  codeSalt: "",
   expiresAt: 0,
-  failedAttempts: 0,
-  lockedUntil: undefined,
 };
 
 describe("messageRouter — TEMP_PASSCODE_*", () => {
@@ -53,16 +51,19 @@ describe("messageRouter — TEMP_PASSCODE_*", () => {
     expect(result).toEqual({ ok: false, error: "Not signed in." });
   });
 
-  it("TEMP_PASSCODE_APPROVE routes to tempPasscodeApi.approveRequest and returns the plaintext code", async () => {
-    const spy = vi.spyOn(tempPasscodeApi, "approveRequest").mockResolvedValue({ code: "483920" });
+  it("TEMP_PASSCODE_APPROVE routes to tempPasscodeApi.approveRequest and returns ok:true with no code", async () => {
+    const spy = vi
+      .spyOn(tempPasscodeApi, "approveRequest")
+      .mockResolvedValue({ hostname: "youtube.com", expiresAt: 123 });
 
     const result = (await handleMessage({
       type: "TEMP_PASSCODE_APPROVE",
       payload: { requestId: "req-1" },
-    })) as { ok: boolean; code: string };
+    })) as { ok: boolean };
 
     expect(spy).toHaveBeenCalledWith("req-1");
-    expect(result).toEqual({ ok: true, code: "483920" });
+    expect(result).toEqual({ ok: true });
+    expect(result).not.toHaveProperty("code");
   });
 
   it("TEMP_PASSCODE_APPROVE surfaces a thrown error as ok:false", async () => {
@@ -104,24 +105,24 @@ describe("messageRouter — TEMP_PASSCODE_*", () => {
     expect(result.error).toMatch(/already have been resolved/);
   });
 
-  it("TEMP_PASSCODE_REDEEM routes to tempPasscodeApi.redeemCode and passes its result straight through", async () => {
-    const spy = vi.spyOn(tempPasscodeApi, "redeemCode").mockResolvedValue({ ok: true });
+  it("TEMP_PASSCODE_CLAIM_APPROVAL routes to tempPasscodeApi.claimApproval and passes its result straight through", async () => {
+    const spy = vi.spyOn(tempPasscodeApi, "claimApproval").mockResolvedValue({ ok: true });
 
     const result = (await handleMessage({
-      type: "TEMP_PASSCODE_REDEEM",
-      payload: { requestId: "req-1", code: "483920" },
+      type: "TEMP_PASSCODE_CLAIM_APPROVAL",
+      payload: { requestId: "req-1" },
     })) as { ok: boolean };
 
-    expect(spy).toHaveBeenCalledWith("req-1", "483920");
+    expect(spy).toHaveBeenCalledWith("req-1");
     expect(result).toEqual({ ok: true });
   });
 
-  it("TEMP_PASSCODE_REDEEM passes through ok:false (redeemCode never throws, this is not the outer-catch path)", async () => {
-    vi.spyOn(tempPasscodeApi, "redeemCode").mockResolvedValue({ ok: false });
+  it("TEMP_PASSCODE_CLAIM_APPROVAL passes through ok:false (claimApproval never throws, this is not the outer-catch path)", async () => {
+    vi.spyOn(tempPasscodeApi, "claimApproval").mockResolvedValue({ ok: false });
 
     const result = (await handleMessage({
-      type: "TEMP_PASSCODE_REDEEM",
-      payload: { requestId: "req-1", code: "000000" },
+      type: "TEMP_PASSCODE_CLAIM_APPROVAL",
+      payload: { requestId: "req-1" },
     })) as { ok: boolean };
 
     expect(result).toEqual({ ok: false });
