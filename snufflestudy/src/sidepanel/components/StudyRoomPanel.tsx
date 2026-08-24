@@ -7,6 +7,7 @@ import type { RoomProducerTagBroadcast } from "../../infrastructure/backend/prod
 import type { StudyRoom, RoomParticipant } from "../../domain/rooms/studyRoom";
 import type { ProducerTag } from "../../domain/rooms/producerTag";
 import { ProducerTagRecorder } from "./ProducerTagRecorder";
+import { SignInForm } from "../../shared/ui/SignInForm";
 
 // v2 Task 13: Study Rooms.
 //
@@ -120,6 +121,18 @@ function RoomProducerTagItem({ tag }: { tag: RoomProducerTagEntry }) {
 }
 
 export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
+  // v3.2 Task 2: this panel had no auth check at all before this task - mirrors the auth-check
+  // half of FriendGroupPanel.tsx's loadFriends() (AUTH_GET_SESSION -> selfUserId), not its
+  // group-membership fetch, which this panel doesn't need. `selfLoaded` (which
+  // TempPasscodePanel.tsx/UnlockRequestPanel.tsx don't currently have) is added here so the
+  // signed-out gate below only renders once sign-in status is actually known - without it, every
+  // mount (including a signed-in user's) would briefly render the sign-in prompt before flipping
+  // to the real room list once AUTH_GET_SESSION resolves, since this gate swaps the panel's
+  // entire body rather than filtering an already-rendered list the way the other three panels do.
+  const [selfUserId, setSelfUserId] = useState<string | null>(null);
+  const [selfLoaded, setSelfLoaded] = useState(false);
+  const [selfError, setSelfError] = useState<string | null>(null);
+
   const [rooms, setRooms] = useState<StudyRoom[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -168,7 +181,29 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
       });
   }
 
+  // v3.2 Task 2: mirrors TempPasscodePanel.tsx's/UnlockRequestPanel.tsx's identical loadSelf()
+  // shape exactly (same AUTH_GET_SESSION response type, same ok/error handling).
+  function loadSelf() {
+    setSelfError(null);
+    sendMessage<{ ok: boolean; session?: { user: { id: string } } | null; error?: string }>({
+      type: "AUTH_GET_SESSION",
+    })
+      .then((res) => {
+        if (!res.ok) {
+          setSelfError(res.error ?? "Could not verify your sign-in status.");
+          return;
+        }
+        setSelfUserId(res.session?.user.id ?? null);
+      })
+      .catch((err) => {
+        console.error("Failed to load current user for study rooms", err);
+        setSelfError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => setSelfLoaded(true));
+  }
+
   useEffect(() => {
+    loadSelf();
     loadRooms();
   }, []);
 
@@ -375,6 +410,39 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
       setTagSendError(null);
       setLeaving(false);
     }
+  }
+
+  // v3.2 Task 2: signed out, there's nothing this panel can show - creating/joining/listing
+  // rooms all require an authenticated user (studyRoomApi.ts's requireUserId()). Gated on
+  // `selfLoaded` (not just `selfUserId === null`) so a signed-in user never sees this prompt
+  // flash before the AUTH_GET_SESSION round trip resolves, and on `!selfError` so a failed/
+  // rejected AUTH_GET_SESSION call (connection lost, etc. - genuinely unknown sign-in state)
+  // falls through to the normal view's own error handling (loadRooms()'s STUDY_ROOM_LIST call
+  // surfaces the same underlying failure there) instead of asserting "sign in" when the real
+  // answer is "couldn't check." No `onSkip` - there's nothing to skip to from inside a
+  // permanently-embedded panel (FriendsTab.tsx composes this with a no-op onClose, same as the
+  // other three gated panels).
+  if (selfLoaded && selfUserId === null && !selfError) {
+    return (
+      <div className="study-room-panel">
+        <header className="study-room-panel__header">
+          <h2>Study Rooms</h2>
+          <button type="button" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        {selfError && <p role="alert">Couldn't verify sign-in: {selfError}.</p>}
+        <div className="study-room-panel__sign-in">
+          <p>Sign in to create or join a study room with your friends.</p>
+          <SignInForm
+            onSignedIn={(session) => {
+              setSelfUserId(session.user.id);
+              loadRooms();
+            }}
+          />
+        </div>
+      </div>
+    );
   }
 
   if (joinedRoom) {

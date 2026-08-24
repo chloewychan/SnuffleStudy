@@ -316,3 +316,49 @@ describe("UnlockRequestPanel — friend side", () => {
     ).toBeGreaterThan(1);
   });
 });
+
+// v3.2 Task 2: signed out, this section used to silently show "No pending unlock requests from
+// friends." (UNLOCK_REQUESTS_FETCH degrades to [] when signed out, per messageRouter.ts) -
+// indistinguishable from actually having zero pending requests. This now shows an inline sign-in
+// prompt instead. The requester-side "Request an unlock" section is untouched by this task - its
+// gating (isSessionActive, from the `session` prop) is unrelated to sign-in state.
+describe("UnlockRequestPanel — signed-out gate (v3.2 Task 2)", () => {
+  it("shows an inline sign-in prompt in the friends section when signed out", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ AUTH_GET_SESSION: () => ({ ok: true, session: null }) })
+    );
+
+    render(<UnlockRequestPanel session={null} onClose={() => {}} />);
+
+    expect(
+      await screen.findByText("Sign in to see or resolve unlock requests from friends.")
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.queryByText("No pending unlock requests from friends.")).not.toBeInTheDocument();
+  });
+
+  it("does not show the sign-in prompt while sign-in status is still loading (preserves the existing self-identity race regression test's expectations)", async () => {
+    let resolveSelf: (value: unknown) => void = () => {};
+    const selfPromise = new Promise((resolve) => {
+      resolveSelf = resolve;
+    });
+    vi.spyOn(messenger, "sendMessage").mockImplementation((msg: ExtensionMessage) => {
+      if (msg.type === "AUTH_GET_SESSION") return selfPromise as Promise<unknown>;
+      return routeSendMessage({})(msg);
+    });
+
+    render(<UnlockRequestPanel session={null} onClose={() => {}} />);
+
+    await screen.findByText("No pending unlock requests from friends.");
+    expect(
+      screen.queryByText("Sign in to see or resolve unlock requests from friends.")
+    ).not.toBeInTheDocument();
+
+    resolveSelf({ ok: true, session: { user: { id: "user-self" } } });
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Sign in to see or resolve unlock requests from friends.")
+      ).not.toBeInTheDocument()
+    );
+  });
+});

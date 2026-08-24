@@ -55,6 +55,11 @@ type Handler = (msg: ExtensionMessage) => unknown;
 
 function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
   const defaults: Partial<Record<ExtensionMessage["type"], Handler>> = {
+    // v3.2 Task 2: StudyRoomPanel now checks AUTH_GET_SESSION on mount (it had no auth check
+    // before this task) - defaults to signed-in so every pre-existing test below (all written
+    // against implicit signed-in behavior) keeps exercising exactly what it did before. The new
+    // "signed out" describe block below overrides this per-test.
+    AUTH_GET_SESSION: () => ({ ok: true, session: { user: { id: "user-self" } } }),
     STUDY_ROOM_LIST: () => ({ ok: true, rooms: [] }),
     STUDY_ROOM_CREATE: () => ({ ok: true, room: sampleRoom }),
     STUDY_ROOM_LEAVE: () => ({ ok: true }),
@@ -314,5 +319,78 @@ describe("StudyRoomPanel — Producer Tags (v2 Task 14)", () => {
 
     await waitFor(() => expect(producerTagApi.downloadTagAudio).toHaveBeenCalledWith("tag-1/clip.webm"));
     expect(document.querySelector("audio")).toBeInTheDocument();
+  });
+});
+
+// v3.2 Task 2: this panel had no auth check at all before this task - signed out, every action
+// (create/list/join a room) requires an authenticated user, so this used to surface as a generic
+// "Not signed in." load error rather than an actionable prompt.
+describe("StudyRoomPanel — signed-out gate (v3.2 Task 2)", () => {
+  it("shows an inline sign-in prompt instead of the room list when signed out", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ AUTH_GET_SESSION: () => ({ ok: true, session: null }) })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+
+    expect(
+      await screen.findByText("Sign in to create or join a study room with your friends.")
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.queryByText("Rooms in your groups")).not.toBeInTheDocument();
+    expect(screen.queryByText("New room name")).not.toBeInTheDocument();
+  });
+
+  it("does not show the sign-in prompt while sign-in status is still loading", async () => {
+    let resolveSelf: (value: unknown) => void = () => {};
+    const selfPromise = new Promise((resolve) => {
+      resolveSelf = resolve;
+    });
+    vi.spyOn(messenger, "sendMessage").mockImplementation((msg: ExtensionMessage) => {
+      if (msg.type === "AUTH_GET_SESSION") return selfPromise as Promise<unknown>;
+      return routeSendMessage({})(msg);
+    });
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+
+    // Still resolving self-identity: must show the normal (signed-in-shaped) empty state, not a
+    // premature sign-in prompt.
+    await screen.findByText("No study rooms yet — create one to get started.");
+    expect(
+      screen.queryByText("Sign in to create or join a study room with your friends.")
+    ).not.toBeInTheDocument();
+
+    resolveSelf({ ok: true, session: { user: { id: "user-self" } } });
+    // Resolves to signed-in: the room list stays the room list, no gate ever appears.
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Sign in to create or join a study room with your friends.")
+      ).not.toBeInTheDocument()
+    );
+  });
+
+  it("shows the room list once the inline SignInForm reports a signed-in session", async () => {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        AUTH_GET_SESSION: () => ({ ok: true, session: null }),
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }),
+        AUTH_VERIFY_OTP: () => ({ ok: true, session: { user: { id: "user-self" } } }),
+      })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Sign in to create or join a study room with your friends.");
+
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@b.com" } });
+    fireEvent.click(screen.getByText("Send sign-in code"));
+    await screen.findByLabelText("Code");
+    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByText("Verify code"));
+
+    expect(await screen.findByText("Thursday study group")).toBeInTheDocument();
+    expect(sendMessageSpy).toHaveBeenCalledWith({
+      type: "AUTH_VERIFY_OTP",
+      payload: { email: "a@b.com", token: "123456" },
+    });
   });
 });

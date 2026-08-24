@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { TempPasscodeRequest } from "../../domain/accountability/tempPasscodeRequest";
+import { SignInForm } from "../../shared/ui/SignInForm";
 
 interface TempPasscodePanelProps {
   onClose: () => void;
@@ -22,6 +23,10 @@ const LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 export function TempPasscodePanel({ onClose }: TempPasscodePanelProps) {
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
+  // v3.2 Task 2: distinguishes "AUTH_GET_SESSION hasn't resolved yet" from "confirmed signed
+  // out" - without it, the sign-in prompt below would flash for a signed-in user too, since it
+  // replaces this section's body rather than just filtering an already-rendered list.
+  const [selfLoaded, setSelfLoaded] = useState(false);
   const [selfError, setSelfError] = useState<string | null>(null);
 
   const [requests, setRequests] = useState<TempPasscodeRequest[] | null>(null);
@@ -53,7 +58,8 @@ export function TempPasscodePanel({ onClose }: TempPasscodePanelProps) {
       .catch((err) => {
         console.error("Failed to load current user for temp passcode requests", err);
         setSelfError(err instanceof Error ? err.message : String(err));
-      });
+      })
+      .finally(() => setSelfLoaded(true));
   }
 
   function loadRequests() {
@@ -167,33 +173,51 @@ export function TempPasscodePanel({ onClose }: TempPasscodePanelProps) {
 
       <section>
         <h3>Requests from friends</h3>
-        {pendingForMe.length === 0 && !loading && !error && (
-          <p>No pending temporary passcode requests.</p>
-        )}
-        {pendingForMe.length > 0 && (
-          <ul>
-            {pendingForMe.map((r) => (
-              <li key={r.id}>
-                <span>
-                  {r.requesterUserId} wants a temporary passcode for {r.hostname}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleApprove(r.id)}
-                  disabled={resolvingId === r.id}
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeny(r.id)}
-                  disabled={resolvingId === r.id}
-                >
-                  Deny
-                </button>
-              </li>
-            ))}
-          </ul>
+        {/* Requires !selfError too - a failed/rejected AUTH_GET_SESSION call means sign-in
+            status is genuinely unknown, not confirmed signed out, so it falls through to the
+            normal (pre-Task-2) rendering below; selfError's own alert above already surfaces
+            that failure. */}
+        {selfLoaded && selfUserId === null && !selfError ? (
+          <div className="temp-passcode-panel__sign-in">
+            <p>Sign in to see or approve temporary passcode requests from friends.</p>
+            <SignInForm
+              onSignedIn={(session) => {
+                setSelfUserId(session.user.id);
+                loadRequests();
+              }}
+            />
+          </div>
+        ) : (
+          <>
+            {pendingForMe.length === 0 && !loading && !error && (
+              <p>No pending temporary passcode requests.</p>
+            )}
+            {pendingForMe.length > 0 && (
+              <ul>
+                {pendingForMe.map((r) => (
+                  <li key={r.id}>
+                    <span>
+                      {r.requesterUserId} wants a temporary passcode for {r.hostname}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleApprove(r.id)}
+                      disabled={resolvingId === r.id}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeny(r.id)}
+                      disabled={resolvingId === r.id}
+                    >
+                      Deny
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </section>
 

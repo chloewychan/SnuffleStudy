@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { UnlockRequest } from "../../infrastructure/backend/unlockRequestApi";
 import type { StudySession, SessionEvent } from "../../domain/session/sessionTypes";
+import { SignInForm } from "../../shared/ui/SignInForm";
 
 interface UnlockRequestPanelProps {
   // The currently active session, or null if none - the requester-side "request an unlock"
@@ -49,6 +50,12 @@ function distinctBlockedHostnames(events: SessionEvent[]): string[] {
 // infrastructure/backend imports beyond types, same convention as FriendGroupPanel.tsx.
 export function UnlockRequestPanel({ session, onClose }: UnlockRequestPanelProps) {
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
+  // v3.2 Task 2: distinguishes "AUTH_GET_SESSION hasn't resolved yet" from "confirmed signed
+  // out" - without it, the sign-in prompt below would flash for a signed-in user too (and would
+  // also break the existing "never shows the viewer's own pending request... even if the
+  // requests fetch resolves before the self-identity fetch" regression test below, which
+  // deliberately asserts the plain empty-list message while selfUserId is still unresolved).
+  const [selfLoaded, setSelfLoaded] = useState(false);
   const [selfError, setSelfError] = useState<string | null>(null);
 
   const [requests, setRequests] = useState<UnlockRequest[] | null>(null);
@@ -79,7 +86,8 @@ export function UnlockRequestPanel({ session, onClose }: UnlockRequestPanelProps
       .catch((err) => {
         console.error("Failed to load current user for unlock requests", err);
         setSelfError(err instanceof Error ? err.message : String(err));
-      });
+      })
+      .finally(() => setSelfLoaded(true));
   }
 
   function loadRequests() {
@@ -267,34 +275,52 @@ export function UnlockRequestPanel({ session, onClose }: UnlockRequestPanelProps
 
       <section className="unlock-request-panel__friends">
         <h3>Requests from friends</h3>
-        {resolveError && <p role="alert">{resolveError}</p>}
-        {pendingFromOthers.length === 0 && !loading && !error && (
-          <p>No pending unlock requests from friends.</p>
-        )}
-        {pendingFromOthers.length > 0 && (
-          <ul>
-            {pendingFromOthers.map((r) => (
-              <li key={r.id}>
-                <span>
-                  {r.requesterUserId} wants to unlock {r.hostname}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleResolve(r.id, "approved")}
-                  disabled={resolvingId === r.id}
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleResolve(r.id, "denied")}
-                  disabled={resolvingId === r.id}
-                >
-                  Deny
-                </button>
-              </li>
-            ))}
-          </ul>
+        {/* Requires !selfError too - a failed/rejected AUTH_GET_SESSION call means sign-in
+            status is genuinely unknown, not confirmed signed out, so it falls through to the
+            normal (pre-Task-2) rendering below; selfError's own alert above already surfaces
+            that failure. */}
+        {selfLoaded && selfUserId === null && !selfError ? (
+          <div className="unlock-request-panel__sign-in">
+            <p>Sign in to see or resolve unlock requests from friends.</p>
+            <SignInForm
+              onSignedIn={(session) => {
+                setSelfUserId(session.user.id);
+                loadRequests();
+              }}
+            />
+          </div>
+        ) : (
+          <>
+            {resolveError && <p role="alert">{resolveError}</p>}
+            {pendingFromOthers.length === 0 && !loading && !error && (
+              <p>No pending unlock requests from friends.</p>
+            )}
+            {pendingFromOthers.length > 0 && (
+              <ul>
+                {pendingFromOthers.map((r) => (
+                  <li key={r.id}>
+                    <span>
+                      {r.requesterUserId} wants to unlock {r.hostname}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleResolve(r.id, "approved")}
+                      disabled={resolvingId === r.id}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleResolve(r.id, "denied")}
+                      disabled={resolvingId === r.id}
+                    >
+                      Deny
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </section>
 

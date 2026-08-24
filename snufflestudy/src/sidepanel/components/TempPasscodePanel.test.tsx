@@ -188,3 +188,48 @@ describe("TempPasscodePanel", () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+// v3.2 Task 2: signed out, this panel used to silently show "No pending temporary passcode
+// requests." (TEMP_PASSCODE_REQUESTS_FETCH degrades to [] when signed out, per messageRouter.ts) -
+// indistinguishable from actually having zero pending requests. This now shows an inline sign-in
+// prompt instead, in the same "Requests from friends" section.
+describe("TempPasscodePanel — signed-out gate (v3.2 Task 2)", () => {
+  it("shows an inline sign-in prompt in the friends section when signed out", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ AUTH_GET_SESSION: () => ({ ok: true, session: null }) })
+    );
+
+    render(<TempPasscodePanel onClose={() => {}} />);
+
+    expect(
+      await screen.findByText("Sign in to see or approve temporary passcode requests from friends.")
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.queryByText("No pending temporary passcode requests.")).not.toBeInTheDocument();
+  });
+
+  it("does not show the sign-in prompt while sign-in status is still loading", async () => {
+    let resolveSelf: (value: unknown) => void = () => {};
+    const selfPromise = new Promise((resolve) => {
+      resolveSelf = resolve;
+    });
+    vi.spyOn(messenger, "sendMessage").mockImplementation((msg: ExtensionMessage) => {
+      if (msg.type === "AUTH_GET_SESSION") return selfPromise as Promise<unknown>;
+      return routeSendMessage({})(msg);
+    });
+
+    render(<TempPasscodePanel onClose={() => {}} />);
+
+    await screen.findByText("No pending temporary passcode requests.");
+    expect(
+      screen.queryByText("Sign in to see or approve temporary passcode requests from friends.")
+    ).not.toBeInTheDocument();
+
+    resolveSelf({ ok: true, session: { user: { id: "user-self" } } });
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Sign in to see or approve temporary passcode requests from friends.")
+      ).not.toBeInTheDocument()
+    );
+  });
+});

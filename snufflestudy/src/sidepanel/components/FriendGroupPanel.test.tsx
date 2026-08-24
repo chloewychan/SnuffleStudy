@@ -252,6 +252,26 @@ describe("FriendGroupPanel — send a nudge (v2 Task 7)", () => {
     await waitFor(() => expect(screen.getByText("Nudge sent.")).toBeInTheDocument());
   });
 
+  // v3.2 Task 2: signed out, GROUP_LIST_MINE/GROUP_LIST_MEMBERS both degrade this section's
+  // friendIds to [] the same way "no groups yet" does, which used to render the misleading
+  // "No friends to nudge yet — join a group first." (implying an account/group problem, not a
+  // sign-in problem). This now distinguishes the two cases.
+  it("shows an inline sign-in prompt instead of 'No friends to nudge yet' when signed out", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ AUTH_GET_SESSION: () => ({ ok: true, session: null }) })
+    );
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+
+    expect(
+      await screen.findByText("Sign in to nudge friends in your study group.")
+    ).toBeInTheDocument();
+    // Two independent SignInForm instances render (this section's, and the digest section's
+    // below - both gate on the same signed-out state) - getAllByLabelText, not getByLabelText.
+    expect(screen.getAllByLabelText("Email").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/No friends to nudge yet/)).not.toBeInTheDocument();
+  });
+
   it("shows the server's rejection reason inline (e.g. cooldown/toggle off) on ok:false, without silently swallowing it", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
@@ -404,6 +424,22 @@ describe("FriendGroupPanel — daily digest (v2 Task 9)", () => {
     fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
 
     await waitFor(() => expect(callsOfType(sendMessageSpy, "DIGEST_FETCH")).toHaveLength(2));
+  });
+
+  // v3.2 Task 2: signed out, DIGEST_FETCH degrades to [] the same way "no digest yet" does,
+  // which used to render the misleading "No digest yet for yesterday..." empty state. This now
+  // distinguishes the two cases, once self-identity (via loadFriends()) is actually known.
+  it("shows an inline sign-in prompt instead of the empty-digest message when signed out", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ AUTH_GET_SESSION: () => ({ ok: true, session: null }) })
+    );
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+
+    expect(
+      await screen.findByText("Sign in to see your friends' daily digest.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/No digest yet for yesterday/)).not.toBeInTheDocument();
   });
 });
 
