@@ -5,26 +5,18 @@ import type {
   GroupMembership,
   InviteCode,
 } from "../../infrastructure/backend/friendGroupApi";
+import { SignInForm, type SignInFormSession } from "../../shared/ui/SignInForm";
 
-// Minimal shape of what supabase-js's Session/User actually returns - only the fields this
-// page renders. The real objects carry access/refresh tokens etc. too, which this page never
-// needs to touch (the background's supabaseClient.ts owns the actual session object).
-interface AuthUser {
-  id: string;
-  email?: string;
-}
-interface AuthSession {
-  user: AuthUser;
-}
+// v3.2 Task 1: the OTP email/code sign-in state and AUTH_REQUEST_OTP/AUTH_VERIFY_OTP round trip
+// this page used to own inline now live in the shared SignInForm - this page just holds the
+// resulting session (still its own concern: initial AUTH_GET_SESSION load, sign-out, etc.).
+type AuthSession = SignInFormSession;
 
 export function AccountPage() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
 
-  const [email, setEmail] = useState("");
-  const [otpRequested, setOtpRequested] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
 
@@ -86,50 +78,8 @@ export function AccountPage() {
     };
   }, []);
 
-  async function handleRequestOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setAuthBusy(true);
-    setAuthError(null);
-    try {
-      const res = await sendMessage<{ ok: boolean; error?: string }>({
-        type: "AUTH_REQUEST_OTP",
-        payload: { email },
-      });
-      if (!res.ok) {
-        setAuthError(res.error ?? "Could not send a sign-in code.");
-        return;
-      }
-      setOtpRequested(true);
-    } catch (err) {
-      console.error("Failed to request a sign-in code", err);
-      setAuthError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setAuthBusy(true);
-    setAuthError(null);
-    try {
-      const res = await sendMessage<{ ok: boolean; session?: AuthSession; error?: string }>({
-        type: "AUTH_VERIFY_OTP",
-        payload: { email, token: otpCode },
-      });
-      if (!res.ok) {
-        setAuthError(res.error ?? "Incorrect or expired code.");
-        return;
-      }
-      setSession(res.session ?? null);
-      setOtpRequested(false);
-      setOtpCode("");
-    } catch (err) {
-      console.error("Failed to verify sign-in code", err);
-      setAuthError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setAuthBusy(false);
-    }
+  function handleSignedIn(newSession: SignInFormSession) {
+    setSession(newSession);
   }
 
   async function handleSignOut() {
@@ -142,7 +92,6 @@ export function AccountPage() {
         return;
       }
       setSession(null);
-      setEmail("");
       setGroup(null);
       setInviteCode(null);
       setMembers(null);
@@ -300,50 +249,7 @@ export function AccountPage() {
 
       {!session && (
         <section>
-          {!otpRequested ? (
-            <form onSubmit={handleRequestOtp}>
-              <label>
-                Email
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </label>
-              <button type="submit" disabled={authBusy || !email}>
-                {authBusy ? "Sending…" : "Send sign-in code"}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOtp}>
-              <p>Check {email} for a 6-digit code.</p>
-              <label>
-                Code
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  required
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value)}
-                />
-              </label>
-              <button type="submit" disabled={authBusy || otpCode.length === 0}>
-                {authBusy ? "Verifying…" : "Verify code"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOtpRequested(false);
-                  setOtpCode("");
-                  setAuthError(null);
-                }}
-              >
-                Use a different email
-              </button>
-            </form>
-          )}
-          {authError && <p role="alert">Couldn't sign in: {authError}. Please try again.</p>}
+          <SignInForm onSignedIn={handleSignedIn} />
         </section>
       )}
 
