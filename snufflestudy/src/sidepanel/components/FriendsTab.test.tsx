@@ -8,7 +8,7 @@ beforeEach(() => {
 });
 
 describe("FriendsTab", () => {
-  it("renders StudyRoomPanel, FriendGroupPanel, TempPasscodePanel, and UnlockRequestPanel, in that order", async () => {
+  it("renders StudyRoomPanel, FriendGroupPanel, TempPasscodePanel, UnlockRequestPanel, and SessionEndRequestPanel, in that order", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({
       ok: true,
       members: [],
@@ -18,18 +18,19 @@ describe("FriendsTab", () => {
 
     render(<FriendsTab />);
 
-    // Structural check: four top-level sections directly under .sp-friends-tab - the original two
-    // (StudyRoomPanel, FriendGroupPanel) plus TempPasscodePanel/UnlockRequestPanel, moved here from
-    // SettingsTab.tsx by v3.3 Task 1 (per the V3.3 Implementation Plan's Task 1 Deliverables:
-    // "below its existing <StudyRoomPanel>/<FriendGroupPanel>, in that order").
+    // Structural check: five top-level sections directly under .sp-friends-tab - the original two
+    // (StudyRoomPanel, FriendGroupPanel) plus TempPasscodePanel/UnlockRequestPanel (v3.3 Task 1)
+    // plus SessionEndRequestPanel (v3.3 Task 12, composed in below the panels Task 1 moved here,
+    // per Task 12's Deliverables).
     const sections = document.querySelectorAll(".sp-friends-tab > section");
-    expect(sections.length).toBe(4);
+    expect(sections.length).toBe(5);
 
     // Substantive check (beyond a bare mount-without-throwing smoke test): each section actually
     // renders its own panel's real heading text (read from source - StudyRoomPanel.tsx's idle-view
     // <h2>Study Rooms</h2>, FriendGroupPanel.tsx's <h2>Friend activity</h2>,
-    // TempPasscodePanel.tsx's <h2>Temporary passcode requests</h2>, and UnlockRequestPanel.tsx's
-    // <h2>Unlock requests</h2> - not guessed).
+    // TempPasscodePanel.tsx's <h2>Temporary passcode requests</h2>, UnlockRequestPanel.tsx's
+    // <h2>Unlock requests</h2>, and SessionEndRequestPanel.tsx's <h2>Session-end requests</h2> -
+    // not guessed).
     const studyRoomsHeading = within(sections[0] as HTMLElement).getByRole("heading", {
       name: /^study rooms$/i,
     });
@@ -42,10 +43,14 @@ describe("FriendsTab", () => {
     const unlockRequestsHeading = within(sections[3] as HTMLElement).getByRole("heading", {
       name: /^unlock requests$/i,
     });
+    const sessionEndRequestsHeading = within(sections[4] as HTMLElement).getByRole("heading", {
+      name: /^session-end requests$/i,
+    });
     expect(studyRoomsHeading).toBeInTheDocument();
     expect(friendActivityHeading).toBeInTheDocument();
     expect(tempPasscodeHeading).toBeInTheDocument();
     expect(unlockRequestsHeading).toBeInTheDocument();
+    expect(sessionEndRequestsHeading).toBeInTheDocument();
 
     // Confirms session={null} was actually wired through to UnlockRequestPanel (same as
     // SettingsTab.tsx passed before v3.3 Task 1 moved it here): with session=null,
@@ -59,7 +64,7 @@ describe("FriendsTab", () => {
       within(sections[3] as HTMLElement).getByRole("heading", { name: /requests from friends/i })
     ).toBeInTheDocument();
 
-    // All four composed panels fire their own real on-mount fetches rather than being stubbed out
+    // All five composed panels fire their own real on-mount fetches rather than being stubbed out
     // - confirms this is a genuine composition, not components that happen to render static markup.
     // Waiting for these also lets the panels' async state updates settle before the test ends,
     // avoiding act() warnings from updates that land after the assertions above.
@@ -81,6 +86,11 @@ describe("FriendsTab", () => {
         expect.objectContaining({ type: "UNLOCK_REQUESTS_FETCH" })
       )
     );
+    await waitFor(() =>
+      expect(messenger.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "SESSION_END_REQUESTS_FETCH" })
+      )
+    );
   });
 
   it("does not crash when the friends/rooms/requests fetches fail", async () => {
@@ -98,6 +108,9 @@ describe("FriendsTab", () => {
       expect(screen.getByText(/couldn't load requests: network down/i)).toBeInTheDocument();
       expect(
         screen.getByText(/couldn't load unlock requests: network down/i)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/couldn't load session-end requests: network down/i)
       ).toBeInTheDocument();
     });
   });

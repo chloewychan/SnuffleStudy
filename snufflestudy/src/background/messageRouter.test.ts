@@ -4,6 +4,7 @@ import { fakeBrowser } from "wxt/testing/fake-browser";
 import { handleMessage } from "./messageRouter";
 import { handleAlarm } from "./alarmHandlers";
 import { stubFakeDeclarativeNetRequest } from "./testSupport/fakeDeclarativeNetRequest";
+import * as sessionEndRequestApi from "../infrastructure/backend/sessionEndRequestApi";
 import type { CreateSessionInput } from "../domain/session/sessionTypes";
 import type { UserSettings } from "../domain/settings/userSettings";
 import type { Task } from "../domain/tasks/taskTypes";
@@ -255,6 +256,116 @@ describe("messageRouter — SESSION_END hard-block enforcement", () => {
 
     expect(ended.ok).toBe(true);
     expect(ended.session.state).toBe("ABANDONED");
+  });
+});
+
+// v3.3 Task 12: endRequestId is an alternative to passcode on a hard-restricted session's
+// SESSION_END - covered separately from the hard-block-enforcement describe block above (which
+// this task's DoD requires stay completely unaffected - and every test in it already does, since
+// none of them ever sets endRequestId) to keep the two paths' test intent clearly separated.
+describe("messageRouter — SESSION_END with an approved temporary pass (v3.3 Task 12)", () => {
+  const hardInput: CreateSessionInput = { ...createInput, restrictionMode: "hard" };
+
+  async function createAndStartHardSession(): Promise<string> {
+    const created = (await handleMessage({ type: "SESSION_CREATE", payload: hardInput })) as {
+      session: { id: string };
+    };
+    await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+    return created.session.id;
+  }
+
+  it("ends a hard-mode session with a configured credential via an approved endRequestId, skipping the passcode check entirely", async () => {
+    await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
+    const sessionId = await createAndStartHardSession();
+    const isApprovedSpy = vi
+      .spyOn(sessionEndRequestApi, "isApprovedForSelf")
+      .mockResolvedValue(true);
+
+    const ended = (await handleMessage({
+      type: "SESSION_END",
+      payload: { sessionId, endRequestId: "end-req-1" },
+    })) as { ok: boolean; session: { state: string } };
+
+    expect(isApprovedSpy).toHaveBeenCalledWith("end-req-1", sessionId);
+    expect(ended.ok).toBe(true);
+    expect(ended.session.state).toBe("ABANDONED");
+  });
+
+  // The negative case this task's DoD names explicitly: isApprovedForSelf returning false (e.g.
+  // because the caller is the resolving friend, not the requester - see
+  // sessionEndRequestApi.ts's isApprovedForSelf for why that specific check exists) must reject
+  // SESSION_END and leave the session untouched, exactly like an incorrect passcode does.
+  it("rejects SESSION_END with an endRequestId that isApprovedForSelf denies, leaving the session active", async () => {
+    await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
+    const sessionId = await createAndStartHardSession();
+    vi.spyOn(sessionEndRequestApi, "isApprovedForSelf").mockResolvedValue(false);
+
+    const result = (await handleMessage({
+      type: "SESSION_END",
+      payload: { sessionId, endRequestId: "end-req-1" },
+    })) as { ok: boolean; error: string };
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/isn't valid for this session, or hasn't been approved yet/);
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { id: string; state: string } | null;
+    };
+    expect(active.session).not.toBeNull();
+    expect(active.session?.id).toBe(sessionId);
+    expect(active.session?.state).toBe("FOCUSING");
+  });
+
+  it("rejects SESSION_END with an endRequestId even when NO credential is configured (an unapproved pass never bypasses anything)", async () => {
+    // No HARD_BLOCK_SET_PASSCODE call this time - mirrors the existing "no configured credential"
+    // passcode-path test above, but for the endRequestId branch: isApprovedForSelf denying it must
+    // still reject, independent of whether a permanent passcode exists at all.
+    const sessionId = await createAndStartHardSession();
+    vi.spyOn(sessionEndRequestApi, "isApprovedForSelf").mockResolvedValue(false);
+
+    const result = (await handleMessage({
+      type: "SESSION_END",
+      payload: { sessionId, endRequestId: "end-req-1" },
+    })) as { ok: boolean };
+
+    expect(result.ok).toBe(false);
+  });
+
+  it("never calls isApprovedForSelf when endRequestId is absent - the existing passcode path is untouched", async () => {
+    await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
+    const sessionId = await createAndStartHardSession();
+    const isApprovedSpy = vi.spyOn(sessionEndRequestApi, "isApprovedForSelf");
+    // This file's top-level beforeEach does not call vi.restoreAllMocks() between tests (unlike
+    // messageRouterTempPasscode.test.ts's own beforeEach) - vi.spyOn on an already-spied export
+    // returns the SAME spy object across tests in this file, so its call history from the earlier
+    // tests in this describe block (which deliberately DO call isApprovedForSelf) persists unless
+    // cleared here. mockClear() resets call history without touching whatever default
+    // implementation a previous test may have left configured - not that it matters below, since
+    // this test's own action must produce zero further calls regardless of what it resolves to.
+    isApprovedSpy.mockClear();
+
+    await handleMessage({ type: "SESSION_END", payload: { sessionId, passcode: "1234" } });
+
+    expect(isApprovedSpy).not.toHaveBeenCalled();
+  });
+
+  it("propagates a thrown isApprovedForSelf error as ok:false (outer handleMessage try/catch) rather than falling through to abandon the session", async () => {
+    const sessionId = await createAndStartHardSession();
+    vi.spyOn(sessionEndRequestApi, "isApprovedForSelf").mockRejectedValue(
+      new Error("Not signed in.")
+    );
+
+    const result = (await handleMessage({
+      type: "SESSION_END",
+      payload: { sessionId, endRequestId: "end-req-1" },
+    })) as { ok: boolean; error?: string };
+
+    expect(result).toEqual({ ok: false, error: "Not signed in." });
+
+    const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+      session: { state: string } | null;
+    };
+    expect(active.session?.state).toBe("FOCUSING");
   });
 });
 

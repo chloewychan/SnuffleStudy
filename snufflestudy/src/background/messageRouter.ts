@@ -24,6 +24,7 @@ import * as friendGroupApi from "../infrastructure/backend/friendGroupApi";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
+import * as sessionEndRequestApi from "../infrastructure/backend/sessionEndRequestApi";
 import * as digestApi from "../infrastructure/backend/digestApi";
 import * as friendshipSettingsApi from "../infrastructure/backend/friendshipSettingsApi";
 import * as tempPasscodeApi from "../infrastructure/backend/tempPasscodeApi";
@@ -185,19 +186,40 @@ async function routeMessage(
       // there's nothing to verify against, so ending proceeds freely rather than
       // bricking the session until the timer naturally expires.
       if (session.restrictionMode === "hard") {
-        const credential = await settingsRepo.getHardBlockCredential();
-        if (credential) {
-          const passcode = message.payload.passcode;
-          if (!passcode) {
-            return { ok: false, error: "Passcode required to end a hard-restricted session." };
-          }
-          const result = await verifyPasscode(credential, passcode, now);
-          await settingsRepo.saveHardBlockCredential(result.credential);
-          if (!result.success) {
+        // v3.3 Task 12: an approved temporary pass is an alternative to the permanent passcode,
+        // never a replacement for it - checked first (and separately) so the passcode branch
+        // below stays completely unchanged when endRequestId is absent. isApprovedForSelf does
+        // its own fresh server-side read and explicitly checks requester_user_id against the
+        // caller's own verified identity, not just row visibility - see that function's own
+        // comment for exactly why that matters (RLS alone would let the resolving friend read
+        // this row too, via resolved_by = auth.uid(), which is not the same thing as it being
+        // THEIR pass to use).
+        const endRequestId = message.payload.endRequestId;
+        if (endRequestId) {
+          const approved = await sessionEndRequestApi.isApprovedForSelf(endRequestId, session.id);
+          if (!approved) {
             return {
               ok: false,
-              error: "Incorrect passcode, or temporarily locked after repeated attempts.",
+              error: "That temporary pass isn't valid for this session, or hasn't been approved yet.",
             };
+          }
+          // Falls through to the existing abandonSession logic below, skipping the passcode
+          // check entirely.
+        } else {
+          const credential = await settingsRepo.getHardBlockCredential();
+          if (credential) {
+            const passcode = message.payload.passcode;
+            if (!passcode) {
+              return { ok: false, error: "Passcode required to end a hard-restricted session." };
+            }
+            const result = await verifyPasscode(credential, passcode, now);
+            await settingsRepo.saveHardBlockCredential(result.credential);
+            if (!result.success) {
+              return {
+                ok: false,
+                error: "Incorrect passcode, or temporarily locked after repeated attempts.",
+              };
+            }
           }
         }
       }
@@ -577,6 +599,36 @@ async function routeMessage(
       // a transient failure - see unlockRequestApi.ts - so UnlockRequestPanel.tsx always gets an
       // ok:true response, even with nothing to show.
       const requests = await unlockRequestApi.fetchRelevantUnlockRequests(
+        message.payload.sinceTimestamp
+      );
+      return { ok: true, requests };
+    }
+
+    case "SESSION_END_REQUEST_CREATE": {
+      // createRequest throws (not signed in, insert error) rather than returning ok:false - the
+      // outer handleMessage try/catch (top of this file) turns that into { ok: false, error },
+      // same convention as UNLOCK_REQUEST_CREATE above.
+      const request = await sessionEndRequestApi.createRequest(message.payload.sessionId);
+      return { ok: true, request };
+    }
+
+    case "SESSION_END_REQUEST_RESOLVE": {
+      // resolveRequest throws on a denied/failed resolve (including the "first responder wins"
+      // race - see sessionEndRequestApi.ts's own comment) - same outer-catch convention as above.
+      // Unlike UNLOCK_REQUEST_RESOLVE's approved case, there is no local side effect to apply
+      // here at all (not even on the requester's own device) - per the Global Constraints note
+      // (a background poll never auto-applies a disruptive action), approval alone never ends
+      // the session; the requester must click "End session now" themselves, which sends a
+      // separate SESSION_END with this request's id.
+      await sessionEndRequestApi.resolveRequest(message.payload.requestId, message.payload.decision);
+      return { ok: true };
+    }
+
+    case "SESSION_END_REQUESTS_FETCH": {
+      // fetchRelevantSessionEndRequests already degrades to [] (never throws) when signed out or
+      // on a transient failure - see sessionEndRequestApi.ts - so SessionEndRequestPanel.tsx/
+      // EndSessionControl.tsx always get an ok:true response, even with nothing to show.
+      const requests = await sessionEndRequestApi.fetchRelevantSessionEndRequests(
         message.payload.sinceTimestamp
       );
       return { ok: true, requests };

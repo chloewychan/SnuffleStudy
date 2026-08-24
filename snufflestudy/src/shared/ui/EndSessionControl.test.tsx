@@ -4,6 +4,8 @@ import { EndSessionControl } from "./EndSessionControl";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 import * as machine from "../../domain/session/sessionMachine";
 import type { CreateSessionInput } from "../../domain/session/sessionTypes";
+import type { ExtensionMessage } from "../../shared/messages";
+import type { SessionEndRequest } from "../../domain/accountability/sessionEndRequest";
 
 const softInput: CreateSessionInput = {
   goal: "Finish 20 chemistry problems",
@@ -127,5 +129,171 @@ describe("EndSessionControl", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Confirm end session" })).not.toBeDisabled()
     );
+  });
+});
+
+// v3.3 Task 12: the temporary-pass path, alongside (never instead of) the permanent-passcode
+// form above - the tests above already cover that the passcode form itself is unaffected by any
+// of this. Mirrors TempPasscodePanel.test.tsx's/LockedPage.test.tsx's routeSendMessage-by-type
+// helper convention, since this component now sends several distinct message types.
+type Handler = (msg: ExtensionMessage) => unknown;
+
+function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
+  return (msg: ExtensionMessage) => {
+    const handler = overrides[msg.type];
+    return Promise.resolve(handler ? handler(msg) : { ok: true });
+  };
+}
+
+function sampleEndRequest(overrides: Partial<SessionEndRequest> = {}): SessionEndRequest {
+  return {
+    id: "end-req-1",
+    sessionId: "session_1",
+    requesterUserId: "user-a",
+    status: "pending",
+    requestedAt: Date.now(),
+    resolvedAt: null,
+    resolvedBy: null,
+    ...overrides,
+  };
+}
+
+describe("EndSessionControl — temporary pass to end a hard-restricted session early (v3.3 Task 12)", () => {
+  it("shows a 'Request a temporary pass from a friend' button alongside the unchanged passcode form", () => {
+    const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
+    vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}) as never);
+
+    render(<EndSessionControl session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+
+    expect(screen.getByPlaceholderText("Passcode")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Request a temporary pass from a friend" })
+    ).toBeInTheDocument();
+  });
+
+  it("requests a temporary pass, shows Pending status, then Check status refreshes it", async () => {
+    const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
+    const pending = sampleEndRequest({ status: "pending" });
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        SESSION_END_REQUEST_CREATE: (msg) => {
+          expect((msg as { payload: { sessionId: string } }).payload).toEqual({
+            sessionId: "session_1",
+          });
+          return { ok: true, request: pending };
+        },
+        SESSION_END_REQUESTS_FETCH: () => ({ ok: true, requests: [{ ...pending, status: "approved" }] }),
+      }) as never
+    );
+
+    render(<EndSessionControl session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Request a temporary pass from a friend" }));
+
+    await waitFor(() => expect(screen.getByText("Pending")).toBeInTheDocument());
+    expect(sendMessageSpy).toHaveBeenCalledWith({
+      type: "SESSION_END_REQUEST_CREATE",
+      payload: { sessionId: "session_1" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Check status" }));
+
+    await waitFor(() => expect(screen.getByText("Approved")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "End session now" })).toBeInTheDocument();
+  });
+
+  it("ends the session via the approved pass, without ever entering a passcode", async () => {
+    const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
+    const approved = sampleEndRequest({ status: "approved" });
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        SESSION_END_REQUEST_CREATE: () => ({ ok: true, request: approved }),
+        SESSION_END: (msg) => {
+          expect((msg as { payload: { endRequestId?: string; passcode?: string } }).payload).toEqual({
+            sessionId: "session_1",
+            endRequestId: "end-req-1",
+          });
+          return { ok: true, session: null };
+        },
+      }) as never
+    );
+
+    render(<EndSessionControl session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Request a temporary pass from a friend" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "End session now" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "End session now" }));
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "SESSION_END",
+        payload: { sessionId: "session_1", endRequestId: "end-req-1" },
+      })
+    );
+  });
+
+  it("shows Denied and an Ask again button when the request is denied, leaving the passcode path as the only way through", async () => {
+    const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
+    const denied = sampleEndRequest({ status: "denied" });
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        SESSION_END_REQUEST_CREATE: () => ({ ok: true, request: denied }),
+      }) as never
+    );
+
+    render(<EndSessionControl session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Request a temporary pass from a friend" }));
+
+    await waitFor(() => expect(screen.getByText("Denied")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Ask again" })).toBeInTheDocument();
+    // The permanent-passcode form is still right there, untouched.
+    expect(screen.getByPlaceholderText("Passcode")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask again" }));
+    expect(
+      screen.getByRole("button", { name: "Request a temporary pass from a friend" })
+    ).toBeInTheDocument();
+  });
+
+  it("surfaces an inline error, not an unhandled rejection, when creating the request fails", async () => {
+    const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        SESSION_END_REQUEST_CREATE: () => ({ ok: false, error: "No friends available to ask." }),
+      }) as never
+    );
+
+    render(<EndSessionControl session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Request a temporary pass from a friend" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("No friends available to ask.");
+  });
+
+  it("does NOT end the session, and shows the server's error, when SESSION_END rejects an endRequestId (e.g. the negative case - the resolving friend's own id was not the requester)", async () => {
+    const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
+    const approved = sampleEndRequest({ status: "approved" });
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        SESSION_END_REQUEST_CREATE: () => ({ ok: true, request: approved }),
+        SESSION_END: () => ({
+          ok: false,
+          error: "That temporary pass isn't valid for this session, or hasn't been approved yet.",
+        }),
+      }) as never
+    );
+
+    render(<EndSessionControl session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Request a temporary pass from a friend" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "End session now" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "End session now" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/isn't valid for this session/);
+    // Still on the prompt view - the session was NOT ended.
+    expect(screen.getByRole("button", { name: "End session now" })).toBeInTheDocument();
   });
 });

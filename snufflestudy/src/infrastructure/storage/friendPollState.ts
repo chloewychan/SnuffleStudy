@@ -126,3 +126,23 @@ export async function getLastProducerTagPollAt(): Promise<number | null> {
 export async function setLastProducerTagPollAt(timestamp: number): Promise<void> {
   await chrome.storage.local.set({ [LAST_PRODUCER_TAG_POLL_KEY]: timestamp });
 }
+
+// v3.3 Task 12: a seventh, independent cursor for the session-end-request stream polled by the
+// same alarm tick (handleFriendPollAlarm in alarmHandlers.ts) - reuses Task 6's alarm, not a new
+// one, same as every other stream on this file. Same get/set shape and the same "only advance on
+// confirmed success" discipline as the six cursors above, for the identical reason: this is a
+// seventh logically separate stream delivered by the same chrome.alarms entry, so it needs its own
+// "last checked" bookmark that advances independently of the other six's success/failure on any
+// given tick.
+const LAST_SESSION_END_POLL_KEY = "snufflestudy.friendPollLastSessionEndCheckedAt";
+
+export async function getLastSessionEndPollAt(): Promise<number | null> {
+  const result = await chrome.storage.local.get<Record<typeof LAST_SESSION_END_POLL_KEY, number>>(
+    LAST_SESSION_END_POLL_KEY
+  );
+  return result[LAST_SESSION_END_POLL_KEY] ?? null;
+}
+
+export async function setLastSessionEndPollAt(timestamp: number): Promise<void> {
+  await chrome.storage.local.set({ [LAST_SESSION_END_POLL_KEY]: timestamp });
+}

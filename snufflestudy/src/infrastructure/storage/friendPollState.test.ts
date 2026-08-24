@@ -13,6 +13,8 @@ import {
   setLastTempPasscodePollAt,
   getLastProducerTagPollAt,
   setLastProducerTagPollAt,
+  getLastSessionEndPollAt,
+  setLastSessionEndPollAt,
 } from "./friendPollState";
 
 beforeEach(() => {
@@ -165,5 +167,37 @@ describe("friendPollState — producer-tag cursor", () => {
     expect(await getLastDigestPollAt()).toBe(2_000_000_000_000);
     expect(await getLastTempPasscodePollAt()).toBe(2_100_000_000_000);
     expect(await getLastProducerTagPollAt()).toBe(2_200_000_000_000);
+  });
+});
+
+// v3.3 Task 12: a seventh, independent cursor for the session-end-request stream polled by the
+// same alarm tick - see this file's own comment on getLastSessionEndPollAt/setLastSessionEndPollAt
+// for why it's separate from all six cursors above.
+describe("friendPollState — session-end request cursor", () => {
+  it("returns null when no last-checked-for-session-end-requests timestamp has ever been persisted", async () => {
+    expect(await getLastSessionEndPollAt()).toBeNull();
+  });
+
+  it("round-trips a timestamp through chrome.storage.local", async () => {
+    await setLastSessionEndPollAt(1_700_000_000_000);
+    expect(await getLastSessionEndPollAt()).toBe(1_700_000_000_000);
+  });
+
+  it("is independent of the other six cursors - setting one never affects the others", async () => {
+    await setLastFriendPollAt(1_700_000_000_000);
+    await setLastNudgePollAt(1_800_000_000_000);
+    await setLastUnlockPollAt(1_900_000_000_000);
+    await setLastDigestPollAt(2_000_000_000_000);
+    await setLastTempPasscodePollAt(2_100_000_000_000);
+    await setLastProducerTagPollAt(2_200_000_000_000);
+    await setLastSessionEndPollAt(2_300_000_000_000);
+
+    expect(await getLastFriendPollAt()).toBe(1_700_000_000_000);
+    expect(await getLastNudgePollAt()).toBe(1_800_000_000_000);
+    expect(await getLastUnlockPollAt()).toBe(1_900_000_000_000);
+    expect(await getLastDigestPollAt()).toBe(2_000_000_000_000);
+    expect(await getLastTempPasscodePollAt()).toBe(2_100_000_000_000);
+    expect(await getLastProducerTagPollAt()).toBe(2_200_000_000_000);
+    expect(await getLastSessionEndPollAt()).toBe(2_300_000_000_000);
   });
 });

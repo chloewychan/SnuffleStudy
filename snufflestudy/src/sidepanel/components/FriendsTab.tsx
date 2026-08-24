@@ -2,6 +2,7 @@ import { FriendGroupPanel } from "./FriendGroupPanel";
 import { StudyRoomPanel } from "./StudyRoomPanel";
 import { TempPasscodePanel } from "./TempPasscodePanel";
 import { UnlockRequestPanel } from "./UnlockRequestPanel";
+import { SessionEndRequestPanel } from "./SessionEndRequestPanel";
 
 // Task 7: composes two already-tested, previously-routed panels side by side, following the same
 // "always both visible, no navigation" pattern StudyTab.tsx (Task 6) established for
@@ -29,6 +30,9 @@ import { UnlockRequestPanel } from "./UnlockRequestPanel";
 // SettingsTab.tsx passed it: this tab has no notion of an "active session" to request an unlock
 // for, so only its "Requests from friends" approver section renders. Both onClose props are
 // no-ops for the same reason as the two panels above - no "close" destination once embedded.
+//
+// v3.3 Task 12: SessionEndRequestPanel composed in below the panels Task 1 moved here, per this
+// task's Deliverables. Same no-op onClose treatment as every other panel in this tab.
 export function FriendsTab() {
   return (
     <div className="sp-tab-content sp-friends-tab">
@@ -43,6 +47,9 @@ export function FriendsTab() {
       </section>
       <section className="sp-card">
         <UnlockRequestPanel session={null} onClose={() => {}} />
+      </section>
+      <section className="sp-card">
+        <SessionEndRequestPanel onClose={() => {}} />
       </section>
     </div>
   );

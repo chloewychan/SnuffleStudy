@@ -14,7 +14,17 @@ export type ExtensionMessage =
   | { type: "SESSION_RESUME"; payload: { sessionId: string } }
   | { type: "SESSION_START_BREAK"; payload: { sessionId: string } }
   | { type: "SESSION_END_BREAK"; payload: { sessionId: string } }
-  | { type: "SESSION_END"; payload: { sessionId: string; reason?: string; passcode?: string } }
+  // v3.3 Task 12: `endRequestId` is an alternative to `passcode` on a hard-restricted session -
+  // when present, messageRouter.ts's SESSION_END handler calls
+  // sessionEndRequestApi.isApprovedForSelf(endRequestId, sessionId) instead of checking a
+  // passcode; when absent, today's passcode check runs completely unchanged. The two are mutually
+  // exclusive in practice (EndSessionControl.tsx's passcode `<form>` never sets endRequestId, and
+  // its "End session now" button never sets passcode), but nothing here enforces that at the type
+  // level - the handler's own branch order (endRequestId checked first) is what decides.
+  | {
+      type: "SESSION_END";
+      payload: { sessionId: string; reason?: string; passcode?: string; endRequestId?: string };
+    }
   | { type: "SESSION_DISMISS_COMPLETED"; payload: { sessionId: string } }
   | { type: "SESSION_DISMISS_ABANDONED"; payload: { sessionId: string } }
   | { type: "SESSION_GET_ACTIVE" }
@@ -239,6 +249,25 @@ export type ExtensionMessage =
   // id with no matching profile (or no human_name set) is simply omitted from the result, which
   // useDisplayNames.ts's resolver falls back to rendering as the raw id for.
   | { type: "PROFILES_FETCH_BY_IDS"; payload: { userIds: string[] } }
+  // v3.3 Task 12: routes to sessionEndRequestApi.createRequest - EndSessionControl.tsx's
+  // requester-side "Request a temporary pass from a friend" action, on the hard-restricted
+  // end-session prompt. Mirrors UNLOCK_REQUEST_CREATE's shape/outer-catch convention exactly,
+  // minus a hostname field - a session-end request isn't about any particular site.
+  | { type: "SESSION_END_REQUEST_CREATE"; payload: { sessionId: string } }
+  // v3.3 Task 12: routes to sessionEndRequestApi.resolveRequest - SessionEndRequestPanel.tsx's
+  // friend (approve/deny) side. "First responder wins" is enforced server-side (RLS - see
+  // supabase/migrations/20260815000038_v3.3_session_end_requests.sql), not by this message or
+  // sessionEndRequestApi.ts pre-checking anything client-side - same convention as
+  // UNLOCK_REQUEST_RESOLVE.
+  | { type: "SESSION_END_REQUEST_RESOLVE"; payload: { requestId: string; decision: "approved" | "denied" } }
+  // v3.3 Task 12: routes to sessionEndRequestApi.fetchRelevantSessionEndRequests - the on-demand
+  // counterpart to the background's alarm-driven poll (alarmHandlers.ts calls
+  // sessionEndRequestApi.pollRelevantSessionEndRequests directly, mirroring
+  // UNLOCK_REQUESTS_FETCH/pollRelevantUnlockRequests's identical split). Used by both
+  // SessionEndRequestPanel.tsx (listing pending requests to review) and EndSessionControl.tsx
+  // (checking its own request's status, mirroring LockedPage.tsx's temp-request "Check status"
+  // pattern).
+  | { type: "SESSION_END_REQUESTS_FETCH"; payload: { sinceTimestamp: number } }
   // v3.2 Task 8: routes to accountApi.deleteAccount() - AccountPage.tsx's "Delete account"
   // action, gated behind its own confirm() prompt (same irreversible-action convention as
   // GROUP_LEAVE's confirm in AccountPage.tsx) before this message is ever sent. No payload - the

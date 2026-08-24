@@ -22,6 +22,7 @@ import {
   pollRelevantUnlockRequests,
   type UnlockRequest,
 } from "../infrastructure/backend/unlockRequestApi";
+import { pollRelevantSessionEndRequests } from "../infrastructure/backend/sessionEndRequestApi";
 import { pollNewDigests } from "../infrastructure/backend/digestApi";
 import { pollRelevantTempPasscodeRequests } from "../infrastructure/backend/tempPasscodeApi";
 import type { TempPasscodeRequest } from "../domain/accountability/tempPasscodeRequest";
@@ -41,6 +42,8 @@ import {
   setLastTempPasscodePollAt,
   getLastProducerTagPollAt,
   setLastProducerTagPollAt,
+  getLastSessionEndPollAt,
+  setLastSessionEndPollAt,
 } from "../infrastructure/storage/friendPollState";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
@@ -407,12 +410,71 @@ async function pollProducerTagUpdates(): Promise<void> {
   }
 }
 
-// Runs all six poll streams (session-status events, nudges, unlock requests, daily digests, temp
-// passcode requests, producer tags) on every friend-poll alarm tick. Best-effort throughout: none
-// of pollSessionEventUpdates/pollNudgeUpdates/pollUnlockRequestUpdates/pollDigestUpdates/
-// pollTempPasscodeUpdates/pollProducerTagUpdates ever throws (each wraps its own body), but this
-// outer try/catch stays as a last-resort safety net so nothing here can take down the alarm
-// listener.
+// v3.3 Task 12: seventh stream on this same alarm - session-end requests. Reuses Task 6's
+// alarm/notification path, not a new one, same as every other stream above. Same "only advance the
+// cursor on confirmed success" discipline as the six streams above, using its own independent
+// cursor (getLastSessionEndPollAt/setLastSessionEndPollAt) so a failure here never affects, and is
+// never affected by, the other six cursors.
+//
+// Deliberately NOT mirroring pollUnlockRequestUpdates's/pollTempPasscodeUpdates's "approved" case
+// in full - there is no applyApproved*-style call here at all, on purpose. Per the Global
+// Constraints note (docs/implementation_plans/V3.3_Implementation_Plan.md): unlocking a hostname
+// (unlock requests) or a site (temp passcodes) is "silently extend what the user is already
+// allowed to do" - safe to run unattended. Ending a session is disruptive - it stops what the user
+// is doing - so an approved session-end request is NEVER auto-applied from this background poll.
+// This function only ever produces a notification; the actual SESSION_END call still requires the
+// user to return to EndSessionControl.tsx and click "End session now" themselves. This is a
+// deliberate asymmetry from the other two poll streams, not an oversight - do not "fix" this into
+// auto-ending a session without re-deciding that on purpose, in writing, the way this task's plan
+// already did once.
+async function pollSessionEndRequestUpdates(userId: string): Promise<void> {
+  try {
+    const now = Date.now();
+    const since = (await getLastSessionEndPollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
+    const result = await pollRelevantSessionEndRequests(since);
+    if (!result.ok) {
+      // Same rationale as the other six poll functions' identical branch: leave the persisted
+      // cursor untouched on a failed fetch so the next tick retries this exact window instead of
+      // silently losing whatever pending requests/resolutions arrived during the outage.
+      return;
+    }
+    for (const req of result.requests) {
+      if (req.requesterUserId === userId) {
+        if (req.status === "approved") {
+          showNotification(
+            `session-end-request-${req.id}`,
+            "Temporary pass approved",
+            "A friend approved your request to end this session early — return to the app to end it."
+          );
+        } else if (req.status === "denied") {
+          showNotification(
+            `session-end-request-${req.id}`,
+            "Temporary pass denied",
+            "Your request to end this session early was denied."
+          );
+        }
+        // status === "pending" here means it's the requester's own still-unanswered request -
+        // nothing to do, they already know they just created it.
+      } else if (req.status === "pending") {
+        showNotification(
+          `session-end-request-pending-${req.id}`,
+          "Session-end request",
+          "A friend wants to end their session early — open the panel to review."
+        );
+      }
+    }
+    await setLastSessionEndPollAt(now);
+  } catch (err) {
+    console.error("Failed to poll session-end requests", err);
+  }
+}
+
+// Runs all seven poll streams (session-status events, nudges, unlock requests, daily digests,
+// temp passcode requests, producer tags, session-end requests) on every friend-poll alarm tick.
+// Best-effort throughout: none of pollSessionEventUpdates/pollNudgeUpdates/
+// pollUnlockRequestUpdates/pollDigestUpdates/pollTempPasscodeUpdates/pollProducerTagUpdates/
+// pollSessionEndRequestUpdates ever throws (each wraps its own body), but this outer try/catch
+// stays as a last-resort safety net so nothing here can take down the alarm listener.
 async function handleFriendPollAlarm(): Promise<void> {
   try {
     // Re-check eligibility on every tick (fix round 1), not just once at alarm-start time
@@ -435,6 +497,7 @@ async function handleFriendPollAlarm(): Promise<void> {
     await pollDigestUpdates(userId);
     await pollTempPasscodeUpdates(userId);
     await pollProducerTagUpdates();
+    await pollSessionEndRequestUpdates(userId);
   } catch (err) {
     console.error("Failed to poll friend events", err);
   }

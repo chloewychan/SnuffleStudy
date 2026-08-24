@@ -1,10 +1,18 @@
 import { useState, type FormEvent } from "react";
 import type { StudySession } from "../../domain/session/sessionTypes";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
+import type { SessionEndRequest } from "../../domain/accountability/sessionEndRequest";
 
 interface EndSessionControlProps {
   session: StudySession;
 }
+
+// v3.3 Task 12: mirrors LockedPage.tsx's STATUS_LABEL const for its temp-passcode status block.
+const END_REQUEST_STATUS_LABEL: Record<SessionEndRequest["status"], string> = {
+  pending: "Pending",
+  approved: "Approved",
+  denied: "Denied",
+};
 
 // Shared by PopupApp and SidePanelApp (mirrors the existing TimerRing/SessionStatusCard
 // extraction precedent). For non-hard sessions, "End session" fires SESSION_END
@@ -13,11 +21,24 @@ interface EndSessionControlProps {
 // error on failure" shape (password input + submit, role="alert" error, disabled/loading
 // state while in flight) — since the backend now rejects SESSION_END on a hard session
 // with a configured HardBlockCredential unless a correct passcode is supplied.
+//
+// v3.3 Task 12: alongside that unchanged passcode form, `promptOpen` now also offers "Request a
+// temporary pass from a friend" — mirrors LockedPage.tsx's temp-passcode request/status pattern
+// (SESSION_END_REQUEST_CREATE, then poll via SESSION_END_REQUESTS_FETCH for "Check status", then
+// once approved, an "End session now" button). Deliberately does NOT auto-claim the way
+// LockedPage.tsx's temp-passcode flow does (per the Global Constraints note: ending a session is
+// disruptive, so an approved session-end request is never auto-applied - not even by this
+// component reacting to its own poll result on its own; a human still has to click "End session
+// now").
 export function EndSessionControl({ session }: EndSessionControlProps) {
   const [promptOpen, setPromptOpen] = useState(false);
   const [passcode, setPasscode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const [endRequest, setEndRequest] = useState<SessionEndRequest | null>(null);
+  const [endRequestBusy, setEndRequestBusy] = useState(false);
+  const [endRequestError, setEndRequestError] = useState<string | null>(null);
 
   function endImmediately() {
     sendMessage({ type: "SESSION_END", payload: { sessionId: session.id } }).catch((err) =>
@@ -72,25 +93,159 @@ export function EndSessionControl({ session }: EndSessionControlProps) {
     }
   }
 
+  // v3.3 Task 12: requester side - "Request a temporary pass from a friend". Mirrors
+  // LockedPage.tsx's handleRequestTempPasscode shape (sendMessage, store the created request in
+  // state on success, surface an inline error otherwise).
+  function handleRequestPass() {
+    setEndRequestBusy(true);
+    setEndRequestError(null);
+    sendMessage<{ ok: boolean; request?: SessionEndRequest; error?: string }>({
+      type: "SESSION_END_REQUEST_CREATE",
+      payload: { sessionId: session.id },
+    })
+      .then((res) => {
+        if (!res.ok || !res.request) {
+          setEndRequestError(res.error ?? "Could not send that request.");
+          return;
+        }
+        setEndRequest(res.request);
+      })
+      .catch((err) => {
+        console.error("Failed to create session-end request", err);
+        setEndRequestError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => setEndRequestBusy(false));
+  }
+
+  // v3.3 Task 12: mirrors LockedPage.tsx's handleRefreshTempRequestStatus shape - a fresh
+  // SESSION_END_REQUESTS_FETCH, then find this request by id and replace local state with its
+  // current (possibly still-pending) status. sinceTimestamp: 0 mirrors LockedPage.tsx's own
+  // "check on one specific request by id" usage of this fetch, not a real lookback window.
+  function handleCheckStatus() {
+    if (!endRequest) return;
+    setEndRequestBusy(true);
+    setEndRequestError(null);
+    sendMessage<{ ok: boolean; requests?: SessionEndRequest[]; error?: string }>({
+      type: "SESSION_END_REQUESTS_FETCH",
+      payload: { sinceTimestamp: 0 },
+    })
+      .then((res) => {
+        if (!res.ok || !res.requests) {
+          setEndRequestError(res.error ?? "Could not refresh the request status.");
+          return;
+        }
+        const updated = res.requests.find((r) => r.id === endRequest.id);
+        if (updated) setEndRequest(updated);
+      })
+      .catch((err) => {
+        console.error("Failed to refresh session-end request status", err);
+        setEndRequestError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => setEndRequestBusy(false));
+  }
+
+  // v3.3 Task 12: once endRequest.status === "approved", ends the session using the approved
+  // pass instead of the permanent passcode - same success/failure handling handleSubmit above
+  // already has for the passcode path (the active-session subscription swaps this view out on
+  // success; a failure is surfaced inline rather than left as an unhandled rejection).
+  // Deliberately a button click, not an effect that fires automatically the moment endRequest
+  // becomes approved (unlike LockedPage.tsx's temp-passcode auto-claim) - per the Global
+  // Constraints note, ending a session is disruptive, so it always waits for the user to click
+  // this themselves.
+  async function handleEndWithPass() {
+    if (!endRequest) return;
+    setEndRequestError(null);
+    setEndRequestBusy(true);
+
+    try {
+      const response = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "SESSION_END",
+        payload: { sessionId: session.id, endRequestId: endRequest.id },
+      });
+
+      if (!response.ok) {
+        setEndRequestError(
+          response.error ?? "That temporary pass isn't valid for this session, or hasn't been approved yet."
+        );
+        return;
+      }
+      // Success: same active-session-subscription swap-out as handleSubmit's success path above.
+    } catch (err) {
+      console.error("Failed to end session with an approved temporary pass", err);
+      setEndRequestError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEndRequestBusy(false);
+    }
+  }
+
   if (promptOpen) {
     return (
-      <form onSubmit={handleSubmit} className="end-session-control__prompt">
-        <label htmlFor="end-session-passcode">Enter the passcode to end this hard-restricted session</label>
-        <input
-          id="end-session-passcode"
-          type="password"
-          value={passcode}
-          onChange={(e) => setPasscode(e.target.value)}
-          placeholder="Passcode"
-        />
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Checking…" : "Confirm end session"}
-        </button>
-        <button type="button" onClick={handleCancel} disabled={submitting}>
-          Cancel
-        </button>
-        {error && <p role="alert">{error}</p>}
-      </form>
+      <div className="end-session-control__prompt-wrapper">
+        <form onSubmit={handleSubmit} className="end-session-control__prompt">
+          <label htmlFor="end-session-passcode">Enter the passcode to end this hard-restricted session</label>
+          <input
+            id="end-session-passcode"
+            type="password"
+            value={passcode}
+            onChange={(e) => setPasscode(e.target.value)}
+            placeholder="Passcode"
+          />
+          <button type="submit" disabled={submitting}>
+            {submitting ? "Checking…" : "Confirm end session"}
+          </button>
+          <button type="button" onClick={handleCancel} disabled={submitting}>
+            Cancel
+          </button>
+          {error && <p role="alert">{error}</p>}
+        </form>
+
+        {/* v3.3 Task 12: alongside (never instead of) the passcode form above - a friend-approved
+            temporary pass to end this session early. */}
+        <div className="end-session-control__temp-pass">
+          <h3>Or request a temporary pass</h3>
+
+          {!endRequest && (
+            <>
+              <button type="button" onClick={handleRequestPass} disabled={endRequestBusy}>
+                {endRequestBusy ? "Requesting…" : "Request a temporary pass from a friend"}
+              </button>
+              {endRequestError && <p role="alert">{endRequestError}</p>}
+            </>
+          )}
+
+          {endRequest && (
+            <div className="end-session-control__temp-pass-status">
+              <p>{END_REQUEST_STATUS_LABEL[endRequest.status]}</p>
+
+              {endRequest.status === "pending" && (
+                <button type="button" onClick={handleCheckStatus} disabled={endRequestBusy}>
+                  {endRequestBusy ? "Checking…" : "Check status"}
+                </button>
+              )}
+
+              {endRequest.status === "approved" && (
+                <button type="button" onClick={handleEndWithPass} disabled={endRequestBusy}>
+                  {endRequestBusy ? "Ending…" : "End session now"}
+                </button>
+              )}
+
+              {endRequest.status === "denied" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEndRequest(null);
+                    setEndRequestError(null);
+                  }}
+                >
+                  Ask again
+                </button>
+              )}
+
+              {endRequestError && <p role="alert">{endRequestError}</p>}
+            </div>
+          )}
+        </div>
+      </div>
     );
   }
 
