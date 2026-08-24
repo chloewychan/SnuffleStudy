@@ -33,6 +33,7 @@ describe("StudyTab", () => {
     // Realistic breakdown item, matching TaskVaultPage.tsx's actual Task/TaskBreakdownItem shape.
     const task: Task = {
       id: "task_1",
+      userId: null,
       title: "STAT231",
       createdAt: 1,
       breakdown: [{ id: "item_1", description: "Chapter 6 of STAT231" }],

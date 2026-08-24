@@ -268,7 +268,7 @@ describe("SessionSetupForm", () => {
     render(
       <SessionSetupForm
         settings={DEFAULT_USER_SETTINGS}
-        tasks={[{ id: "t1", title: "From parent", createdAt: 1, breakdown: [] }]}
+        tasks={[{ id: "t1", userId: null, title: "From parent", createdAt: 1, breakdown: [] }]}
       />
     );
 

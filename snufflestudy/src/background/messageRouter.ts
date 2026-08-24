@@ -36,6 +36,17 @@ const settingsRepo = new ChromeStorageRepository();
 const historyRepo = new IndexedDbSessionRepository();
 const taskRepo = new IndexedDbTaskRepository();
 
+// QA-discovered bug (v3.2): tasks used to have no account scoping at all - unlike
+// currentFriendSyncUserId() (friendSync.ts), this is NOT gated on any settings toggle, since
+// every signed-in user should have their own private task scope regardless of whether they've
+// opted into friend-sync. Mirrors AUTH_GET_SESSION's own supabase.auth.getSession() call exactly
+// - null means signed out, its own persistent task scope (see taskRepository.ts).
+async function currentUserId(): Promise<string | null> {
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data.session) return null;
+  return data.session.user.id;
+}
+
 // Starts the friend-poll alarm (v2 Task 6) when a session becomes active, but only if it's
 // actually worth running: signed in + friend-sync enabled (currentFriendSyncUserId) AND a
 // member of at least one group (isInAnyGroup) - being opted in with no group yet has nothing to
@@ -411,6 +422,7 @@ async function routeMessage(
     case "TASK_CREATE": {
       const task: Task = {
         id: newId(),
+        userId: await currentUserId(),
         title: message.payload.title,
         createdAt: now,
         breakdown: [],
@@ -430,7 +442,7 @@ async function routeMessage(
     }
 
     case "TASK_LIST": {
-      return { ok: true, tasks: await taskRepo.list() };
+      return { ok: true, tasks: await taskRepo.list(await currentUserId()) };
     }
 
     case "TASK_ADD_BREAKDOWN_ITEM": {
@@ -697,7 +709,24 @@ async function routeMessage(
     }
 
     case "AUTH_DELETE_ACCOUNT": {
+      // Captured BEFORE deleteAccount() clears the local session - taskRepo.deleteAllForUser
+      // needs the id of the account that's about to no longer exist. accountApi.deleteAccount()
+      // is unaffected by (and unaware of) this local read: it resolves the caller's identity
+      // itself, from the request's own bearer token.
+      const userId = await currentUserId();
       await accountApi.deleteAccount();
+      // QA-discovered bug (v3.2): tasks live in local IndexedDB, not Supabase - nothing
+      // server-side (the delete-account Edge Function/delete_account_data SQL function) can ever
+      // reach them, so this device-local cleanup has to happen here. Best-effort: the account is
+      // already deleted server-side by this point regardless of whether this succeeds, so a
+      // failure here is logged, not surfaced as if the whole deletion failed.
+      if (userId) {
+        try {
+          await taskRepo.deleteAllForUser(userId);
+        } catch (err) {
+          console.error("Failed to clear local tasks after account deletion", err);
+        }
+      }
       return { ok: true };
     }
 

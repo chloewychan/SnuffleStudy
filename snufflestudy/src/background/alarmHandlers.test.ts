@@ -198,7 +198,7 @@ describe("handleAlarm marks a linked task breakdown item's completedAt on natura
     // throw (rather than the "no owning task found" no-op) by making the underlying
     // repository call reject.
     const listSpy = vi
-      .spyOn(IndexedDbTaskRepository.prototype, "list")
+      .spyOn(IndexedDbTaskRepository.prototype, "listAll")
       .mockRejectedValue(new Error("boom"));
     const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});

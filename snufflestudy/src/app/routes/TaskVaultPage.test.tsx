@@ -11,6 +11,7 @@ beforeEach(() => {
 function buildTask(overrides: Partial<Task> = {}): Task {
   return {
     id: "task_1",
+    userId: null,
     title: "STAT231",
     createdAt: 1000,
     breakdown: [],

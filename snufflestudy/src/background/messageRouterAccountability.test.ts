@@ -4,6 +4,7 @@
 // friendGroupApi.test.ts and OptionsApp.test.tsx's vi.spyOn(messenger, "sendMessage")) so these
 // cases are verified to route to the right underlying call with the right arguments, entirely
 // offline - no real network call is ever made.
+import "fake-indexeddb/auto";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import { handleMessage } from "./messageRouter";
@@ -16,11 +17,21 @@ import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
 import type { UnlockRequest } from "../infrastructure/backend/unlockRequestApi";
 import * as digestApi from "../infrastructure/backend/digestApi";
 import type { DigestSummary } from "../infrastructure/backend/digestApi";
+import * as accountApi from "../infrastructure/backend/accountApi";
+import { IndexedDbTaskRepository } from "../infrastructure/storage/taskRepository";
 
 beforeEach(() => {
   fakeBrowser.reset();
   vi.restoreAllMocks();
+  indexedDB.deleteDatabase("snufflestudy-tasks");
 });
+
+function stubSession(userId: string | null) {
+  vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
+    data: { session: userId ? ({ access_token: "tok", user: { id: userId } } as never) : null },
+    error: null,
+  } as never);
+}
 
 describe("messageRouter — AUTH_*", () => {
   it("AUTH_REQUEST_OTP calls signInWithOtp with the given email", async () => {
@@ -373,5 +384,86 @@ describe("messageRouter — DIGEST_FETCH (v2 Task 9)", () => {
     })) as { ok: boolean; digests: DigestSummary[] };
 
     expect(result).toEqual({ ok: true, digests: [] });
+  });
+});
+
+// QA-discovered bug (v3.2): tasks used to have no account scoping at all - every account (and
+// signed-out use) on a device shared the exact same task list, and account deletion could never
+// reach them (local IndexedDB, not Supabase - see taskRepository.ts's own header comment).
+describe("messageRouter — TASK_* is scoped to the signed-in account", () => {
+  it("TASK_LIST only returns the current account's own tasks, not another account's", async () => {
+    stubSession("user-a");
+    const createdA = (await handleMessage({
+      type: "TASK_CREATE",
+      payload: { title: "A's task" },
+    })) as { task: { userId: string | null } };
+    expect(createdA.task.userId).toBe("user-a");
+
+    stubSession("user-b");
+    await handleMessage({ type: "TASK_CREATE", payload: { title: "B's task" } });
+
+    const listedForB = (await handleMessage({ type: "TASK_LIST" })) as {
+      tasks: { title: string }[];
+    };
+    expect(listedForB.tasks.map((t) => t.title)).toEqual(["B's task"]);
+
+    stubSession("user-a");
+    const listedForA = (await handleMessage({ type: "TASK_LIST" })) as {
+      tasks: { title: string }[];
+    };
+    expect(listedForA.tasks.map((t) => t.title)).toEqual(["A's task"]);
+  });
+
+  it("signed-out tasks are their own scope, invisible to any signed-in account and vice versa", async () => {
+    stubSession(null);
+    await handleMessage({ type: "TASK_CREATE", payload: { title: "Signed-out task" } });
+
+    stubSession("user-a");
+    const listedForA = (await handleMessage({ type: "TASK_LIST" })) as { tasks: unknown[] };
+    expect(listedForA.tasks).toEqual([]);
+
+    stubSession(null);
+    const listedSignedOut = (await handleMessage({ type: "TASK_LIST" })) as {
+      tasks: { title: string }[];
+    };
+    expect(listedSignedOut.tasks.map((t) => t.title)).toEqual(["Signed-out task"]);
+  });
+});
+
+describe("messageRouter — AUTH_DELETE_ACCOUNT clears that account's local tasks", () => {
+  it("removes only the deleted account's own tasks - other accounts' and signed-out tasks survive", async () => {
+    stubSession("user-a");
+    await handleMessage({ type: "TASK_CREATE", payload: { title: "A's task" } });
+    stubSession("user-b");
+    await handleMessage({ type: "TASK_CREATE", payload: { title: "B's task" } });
+    stubSession(null);
+    await handleMessage({ type: "TASK_CREATE", payload: { title: "Signed-out task" } });
+
+    stubSession("user-a");
+    vi.spyOn(accountApi, "deleteAccount").mockResolvedValue(undefined);
+
+    const result = (await handleMessage({ type: "AUTH_DELETE_ACCOUNT" })) as { ok: boolean };
+    expect(result.ok).toBe(true);
+
+    // Verified directly at the storage layer, not just "TASK_LIST for user-a is now empty" -
+    // that alone wouldn't distinguish "actually deleted" from "current user just changed."
+    const repo = new IndexedDbTaskRepository();
+    expect(await repo.list("user-a")).toEqual([]);
+    expect((await repo.list("user-b")).map((t) => t.title)).toEqual(["B's task"]);
+    expect((await repo.list(null)).map((t) => t.title)).toEqual(["Signed-out task"]);
+  });
+
+  it("still reports ok:true even if the local task cleanup itself fails (the account is already gone server-side)", async () => {
+    stubSession("user-a");
+    await handleMessage({ type: "TASK_CREATE", payload: { title: "A's task" } });
+
+    vi.spyOn(accountApi, "deleteAccount").mockResolvedValue(undefined);
+    vi.spyOn(IndexedDbTaskRepository.prototype, "deleteAllForUser").mockRejectedValue(
+      new Error("IndexedDB unavailable")
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = (await handleMessage({ type: "AUTH_DELETE_ACCOUNT" })) as { ok: boolean };
+    expect(result.ok).toBe(true);
   });
 });
