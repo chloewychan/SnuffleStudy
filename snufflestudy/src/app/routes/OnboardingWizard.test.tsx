@@ -204,6 +204,95 @@ describe("OnboardingWizard", () => {
     consoleErrorSpy.mockRestore();
   });
 
+  // v3.2 Task 3: the account (sign-in) step was added in v3.1 without test coverage — these
+  // cases exercise it directly against the shared SignInForm (v3.2 Task 1), the same way the
+  // other steps below are already covered.
+  describe("account (sign-in) step", () => {
+    it("renders the exact framing copy", () => {
+      render(<OnboardingWizard onComplete={vi.fn()} />);
+      dismissWelcome();
+
+      expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Sign in to use friends, rooms, nudges, approvals, and synced accountability features."
+        )
+      ).toBeInTheDocument();
+    });
+
+    it('advances to "name" via "Skip for now" without calling any AUTH_* message', () => {
+      const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
+
+      render(<OnboardingWizard onComplete={vi.fn()} />);
+      dismissWelcome();
+
+      skipAccountStep();
+
+      expect(screen.getByText("Meet Snuffles")).toBeInTheDocument();
+      expect(
+        sendMessageSpy.mock.calls.some(
+          ([message]) => typeof message?.type === "string" && message.type.startsWith("AUTH_")
+        )
+      ).toBe(false);
+    });
+
+    it('advances to "name" after a successful AUTH_REQUEST_OTP -> AUTH_VERIFY_OTP round trip', async () => {
+      const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+        async (message: any) => {
+          if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
+          if (message.type === "AUTH_VERIFY_OTP") {
+            return { ok: true, session: { user: { id: "user-a", email: "a@example.com" } } };
+          }
+          return { ok: true };
+        }
+      );
+
+      render(<OnboardingWizard onComplete={vi.fn()} />);
+      dismissWelcome();
+
+      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
+      fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+
+      await screen.findByLabelText("Code");
+      fireEvent.change(screen.getByLabelText("Code"), { target: { value: "123456" } });
+      fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+
+      expect(await screen.findByText("Meet Snuffles")).toBeInTheDocument();
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "AUTH_REQUEST_OTP",
+        payload: { email: "a@example.com" },
+      });
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "AUTH_VERIFY_OTP",
+        payload: { email: "a@example.com", token: "123456" },
+      });
+    });
+
+    it("shows the error and stays on the account step when AUTH_VERIFY_OTP fails", async () => {
+      vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+        if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
+        if (message.type === "AUTH_VERIFY_OTP") {
+          return { ok: false, error: "Token has expired or is invalid" };
+        }
+        return { ok: true };
+      });
+
+      render(<OnboardingWizard onComplete={vi.fn()} />);
+      dismissWelcome();
+
+      fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
+      fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+
+      await screen.findByLabelText("Code");
+      fireEvent.change(screen.getByLabelText("Code"), { target: { value: "000000" } });
+      fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/token has expired or is invalid/i);
+      expect(screen.queryByText("Meet Snuffles")).not.toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    });
+  });
+
   describe("optional passcode step", () => {
     async function reachPasscodeStep() {
       render(<OnboardingWizard onComplete={vi.fn()} />);
