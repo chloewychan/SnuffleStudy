@@ -16,18 +16,30 @@
 //
 // Authorization model (per this task's brief - "confirm they're actually a legitimate participant
 // of that room ... don't trust the client's claim that they're allowed to join"): this function
-// does NOT trust a client-supplied "I'm allowed" flag. It independently re-queries
-// study_room_participants via the service-role client (which bypasses RLS, so this read is
-// authoritative, not itself subject to the same policies being tested) for a row matching
-// (room_id = roomId, user_id = callerId, left_at is null). That row can only exist because
-// studyRoomApi.ts's joinRoom() already inserted it as the caller's own authenticated session,
-// which is itself gated by study_room_participants' INSERT policy (supabase/migrations/
+// does NOT trust a client-supplied "I'm allowed" flag. It independently re-checks via
+// public.is_active_room_participant(room_id, user_id) (v3.2 Task 6, supabase/migrations/
+// 20260815000031_v3.2_active_room_participant.sql), called through the service-role adminClient
+// (which bypasses RLS, so this read is authoritative, not itself subject to the same policies
+// being tested) - the function is SECURITY DEFINER and answers the same question this file used
+// to ask inline: does a study_room_participants row exist matching (room_id = roomId,
+// user_id = callerId, left_at is null)? That row can only exist because studyRoomApi.ts's
+// joinRoom() already inserted it as the caller's own authenticated session, which is itself gated
+// by study_room_participants' INSERT policy (supabase/migrations/
 // 20260815000019_v2_study_rooms_group_visibility_and_join_gate.sql - requires the caller to be
 // the room's owner or share a group with the owner). So this check transitively re-derives group
 // membership through the same RLS-enforced row, rather than re-implementing the group-membership
 // query a second time here - if that row exists, the caller was already proven eligible at INSERT
-// time by a mechanism this function does not need to re-litigate. `left_at is null` additionally
-// guards against reusing a stale, already-left participation row to mint a fresh token later.
+// time by a mechanism this function does not need to re-litigate. `left_at is null` (enforced
+// inside the shared function now, not this file) additionally guards against reusing a stale,
+// already-left participation row to mint a fresh token later.
+//
+// Centralized (rather than left as this file's own inline query) so this Edge Function and
+// studyRoomApi.ts's own `.is("left_at", null)` presence/listing filters can't independently drift
+// out of agreement if either changes later - see V3.2_Implementation_Plan.md's Task 6/Decision 4.
+// studyRoomApi.ts itself is deliberately NOT changed to call this function via RPC in this same
+// task/plan (it runs as the authenticated role via RLS, not this service-role client, and a
+// client-side listing query being wrong only affects what a legitimate participant sees in their
+// own UI, not who can obtain a valid video token) - documented there as a follow-up, not a gap.
 //
 // LiveKit JS Server SDK usage confirmed against current docs (docs.livekit.io/home/server/
 // generating-tokens/, v2.17.0 - the current npm version at build time) rather than guessed from
@@ -113,20 +125,18 @@ Deno.serve(async (req: Request) => {
     }
     const roomId = body.roomId;
 
-    // Re-derived server-side, against the live table, via the service-role client - see header
-    // comment. Never trusts anything the client asserted about its own eligibility.
-    const { data: participantRows, error: participantError } = await adminClient
-      .from("study_room_participants")
-      .select("room_id")
-      .eq("room_id", roomId)
-      .eq("user_id", callerId)
-      .is("left_at", null)
-      .limit(1);
+    // Re-derived server-side, against the live table, via the shared is_active_room_participant
+    // function (v3.2 Task 6) called through the service-role client - see header comment. Never
+    // trusts anything the client asserted about its own eligibility.
+    const { data: isActiveParticipant, error: participantError } = await adminClient.rpc(
+      "is_active_room_participant",
+      { p_room_id: roomId, p_user_id: callerId }
+    );
     if (participantError) {
       console.error("Failed to verify room participant", participantError);
       return json({ error: "Server error" }, 500);
     }
-    if (!participantRows || participantRows.length === 0) {
+    if (!isActiveParticipant) {
       return json({ error: "Not a participant of this room" }, 403);
     }
 
