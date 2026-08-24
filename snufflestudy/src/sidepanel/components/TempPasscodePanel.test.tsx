@@ -17,6 +17,7 @@ const pendingForMe: TempPasscodeRequest = {
   requesterUserId: "user-a",
   status: "pending",
   expiresAt: 0,
+  message: null,
 };
 
 // Mirrors UnlockRequestPanel.test.tsx's routeSendMessage helper exactly.
@@ -50,6 +51,41 @@ describe("TempPasscodePanel", () => {
     );
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument();
+  });
+
+  // v3.3 Task 11: a request created WITH a message shows it to the approving friend.
+  it("shows the requester's message when present", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        TEMP_PASSCODE_REQUESTS_FETCH: () => ({
+          ok: true,
+          requests: [{ ...pendingForMe, message: "Need to check the class syllabus" }],
+        }),
+      })
+    );
+
+    render(<TempPasscodePanel onClose={() => {}} />);
+
+    await waitFor(() =>
+      expect(screen.getByText('"Need to check the class syllabus"')).toBeInTheDocument()
+    );
+  });
+
+  // v3.3 Task 11 DoD: a request created WITHOUT one (the field is optional) renders exactly as it
+  // does today - no empty placeholder text of any kind.
+  it("renders no message placeholder when the request has none", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        TEMP_PASSCODE_REQUESTS_FETCH: () => ({ ok: true, requests: [pendingForMe] }),
+      })
+    );
+
+    render(<TempPasscodePanel onClose={() => {}} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("user-a wants a temporary passcode for youtube.com")).toBeInTheDocument()
+    );
+    expect(document.querySelector(".temp-passcode-panel__message")).not.toBeInTheDocument();
   });
 
   it("does not show a request addressed to someone else (friendUserId mismatch)", async () => {

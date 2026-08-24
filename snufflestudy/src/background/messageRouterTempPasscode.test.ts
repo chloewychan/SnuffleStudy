@@ -25,6 +25,7 @@ const sampleRequest: TempPasscodeRequest = {
   requesterUserId: "user-a",
   status: "pending",
   expiresAt: 0,
+  message: null,
 };
 
 describe("messageRouter — TEMP_PASSCODE_*", () => {
@@ -36,8 +37,28 @@ describe("messageRouter — TEMP_PASSCODE_*", () => {
       payload: { sessionId: "session-1", hostname: "youtube.com", friendUserId: "user-b" },
     })) as { ok: boolean; request: TempPasscodeRequest };
 
-    expect(spy).toHaveBeenCalledWith("session-1", "youtube.com", "user-b");
+    expect(spy).toHaveBeenCalledWith("session-1", "youtube.com", "user-b", undefined);
     expect(result).toEqual({ ok: true, request: sampleRequest });
+  });
+
+  // v3.3 Task 11: the optional `message` field is forwarded through to createRequest unchanged.
+  it("TEMP_PASSCODE_CREATE forwards an optional message to tempPasscodeApi.createRequest", async () => {
+    const spy = vi
+      .spyOn(tempPasscodeApi, "createRequest")
+      .mockResolvedValue({ ...sampleRequest, message: "Need to check the syllabus" });
+
+    const result = (await handleMessage({
+      type: "TEMP_PASSCODE_CREATE",
+      payload: {
+        sessionId: "session-1",
+        hostname: "youtube.com",
+        friendUserId: "user-b",
+        message: "Need to check the syllabus",
+      },
+    })) as { ok: boolean; request: TempPasscodeRequest };
+
+    expect(spy).toHaveBeenCalledWith("session-1", "youtube.com", "user-b", "Need to check the syllabus");
+    expect(result.request.message).toBe("Need to check the syllabus");
   });
 
   it("TEMP_PASSCODE_CREATE surfaces a thrown error as ok:false (outer handleMessage try/catch)", async () => {

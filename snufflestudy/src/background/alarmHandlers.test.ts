@@ -1182,6 +1182,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
         requesterUserId: "user-a",
         status: "pending",
         expiresAt: 0,
+        message: null,
         ...overrides,
       };
     }

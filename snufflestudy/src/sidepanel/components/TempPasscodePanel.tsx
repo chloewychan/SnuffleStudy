@@ -180,6 +180,10 @@ export function TempPasscodePanel({ onClose }: TempPasscodePanelProps) {
                     <span>
                       {displayName(r.requesterUserId)} wants a temporary passcode for {r.hostname}
                     </span>
+                    {/* v3.3 Task 11: r.message is optional - only rendered when present, so a
+                        request created without one (the field is optional on LockedPage.tsx)
+                        renders exactly as it did before this task, no empty placeholder text. */}
+                    {r.message && <p className="temp-passcode-panel__message">"{r.message}"</p>}
                     <button
                       type="button"
                       onClick={() => handleApprove(r.id)}

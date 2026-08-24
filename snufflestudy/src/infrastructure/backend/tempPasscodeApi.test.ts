@@ -95,6 +95,7 @@ const sampleRow = {
   delivered_via: "email+in_app",
   requested_at: "2026-01-01T00:00:00.000Z",
   resolved_at: null,
+  message: null,
 };
 
 describe("tempPasscodeApi.createRequest", () => {
@@ -123,7 +124,39 @@ describe("tempPasscodeApi.createRequest", () => {
       requesterUserId: "user-a",
       status: "pending",
       expiresAt: 0,
+      message: null,
     });
+  });
+
+  // v3.3 Task 11: the optional trailing `message` param is included in the insert body only when
+  // provided (never as an explicit `message: undefined`) - a message-less call's insert body stays
+  // byte-for-byte identical to the test right above.
+  it("includes message in the insert body when provided, and maps it through on the returned request", async () => {
+    mockGetUser("user-a");
+    const builder = makeBuilder({
+      data: { ...sampleRow, message: "Need to check the syllabus" },
+      error: null,
+    });
+    vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+    mockInvoke(() => Promise.resolve({ data: { ok: true }, error: null }));
+
+    const result = await createRequest(
+      "session-1",
+      "youtube.com",
+      "user-b",
+      "Need to check the syllabus"
+    );
+
+    expect(builder.insert).toHaveBeenCalledWith({
+      session_id: "session-1",
+      hostname: "youtube.com",
+      requester_user_id: "user-a",
+      friend_user_id: "user-b",
+      status: "pending",
+      delivered_via: "email+in_app",
+      message: "Need to check the syllabus",
+    });
+    expect(result.message).toBe("Need to check the syllabus");
   });
 
   it("never selects code_hash/code_salt when inserting", async () => {
@@ -412,7 +445,7 @@ describe("tempPasscodeApi.fetchRelevantTempPasscodeRequests / pollRelevantTempPa
     expect(selectArg).not.toContain("locked_until");
     expect(selectArg).toBe(
       "id, session_id, hostname, requester_user_id, friend_user_id, status, expires_at, " +
-        "delivered_via, requested_at, resolved_at"
+        "delivered_via, requested_at, resolved_at, message"
     );
   });
 });

@@ -119,9 +119,11 @@ export type ExtensionMessage =
   // same friend-picker pattern FriendGroupPanel.tsx/UnlockRequestPanel.tsx already use).
   // createRequest throws on failure (not signed in, insert error) - the outer handleMessage
   // try/catch turns that into ok:false, same convention as UNLOCK_REQUEST_CREATE.
+  // v3.3 Task 11: optional `message` - the requester's free-text explanation, shown to the
+  // approving friend in TempPasscodePanel.tsx alongside the requester/hostname line.
   | {
       type: "TEMP_PASSCODE_CREATE";
-      payload: { sessionId: string; hostname: string; friendUserId: string };
+      payload: { sessionId: string; hostname: string; friendUserId: string; message?: string };
     }
   // v2 Task 12: routes to tempPasscodeApi.approveRequest - the assigned friend's approve action
   // (TempPasscodePanel.tsx). v3.3 Task 10: no code is generated or returned anymore - approval

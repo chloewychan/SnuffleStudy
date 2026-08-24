@@ -47,6 +47,14 @@ export function LockedPage() {
   const [friendsError, setFriendsError] = useState<string | null>(null);
   const [selectedFriendId, setSelectedFriendId] = useState("");
 
+  // v3.3 Task 11: optional free-text explanation, next to the friend picker - gives the
+  // approving friend something to judge beyond a bare hostname. maxLength 280 is a judgment call
+  // (not from the plan) - long enough for a real sentence or two of context, short enough to stay
+  // a one-line-ish aside rather than turn into an essay field; matches the "no length constraint
+  // beyond what the UI reasonably enforces" latitude the plan's Deliverables line explicitly
+  // leaves to this task.
+  const [requestMessage, setRequestMessage] = useState("");
+
   // v3.3 Task 8: resolves each friend id to their human_name (falling back to the raw id, same as
   // before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
   const displayName = useDisplayNames(friendIds ?? []);
@@ -182,9 +190,18 @@ export function LockedPage() {
     if (!sessionId || !effectiveFriendId) return;
     setTempBusy(true);
     setTempError(null);
+    // v3.3 Task 11: trimmed, and omitted entirely when empty - an all-whitespace or untouched
+    // input must not send a stray `message: ""`/`message: "   "` through to createRequest, which
+    // reads any truthy `message` (see tempPasscodeApi.ts) as "the requester provided one."
+    const trimmedMessage = requestMessage.trim();
     sendMessage<{ ok: boolean; request?: TempPasscodeRequest; error?: string }>({
       type: "TEMP_PASSCODE_CREATE",
-      payload: { sessionId, hostname: site, friendUserId: effectiveFriendId },
+      payload: {
+        sessionId,
+        hostname: site,
+        friendUserId: effectiveFriendId,
+        ...(trimmedMessage ? { message: trimmedMessage } : {}),
+      },
     })
       .then((res) => {
         if (!res.ok || !res.request) {
@@ -307,6 +324,17 @@ export function LockedPage() {
             {friendIds && friendIds.length === 0 && !friendsError && (
               <p>No friends available to ask yet - add a friend first.</p>
             )}
+            <label>
+              Why do you need this? (optional)
+              <input
+                type="text"
+                value={requestMessage}
+                onChange={(e) => setRequestMessage(e.target.value)}
+                placeholder="Why do you need this? (optional)"
+                maxLength={280}
+                disabled={tempBusy}
+              />
+            </label>
             <button
               type="button"
               onClick={handleRequestTempPasscode}

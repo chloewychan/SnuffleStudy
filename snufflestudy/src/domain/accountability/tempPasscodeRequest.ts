@@ -16,4 +16,12 @@ export interface TempPasscodeRequest {
   // LockedPage.tsx nor the friend-side review panel could tell "is this row mine to claim, or
   // mine to approve/deny" apart, mirrors unlockRequestApi.ts's UnlockRequest.requesterUserId.
   requesterUserId: string;
+
+  // v3.3 Task 11: optional free-text explanation the requester can attach ("Why do you need
+  // this? (optional)" on LockedPage.tsx), shown to the approving friend in TempPasscodePanel.tsx
+  // alongside the requester/hostname line. `string | null`, not `string | undefined` - matches
+  // this column's actual nullable-text shape in temp_passcode_requests (migration
+  // 20260815000037_v3.3_temp_passcode_message.sql) and this codebase's established convention for
+  // an optional DB column surfaced on a domain type (e.g. UnlockRequest's own nullable fields).
+  message: string | null;
 }

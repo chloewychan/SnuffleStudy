@@ -23,8 +23,9 @@ import { scheduleTempUnlockRelockAlarm } from "../browser/alarmsApi";
 // `tsc --noEmit` at every call site below (`Conversion of type 'GenericStringError' ...`).
 // Mirrors sessionStatusSyncApi.ts's BASELINE_EVENT_COLUMNS, which is a single-line literal for the
 // exact same reason.
+// v3.3 Task 11: `message` appended (migration 20260815000037_v3.3_temp_passcode_message.sql).
 const TEMP_PASSCODE_COLUMNS =
-  "id, session_id, hostname, requester_user_id, friend_user_id, status, expires_at, delivered_via, requested_at, resolved_at";
+  "id, session_id, hostname, requester_user_id, friend_user_id, status, expires_at, delivered_via, requested_at, resolved_at, message";
 
 interface TempPasscodeRequestRow {
   id: string;
@@ -37,6 +38,7 @@ interface TempPasscodeRequestRow {
   delivered_via: string;
   requested_at: string;
   resolved_at: string | null;
+  message: string | null;
 }
 
 function toTempPasscodeRequest(row: TempPasscodeRequestRow): TempPasscodeRequest {
@@ -48,6 +50,7 @@ function toTempPasscodeRequest(row: TempPasscodeRequestRow): TempPasscodeRequest
     requesterUserId: row.requester_user_id,
     status: row.status as TempPasscodeRequest["status"],
     expiresAt: row.expires_at ? new Date(row.expires_at).getTime() : 0,
+    message: row.message,
   };
 }
 
@@ -102,10 +105,17 @@ async function requireUserId(): Promise<string> {
 // resolution on email delivery succeeding", matching this codebase's established
 // graceful-degradation posture, e.g. friendSync.ts's recordFriendStatusEvent). The row insert
 // itself IS awaited, so the returned TempPasscodeRequest is always real.
+//
+// v3.3 Task 11: optional trailing `message` param - the requester's free-text explanation for why
+// they need a pass. Omitted from the insert body entirely (not sent as `message: undefined`) when
+// not provided, so a request created without one round-trips through the DB's actual NULL default
+// rather than an explicit value - and so the existing "inserts a pending row" test's exact-body
+// assertion keeps matching unchanged for the every-day (message-less) call.
 export async function createRequest(
   sessionId: string,
   hostname: string,
-  friendUserId: string
+  friendUserId: string,
+  message?: string
 ): Promise<TempPasscodeRequest> {
   const userId = await requireUserId();
 
@@ -118,6 +128,7 @@ export async function createRequest(
       friend_user_id: friendUserId,
       status: "pending",
       delivered_via: "email+in_app",
+      ...(message ? { message } : {}),
     })
     .select(TEMP_PASSCODE_COLUMNS)
     .single();

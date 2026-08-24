@@ -104,6 +104,80 @@ describe("LockedPage", () => {
     });
   });
 
+  // v3.3 Task 11: the optional "why do you need this" input is sent through as `message` when
+  // filled in, trimmed.
+  it("includes a trimmed message in TEMP_PASSCODE_CREATE when the requester fills it in", async () => {
+    const createSpy = vi.fn(() => ({
+      ok: true,
+      request: {
+        id: "req-1",
+        sessionId: "session-1",
+        hostname: "youtube.com",
+        friendUserId: "user-b",
+        requesterUserId: "user-a",
+        status: "pending",
+        expiresAt: 0,
+        message: "Need to check the syllabus",
+      },
+    }));
+    mockMessages({ TEMP_PASSCODE_CREATE: createSpy });
+    render(<LockedPage />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Request a temporary passcode" })).toBeEnabled()
+    );
+    fireEvent.change(screen.getByPlaceholderText("Why do you need this? (optional)"), {
+      target: { value: "  Need to check the syllabus  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Request a temporary passcode" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Waiting for your friend to respond…")).toBeInTheDocument()
+    );
+    expect(createSpy).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      hostname: "youtube.com",
+      friendUserId: "user-b",
+      message: "Need to check the syllabus",
+    });
+  });
+
+  // v3.3 Task 11 DoD: the field is optional - leaving it blank must not send an empty/whitespace
+  // `message` key at all.
+  it("omits the message key entirely when the field is left blank", async () => {
+    const createSpy = vi.fn(() => ({
+      ok: true,
+      request: {
+        id: "req-1",
+        sessionId: "session-1",
+        hostname: "youtube.com",
+        friendUserId: "user-b",
+        requesterUserId: "user-a",
+        status: "pending",
+        expiresAt: 0,
+        message: null,
+      },
+    }));
+    mockMessages({ TEMP_PASSCODE_CREATE: createSpy });
+    render(<LockedPage />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Request a temporary passcode" })).toBeEnabled()
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Request a temporary passcode" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Waiting for your friend to respond…")).toBeInTheDocument()
+    );
+    // Exact-object match (no `message` key at all, not even `message: undefined`) - same
+    // assertion style the "creates a temp passcode request" test above uses.
+    expect(createSpy).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      hostname: "youtube.com",
+      friendUserId: "user-b",
+    });
+  });
+
   // v3.3 Task 10: no code to enter anymore - once the request's status is "approved", LockedPage
   // auto-claims it (TEMP_PASSCODE_CLAIM_APPROVAL) and navigates on success, with no user action in
   // between.

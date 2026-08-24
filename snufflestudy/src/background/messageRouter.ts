@@ -612,10 +612,12 @@ async function routeMessage(
       // createRequest throws (not signed in, insert error) rather than returning ok:false - the
       // outer handleMessage try/catch (top of this file) turns that into { ok: false, error },
       // same convention as UNLOCK_REQUEST_CREATE above.
+      // v3.3 Task 11: optional `message` forwarded through unchanged.
       const request = await tempPasscodeApi.createRequest(
         message.payload.sessionId,
         message.payload.hostname,
-        message.payload.friendUserId
+        message.payload.friendUserId,
+        message.payload.message
       );
       return { ok: true, request };
     }
