@@ -128,12 +128,36 @@ export async function listRooms(): Promise<StudyRoom[]> {
   const { data, error } = await supabase
     .from("study_rooms")
     .select()
+    .is("archived_at", null)
     .order("created_at", { ascending: false });
   if (error) {
     throw new Error(error.message);
   }
 
   return (data ?? []).map((row) => toStudyRoom(row as StudyRoomRow));
+}
+
+// v3.3 Task 6: soft delete. Sets archived_at on a room the caller owns rather than a real DELETE -
+// producer_tag_sends.recipient_room_id references study_rooms(id) with no ON DELETE CASCADE
+// anywhere in this schema, so a hard delete risks either an FK violation or silently erasing real
+// Producer Tag history unrelated to this decision. Both .eq() clauses matter: owner_user_id is
+// belt-and-suspenders alongside supabase/migrations/20260815000033_v3.3_archive_study_rooms.sql's
+// "owner can archive their own room" UPDATE policy (using (owner_user_id = auth.uid())) - RLS
+// already denies a non-owner's attempt (the using clause matches zero rows), but scoping the query
+// the same way createRoom/leaveRoom already do keeps this file's own intent legible without
+// relying on the reader to know the policy exists. Throws on a Postgres error, same convention as
+// createRoom/leaveRoom.
+export async function archiveRoom(roomId: string): Promise<void> {
+  const userId = await requireUserId();
+
+  const { error } = await supabase
+    .from("study_rooms")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", roomId)
+    .eq("owner_user_id", userId);
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 // Joins a room: inserts the caller's own study_room_participants row (gated by that table's own

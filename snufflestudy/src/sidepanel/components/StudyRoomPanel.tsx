@@ -146,6 +146,12 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
 
+  // v3.3 Task 6: archiving is an owner-only action (see the migration's "owner can archive their
+  // own room" UPDATE policy) - archivingId tracks in-flight-per-room the same way `joining` does,
+  // so archiving one room's button doesn't disable every other room's Archive/Join buttons too.
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+
   const [participants, setParticipants] = useState<Map<string, RoomParticipant>>(new Map());
 
   // v2 Task 14: producer tags broadcast live into the currently-joined room (Part D - Realtime
@@ -378,6 +384,31 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
       .finally(() => setCreating(false));
   }
 
+  // v3.3 Task 6: archives a room this user owns - removed from every user's STUDY_ROOM_LIST
+  // (listRooms()'s new .is("archived_at", null) filter) immediately, so this optimistically drops
+  // it from the local `rooms` list on success rather than waiting on a full loadRooms() re-fetch,
+  // same "update local state directly" convention handleCreateRoom already uses on success.
+  function handleArchiveRoom(room: StudyRoom) {
+    setArchivingId(room.id);
+    setArchiveError(null);
+    sendMessage<{ ok: boolean; error?: string }>({
+      type: "STUDY_ROOM_ARCHIVE",
+      payload: { roomId: room.id },
+    })
+      .then((res) => {
+        if (!res.ok) {
+          setArchiveError(res.error ?? "Could not archive that room.");
+          return;
+        }
+        setRooms((prev) => (prev ?? []).filter((r) => r.id !== room.id));
+      })
+      .catch((err) => {
+        console.error("Failed to archive study room", err);
+        setArchiveError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => setArchivingId(null));
+  }
+
   async function handleJoinRoom(room: StudyRoom) {
     setJoining(room.id);
     setJoinError(null);
@@ -586,11 +617,21 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
                 >
                   {joining === room.id ? "Joining…" : "Join"}
                 </button>
+                {room.ownerUserId === selfUserId && (
+                  <button
+                    type="button"
+                    onClick={() => handleArchiveRoom(room)}
+                    disabled={archivingId === room.id}
+                  >
+                    {archivingId === room.id ? "Archiving…" : "Archive this room"}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
         )}
         {joinError && <p role="alert">{joinError}</p>}
+        {archiveError && <p role="alert">{archiveError}</p>}
       </section>
 
       <button type="button" onClick={loadRooms}>

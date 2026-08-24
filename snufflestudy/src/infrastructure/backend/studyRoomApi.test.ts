@@ -7,6 +7,7 @@ import {
   leaveRoom,
   listParticipants,
   subscribeToPresence,
+  archiveRoom,
 } from "./studyRoomApi";
 
 // Spies on the supabaseClient module's exported singleton, same boundary/style as
@@ -129,6 +130,7 @@ describe("studyRoomApi.listRooms", () => {
     const result = await listRooms();
 
     expect(fromSpy).toHaveBeenCalledWith("study_rooms");
+    expect(builder.is).toHaveBeenCalledWith("archived_at", null);
     expect(builder.order).toHaveBeenCalledWith("created_at", { ascending: false });
     expect(result).toEqual([
       {
@@ -198,6 +200,38 @@ describe("studyRoomApi.leaveRoom", () => {
     );
 
     await expect(leaveRoom("room-1")).rejects.toThrow("update failed");
+  });
+});
+
+describe("studyRoomApi.archiveRoom", () => {
+  it("sets archived_at on a room the caller owns", async () => {
+    mockGetUser("user-a");
+    const builder = makeBuilder({ data: null, error: null });
+    const fromSpy = vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+
+    await archiveRoom("room-1");
+
+    expect(fromSpy).toHaveBeenCalledWith("study_rooms");
+    expect(builder.update).toHaveBeenCalledWith({ archived_at: expect.any(String) });
+    expect(builder.eq).toHaveBeenCalledWith("id", "room-1");
+    expect(builder.eq).toHaveBeenCalledWith("owner_user_id", "user-a");
+  });
+
+  it("throws when not signed in, without touching the database", async () => {
+    mockGetUser(null);
+    const fromSpy = vi.spyOn(supabase, "from");
+
+    await expect(archiveRoom("room-1")).rejects.toThrow("Not signed in.");
+    expect(fromSpy).not.toHaveBeenCalled();
+  });
+
+  it("throws with the Postgres error message when the update fails", async () => {
+    mockGetUser("user-a");
+    vi.spyOn(supabase, "from").mockReturnValue(
+      makeBuilder({ data: null, error: { message: "update failed" } }) as never
+    );
+
+    await expect(archiveRoom("room-1")).rejects.toThrow("update failed");
   });
 });
 

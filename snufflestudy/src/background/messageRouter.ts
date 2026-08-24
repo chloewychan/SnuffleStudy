@@ -676,6 +676,13 @@ async function routeMessage(
       return { ok: true, participants };
     }
 
+    case "STUDY_ROOM_ARCHIVE": {
+      // archiveRoom throws on failure (not signed in, update error) - outer handleMessage
+      // try/catch turns that into ok:false, same convention as STUDY_ROOM_LEAVE.
+      await studyRoomApi.archiveRoom(message.payload.roomId);
+      return { ok: true };
+    }
+
     case "PRODUCER_TAG_UPLOAD": {
       // The Blob<->base64 round trip lives here (background context has atob/Blob/Uint8Array but
       // no DOM) - see producerTagApi.ts's header comment and blobFromBase64's own comment for why

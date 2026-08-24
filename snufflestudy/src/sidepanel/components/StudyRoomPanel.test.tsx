@@ -64,6 +64,7 @@ function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Ha
     STUDY_ROOM_CREATE: () => ({ ok: true, room: sampleRoom }),
     STUDY_ROOM_LEAVE: () => ({ ok: true }),
     STUDY_ROOM_LIST_PARTICIPANTS: () => ({ ok: true, participants: [] }),
+    STUDY_ROOM_ARCHIVE: () => ({ ok: true }),
   };
   return (msg: ExtensionMessage) => {
     const handler = overrides[msg.type] ?? defaults[msg.type];
@@ -347,6 +348,82 @@ describe("StudyRoomPanel", () => {
     expect(videoCallClient.leaveCall).toHaveBeenCalled();
     // Back to the room-list view.
     expect(await screen.findByText("Thursday study group")).toBeInTheDocument();
+  });
+});
+
+// v3.3 Task 6: archive study rooms (soft delete). "Archive this room" is an owner-only action -
+// AUTH_GET_SESSION's default mock resolves to "user-self" (see routeSendMessage above), and
+// sampleRoom is owned by "user-a", so most tests here use a second, self-owned room to exercise
+// the visible/enabled path.
+describe("StudyRoomPanel — Archive (v3.3 Task 6)", () => {
+  const ownRoom = {
+    id: "room-2",
+    name: "My own room",
+    ownerUserId: "user-self",
+    createdAt: "2026-01-01T00:00:00.000Z",
+  };
+
+  it("does not show an Archive button for a room this user does not own", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+
+    expect(screen.queryByText("Archive this room")).not.toBeInTheDocument();
+  });
+
+  it("shows an Archive button for a room this user owns", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom, ownRoom] }) })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("My own room");
+
+    expect(screen.getByText("Archive this room")).toBeInTheDocument();
+  });
+
+  it("archives an owned room via STUDY_ROOM_ARCHIVE and removes it from the list without a full reload", async () => {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom, ownRoom] }),
+        STUDY_ROOM_ARCHIVE: () => ({ ok: true }),
+      })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("My own room");
+
+    fireEvent.click(screen.getByText("Archive this room"));
+
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "STUDY_ROOM_ARCHIVE",
+        payload: { roomId: "room-2" },
+      })
+    );
+    await waitFor(() => expect(screen.queryByText("My own room")).not.toBeInTheDocument());
+    // The other, non-owned room is unaffected.
+    expect(screen.getByText("Thursday study group")).toBeInTheDocument();
+  });
+
+  it("shows the error inline and keeps the room in the list when STUDY_ROOM_ARCHIVE fails", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
+        STUDY_ROOM_ARCHIVE: () => ({ ok: false, error: "not the room owner" }),
+      })
+    );
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("My own room");
+
+    fireEvent.click(screen.getByText("Archive this room"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("not the room owner");
+    expect(screen.getByText("My own room")).toBeInTheDocument();
   });
 });
 

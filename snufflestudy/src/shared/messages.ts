@@ -171,6 +171,12 @@ export type ExtensionMessage =
   // a backfill) takes over. subscribeToPresence itself is NOT a message - see studyRoomApi.ts's
   // header comment for why a live callback has no fit in this request/response surface.
   | { type: "STUDY_ROOM_LIST_PARTICIPANTS"; payload: { roomId: string } }
+  // v3.3 Task 6: routes to studyRoomApi.archiveRoom - StudyRoomPanel.tsx's owner-only "Archive
+  // this room" action. A soft delete (sets archived_at rather than a real DELETE, since
+  // producer_tag_sends.recipient_room_id references study_rooms(id) with no ON DELETE CASCADE
+  // anywhere in this schema - see the migration's own header comment). Throws on failure (not
+  // signed in, update error) - same outer-catch convention as STUDY_ROOM_LEAVE above.
+  | { type: "STUDY_ROOM_ARCHIVE"; payload: { roomId: string } }
   // v2 Task 14: routes to producerTagApi.uploadTag - the sidepanel's recording flow, once
   // audioRecorder.ts's stopRecording() has resolved. audioBase64/mimeType exist ONLY because a raw
   // Blob cannot cross chrome.runtime.sendMessage under this codebase's default (JSON) message
