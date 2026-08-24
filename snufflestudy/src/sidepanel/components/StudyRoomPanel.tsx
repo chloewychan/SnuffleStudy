@@ -255,9 +255,13 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
         event.element.classList.add("study-room-panel__media");
         // Local video is muted client-side to avoid echoing the user's own mic back at them -
         // LiveKit's own audio track publishing to the room is unaffected by this element-level
-        // mute, which only controls local HTMLMediaElement playback.
+        // mute, which only controls local HTMLMediaElement playback. v3.3 Task 3: the local
+        // preview is also mirrored (display-only, via a CSS transform on this element) so it
+        // behaves like a real mirror - it never touches the published track, so remote viewers
+        // still see the true (unmirrored) orientation.
         if (event.isLocal && event.element instanceof HTMLVideoElement) {
           event.element.muted = true;
+          event.element.style.transform = "scaleX(-1)";
         }
         tile.appendChild(event.element);
       } else if (event.type === "track-removed") {

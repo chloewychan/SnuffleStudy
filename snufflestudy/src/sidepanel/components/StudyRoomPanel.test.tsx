@@ -192,6 +192,48 @@ describe("StudyRoomPanel", () => {
     await waitFor(() => expect(videoElement.isConnected).toBe(true));
   });
 
+  // v3.3 Task 3: the local camera preview is mirrored (display-only, via a CSS transform) so it
+  // behaves like a real mirror - raising your right hand appears on your own screen's left. Must
+  // never touch a remote participant's element, since remote viewers still need the true
+  // (unmirrored) orientation.
+  it("mirrors the local video element but not a remote participant's element", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+
+    let capturedListener: ((event: videoCallClient.VideoCallEvent) => void) | null = null;
+    vi.mocked(videoCallClient.onVideoCallEvent).mockImplementation((listener) => {
+      capturedListener = listener;
+      return () => {};
+    });
+    const localVideo = document.createElement("video");
+    const remoteVideo = document.createElement("video");
+    vi.mocked(videoCallClient.joinCall).mockImplementation(async () => {
+      capturedListener?.({
+        type: "track-added",
+        participantIdentity: "user-self",
+        isLocal: true,
+        element: localVideo,
+      });
+      capturedListener?.({
+        type: "track-added",
+        participantIdentity: "user-b",
+        isLocal: false,
+        element: remoteVideo,
+      });
+    });
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+
+    fireEvent.click(screen.getByText("Join"));
+    await screen.findByText("Leave room");
+
+    expect(localVideo.style.transform).toBe("scaleX(-1)");
+    expect(remoteVideo.style.transform).toBe("");
+  });
+
   // QA-discovered bug (v3.2 Task 9): a local-media-error used to have nowhere to go - the join
   // still "succeeded" (joinedRoom set, presence loaded) with silently no video/audio and no way
   // for the user to learn why. Confirms the actionable case renders a working fix action.
