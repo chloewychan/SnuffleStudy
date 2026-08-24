@@ -210,4 +210,12 @@ export type ExtensionMessage =
   // message-routed. Throws on a query error - same outer-catch convention as above; returns
   // { ok: true, tag: null } (not a throw) if the tag genuinely doesn't exist/isn't visible, mirroring
   // maybeSingle()'s own null-not-error distinction.
-  | { type: "PRODUCER_TAG_FETCH_BY_ID"; payload: { tagId: string } };
+  | { type: "PRODUCER_TAG_FETCH_BY_ID"; payload: { tagId: string } }
+  // v3.2 Task 8: routes to accountApi.deleteAccount() - AccountPage.tsx's "Delete account"
+  // action, gated behind its own confirm() prompt (same irreversible-action convention as
+  // GROUP_LEAVE's confirm in AccountPage.tsx) before this message is ever sent. No payload - the
+  // Edge Function this ultimately invokes (supabase/functions/delete-account/index.ts) resolves
+  // the target user exclusively from the caller's own bearer token, never from anything this
+  // message could carry. Throws on failure (Edge Function error, network failure) - the outer
+  // handleMessage try/catch turns that into ok:false, same convention as GROUP_CREATE.
+  | { type: "AUTH_DELETE_ACCOUNT" };

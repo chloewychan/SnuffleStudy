@@ -248,4 +248,55 @@ describe("AccountPage — signed in", () => {
 
     expect(await screen.findByLabelText("Email")).toBeInTheDocument();
   });
+
+  // v3.2 Task 8: account/data deletion, gated behind window.confirm - same convention as
+  // "leaving a group" above (see AccountPage.tsx's handleDeleteAccount comment).
+  describe("deleting the account", () => {
+    it("deletes the account after confirming, and returns to the signed-out view", async () => {
+      const deleteSpy = vi.fn(async () => ({ ok: true }));
+      mockSignedIn({ AUTH_DELETE_ACCOUNT: deleteSpy });
+      window.confirm = vi.fn(() => true);
+
+      render(<AccountPage />);
+      await waitFor(() => screen.getByText(/signed in as a@example.com/i));
+
+      fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+
+      await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith({ type: "AUTH_DELETE_ACCOUNT" }));
+      expect(await screen.findByLabelText("Email")).toBeInTheDocument();
+    });
+
+    it("does not send AUTH_DELETE_ACCOUNT when the confirm dialog is cancelled", async () => {
+      const deleteSpy = vi.fn(async () => ({ ok: true }));
+      mockSignedIn({ AUTH_DELETE_ACCOUNT: deleteSpy });
+      window.confirm = vi.fn(() => false);
+
+      render(<AccountPage />);
+      await waitFor(() => screen.getByText(/signed in as a@example.com/i));
+
+      fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+
+      // Give any stray microtask a chance to run before asserting the negative.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(deleteSpy).not.toHaveBeenCalled();
+      expect(screen.getByText(/signed in as a@example.com/i)).toBeInTheDocument();
+    });
+
+    it("surfaces a server-side/Edge Function failure as an error and stays signed in", async () => {
+      mockSignedIn({
+        AUTH_DELETE_ACCOUNT: async () => ({ ok: false, error: "Failed to delete your account." }),
+      });
+      window.confirm = vi.fn(() => true);
+
+      render(<AccountPage />);
+      await waitFor(() => screen.getByText(/signed in as a@example.com/i));
+
+      fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /couldn.t delete your account: failed to delete your account/i
+      );
+      expect(screen.getByText(/signed in as a@example.com/i)).toBeInTheDocument();
+    });
+  });
 });

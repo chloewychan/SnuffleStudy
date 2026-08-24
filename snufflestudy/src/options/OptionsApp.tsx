@@ -13,8 +13,9 @@ import {
 import { HistoryPage } from "./pages/HistoryPage";
 import { AccountPage } from "./pages/AccountPage";
 import { FriendsPage } from "./pages/FriendsPage";
+import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
 
-type OptionsView = "settings" | "history" | "account" | "friends";
+type OptionsView = "settings" | "history" | "account" | "friends" | "privacy";
 
 export function OptionsApp() {
   const [view, setView] = useState<OptionsView>("settings");
@@ -190,6 +191,14 @@ export function OptionsApp() {
         >
           Friends
         </button>
+        <button
+          type="button"
+          aria-current={view === "privacy" ? "page" : undefined}
+          disabled={view === "privacy"}
+          onClick={() => setView("privacy")}
+        >
+          Privacy
+        </button>
       </nav>
 
       {view === "history" && <HistoryPage />}
@@ -197,6 +206,8 @@ export function OptionsApp() {
       {view === "account" && <AccountPage />}
 
       {view === "friends" && <FriendsPage onSignInClick={() => setView("account")} />}
+
+      {view === "privacy" && <PrivacyPolicyPage />}
 
       {view === "settings" && (
         <>

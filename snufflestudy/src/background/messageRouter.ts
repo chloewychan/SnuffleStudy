@@ -29,6 +29,7 @@ import * as friendshipSettingsApi from "../infrastructure/backend/friendshipSett
 import * as tempPasscodeApi from "../infrastructure/backend/tempPasscodeApi";
 import * as studyRoomApi from "../infrastructure/backend/studyRoomApi";
 import * as producerTagApi from "../infrastructure/backend/producerTagApi";
+import * as accountApi from "../infrastructure/backend/accountApi";
 import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
@@ -693,6 +694,11 @@ async function routeMessage(
     case "PRODUCER_TAG_FETCH_BY_ID": {
       const tag = await producerTagApi.fetchProducerTagById(message.payload.tagId);
       return { ok: true, tag };
+    }
+
+    case "AUTH_DELETE_ACCOUNT": {
+      await accountApi.deleteAccount();
+      return { ok: true };
     }
 
     default:

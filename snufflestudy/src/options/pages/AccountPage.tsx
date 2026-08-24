@@ -48,6 +48,11 @@ export function AccountPage() {
   const [leaveBusy, setLeaveBusy] = useState(false);
   const [leftGroupId, setLeftGroupId] = useState<string | null>(null);
 
+  // v3.2 Task 8: account/data deletion. Same busy/error state shape as every other destructive
+  // action on this page (handleSignOut, handleLeaveGroup).
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -100,6 +105,47 @@ export function AccountPage() {
       setAuthError(err instanceof Error ? err.message : String(err));
     } finally {
       setAuthBusy(false);
+    }
+  }
+
+  // v3.2 Task 8: routes to AUTH_DELETE_ACCOUNT -> accountApi.deleteAccount() -> the
+  // delete-account Edge Function. Confirmation step per this task's own DoD ("irreversible"),
+  // matching handleLeaveGroup's established window.confirm convention on this same page rather
+  // than inventing a new modal/typed-confirmation pattern - the wording here is stronger since
+  // deleting an account is a strictly bigger, unrecoverable action than leaving one group.
+  async function handleDeleteAccount() {
+    if (
+      !window.confirm(
+        "Permanently delete your SnuffleStudy account? This removes your friend groups (or " +
+          "hands them off to another member), study room history, Producer Tags, digests, and " +
+          "every other record tied to your account, everywhere. This cannot be undone."
+      )
+    ) {
+      return;
+    }
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      const res = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "AUTH_DELETE_ACCOUNT",
+      });
+      if (!res.ok) {
+        setDeleteError(res.error ?? "Could not delete your account.");
+        return;
+      }
+      // The account no longer exists server-side at this point (and accountApi.deleteAccount()
+      // already cleared the local Supabase session) - reset every piece of this page's own
+      // account-scoped state so it renders back to the signed-out SignInForm, same as
+      // handleSignOut.
+      setSession(null);
+      setGroup(null);
+      setInviteCode(null);
+      setMembers(null);
+    } catch (err) {
+      console.error("Failed to delete account", err);
+      setDeleteError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -261,6 +307,22 @@ export function AccountPage() {
               {authBusy ? "Signing out…" : "Sign out"}
             </button>
             {authError && <p role="alert">Couldn't sign out: {authError}. Please try again.</p>}
+          </section>
+
+          <section>
+            <h3>Delete account</h3>
+            <p>
+              Permanently deletes your account and every record tied to it across SnuffleStudy's
+              servers - friend groups, study rooms, Producer Tags, digests, nudges, and everything
+              else. This cannot be undone. See the Privacy page for the full list of what's stored
+              and where.
+            </p>
+            <button type="button" onClick={() => void handleDeleteAccount()} disabled={deleteBusy}>
+              {deleteBusy ? "Deleting…" : "Delete account"}
+            </button>
+            {deleteError && (
+              <p role="alert">Couldn't delete your account: {deleteError}. Please try again.</p>
+            )}
           </section>
 
           <section>
