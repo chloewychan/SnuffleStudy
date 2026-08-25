@@ -26,6 +26,12 @@ If a task is missing these, fresh agents will guess — sometimes correctly, som
 
 ---
 
+## Setup: branch first
+
+Before starting the first task, create a new branch off `main` for the whole run (e.g. `git checkout -b v3.2`) and do all of the plan's work there, unless the plan explicitly says to work directly on `main` or names a different base/target branch. Merge back to `main` only once the plan — or an explicitly-named stopping point within it — is fully done and its definition of done passes. This is what keeps a run that goes sideways cheap to throw away, and keeps `main` in a working state the whole time the plan is mid-flight.
+
+---
+
 ## The per-task loop
 
 Repeat this for each task, in dependency order:
@@ -35,42 +41,59 @@ Repeat this for each task, in dependency order:
 3. **Make it verify before it trusts.** Explicitly instruct it to check the plan's claims about current file/repo state against the actual files, not just act on the plan's prose. Plans go stale the moment code changes underneath them — this exact thing happened twice while writing the plan this pattern is drawn from.
 4. **Let it implement, build, and test** — not just write code, but confirm the task's definition of done actually holds.
 5. **Have it write a short report** — what it built, any judgment calls or deviations from the plan (and why), what it verified, what's still open. This report is the hand-off artifact for the *next* task, instead of relying on anyone's memory of this conversation.
-6. **You (or the orchestrating session) review the diff and the report before moving on.** Don't chain tasks automatically on trust — a subagent's own summary of its work is a claim, not a verification.
-7. **Commit**, then move to the next task.
+6. **By default, don't stop for review — chain straight into the next task** once the report confirms the current one's Definition of Done passes. Pause only where the plan itself flags a task as needing a stop (an irreversible action, a task explicitly meant for human judgment — e.g. manual QA), or where you've said otherwise when kicking off the run. Worth remembering for later: this trades away the in-the-moment check that a subagent's own report is a claim, not a verification — reasonable once you trust the plan's definition-of-done checks to catch what matters, but it means a wrong early task can compound into later ones before anyone looks. The reports from step 5 are what let you audit the run after the fact if something looks off.
+7. **Commit**, then move to the next task automatically.
 
 ---
 
-## Reusable prompt template
+## Kickoff prompt: hand off the whole plan at once
 
-Copy this in for each task. Fill in the brackets.
+This is what you paste in once to start the whole run — it tells the agent to work through every task itself, applying the per-task procedure below to each one in turn, rather than you re-invoking it task by task.
 
 ```
-You are implementing Task [N] of [path to implementation plan]. Before making any changes:
+Implement [path to implementation plan] in full, task by task, in the plan's dependency order.
 
-1. Read Task [N]'s full block, plus the plan's Decisions and Scope sections for context.
+Setup: create a new branch off main for this work (e.g. [branch name]), unless the plan
+explicitly says to work directly on main or names a different target — do all work there.
+
+For each task, in order, follow this procedure:
+
+1. Read the task's full block, plus the plan's Decisions and Scope sections for context.
 2. Independently verify the plan's claims against the CURRENT state of the repo — do not
    trust the plan's prose about file contents, branch state, or what prior tasks left behind.
    Read the actual files. If something in the plan is stale or wrong, say so and correct your
    approach rather than silently working around it or silently following the stale version.
-3. Confirm Task [N]'s "Depends on" line is actually satisfied right now, not just assumed from
-   the plan's ordering.
-4. Implement exactly what the task's Deliverables section specifies.
+3. Confirm the task's "Depends on" line is actually satisfied right now, not just assumed
+   from the plan's ordering.
+4. Implement exactly what the task's Deliverables section specifies. Don't modify files
+   outside this task's scope.
 5. Verify the Definition of Done — run whatever you can programmatically; verify the rest
    manually and say how you did it.
-6. Write a short report to [report path, e.g. task-N-report.md]: what you built, any judgment
-   calls or deviations from the plan and why, what you verified, what's still open.
-7. Do not start work on any other task, and do not modify files outside this task's scope.
+6. Write a short report to [report path, e.g. task-N-report.md]: what you built, any
+   judgment calls or deviations from the plan and why, what you verified, what's still open.
+7. Commit, then move straight to the next task. Do not stop for my review between tasks
+   unless the plan flags this specific task as needing a stop, or I've said otherwise here.
+
+Only interrupt me for a real blocker: a "flagged, overridable" Decision in the plan that
+turns out to matter, a Definition of Done you can't verify, something genuinely ambiguous
+the plan doesn't resolve, or a task that's explicitly a manual/human step (e.g. two-account
+QA) — hand that one back to me directly rather than attempting it. Don't interrupt me for
+routine confirmations.
+
+Stop once every task in the plan is done or handed back, and tell me what's left, if anything.
 ```
+
+If you'd rather run tasks one at a time yourself instead of handing off the whole plan, steps 1–7 above work standalone too — just drop the "move straight to the next task" instruction in step 7 and stop there.
 
 ---
 
 ## Two ways to run it
 
-**A. Separate sessions you start yourself** (e.g. a fresh terminal running Claude Code, once per task). Fully isolated, no ambiguity about what's in context, and the most battle-tested version of this — it's how earlier versions of the SnuffleStudy repo were apparently actually built (there are per-task report files already in its history). You drive the sequencing.
+**A. Separate sessions you start yourself** (e.g. a fresh terminal running Claude Code, once per task or once for the whole plan). Fully isolated, no ambiguity about what's in context, and the most battle-tested version of this — it's how earlier versions of the SnuffleStudy repo were apparently actually built (there are per-task report files already in its history). You drive the sequencing, or hand off the whole plan at once with the kickoff prompt above.
 
-**B. One orchestrating session dispatching subagents.** You stay in one conversation; that session spawns a fresh subagent per task using the prompt template above, reviews each result, commits, and moves on. More convenient — you don't have to manually relaunch and re-orient each time — and I've now confirmed a subagent I spawn can reach the same live connection to your repo that I can. The orchestrating session's own context stays flat throughout, since only each subagent's final report re-enters it, not its full transcript.
+**B. One orchestrating session dispatching subagents.** You stay in one conversation; that session spawns a fresh subagent per task using the procedure above, and — by default — chains straight through to the next task once each one's report confirms its Definition of Done, pausing only where the plan or you have flagged a stop. More convenient than relaunching manually each time, and I've now confirmed a subagent I spawn can reach the same live connection to your repo that I can. The orchestrating session's own context stays flat throughout, since only each subagent's final report re-enters it, not its full transcript.
 
-Either way, the discipline is the same: fresh context per task, narrow brief, verify-before-trust, report, review, commit.
+Either way, the discipline is the same: a new branch first, fresh context per task, narrow brief, verify-before-trust, report, commit, chain onward — pausing only where explicitly flagged.
 
 ---
 
@@ -98,7 +121,9 @@ The fixed cost of *starting* a fresh agent (loading its instructions and tool de
 
 - [ ] Plan has explicit goal / dependencies / interfaces / deliverables / definition-of-done per task
 - [ ] Tasks ordered by real dependency, not just document order
+- [ ] New branch created off `main` before the first task, unless the plan says otherwise
 - [ ] Decided: separate sessions you start, or one session dispatching subagents
-- [ ] Per task: fresh context → narrow brief → verify-before-trust → implement → test → report → review → commit
+- [ ] Per task: fresh context → narrow brief → verify-before-trust → implement → test → report → commit → chain to next task automatically (no review pause unless flagged by the plan or you)
 - [ ] Parallelize only confirmed disjoint-file task pairs
 - [ ] Report files persisted somewhere (not just conversation memory) as the hand-off between tasks
+- [ ] Any task that's genuinely a manual/human step (QA, an irreversible action) is called out explicitly so it gets handed back instead of skipped or attempted blind
