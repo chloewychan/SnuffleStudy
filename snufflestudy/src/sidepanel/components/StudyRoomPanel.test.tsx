@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { StudyRoomPanel } from "./StudyRoomPanel";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 import * as studyRoomApi from "../../infrastructure/backend/studyRoomApi";
@@ -167,12 +167,15 @@ describe("StudyRoomPanel", () => {
     expect(screen.getByText("In this room (1)")).toBeInTheDocument();
   });
 
-  // QA-discovered bug (v3.2 Task 9): videoCallClient.joinCall publishes the local camera/mic
-  // and emits "track-added" synchronously, DURING the call - well before handleJoinRoom's later
-  // setJoinedRoom(room), which is what actually mounts the joined-room view's <div ref={gridRef}>
-  // grid container. Every previous test here mocks joinCall as a bare mockResolvedValue that
-  // never emits anything during the call, so none of them exercised this ordering at all. This
-  // test mimics the real videoCallClient's behavior (emit before resolving) to catch it.
+  // QA-discovered bug (v3.2 Task 9, still relevant after the v3.3 QA-pass state refactor):
+  // videoCallClient.joinCall publishes the local camera/mic and emits "track-added" synchronously,
+  // DURING the call - well before handleJoinRoom's later setJoinedRoom(room), which is what
+  // actually mounts the joined-room view (and the tiles/grid rendered from `tiles` state within
+  // it). Every previous test here mocks joinCall as a bare mockResolvedValue that never emits
+  // anything during the call, so none of them exercised this ordering at all. This test mimics the
+  // real videoCallClient's behavior (emit before resolving) to catch it - now proving the event's
+  // resulting `tiles` state update survives to the eventual render, rather than proving a DOM ref
+  // existed in time the way it did pre-refactor.
   it("still attaches a track that was emitted before the joined-room view finished mounting", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
@@ -243,6 +246,116 @@ describe("StudyRoomPanel", () => {
 
     expect(localVideo.style.transform).toBe("scaleX(-1)");
     expect(remoteVideo.style.transform).toBe("");
+  });
+
+  // QA-discovered bug (v3.3 QA pass): video tiles used to live in a `useRef<Map<...>>` that
+  // persisted for the ENTIRE component lifetime - nothing ever cleared it on leave, so a tile (and
+  // its now-defunct media element) from a PREVIOUS join session could still be sitting around for
+  // any participant identity that recurs in a later one (e.g. rejoining, or leaving and rejoining
+  // with a different initial camera/mic state). Now that tiles are real React state, explicitly
+  // reset at both the start of a new join and on leave, this must not happen.
+  it("does not carry over a stale tile from a previous join when leaving and rejoining", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }),
+        STUDY_ROOM_LIST_PARTICIPANTS: () => ({ ok: true, participants: [] }),
+      })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+
+    let capturedListener: ((event: videoCallClient.VideoCallEvent) => void) | null = null;
+    vi.mocked(videoCallClient.onVideoCallEvent).mockImplementation((listener) => {
+      capturedListener = listener;
+      return () => {};
+    });
+
+    const firstSessionVideo = document.createElement("video");
+    vi.mocked(videoCallClient.joinCall).mockImplementationOnce(async () => {
+      capturedListener?.({
+        type: "track-added",
+        participantIdentity: "user-self",
+        isLocal: true,
+        element: firstSessionVideo,
+      });
+    });
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+
+    fireEvent.click(screen.getByText("Join"));
+    await screen.findByText("Leave room");
+    expect(firstSessionVideo.isConnected).toBe(true);
+    expect(screen.getByText("You")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Leave room"));
+    await screen.findByText("Thursday study group");
+
+    // Second join session's joinCall emits nothing at all (e.g. a camera-off join) - if the old
+    // ref-based Map had survived across the leave, the stale firstSessionVideo tile (same
+    // "user-self" identity) would still be sitting in the DOM from the first session.
+    vi.mocked(videoCallClient.joinCall).mockImplementationOnce(async () => {});
+
+    fireEvent.click(screen.getByText("Join"));
+    await screen.findByText("Leave room");
+
+    expect(firstSessionVideo.isConnected).toBe(false);
+    expect(screen.queryByText("You")).not.toBeInTheDocument();
+  });
+
+  // A participant's tile (with its label) stays in place - camera/mic off is not the same as
+  // having left the room - but the tile is removed entirely once they actually disconnect.
+  // Matches the pre-refactor behavior exactly, now driven by React state instead of manual DOM
+  // manipulation.
+  it("keeps a labeled but empty tile when a track is removed, and only removes it entirely on participant-disconnected", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }),
+        STUDY_ROOM_LIST_PARTICIPANTS: () => ({ ok: true, participants: [] }),
+      })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+
+    let capturedListener: ((event: videoCallClient.VideoCallEvent) => void) | null = null;
+    vi.mocked(videoCallClient.onVideoCallEvent).mockImplementation((listener) => {
+      capturedListener = listener;
+      return () => {};
+    });
+
+    const remoteVideo = document.createElement("video");
+    vi.mocked(videoCallClient.joinCall).mockImplementationOnce(async () => {
+      capturedListener?.({
+        type: "track-added",
+        participantIdentity: "user-b",
+        isLocal: false,
+        element: remoteVideo,
+      });
+    });
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+    fireEvent.click(screen.getByText("Join"));
+    await screen.findByText("Leave room");
+
+    expect(remoteVideo.isConnected).toBe(true);
+    expect(screen.getByText("user-b")).toBeInTheDocument();
+
+    act(() => {
+      capturedListener?.({
+        type: "track-removed",
+        participantIdentity: "user-b",
+        isLocal: false,
+        element: remoteVideo,
+      });
+    });
+    expect(remoteVideo.isConnected).toBe(false);
+    // The tile itself (and its label) is still there - a camera/mic being off doesn't mean the
+    // participant left.
+    expect(screen.getByText("user-b")).toBeInTheDocument();
+
+    act(() => {
+      capturedListener?.({ type: "participant-disconnected", participantIdentity: "user-b" });
+    });
+    expect(screen.queryByText("user-b")).not.toBeInTheDocument();
   });
 
   // QA-discovered bug (v3.2 Task 9): a local-media-error used to have nowhere to go - the join

@@ -291,6 +291,67 @@ function ManageAccessSection({ roomId }: { roomId: string }) {
   );
 }
 
+// QA-discovered bug (v3.3 QA pass): the previous design tracked video tiles with a persistent
+// `useRef<Map<...>>` and manually created/appended/removed raw DOM nodes into a single shared
+// `gridRef` div, entirely outside React's own rendering. That's inherently racy - it depends on
+// events (track-added/track-removed/participant-disconnected) arriving in whatever order the
+// network/negotiation happens to produce them, with the ref-based Map surviving across entire
+// leave/rejoin cycles (nothing ever cleared it), and a manual "did gridRef mount yet" reattachment
+// effect trying to paper over just one specific ordering gap. Real two-account testing found
+// multiple different visible failures depending on exact timing - inconsistent enough that no
+// single point-fix in the old design converged on correct behavior.
+//
+// This tile is who owns "who has a tile and what's inside it" as real React state instead
+// (`tiles` below) - React's own reconciliation (keyed by participantIdentity) now decides
+// deterministically when each tile's container actually exists in the DOM, which is what makes
+// this component's OWN effects below race-free: React never runs an effect before the element it
+// targets has been committed, so `containerRef.current` is guaranteed non-null by the time either
+// effect below runs, regardless of what order track-added events arrived in relative to any other
+// render. Swapping `tile.videoElement`/`tile.audioElement` to a genuinely NEW element (e.g. a
+// resubscription) changes this effect's own dependency, so React runs its cleanup (removing the
+// stale element) before re-running with the new one - ordering React already guarantees, not
+// something this file has to hand-manage the way the old design tried to.
+interface Tile {
+  participantIdentity: string;
+  isLocal: boolean;
+  videoElement: HTMLVideoElement | null;
+  audioElement: HTMLAudioElement | null;
+}
+
+function StudyRoomVideoTile({ tile, label }: { tile: Tile; label: string }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const element = tile.videoElement;
+    if (!container || !element) return;
+    container.appendChild(element);
+    return () => {
+      element.remove();
+    };
+  }, [tile.videoElement]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const element = tile.audioElement;
+    if (!container || !element) return;
+    container.appendChild(element);
+    return () => {
+      element.remove();
+    };
+  }, [tile.audioElement]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="study-room-panel__tile"
+      data-participant={tile.participantIdentity}
+    >
+      <span className="study-room-panel__tile-label">{label}</span>
+    </div>
+  );
+}
+
 export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   // v3.2 Task 2: this panel had no auth check at all before this task - mirrors the auth-check
   // half of FriendGroupPanel.tsx's loadFriends() (AUTH_GET_SESSION -> selfUserId), not its
@@ -344,11 +405,14 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   const [tagSendBusy, setTagSendBusy] = useState(false);
   const [tagSendError, setTagSendError] = useState<string | null>(null);
 
-  // Where LiveKit's own attach()'d <video>/<audio> elements get appended - see
-  // videoCallClient.ts's VideoCallEvent union. Keyed by participant identity so a track-removed
-  // event can find and detach exactly the right element without touching anyone else's tile.
-  const gridRef = useRef<HTMLDivElement | null>(null);
-  const tileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // Who has a video tile and what's inside it - see the StudyRoomVideoTile/Tile comment above for
+  // why this is real React state now, not a persistent ref-based Map. Explicitly reset to []
+  // whenever a call session actually ends (handleLeaveRoom, and the catch branch of a failed
+  // handleJoinRoom below) - QA-discovered bug (v3.3 QA pass): the old ref-based Map was NEVER
+  // cleared across an entire component lifetime, so a stale tile (and its now-defunct media
+  // elements) from a PREVIOUS join could survive into a later one for any participant identity
+  // that recurred (e.g. rejoining the same room, or the same friend being in a later room too).
+  const [tiles, setTiles] = useState<Tile[]>([]);
 
   const unsubscribePresenceRef = useRef<(() => void) | null>(null);
   const unsubscribeRoomTagsRef = useRef<(() => void) | null>(null);
@@ -433,44 +497,14 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
     loadRooms();
   }, []);
 
-  // QA-discovered bug (v3.2 Task 9): the joined-room view (and its <div ref={gridRef}> grid
-  // container below) only mounts once handleJoinRoom calls setJoinedRoom(room) - but
-  // videoCallClient.joinCall publishes the local camera/mic and emits "track-added" for them
-  // SYNCHRONOUSLY, DURING the call, well before that happens. At that moment gridRef.current is
-  // still null, so the track-added handler below silently drops the tile via `?.appendChild`
-  // (no throw, no error - it just never entered the DOM). Every real join therefore lost its own
-  // camera/mic preview, deterministically, every time - and any remote participant whose track
-  // arrived in that same window (e.g. one already publishing when this client connects) would
-  // hit the identical gap. Fix: whenever the grid container actually becomes available (i.e.
-  // joinedRoom flips true and this component re-renders), re-attach any tile that was already
-  // created but never made it into the live DOM - independent of exactly when track-added fired
-  // relative to the mount, so this doesn't just narrow the race, it removes it.
-  useEffect(() => {
-    if (!joinedRoom) return;
-    for (const tile of tileRefs.current.values()) {
-      if (tile.parentElement !== gridRef.current) {
-        gridRef.current?.appendChild(tile);
-      }
-    }
-  }, [joinedRoom]);
-
   // Video event wiring - registered once for the component's lifetime (videoCallClient is a
-  // singleton with at most one active call, so there's nothing to re-subscribe per room).
+  // singleton with at most one active call, so there's nothing to re-subscribe per room). Updates
+  // `tiles` state rather than touching the DOM directly - StudyRoomVideoTile above is what actually
+  // inserts each tile's media elements, once React has committed that tile's own container.
   useEffect(() => {
     const unsubscribe = videoCallClient.onVideoCallEvent((event) => {
       if (event.type === "track-added") {
-        let tile = tileRefs.current.get(event.participantIdentity);
-        if (!tile) {
-          tile = document.createElement("div");
-          tile.className = "study-room-panel__tile";
-          tile.dataset.participant = event.participantIdentity;
-          const label = document.createElement("span");
-          label.className = "study-room-panel__tile-label";
-          label.textContent = event.isLocal ? "You" : event.participantIdentity;
-          tile.appendChild(label);
-          tileRefs.current.set(event.participantIdentity, tile);
-          gridRef.current?.appendChild(tile);
-        }
+        const isVideo = event.element instanceof HTMLVideoElement;
         event.element.classList.add("study-room-panel__media");
         // Local video is muted client-side to avoid echoing the user's own mic back at them -
         // LiveKit's own audio track publishing to the room is unaffected by this element-level
@@ -478,22 +512,45 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
         // preview is also mirrored (display-only, via a CSS transform on this element) so it
         // behaves like a real mirror - it never touches the published track, so remote viewers
         // still see the true (unmirrored) orientation.
-        if (event.isLocal && event.element instanceof HTMLVideoElement) {
-          event.element.muted = true;
+        if (event.isLocal && isVideo) {
+          (event.element as HTMLVideoElement).muted = true;
           event.element.style.transform = "scaleX(-1)";
         }
-        tile.appendChild(event.element);
+        setTiles((prev) => {
+          const idx = prev.findIndex((t) => t.participantIdentity === event.participantIdentity);
+          if (idx === -1) {
+            const tile: Tile = {
+              participantIdentity: event.participantIdentity,
+              isLocal: event.isLocal,
+              videoElement: isVideo ? (event.element as HTMLVideoElement) : null,
+              audioElement: isVideo ? null : (event.element as HTMLAudioElement),
+            };
+            return [...prev, tile];
+          }
+          const next = [...prev];
+          next[idx] = isVideo
+            ? { ...next[idx]!, videoElement: event.element as HTMLVideoElement }
+            : { ...next[idx]!, audioElement: event.element as HTMLAudioElement };
+          return next;
+        });
       } else if (event.type === "track-removed") {
-        event.element.remove();
+        // The tile itself (and its label) stays - only the specific media field that matches this
+        // exact element is cleared, matching the pre-refactor behavior of leaving a labeled,
+        // empty tile in place for a participant whose camera/mic is off but who hasn't actually
+        // disconnected (see the participant-disconnected branch below for when a tile is actually
+        // removed).
+        setTiles((prev) =>
+          prev.map((t) => {
+            if (t.participantIdentity !== event.participantIdentity) return t;
+            if (t.videoElement === event.element) return { ...t, videoElement: null };
+            if (t.audioElement === event.element) return { ...t, audioElement: null };
+            return t;
+          })
+        );
       } else if (event.type === "participant-disconnected") {
-        const tile = tileRefs.current.get(event.participantIdentity);
-        tile?.remove();
-        tileRefs.current.delete(event.participantIdentity);
+        setTiles((prev) => prev.filter((t) => t.participantIdentity !== event.participantIdentity));
       } else if (event.type === "disconnected") {
-        for (const tile of tileRefs.current.values()) {
-          tile.remove();
-        }
-        tileRefs.current.clear();
+        setTiles([]);
       } else if (event.type === "local-media-error") {
         setMediaError({ message: event.message, actionable: event.actionable });
       }
@@ -626,6 +683,15 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
     setJoining(room.id);
     setJoinError(null);
     setMediaError(null);
+    // QA-discovered bug (v3.3 QA pass): unlike `participants` (which gets a fresh, complete
+    // replacement from this same function's participants fetch below), `tiles` is only ever
+    // incrementally updated by track events - there's no later call that overwrites it wholesale.
+    // A stale tile (and its now-defunct media elements) from a PREVIOUS join session would
+    // otherwise survive into this new one for any participant identity that recurs. Reset here,
+    // at the START of every join attempt, rather than relying solely on handleLeaveRoom's own
+    // reset below - this covers session starts that don't follow a normal leave too (e.g. the
+    // very first join, or recovering from an earlier failed join's partial state).
+    setTiles([]);
     try {
       const { token } = await studyRoomApi.joinRoom(room.id);
       // v3.3 Task 9: cameraOn/micOn reflect the room-list view's two pre-join toggles (default
@@ -687,6 +753,7 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
     } finally {
       setJoinedRoom(null);
       setParticipants(new Map());
+      setTiles([]);
       setRoomTags([]);
       setTagSendError(null);
       setMediaError(null);
@@ -737,7 +804,15 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
           </button>
         </header>
 
-        <div ref={gridRef} className="study-room-panel__grid" />
+        <div className="study-room-panel__grid">
+          {tiles.map((tile) => (
+            <StudyRoomVideoTile
+              key={tile.participantIdentity}
+              tile={tile}
+              label={tile.isLocal ? "You" : displayName(tile.participantIdentity)}
+            />
+          ))}
+        </div>
 
         <div className="study-room-panel__media-toggles">
           <button type="button" onClick={handleToggleCamera}>
