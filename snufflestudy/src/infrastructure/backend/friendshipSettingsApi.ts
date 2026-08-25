@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireUserId } from "./authHelpers";
 
 // v2 Task 10, Part A: the CRUD surface Task 7's own report flagged as missing - no
 // friendship_settings row was ever created anywhere, and no API/UI existed to create or edit one.
@@ -84,18 +85,6 @@ function toRowPatch(patch: FriendshipSettingsPatch): Record<string, boolean | nu
   }
   if (patch.shareFullHistory !== undefined) row.share_full_history = patch.shareFullHistory;
   return row;
-}
-
-// Mirrors friendGroupApi.ts's requireUserId() exactly (.getUser(), not .getSession()) - these are
-// explicit, infrequent user-initiated actions (opening the Friends settings page, toggling a
-// checkbox), not a hot-path lifecycle transition, so paying getUser()'s extra round trip for a
-// verified identity is fine here, same rationale as friendGroupApi.ts/unlockRequestApi.ts.
-async function requireUserId(): Promise<string> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) {
-    throw new Error("Not signed in.");
-  }
-  return data.user.id;
 }
 
 // Every friendship_settings row the current user owns (user_id = auth.uid()) - one per friend

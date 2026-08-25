@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { checkAuth } from "./authHelpers";
 import type { SessionEventType } from "../../domain/session/sessionTypes";
 
 // The minimal event shape a friend is allowed to see, per the architecture overview's privacy
@@ -96,19 +97,9 @@ interface FriendFullHistoryRow {
 // apart from "nothing to do" so alarmHandlers.ts's friend-poll alarm doesn't advance its cursor
 // past a failure) - recordStatusEvent/fetchNewEventsForFriends still collapse both into a single
 // no-op via currentUserId() below, since neither has a cursor to protect.
-async function checkAuth(): Promise<{ ok: true; userId: string | null } | { ok: false }> {
-  try {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) {
-      console.error("Failed to read Supabase auth session", error);
-      return { ok: false };
-    }
-    return { ok: true, userId: data.session?.user.id ?? null };
-  } catch (err) {
-    console.error("Failed to read Supabase auth session", err);
-    return { ok: false };
-  }
-}
+//
+// checkAuth() itself now lives in authHelpers.ts (imported above) - this file's copy was
+// byte-identical to the other 7 and was consolidated there in v3.4 Task 1.
 
 // Returns null (never throws) so callers can treat "not signed in" - and, per this function's
 // contract, "the auth check itself failed" too - as a plain no-op. Used by recordStatusEvent and

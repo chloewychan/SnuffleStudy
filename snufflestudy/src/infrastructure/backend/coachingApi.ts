@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { checkAuth } from "./authHelpers";
 import type { InterventionLevel } from "../../domain/session/sessionTypes";
 import { pickWarningMessage } from "../../domain/pressure/pressureEngine";
 
@@ -23,24 +24,6 @@ export interface CoachingMessageRequest {
 // "how long do we keep a network call alive in the background" - it is not a UI-responsiveness
 // budget, just a bounded ceiling so a genuine outage/hang still falls back cleanly.
 const INVOKE_TIMEOUT_MS = 2000;
-
-// Mirrors sessionStatusSyncApi.ts's/nudgeApi.ts's/unlockRequestApi.ts's checkAuth() exactly (see
-// those files' identical comment) - reads the already-persisted/cached session via
-// supabase.auth.getSession() rather than .getUser(), so a signed-out user pays no network round
-// trip before this function falls back to the static pool.
-async function checkAuth(): Promise<{ ok: true; userId: string | null } | { ok: false }> {
-  try {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) {
-      console.error("Failed to read Supabase auth session", error);
-      return { ok: false };
-    }
-    return { ok: true, userId: data.session?.user.id ?? null };
-  } catch (err) {
-    console.error("Failed to read Supabase auth session", err);
-    return { ok: false };
-  }
-}
 
 // Absolute last resort - used only if pickWarningMessage() ITSELF throws (fix round 1). That can
 // genuinely happen: pickWarningMessage() calls getPressureProfile(id), which throws for any id

@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { checkAuth } from "./authHelpers";
 import { isValidNudgeMessageId } from "../../domain/accountability/nudgeMessages";
 
 // Row shape returned to callers is camelCase, mirroring sessionStatusSyncApi.ts's FriendEvent /
@@ -28,24 +29,6 @@ function toFriendNudge(row: NudgeRow): FriendNudge {
     messageId: row.message_id,
     sentAt: new Date(row.sent_at).getTime(),
   };
-}
-
-// Mirrors sessionStatusSyncApi.ts's checkAuth() exactly (same ok:false-means-the-check-itself-
-// failed vs. ok:true/userId:null-means-cleanly-signed-out distinction, for the same reason: the
-// poll-side function below needs to tell a real failure apart from "nothing to do" so
-// alarmHandlers.ts's friend-poll alarm doesn't advance its nudge cursor past a failure).
-async function checkAuth(): Promise<{ ok: true; userId: string | null } | { ok: false }> {
-  try {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) {
-      console.error("Failed to read Supabase auth session", error);
-      return { ok: false };
-    }
-    return { ok: true, userId: data.session?.user.id ?? null };
-  } catch (err) {
-    console.error("Failed to read Supabase auth session", err);
-    return { ok: false };
-  }
 }
 
 // Sends a predefined nudge to a friend. The toggle/cooldown gate is entirely server-side (the

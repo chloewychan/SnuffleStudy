@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireUserId } from "./authHelpers";
 
 // v3.3 Task 8: bunny/human display names, backed by the new `profiles` table (supabase/
 // migrations/20260815000034_v3.3_profiles.sql). Row shapes returned to callers are camelCase,
@@ -26,19 +27,6 @@ function toProfile(row: ProfileRow): Profile {
     bunnyName: row.bunny_name,
     updatedAt: row.updated_at,
   };
-}
-
-// Mirrors friendGroupApi.ts's/friendshipSettingsApi.ts's requireUserId() exactly (.getUser(), not
-// .getSession()) - getMyProfile/saveMyProfile are explicit, infrequent user-initiated actions
-// (opening BunnyTab, saving a name), not a hot-path lifecycle transition, so paying getUser()'s
-// extra round trip for a verified identity is fine here, same rationale as every other backend
-// file in this codebase.
-async function requireUserId(): Promise<string> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) {
-    throw new Error("Not signed in.");
-  }
-  return data.user.id;
 }
 
 // Returns null (not a throw) when the signed-in user has no profiles row yet - a real, expected

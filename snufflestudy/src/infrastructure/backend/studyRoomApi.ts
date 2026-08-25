@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireUserId } from "./authHelpers";
 import type {
   StudyRoom,
   RoomParticipant,
@@ -100,18 +101,6 @@ function toRoomInvitee(row: RoomInviteeRow): RoomInvitee {
     invitedBy: row.invited_by,
     invitedAt: row.invited_at,
   };
-}
-
-// Mirrors friendGroupApi.ts's/tempPasscodeApi.ts's requireUserId()+throw convention - createRoom/
-// joinRoom/leaveRoom are all explicit, infrequent user-initiated button presses, not hot-path
-// lifecycle transitions, so paying getUser()'s extra round trip for a verified identity is fine
-// here (same rationale tempPasscodeApi.ts's own copy of this comment gives).
-async function requireUserId(): Promise<string> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) {
-    throw new Error("Not signed in.");
-  }
-  return data.user.id;
 }
 
 // Inserts a study_rooms row owned by the current user. No pre-generated client-side id needed

@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { checkAuth } from "./authHelpers";
 
 // The exact shape declared by this task's brief/plan (docs/V2_Implementation_Plan.md's Task 9
 // Interfaces block): `fetchDigestForDate(date: string): Promise<DigestSummary[]>` returning
@@ -46,25 +47,6 @@ function toFriendDigest(row: DailyDigestRow): FriendDigest {
     digestDate: row.digest_date,
     computedAt: new Date(row.computed_at).getTime(),
   };
-}
-
-// Mirrors sessionStatusSyncApi.ts's/nudgeApi.ts's/unlockRequestApi.ts's checkAuth() exactly (same
-// ok:false-means-the-check-itself-failed vs. ok:true/userId:null-means-cleanly-signed-out
-// distinction) - pollNewDigests below is the poll-side function that needs to tell a real
-// failure apart from "nothing to do" so alarmHandlers.ts's friend-poll alarm doesn't advance its
-// digest cursor past a failure.
-async function checkAuth(): Promise<{ ok: true; userId: string | null } | { ok: false }> {
-  try {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) {
-      console.error("Failed to read Supabase auth session", error);
-      return { ok: false };
-    }
-    return { ok: true, userId: data.session?.user.id ?? null };
-  } catch (err) {
-    console.error("Failed to read Supabase auth session", err);
-    return { ok: false };
-  }
 }
 
 // Shared implementation behind fetchDigestForDate below - deliberately unfiltered beyond the

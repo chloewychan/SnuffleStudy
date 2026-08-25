@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { requireUserId, checkAuth } from "./authHelpers";
 import type { ProducerTag } from "../../domain/rooms/producerTag";
 
 // v2 Task 14: Producer Tags (Audio Nudges).
@@ -93,37 +94,6 @@ function toProducerTag(row: ProducerTagRow): ProducerTag {
     durationMs: row.duration_ms,
     createdAt: row.created_at,
   };
-}
-
-// Mirrors friendGroupApi.ts's/studyRoomApi.ts's requireUserId()+throw convention - uploadTag/
-// sendToFriend/sendToRoom are all explicit, infrequent user-initiated actions (record, then press
-// "Send"), not a hot-path lifecycle transition, so paying getUser()'s extra round trip for a
-// verified identity is fine here (same rationale those files' own copies of this comment give).
-async function requireUserId(): Promise<string> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) {
-    throw new Error("Not signed in.");
-  }
-  return data.user.id;
-}
-
-// Mirrors nudgeApi.ts's/unlockRequestApi.ts's checkAuth() exactly (same
-// ok:false-means-the-check-itself-failed vs. ok:true/userId:null-means-cleanly-signed-out
-// distinction) - queryIncomingSince below is the poll-side function that needs to tell a real
-// failure apart from "nothing to do" so alarmHandlers.ts's friend-poll alarm doesn't advance its
-// producer-tag cursor past a failure.
-async function checkAuth(): Promise<{ ok: true; userId: string | null } | { ok: false }> {
-  try {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) {
-      console.error("Failed to read Supabase auth session", error);
-      return { ok: false };
-    }
-    return { ok: true, userId: data.session?.user.id ?? null };
-  } catch (err) {
-    console.error("Failed to read Supabase auth session", err);
-    return { ok: false };
-  }
 }
 
 // Pure browser-API helpers (no Supabase coupling) bridging the chrome.runtime.sendMessage
