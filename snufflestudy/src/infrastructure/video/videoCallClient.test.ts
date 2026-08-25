@@ -394,6 +394,89 @@ describe("videoCallClient remote-track event forwarding", () => {
     unsubscribe();
   });
 
+  // QA-discovered bug (v3.3 QA pass): a real two-account session produced FOUR media elements
+  // (two video, two audio) stacked inside one remote participant's tile - trackSubscribed had
+  // fired a second time for both kinds (a reconnect/renegotiation, not an app bug) without an
+  // intervening trackUnsubscribed for the first pair ever arriving, and handleTrackSubscribed
+  // unconditionally created and appended a brand-new element every time, with nothing removing
+  // the stale one. The freshly working elements ended up hidden behind the old, unpopulated ones
+  // the DOM happened to stack on top - visually indistinguishable from "no video at all" (the
+  // beige placeholder background showing through).
+  it("replaces a stale element instead of stacking a duplicate when trackSubscribed fires twice for the same participant+kind", async () => {
+    await joinCall("room-1", "livekit-jwt");
+
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    const unsubscribe = onVideoCallEvent((event) => events.push(event as never));
+
+    const room = latestRoom();
+    const participant = { identity: "friend-b" };
+
+    const firstElement = document.createElement("video");
+    const firstTrack = fakeTrack(firstElement);
+    room.emit("trackSubscribed", firstTrack, { kind: "video" }, participant);
+
+    const secondElement = document.createElement("video");
+    const secondTrack = fakeTrack(secondElement);
+    room.emit("trackSubscribed", secondTrack, { kind: "video" }, participant);
+
+    // The stale first element must be explicitly removed (a track-removed event, same as a real
+    // trackUnsubscribed would produce) - not just silently left behind for a second element to
+    // stack on top of.
+    expect(events).toEqual([
+      { type: "track-added", participantIdentity: "friend-b", isLocal: false, element: firstElement },
+      { type: "track-removed", participantIdentity: "friend-b", isLocal: false, element: firstElement },
+      { type: "track-added", participantIdentity: "friend-b", isLocal: false, element: secondElement },
+    ]);
+
+    unsubscribe();
+  });
+
+  // A genuinely late/out-of-order trackUnsubscribed for the FIRST (already-replaced) track must
+  // not clobber bookkeeping for the second (currently live) one - a subsequent third subscribe for
+  // the same participant+kind must still correctly detect and replace element #2, not silently
+  // stack a third element on top of it because the late unsubscribe wiped the "what's currently
+  // attached" record.
+  it("a late trackUnsubscribed for an already-replaced track does not prevent a later duplicate from being caught", async () => {
+    await joinCall("room-1", "livekit-jwt");
+
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    const unsubscribe = onVideoCallEvent((event) => events.push(event as never));
+
+    const room = latestRoom();
+    const participant = { identity: "friend-b" };
+
+    const firstElement = document.createElement("video");
+    const firstTrack = fakeTrack(firstElement);
+    room.emit("trackSubscribed", firstTrack, { kind: "video" }, participant);
+
+    const secondElement = document.createElement("video");
+    const secondTrack = fakeTrack(secondElement);
+    room.emit("trackSubscribed", secondTrack, { kind: "video" }, participant);
+
+    // The late unsubscribe for the FIRST (stale) track arrives after the second subscribe -
+    // detaches firstElement again (harmless - it's already removed from the DOM by this point,
+    // this is just what the real SDK would still report) but must not affect bookkeeping for
+    // secondElement.
+    room.emit("trackUnsubscribed", firstTrack, { kind: "video" }, participant);
+
+    const thirdElement = document.createElement("video");
+    const thirdTrack = fakeTrack(thirdElement);
+    room.emit("trackSubscribed", thirdTrack, { kind: "video" }, participant);
+
+    const removedElements = events
+      .filter((e) => e.type === "track-removed")
+      .map((e) => e.element);
+    // secondElement must have been removed when the third subscribe arrived - if the late
+    // unsubscribe above had wiped bookkeeping, this replace step would never happen and
+    // secondElement would still be in removedElements only once (from the unsubscribe) or not at
+    // all, and thirdElement would stack on top of it instead of replacing it.
+    expect(removedElements).toContain(secondElement);
+    const addedElements = events.filter((e) => e.type === "track-added").map((e) => e.element);
+    expect(addedElements).toEqual([firstElement, secondElement, thirdElement]);
+
+    unsubscribe();
+  });
+
   it("forwards trackUnsubscribed as a track-removed event for each detached element", async () => {
     await joinCall("room-1", "livekit-jwt");
     const room = latestRoom();

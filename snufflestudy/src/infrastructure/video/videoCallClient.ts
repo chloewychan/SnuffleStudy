@@ -73,6 +73,25 @@ let currentRoom: Room | null = null;
 let localVideoTrack: LocalTrack | null = null;
 const listeners = new Set<VideoCallEventListener>();
 
+// QA-discovered bug (v3.3 QA pass): a real two-account session produced FOUR media elements (two
+// video, two audio) stacked inside one remote participant's tile, with the freshly-working pair
+// hidden behind an older, unpopulated pair the DOM happened to render on top - visually
+// indistinguishable from "no video at all" (the tile's own beige placeholder background showing
+// through). Root cause: RoomEvent.TrackSubscribed fired a second time for the SAME participant's
+// SAME track kind (a reconnect/renegotiation - confirmed as expected, real-world SDK behavior, not
+// something to prevent) without a TrackUnsubscribed for the first pair ever arriving first, and
+// handleTrackSubscribed below unconditionally created and appended a brand-new element every
+// time, with nothing removing the stale one. Tracks the currently-attached remote element (and
+// the exact track instance it came from, so a genuinely late/out-of-order TrackUnsubscribed for
+// an already-replaced track can't clobber bookkeeping for whatever replaced it - see
+// handleTrackUnsubscribed below) per participant+kind, since a participant has at most one active
+// video and one active audio track at a time in this app (no screen share, no multiple cameras).
+const attachedRemoteMedia = new Map<string, { track: RemoteTrack; element: HTMLMediaElement }>();
+
+function remoteMediaKey(identity: string, kind: string): string {
+  return `${identity}:${kind}`;
+}
+
 function emit(event: VideoCallEvent): void {
   for (const listener of listeners) {
     try {
@@ -85,28 +104,51 @@ function emit(event: VideoCallEvent): void {
 
 function handleTrackSubscribed(
   track: RemoteTrack,
-  _publication: RemoteTrackPublication,
+  publication: RemoteTrackPublication,
   participant: RemoteParticipant
 ): void {
+  const key = remoteMediaKey(participant.identity, publication.kind);
+  const stale = attachedRemoteMedia.get(key);
+  if (stale) {
+    emit({
+      type: "track-removed",
+      participantIdentity: participant.identity,
+      isLocal: false,
+      element: stale.element,
+    });
+  }
   const element = track.attach();
+  attachedRemoteMedia.set(key, { track, element });
   emit({ type: "track-added", participantIdentity: participant.identity, isLocal: false, element });
 }
 
 function handleTrackUnsubscribed(
   track: RemoteTrack,
-  _publication: RemoteTrackPublication,
+  publication: RemoteTrackPublication,
   participant: RemoteParticipant
 ): void {
+  // Only clear bookkeeping if THIS unsubscribe is for the track currently recorded as attached -
+  // a late/out-of-order unsubscribe for an already-replaced track must not erase the record of
+  // whatever replaced it (see the "late trackUnsubscribed" test in videoCallClient.test.ts for
+  // exactly this ordering). Detaching the actual elements below is unconditional and safe either
+  // way - it operates on THIS specific track instance, not on the map.
+  const key = remoteMediaKey(participant.identity, publication.kind);
+  if (attachedRemoteMedia.get(key)?.track === track) {
+    attachedRemoteMedia.delete(key);
+  }
   for (const element of track.detach()) {
     emit({ type: "track-removed", participantIdentity: participant.identity, isLocal: false, element });
   }
 }
 
 function handleParticipantDisconnected(participant: RemoteParticipant): void {
+  attachedRemoteMedia.delete(remoteMediaKey(participant.identity, "video"));
+  attachedRemoteMedia.delete(remoteMediaKey(participant.identity, "audio"));
   emit({ type: "participant-disconnected", participantIdentity: participant.identity });
 }
 
 function handleDisconnected(): void {
+  attachedRemoteMedia.clear();
   emit({ type: "disconnected" });
 }
 
@@ -307,6 +349,10 @@ export function leaveCall(): void {
   // joins with the camera off, an early setCameraEnabled(false) before ever re-enabling it would
   // wrongly try to detach a track that belongs to this now-disconnected room.
   localVideoTrack = null;
+  // Same reasoning for remote bookkeeping - room.disconnect()'s own eventual RoomEvent.Disconnected
+  // (handleDisconnected, which also clears this map) isn't guaranteed to fire before this module is
+  // reused for a NEXT call, so this can't be the only place that clears it.
+  attachedRemoteMedia.clear();
   detachRoomListeners(room);
   // stopTracks defaults to true - releases the local camera/mic devices (turns off the browser's
   // "in use" indicator) rather than leaving them captured after the call ends.
