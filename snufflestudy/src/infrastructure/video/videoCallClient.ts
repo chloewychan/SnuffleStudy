@@ -1,4 +1,4 @@
-import { Room, RoomEvent, type RemoteParticipant, type RemoteTrack, type RemoteTrackPublication } from "livekit-client";
+import { Room, RoomEvent, type LocalTrack, type RemoteParticipant, type RemoteTrack, type RemoteTrackPublication } from "livekit-client";
 import { MEDIA_PERMISSION_HELP_MESSAGE, isMediaPermissionError } from "../media/mediaPermissions";
 
 // v2 Task 13: Study Rooms - the LiveKit room-join wrapper. Per this task's brief, this is "the
@@ -60,6 +60,17 @@ export type VideoCallEvent =
 type VideoCallEventListener = (event: VideoCallEvent) => void;
 
 let currentRoom: Room | null = null;
+// QA-discovered bug (v3.3 QA pass): setCameraEnabled below used to discard whatever
+// room.localParticipant.setCameraEnabled(enabled) resolved with, so a mid-call camera re-enable
+// never attached/emitted anything - the button's label flipped, but no local video tile ever
+// appeared, and a subsequent disable had no track to detach a stale tile from either. This holds
+// the currently-published local video track (set by whichever of joinCall's initial publish or
+// setCameraEnabled's own mid-call toggle most recently (re)published it) purely so a later
+// setCameraEnabled(false) has something to call .detach() on - mirrors how handleTrackUnsubscribed
+// below already detaches a REMOTE track's elements the same way, just for the local side, which
+// has no equivalent Room-level event to hook (see attachRoomListeners' own comment on why local
+// tracks are wired up directly around the setCameraEnabled/setMicrophoneEnabled calls instead).
+let localVideoTrack: LocalTrack | null = null;
 const listeners = new Set<VideoCallEventListener>();
 
 function emit(event: VideoCallEvent): void {
@@ -174,6 +185,7 @@ export async function joinCall(
     const cameraPublication = await room.localParticipant.setCameraEnabled(initial?.camera ?? true);
     const track = cameraPublication?.track;
     if (track) {
+      localVideoTrack = track;
       const element = track.attach();
       emit({
         type: "track-added",
@@ -219,10 +231,45 @@ export async function joinCall(
 // StudyRoomPanel.tsx already renders off that event covers a mid-call toggle for free, with no new
 // UI-level error handling needed. Matches this file's existing "camera/mic access can partially
 // fail without tearing down anything else" posture.
+//
+// QA-discovered bug (v3.3 QA pass): a camera-off join never calls getUserMedia at all (see
+// joinCall's own comment) - so the first time a user re-enables it mid-call via
+// StudyRoomPanel.tsx's toggle button is genuinely the FIRST real camera acquisition for that call,
+// exactly like joinCall's own initial publish. This function used to discard whatever
+// room.localParticipant.setCameraEnabled(enabled) resolved with, so that first real acquisition
+// never got attached to an element or announced via "track-added" - the button's label flipped to
+// "On", but no video ever appeared. Now mirrors joinCall's own attach+emit treatment exactly on
+// enable, and detaches+emits "track-removed" for whatever this module itself last attached on
+// disable (there is no Room-level event for "my own track was unpublished" the way
+// TrackUnsubscribed covers a remote participant's - see attachRoomListeners' own comment).
 export async function setCameraEnabled(enabled: boolean): Promise<void> {
   if (!currentRoom) return;
+  const room = currentRoom;
   try {
-    await currentRoom.localParticipant.setCameraEnabled(enabled);
+    const publication = await room.localParticipant.setCameraEnabled(enabled);
+    if (enabled) {
+      const track = publication?.track;
+      if (track) {
+        localVideoTrack = track;
+        const element = track.attach();
+        emit({
+          type: "track-added",
+          participantIdentity: room.localParticipant.identity,
+          isLocal: true,
+          element,
+        });
+      }
+    } else if (localVideoTrack) {
+      for (const element of localVideoTrack.detach()) {
+        emit({
+          type: "track-removed",
+          participantIdentity: room.localParticipant.identity,
+          isLocal: true,
+          element,
+        });
+      }
+      localVideoTrack = null;
+    }
   } catch (err) {
     console.error("Could not toggle local camera", err);
     emit({
@@ -256,6 +303,10 @@ export function leaveCall(): void {
   if (!currentRoom) return;
   const room = currentRoom;
   currentRoom = null;
+  // Otherwise a stale reference from THIS call would leak into the next one - if that next call
+  // joins with the camera off, an early setCameraEnabled(false) before ever re-enabling it would
+  // wrongly try to detach a track that belongs to this now-disconnected room.
+  localVideoTrack = null;
   detachRoomListeners(room);
   // stopTracks defaults to true - releases the local camera/mic devices (turns off the browser's
   // "in use" indicator) rather than leaving them captured after the call ends.

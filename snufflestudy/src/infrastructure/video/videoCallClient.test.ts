@@ -47,7 +47,20 @@ vi.mock("livekit-client", () => {
       setCameraEnabled: vi.fn().mockImplementation((enabled: boolean) => {
         if (cameraShouldFail) return Promise.reject(cameraFailure);
         if (!enabled) return Promise.resolve(undefined);
-        return Promise.resolve({ track: { attach: vi.fn(() => document.createElement("video")) } });
+        // detach() mirrors the real SDK: returns whatever attach() most recently created, so a
+        // test can prove a mid-call disable actually detaches (and this module emits
+        // "track-removed" for) the same element the preceding enable attached - not just that
+        // attach() was called.
+        let attachedElement: HTMLVideoElement | null = null;
+        return Promise.resolve({
+          track: {
+            attach: vi.fn(() => {
+              attachedElement = document.createElement("video");
+              return attachedElement;
+            }),
+            detach: vi.fn(() => (attachedElement ? [attachedElement] : [])),
+          },
+        });
       }),
       setMicrophoneEnabled: vi.fn().mockResolvedValue(undefined),
     };
@@ -287,6 +300,54 @@ describe("videoCallClient.setCameraEnabled / setMicrophoneEnabled", () => {
 
     await setCameraEnabled(true);
     expect(room.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
+  });
+
+  // QA-discovered bug (v3.3 QA pass): a real two-account test joined with the camera off, then
+  // clicked "Camera: Off" to turn it back on mid-call - the button's label flipped to "On" (pure
+  // local state), but no video ever appeared. Root cause: unlike joinCall's own camera try/catch
+  // (which attaches the resulting LocalTrackPublication's track and emits "track-added" - see
+  // "emits a local track-added event once the camera track publishes" above), this mid-call
+  // setCameraEnabled() only ever called room.localParticipant.setCameraEnabled(enabled) and
+  // discarded whatever it resolved with. A camera-off join never calls getUserMedia at all (see
+  // "a camera-off join publishes no local video track" above), so the FIRST real camera
+  // acquisition for that call is exactly this mid-call re-enable - which is precisely why it needs
+  // the same attach+emit treatment joinCall's initial publish already gets, not just the raw SDK
+  // call.
+  it("attaches the resulting local video track and emits a track-added event when re-enabling the camera mid-call", async () => {
+    await joinCall("room-1", "livekit-jwt", { camera: false });
+    const room = latestRoom();
+
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    const unsubscribe = onVideoCallEvent((event) => events.push(event as never));
+
+    await setCameraEnabled(true);
+
+    expect(room.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
+    const localEvents = events.filter((e) => e.type === "track-added" && e.isLocal === true);
+    expect(localEvents).toHaveLength(1);
+    expect(localEvents[0]!.element).toBeInstanceOf(HTMLVideoElement);
+    unsubscribe();
+  });
+
+  // Same root cause as above, the disable-then-reenable direction: turning the camera back OFF
+  // mid-call must still detach/remove whatever tile the re-enable above (or the initial join)
+  // created - StudyRoomPanel.tsx's track-removed handler is what actually removes the DOM element,
+  // so this only needs to prove the event fires, not that removal itself works (already covered by
+  // "videoCallClient remote-track event forwarding" below, which is participant-agnostic).
+  it("does not leave a stale local video tile in place when the camera is disabled again mid-call", async () => {
+    await joinCall("room-1", "livekit-jwt");
+    const room = latestRoom();
+    room.localParticipant.setCameraEnabled.mockClear();
+
+    const events: Array<{ type: string; [k: string]: unknown }> = [];
+    const unsubscribe = onVideoCallEvent((event) => events.push(event as never));
+
+    await setCameraEnabled(false);
+
+    expect(room.localParticipant.setCameraEnabled).toHaveBeenCalledWith(false);
+    const localRemovedEvents = events.filter((e) => e.type === "track-removed" && e.isLocal === true);
+    expect(localRemovedEvents).toHaveLength(1);
+    unsubscribe();
   });
 
   // Mirrors joinCall's own "actionable local-media-error" behavior for a first-time camera-on
