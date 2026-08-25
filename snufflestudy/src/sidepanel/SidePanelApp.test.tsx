@@ -109,6 +109,65 @@ describe("SidePanelApp", () => {
     }
   });
 
+  // QA-discovered bug (v3.3 QA pass): SidePanelApp.tsx owns its own top-level `settings` state,
+  // fetched once on mount and passed down to StudyTab -> SessionSetupForm. SettingsPage.tsx (Task
+  // 7's new sidepanel Settings tab) fetches and saves its OWN, entirely separate `settings` state -
+  // saving a change there (e.g. adding a restricted site) persists correctly in the background, but
+  // never told SidePanelApp's own copy to refresh. Starting a session immediately afterward, from
+  // the same sidepanel session with no reload, used SidePanelApp's stale settings - a newly-added
+  // restricted site was silently dropped from that session's own restrictedSites (reproduced live:
+  // the site wasn't blocked, and didn't appear in the active-session view's own restricted-sites
+  // list either, since both are built from the session's persisted restrictedSites at creation
+  // time, not the fresh setting).
+  it("uses a freshly-saved restricted site when starting a session right after editing it in the Settings tab", async () => {
+    const sessionCreatePayloads: unknown[] = [];
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") {
+        return {
+          ok: true,
+          settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true, defaultRestrictedSites: [] },
+        };
+      }
+      if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session: null };
+      if (message.type === "SETTINGS_SAVE") return { ok: true };
+      if (message.type === "TASK_LIST") return { ok: true, tasks: [] };
+      if (message.type === "SESSION_CREATE") {
+        sessionCreatePayloads.push(message.payload);
+        return { ok: true, session: { id: "session_1" } };
+      }
+      if (message.type === "SESSION_START") return { ok: true };
+      return { ok: true };
+    });
+
+    render(<SidePanelApp />);
+    await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: /tracking/i })).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText("Default restricted sites"), {
+      target: { value: "youtube.com" },
+    });
+    await waitFor(() =>
+      expect(messenger.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "SETTINGS_SAVE",
+          payload: expect.objectContaining({ defaultRestrictedSites: ["youtube.com"] }),
+        })
+      )
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Study" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Start session" })).toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+
+    await waitFor(() => expect(sessionCreatePayloads.length).toBeGreaterThan(0));
+    expect(sessionCreatePayloads[0]).toMatchObject({ restrictedSites: ["youtube.com"] });
+  });
+
   it("shows the active session view with an End session control", async () => {
     const session = machine.startSession(machine.createSession(input, "session_1", 0), 0);
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {

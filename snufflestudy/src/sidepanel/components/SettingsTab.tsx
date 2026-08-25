@@ -3,8 +3,17 @@ import { AccountPage } from "../../options/pages/AccountPage";
 import { FriendsPage } from "../../options/pages/FriendsPage";
 import { HistoryPage } from "../../options/pages/HistoryPage";
 import { SettingsPage } from "./settingsTab/SettingsPage";
+import type { UserSettings } from "../../domain/settings/userSettings";
 
 type SidepanelSettingsView = "settings" | "account" | "friends" | "history";
+
+interface SettingsTabProps {
+  // QA-discovered bug (v3.3 QA pass): forwarded straight through to SettingsPage - see that
+  // component's own header comment for why this exists at all (SidePanelApp.tsx's own top-level
+  // `settings` state, used to start a session, would otherwise go stale the moment a change is
+  // saved here).
+  onSettingsChange?: (settings: UserSettings) => void;
+}
 
 // v3.3 Task 7: rebuilds the placeholder Task 1 left behind (both TempPasscodePanel and
 // UnlockRequestPanel moved to FriendsTab.tsx) into a real embedded sub-nav - Settings/Account/
@@ -18,7 +27,7 @@ type SidepanelSettingsView = "settings" | "account" | "friends" | "history";
 // documented platform limitation - see OptionsApp.tsx's own mediaGrantStatus header comment), so
 // it stays a full-tab-only flow. The callout button below just opens the real Options tab, which
 // already has that section (still inline in OptionsApp.tsx, after its own <SettingsPage />).
-export function SettingsTab() {
+export function SettingsTab({ onSettingsChange }: SettingsTabProps) {
   const [view, setView] = useState<SidepanelSettingsView>("settings");
 
   return (
@@ -60,7 +69,7 @@ export function SettingsTab() {
 
       {view === "settings" && (
         <>
-          <SettingsPage />
+          <SettingsPage onSettingsSaved={onSettingsChange} />
           <button
             type="button"
             className="sp-settings-tab__media-callout"

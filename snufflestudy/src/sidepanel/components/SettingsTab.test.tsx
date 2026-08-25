@@ -48,6 +48,33 @@ describe("SettingsTab", () => {
     expect(chrome.runtime.openOptionsPage).toHaveBeenCalledOnce();
   });
 
+  // QA-discovered bug (v3.3 QA pass): SettingsPage.tsx owns its own settings state, independent of
+  // SidePanelApp.tsx's own top-level copy (used to start a session) - saving a change here never
+  // told that copy to refresh. onSettingsChange is how SidePanelApp.tsx stays in sync; this proves
+  // SettingsTab actually wires it through to SettingsPage's own onSettingsSaved callback.
+  it("calls onSettingsChange with the updated settings after a change is saved", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") {
+        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, defaultRestrictedSites: [] } };
+      }
+      return { ok: true };
+    });
+    const onSettingsChange = vi.fn();
+
+    render(<SettingsTab onSettingsChange={onSettingsChange} />);
+    await screen.findByLabelText("Detailed site tracking");
+
+    fireEvent.change(screen.getByLabelText("Default restricted sites"), {
+      target: { value: "youtube.com" },
+    });
+
+    await waitFor(() =>
+      expect(onSettingsChange).toHaveBeenCalledWith(
+        expect.objectContaining({ defaultRestrictedSites: ["youtube.com"] })
+      )
+    );
+  });
+
   it("switches to the Account view and back to Settings", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "SETTINGS_GET") return { ok: true, settings: DEFAULT_USER_SETTINGS };

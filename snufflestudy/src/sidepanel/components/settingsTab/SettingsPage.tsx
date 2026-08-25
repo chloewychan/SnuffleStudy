@@ -21,7 +21,20 @@ import {
 // OptionsApp.tsx (full tab, followed by the still-inline camera/microphone section) and the
 // sidepanel's SettingsTab.tsx (Task 7's new Settings/Account/Friends/History sub-nav) - one shared
 // source for the Tracking/Friends/Notifications/Default-restricted-sites/Hard-block-passcode UI.
-export function SettingsPage(): JSX.Element {
+//
+// QA-discovered bug (v3.3 QA pass): this component owns its OWN settings state, fetched
+// independently of SidePanelApp.tsx's own top-level `settings` (passed down to StudyTab ->
+// SessionSetupForm, which is what a new session actually gets created with). Saving a change here
+// persists it correctly in the background, but never told SidePanelApp's own copy to refresh -
+// starting a session right after editing something here (e.g. a restricted site), with no reload
+// in between, silently used whatever SidePanelApp had fetched once on mount. `onSettingsSaved` is
+// optional specifically so OptionsApp.tsx's own standalone full-tab usage (no sibling state to
+// keep in sync there) is unaffected - only SettingsTab.tsx (the sidepanel) passes one through.
+export function SettingsPage({
+  onSettingsSaved,
+}: {
+  onSettingsSaved?: (settings: UserSettings) => void;
+} = {}): JSX.Element {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -78,6 +91,7 @@ export function SettingsPage(): JSX.Element {
     setSaveError(null);
     try {
       await sendMessage({ type: "SETTINGS_SAVE", payload: next });
+      onSettingsSaved?.(next);
     } catch (err) {
       // sendMessage (chrome.runtime.sendMessage) can reject — e.g. "Could not establish
       // connection. Receiving end does not exist." during service-worker startup races,

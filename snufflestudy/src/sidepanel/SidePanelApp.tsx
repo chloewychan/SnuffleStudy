@@ -107,7 +107,7 @@ export function SidePanelApp() {
           {activeTab === "bunny" && <BunnyTab />}
           {activeTab === "study" && <StudyTab settings={settings} />}
           {activeTab === "friends" && <FriendsTab />}
-          {activeTab === "settings" && <SettingsTab />}
+          {activeTab === "settings" && <SettingsTab onSettingsChange={setSettings} />}
         </div>
       </>
     );
