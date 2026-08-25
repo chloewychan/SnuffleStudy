@@ -206,7 +206,19 @@ export async function joinCall(
     leaveCall();
   }
 
-  const room = new Room({ adaptiveStream: true, dynacast: true });
+  // QA-discovered bug (v3.3 QA pass, experiment): dynacast lets the SFU tell a publisher to
+  // pause/resume simulcast layers based on what subscribers actually need - extra renegotiation
+  // traffic on top of the base connection. A real two-account test found that enabling the camera
+  // MID-CALL (via setCameraEnabled below, after joining with the camera off) reliably produced a
+  // published track whose underlying MediaStreamTrack.readyState was already "ended" moments
+  // later (confirmed directly via devtools), while the exact same "camera enabled" code path
+  // succeeds reliably when it's part of the INITIAL join negotiation instead of a later
+  // renegotiation - the one concrete difference between those two paths being whether dynacast's
+  // renegotiation churn is in play for a track that didn't exist in the original offer. Disabled
+  // here as a targeted experiment to test that theory; re-enable if retesting shows it wasn't the
+  // cause (dynacast only affects bandwidth optimization for multi-viewer scenarios, not
+  // correctness, so disabling it costs nothing else in this small-group app either way).
+  const room = new Room({ adaptiveStream: true, dynacast: false });
   attachRoomListeners(room);
 
   try {
