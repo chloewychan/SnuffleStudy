@@ -290,16 +290,51 @@ describe("StudyRoomPanel", () => {
     fireEvent.click(screen.getByText("Leave room"));
     await screen.findByText("Thursday study group");
 
-    // Second join session's joinCall emits nothing at all (e.g. a camera-off join) - if the old
-    // ref-based Map had survived across the leave, the stale firstSessionVideo tile (same
-    // "user-self" identity) would still be sitting in the DOM from the first session.
+    // Second join session's joinCall emits nothing at all (e.g. a camera-off join) - a fresh,
+    // EMPTY "You" placeholder tile is seeded regardless (see handleJoinRoom's own comment), but it
+    // must be a genuinely NEW tile, not the old ref-based Map's stale firstSessionVideo surviving
+    // across the leave.
     vi.mocked(videoCallClient.joinCall).mockImplementationOnce(async () => {});
 
     fireEvent.click(screen.getByText("Join"));
     await screen.findByText("Leave room");
 
     expect(firstSessionVideo.isConnected).toBe(false);
-    expect(screen.queryByText("You")).not.toBeInTheDocument();
+    expect(screen.getAllByText("You")).toHaveLength(1);
+  });
+
+  // QA-discovered bug (v3.3 QA pass): joining with the camera off (via the pre-join checkbox)
+  // never fires a local track-added at all - joinCall's own camera/mic try blocks only emit one
+  // when a track is actually published (see videoCallClient.ts). Before this fix, that meant NO
+  // tile at all for the local user until a later mid-call toggle published a real track for the
+  // first time - no beige placeholder, just nothing, unlike every remote participant (and unlike
+  // toggling the camera off mid-call, which keeps the tile per the test above).
+  it("still shows an empty placeholder tile for the local user when joining with camera and mic off", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }),
+        STUDY_ROOM_LIST_PARTICIPANTS: () => ({ ok: true, participants: [] }),
+      })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+    // A camera/mic-off join publishes nothing, so joinCall's real implementation would never call
+    // onVideoCallEvent's listener at all - mirrored here as a bare no-op, same as this file's other
+    // "nothing gets emitted" join mocks.
+    vi.mocked(videoCallClient.joinCall).mockImplementation(async () => {});
+
+    render(<StudyRoomPanel onClose={() => {}} />);
+    await screen.findByText("Thursday study group");
+
+    fireEvent.click(screen.getByLabelText("Join with camera on"));
+    fireEvent.click(screen.getByLabelText("Join with mic on"));
+    fireEvent.click(screen.getByText("Join"));
+
+    await screen.findByText("Leave room");
+    expect(videoCallClient.joinCall).toHaveBeenCalledWith("room-1", "livekit-jwt", {
+      camera: false,
+      microphone: false,
+    });
+    expect(screen.getByText("You")).toBeInTheDocument();
   });
 
   // A participant's tile (with its label) stays in place - camera/mic off is not the same as

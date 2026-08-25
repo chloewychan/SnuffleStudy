@@ -691,7 +691,17 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
     // at the START of every join attempt, rather than relying solely on handleLeaveRoom's own
     // reset below - this covers session starts that don't follow a normal leave too (e.g. the
     // very first join, or recovering from an earlier failed join's partial state).
-    setTiles([]);
+    //
+    // QA-discovered bug (v3.3 QA pass): joining with the camera AND mic both off never fires a
+    // local "track-added" at all (joinCall's own camera/mic try blocks only emit one when a track
+    // actually gets published - see videoCallClient.ts), so no tile ever existed for the local
+    // user to attach into - the tile only ever appeared once a later mid-call toggle published a
+    // real track for the first time. Seeding a tile for the local user here, before joinCall even
+    // runs, means the same empty/labeled tile (the beige placeholder) shows immediately regardless
+    // of the pre-join camera/mic toggles - a later track-added for this identity fills in
+    // videoElement/audioElement on this SAME entry (matched by participantIdentity), it doesn't
+    // create a second one.
+    setTiles(selfUserId ? [{ participantIdentity: selfUserId, isLocal: true, videoElement: null, audioElement: null }] : []);
     try {
       const { token } = await studyRoomApi.joinRoom(room.id);
       // v3.3 Task 9: cameraOn/micOn reflect the room-list view's two pre-join toggles (default
