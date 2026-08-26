@@ -307,15 +307,25 @@ describe("OnboardingWizard", () => {
     // v3.3 Task 14 DoD: "'Skip for now' in onboarding still fully skips, at any point in either
     // branch, with no partial state blocking a later attempt." — covered in depth at the
     // component level by SignInForm.test.tsx; this is the one end-to-end check from the actual
-    // OnboardingWizard call site, for the create-account branch's mandatory password step
-    // specifically (the step most at risk of trapping onSkip since it comes after a real
-    // AUTH_VERIFY_OTP success).
-    it('"Skip for now" still advances past the create-account password step, with no AUTH_SET_PASSWORD sent', async () => {
+    // OnboardingWizard call site.
+    //
+    // v3.4 Task 7 rewrote this test: the create-account branch's separate "set a password after
+    // verification" step is gone - AUTH_SET_PASSWORD now fires automatically the instant
+    // AUTH_VERIFY_OTP succeeds (see SignInForm.tsx's completeAccountCreation), so there's no
+    // longer a manual post-verification step for Skip to escape from before AUTH_SET_PASSWORD
+    // sends. The equivalent "most at risk of trapping onSkip" moment in the new flow is a
+    // *completion failure* (AUTH_SET_PASSWORD rejected) leaving the user on "create-code" with a
+    // Retry button instead of advancing automatically - Skip must still cleanly escape from
+    // there too.
+    it('"Skip for now" still escapes the create-account branch after a completion failure leaves a Retry button showing', async () => {
       const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
         async (message: any) => {
           if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
           if (message.type === "AUTH_VERIFY_OTP") {
             return { ok: true, session: { user: { id: "user-a", email: "a@example.com" } } };
+          }
+          if (message.type === "AUTH_SET_PASSWORD") {
+            return { ok: false, error: "Network error" };
           }
           return { ok: true };
         }
@@ -325,19 +335,29 @@ describe("OnboardingWizard", () => {
       dismissWelcome();
 
       fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Robin" } });
       fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
+      fireEvent.change(screen.getByLabelText("Password"), {
+        target: { value: "correct-horse" },
+      });
+      fireEvent.change(screen.getByLabelText("Confirm password"), {
+        target: { value: "correct-horse" },
+      });
       fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
       await screen.findByLabelText("Code");
       fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
       fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
 
-      await screen.findByLabelText("Password");
+      // Completion failed automatically after verification - a Retry button is showing in place
+      // of a fresh "Verify code" submit. Skip must still work from here.
+      await screen.findByRole("button", { name: "Retry" });
+      expect(sendMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "AUTH_SET_PASSWORD" })
+      );
+
       fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
 
       expect(screen.getByText("Meet Snuffles")).toBeInTheDocument();
-      expect(sendMessageSpy).not.toHaveBeenCalledWith(
-        expect.objectContaining({ type: "AUTH_SET_PASSWORD" })
-      );
     });
   });
 

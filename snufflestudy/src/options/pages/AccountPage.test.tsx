@@ -9,11 +9,12 @@ beforeEach(() => {
 
 // v3.3 Task 14: SignInForm now splits into a top-level Create account/Sign in choice (Decision
 // 6). These "signed out" tests exercise the Sign in branch's "Email me a code" option - the
-// unchanged OTP round trip that still calls onSignedIn directly with no password step (the
+// unchanged OTP round trip that still calls onSignedIn directly with no completion step (the
 // account already exists) - since that's the closest analog to what these tests covered before
-// the split. SignInForm.test.tsx has full coverage of both branches (including the mandatory
-// create-account password step) at the component level; the account-creation branch is covered
-// end to end from this page's own call site in the "creating a new account" describe block below.
+// the split. SignInForm.test.tsx has full coverage of both branches (including v3.4 Task 7's
+// single-screen create-account flow and its automatic completion-on-verify) at the component
+// level; the account-creation branch is covered end to end from this page's own call site in the
+// "creating a new account" describe block below.
 function goToSignInWithCode() {
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
   fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
@@ -91,16 +92,22 @@ describe("AccountPage — signed out", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/token has expired or is invalid/i);
   });
 
-  // v3.3 Task 14: creating a brand-new account requires both a verified code AND matching
-  // passwords - exercised end to end from this page's own call site (SignInForm.test.tsx covers
-  // the component's internal mechanics, e.g. the disabled-submit assertion, in more detail).
+  // v3.4 Task 7: account creation is now one "create-details" screen (name/bunny name/email/
+  // password x2) ahead of the OTP step, with completion (AUTH_SET_PASSWORD then
+  // PROFILE_SAVE_MINE) firing automatically the instant the code verifies - exercised end to end
+  // from this page's own call site (SignInForm.test.tsx covers the component's internal
+  // mechanics, e.g. the disabled-submit assertion and the Retry-without-re-verifying path, in
+  // more detail).
   describe("creating a new account", () => {
-    it("does not sign in after a bare verified code - a password must be set first", async () => {
+    it("does not sign in if account completion (AUTH_SET_PASSWORD) fails after a verified code", async () => {
       vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
         if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
         if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
         if (message.type === "AUTH_VERIFY_OTP") {
           return { ok: true, session: { user: { id: "user-new", email: "new@example.com" } } };
+        }
+        if (message.type === "AUTH_SET_PASSWORD") {
+          return { ok: false, error: "Password should be at least 6 characters" };
         }
         return { ok: true };
       });
@@ -109,18 +116,27 @@ describe("AccountPage — signed out", () => {
       await waitFor(() => screen.getByRole("button", { name: "Create account" }));
       fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Robin" } });
       fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new@example.com" } });
+      fireEvent.change(screen.getByLabelText("Password"), {
+        target: { value: "correct-horse" },
+      });
+      fireEvent.change(screen.getByLabelText("Confirm password"), {
+        target: { value: "correct-horse" },
+      });
       fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
       await screen.findByLabelText("Code");
 
       fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
       fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
 
-      await screen.findByLabelText("Password");
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /password should be at least 6 characters/i
+      );
       expect(screen.queryByText(/signed in as/i)).not.toBeInTheDocument();
     });
 
-    it("signs in once a verified code AND a matching password both succeed", async () => {
+    it("signs in once the code is verified AND account completion (AUTH_SET_PASSWORD + PROFILE_SAVE_MINE) both succeed", async () => {
       vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
         if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
         if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
@@ -128,6 +144,7 @@ describe("AccountPage — signed out", () => {
           return { ok: true, session: { user: { id: "user-new", email: "new@example.com" } } };
         }
         if (message.type === "AUTH_SET_PASSWORD") return { ok: true };
+        if (message.type === "PROFILE_SAVE_MINE") return { ok: true };
         return { ok: true };
       });
 
@@ -135,19 +152,19 @@ describe("AccountPage — signed out", () => {
       await waitFor(() => screen.getByRole("button", { name: "Create account" }));
       fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Robin" } });
       fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new@example.com" } });
+      fireEvent.change(screen.getByLabelText("Password"), {
+        target: { value: "correct-horse" },
+      });
+      fireEvent.change(screen.getByLabelText("Confirm password"), {
+        target: { value: "correct-horse" },
+      });
       fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
       await screen.findByLabelText("Code");
 
       fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
       fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
-
-      await screen.findByLabelText("Password");
-      fireEvent.change(screen.getByLabelText("Password"), { target: { value: "correct-horse" } });
-      fireEvent.change(screen.getByLabelText("Confirm password"), {
-        target: { value: "correct-horse" },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
 
       expect(await screen.findByText(/signed in as new@example.com/i)).toBeInTheDocument();
     });

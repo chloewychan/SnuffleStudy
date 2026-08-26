@@ -19,9 +19,10 @@ interface SignInFormProps {
   // rendered from OnboardingWizard.
   framingCopy?: string;
   // Called once an account is actually usable - after AUTH_VERIFY_OTP on the sign-in branch
-  // (account already exists), after AUTH_SIGN_IN_PASSWORD, or after AUTH_SET_PASSWORD on the
-  // create-account branch (a verified-but-passwordless account isn't "signed in" yet from this
-  // form's point of view - see the create-account branch below).
+  // (account already exists), after AUTH_SIGN_IN_PASSWORD, or after both AUTH_SET_PASSWORD and
+  // PROFILE_SAVE_MINE succeed on the create-account branch (a verified-but-passwordless,
+  // profile-less account isn't "signed in" yet from this form's point of view - see
+  // completeAccountCreation below).
   onSignedIn: (session: SignInFormSession) => void;
   // Present only in the onboarding context: renders a "Skip for now" button at every step
   // (including the initial Create account/Sign in choice) when provided. Omitted entirely on
@@ -35,10 +36,13 @@ interface SignInFormProps {
 // wrong mode.
 //
 // - "choice": entry state - Create account / Sign in.
-// - "create-email" -> "create-code" -> "create-password": account creation requires a verified
-//   email code AND a set password before onSignedIn fires. email/otpCode are shared with the
-//   sign-in branch's own code round trip below (only one branch is ever visible at a time, and
-//   both round trips are functionally identical AUTH_REQUEST_OTP/AUTH_VERIFY_OTP calls against
+// - "create-details" -> "create-code": v3.4 Task 7 consolidated account creation onto one screen
+//   ahead of the OTP step - name/bunny name/email/password/confirm password are all collected
+//   together on "create-details", then "create-code"'s verified OTP completes account creation
+//   automatically (see completeAccountCreation/handleCreateVerifyOtp below) - no separate
+//   password step after code verification anymore. email/otpCode are shared with the sign-in
+//   branch's own code round trip below (only one branch is ever visible at a time, and both
+//   round trips are functionally identical AUTH_REQUEST_OTP/AUTH_VERIFY_OTP calls against
 //   whatever email is currently entered).
 // - "signin-choice": two peer options, not fallback-primary - "Sign in with a password" and
 //   "Email me a code".
@@ -50,9 +54,8 @@ interface SignInFormProps {
 //   exists).
 type Mode =
   | "choice"
-  | "create-email"
+  | "create-details"
   | "create-code"
-  | "create-password"
   | "signin-choice"
   | "signin-password"
   | "signin-otp-email"
@@ -65,12 +68,22 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
   // "Email me a code" option - see the Mode comment above for why sharing this state is safe.
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
-  // The session AUTH_VERIFY_OTP already returned, in the create-account branch only - held here
-  // rather than handed to onSignedIn immediately, since AUTH_SET_PASSWORD (not AUTH_VERIFY_OTP)
-  // is this branch's actual completion event and doesn't itself return a session.
-  const [pendingCreateSession, setPendingCreateSession] = useState<SignInFormSession | null>(null);
+  // v3.4 Task 7: holds the session AUTH_VERIFY_OTP already returned, once verification succeeds -
+  // kept around (not handed to onSignedIn immediately) specifically so a failed completion step
+  // (AUTH_SET_PASSWORD or PROFILE_SAVE_MINE) can be retried WITHOUT re-calling AUTH_VERIFY_OTP,
+  // which would either fail outright (an OTP code is single-use server-side) or, worse, require
+  // the user to request and enter an entirely new code for a failure that has nothing to do with
+  // the code itself. Distinct in purpose from the old (now-removed) pendingCreateSession, which
+  // existed to gate a manual next step the user drove themselves - this exists purely to make
+  // automatic completion retryable. Also doubles as the "create-code" step's signal for whether
+  // to render "Verify code" (not yet verified) or "Retry" (verified, completion failed).
+  const [verifiedSession, setVerifiedSession] = useState<SignInFormSession | null>(null);
 
-  // Create-account branch's mandatory password step.
+  // Create-account branch's "create-details" step fields - name/bunny name collected up front,
+  // alongside email/password, since v3.4 Task 7 put everything on one screen ahead of the OTP
+  // step instead of splitting profile setup into its own post-verification step.
+  const [humanName, setHumanName] = useState("");
+  const [bunnyName, setBunnyName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -121,6 +134,53 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
     if (await requestOtp()) setMode("create-code");
   }
 
+  // v3.4 Task 7: the create-account branch's completion step - fires automatically the moment
+  // AUTH_VERIFY_OTP succeeds (see handleCreateVerifyOtp below), and again directly from the
+  // "create-code" step's "Retry" button if it fails partway. Takes `session` as a parameter
+  // (rather than reading verifiedSession itself) so both callers can pass the exact session they
+  // have in hand without a stale-closure risk. Owns its own authBusy/authError lifecycle - on
+  // either failure it sets an inline error and returns WITHOUT clearing password/confirmPassword/
+  // verifiedSession and WITHOUT calling onSignedIn, so the Retry button can call this again with
+  // the same session and the same already-typed password.
+  async function completeAccountCreation(session: SignInFormSession) {
+    setAuthBusy(true);
+    setAuthError(null);
+    try {
+      // No currentPassword - a brand-new account has none to prove, Task 6's messageRouter.ts
+      // AUTH_SET_PASSWORD handler is a no-op on that check when profiles.password_set_at is null.
+      const passwordRes = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "AUTH_SET_PASSWORD",
+        payload: { password },
+      });
+      if (!passwordRes.ok) {
+        setAuthError(
+          passwordRes.error ?? "Could not finish creating your account. Please try again."
+        );
+        return;
+      }
+      const profileRes = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "PROFILE_SAVE_MINE",
+        payload: { humanName, bunnyName: bunnyName || undefined },
+      });
+      if (!profileRes.ok) {
+        setAuthError(
+          profileRes.error ?? "Could not finish creating your account. Please try again."
+        );
+        return;
+      }
+      setOtpCode("");
+      setPassword("");
+      setConfirmPassword("");
+      setVerifiedSession(null);
+      onSignedIn(session);
+    } catch (err) {
+      console.error("Failed to finish creating the account", err);
+      setAuthError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
   async function handleCreateVerifyOtp(e: FormEvent) {
     e.preventDefault();
     setAuthBusy(true);
@@ -135,46 +195,25 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
         payload: { email, token: otpCode },
       });
       if (!res.ok || !res.session) {
+        // Wrong/expired code: reset authBusy here too (not just in the catch block below) so
+        // the "Verify code" button doesn't stay stuck disabled/"Verifying…" - there's no shared
+        // finally covering this early return, since the success path below deliberately hands
+        // authBusy off to completeAccountCreation's own lifecycle instead.
         setAuthError(res.error ?? "Incorrect or expired code.");
+        setAuthBusy(false);
         return;
       }
-      // Do NOT call onSignedIn yet - account creation isn't complete until AUTH_SET_PASSWORD
-      // also succeeds (see the create-password step below). Hold onto the now-verified session
-      // so it can be handed to onSignedIn once that happens.
-      setOtpCode("");
-      setPendingCreateSession(res.session);
-      setMode("create-password");
+      // The email is now proven - hand off to completeAccountCreation, which owns its own
+      // authBusy/authError lifecycle from here (see its finally block instead of duplicating
+      // one here). verifiedSession is set first so the "create-code" step's retry affordance is
+      // available even if completeAccountCreation itself throws.
+      setVerifiedSession(res.session);
+      setAuthBusy(false);
+      await completeAccountCreation(res.session);
+      return;
     } catch (err) {
       console.error("Failed to verify sign-in code", err);
       setAuthError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  async function handleSetPassword(e: FormEvent) {
-    e.preventDefault();
-    if (!pendingCreateSession) return;
-    setAuthBusy(true);
-    setAuthError(null);
-    try {
-      const res = await sendMessage<{ ok: boolean; error?: string }>({
-        type: "AUTH_SET_PASSWORD",
-        payload: { password },
-      });
-      if (!res.ok) {
-        setAuthError(res.error ?? "Could not set your password.");
-        return;
-      }
-      const session = pendingCreateSession;
-      setPassword("");
-      setConfirmPassword("");
-      setPendingCreateSession(null);
-      onSignedIn(session);
-    } catch (err) {
-      console.error("Failed to set a password", err);
-      setAuthError(err instanceof Error ? err.message : String(err));
-    } finally {
       setAuthBusy(false);
     }
   }
@@ -257,7 +296,7 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
       {mode === "choice" && (
         <div className="sign-in-form__actions">
           {skipButton}
-          <button type="button" onClick={() => setMode("create-email")}>
+          <button type="button" onClick={() => setMode("create-details")}>
             Create account
           </button>
           <button type="button" onClick={() => setMode("signin-choice")}>
@@ -266,8 +305,25 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
         </div>
       )}
 
-      {mode === "create-email" && (
+      {mode === "create-details" && (
         <form onSubmit={handleCreateRequestOtp}>
+          <label>
+            Name
+            <input
+              type="text"
+              required
+              value={humanName}
+              onChange={(e) => setHumanName(e.target.value)}
+            />
+          </label>
+          <label>
+            Bunny name (optional)
+            <input
+              type="text"
+              value={bunnyName}
+              onChange={(e) => setBunnyName(e.target.value)}
+            />
+          </label>
           <label>
             Email
             <input
@@ -277,12 +333,33 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
               onChange={(e) => setEmail(e.target.value)}
             />
           </label>
+          <label>
+            Password
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          <label>
+            Confirm password
+            <input
+              type="password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </label>
           <div className="sign-in-form__actions">
             <button type="button" onClick={() => setMode("choice")} disabled={authBusy}>
               Back
             </button>
             {skipButton}
-            <button type="submit" disabled={authBusy || !email}>
+            <button
+              type="submit"
+              disabled={authBusy || !humanName || !email || !password || password !== confirmPassword}
+            >
               {authBusy ? "Sending…" : "Send sign-in code"}
             </button>
           </div>
@@ -306,7 +383,7 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
             <button
               type="button"
               onClick={() => {
-                setMode("create-email");
+                setMode("create-details");
                 setOtpCode("");
                 setAuthError(null);
               }}
@@ -315,44 +392,24 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
               Use a different email
             </button>
             {skipButton}
-            <button type="submit" disabled={authBusy || otpCode.length === 0}>
-              {authBusy ? "Verifying…" : "Verify code"}
-            </button>
+            {verifiedSession ? (
+              // v3.4 Task 7: the code is already verified - retry ONLY the completion step
+              // (password + profile), never AUTH_VERIFY_OTP again (see completeAccountCreation's
+              // own comment for why - the code is single-use server-side).
+              <button
+                type="button"
+                onClick={() => void completeAccountCreation(verifiedSession)}
+                disabled={authBusy}
+              >
+                {authBusy ? "Finishing…" : "Retry"}
+              </button>
+            ) : (
+              <button type="submit" disabled={authBusy || otpCode.length === 0}>
+                {authBusy ? "Verifying…" : "Verify code"}
+              </button>
+            )}
             <button type="button" onClick={() => requestOtp()} disabled={authBusy}>
               Request a new code
-            </button>
-          </div>
-        </form>
-      )}
-
-      {mode === "create-password" && (
-        <form onSubmit={handleSetPassword}>
-          <p>Almost done - set a password to finish creating your account.</p>
-          <label>
-            Password
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-          <label>
-            Confirm password
-            <input
-              type="password"
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
-          </label>
-          <div className="sign-in-form__actions">
-            {skipButton}
-            <button
-              type="submit"
-              disabled={authBusy || !password || password !== confirmPassword}
-            >
-              {authBusy ? "Saving…" : "Set password"}
             </button>
           </div>
         </form>

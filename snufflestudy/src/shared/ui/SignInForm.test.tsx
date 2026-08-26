@@ -6,9 +6,15 @@ import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 // v3.3 Task 14: SignInForm now splits into a top-level Create account/Sign in choice (Decision
 // 6 - this lives in the component itself, not a caller-supplied prop). This file was rewritten
 // for that branch structure; the pre-Task-14 "one flow does everything" tests it used to have
-// (v3.2 Task 4) are now split across the create-account branch (mandatory password step) and the
-// sign-in branch's "Email me a code" option (unchanged round trip, still calls onSignedIn
-// directly, still covers wrong/expired code + resend).
+// (v3.2 Task 4) are now split across the create-account branch and the sign-in branch's "Email
+// me a code" option (unchanged round trip, still calls onSignedIn directly, still covers
+// wrong/expired code + resend).
+//
+// v3.4 Task 7: the create-account branch's "create-email" -> "create-code" -> "create-password"
+// three-step flow collapsed onto one "create-details" screen (name/bunny name/email/password x2)
+// ahead of the OTP step, with account creation (AUTH_SET_PASSWORD then PROFILE_SAVE_MINE) now
+// completing automatically the instant the code is verified - no separate password step exists
+// after code verification anymore. The create-account tests below were rewritten for that shape.
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -28,9 +34,19 @@ function goToSignInWithPassword() {
   fireEvent.click(screen.getByRole("button", { name: "Sign in with a password" }));
 }
 
-async function requestCreateCode(email = "a@example.com") {
+// v3.4 Task 7: "create-details" requires name/email/password/confirm password before its submit
+// enables - bunny name is deliberately left untouched here since it's optional (see the "cannot
+// request a sign-in code..." test below, which verifies that omission doesn't block submit).
+async function requestCreateCode(email = "a@example.com", name = "Robin") {
   goToCreateAccount();
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: name } });
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: email } });
+  fireEvent.change(screen.getByLabelText("Password"), {
+    target: { value: "correct-horse-battery" },
+  });
+  fireEvent.change(screen.getByLabelText("Confirm password"), {
+    target: { value: "correct-horse-battery" },
+  });
   fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
   await screen.findByLabelText("Code");
 }
@@ -62,86 +78,107 @@ describe("SignInForm — entry choice", () => {
 });
 
 describe("SignInForm — create-account branch", () => {
-  it("cannot complete account creation without both a verified code and matching passwords (disabled submit, not just visual)", async () => {
+  it("cannot request a sign-in code from create-details until name/email/password are filled and passwords match (disabled submit, not just visual) — bunny name stays optional throughout", () => {
     const onSignedIn = vi.fn();
-    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
-      if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
-      if (message.type === "AUTH_VERIFY_OTP") {
-        return { ok: true, session: { user: { id: "user-a", email: "a@example.com" } } };
-      }
-      return { ok: true };
-    });
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
 
     render(<SignInForm onSignedIn={onSignedIn} />);
-    await requestCreateCode();
+    goToCreateAccount();
 
-    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
-
-    const passwordInput = await screen.findByLabelText("Password");
-    const confirmInput = screen.getByLabelText("Confirm password");
-    const submitButton = screen.getByRole("button", { name: "Set password" });
+    const submitButton = screen.getByRole("button", { name: "Send sign-in code" });
 
     // Nothing typed yet: genuinely disabled.
     expect(submitButton).toBeDisabled();
 
-    fireEvent.change(passwordInput, { target: { value: "correct-horse-battery" } });
-    // Only one field filled: still genuinely disabled.
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Robin" } });
     expect(submitButton).toBeDisabled();
 
-    fireEvent.change(confirmInput, { target: { value: "does-not-match" } });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
+    expect(submitButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "correct-horse-battery" },
+    });
+    // Confirm password not yet entered: still genuinely disabled.
+    expect(submitButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Confirm password"), {
+      target: { value: "does-not-match" },
+    });
     // Both filled but mismatched: still genuinely disabled.
     expect(submitButton).toBeDisabled();
     expect(onSignedIn).not.toHaveBeenCalled();
 
-    fireEvent.change(confirmInput, { target: { value: "correct-horse-battery" } });
-    // Matching: now enabled.
+    fireEvent.change(screen.getByLabelText("Confirm password"), {
+      target: { value: "correct-horse-battery" },
+    });
+    // Matching, bunny name never touched: now enabled - bunny name is genuinely optional.
     expect(submitButton).not.toBeDisabled();
   });
 
-  it("a brand-new email completes Create account only after code verification AND AUTH_SET_PASSWORD both succeed", async () => {
+  it("a fresh sign-up sends exactly one AUTH_REQUEST_OTP from create-details and advances to create-code", async () => {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
+
+    render(<SignInForm onSignedIn={vi.fn()} />);
+    await requestCreateCode("new@example.com");
+
+    const requestOtpCalls = sendMessageSpy.mock.calls.filter(
+      ([message]: any) => message.type === "AUTH_REQUEST_OTP"
+    );
+    expect(requestOtpCalls).toHaveLength(1);
+    expect(sendMessageSpy).toHaveBeenCalledWith({
+      type: "AUTH_REQUEST_OTP",
+      payload: { email: "new@example.com" },
+    });
+    expect(screen.getByLabelText("Code")).toBeInTheDocument();
+  });
+
+  it("entering the correct code fires AUTH_VERIFY_OTP, then AUTH_SET_PASSWORD, then PROFILE_SAVE_MINE in that order, calling onSignedIn only once all three succeed", async () => {
     const onSignedIn = vi.fn();
+    const callOrder: string[] = [];
     const sendMessageSpy = vi
       .spyOn(messenger, "sendMessage")
       .mockImplementation(async (message: any) => {
+        callOrder.push(message.type);
         if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
         if (message.type === "AUTH_VERIFY_OTP") {
-          return { ok: true, session: { user: { id: "user-a", email: "a@example.com" } } };
+          return { ok: true, session: { user: { id: "user-a", email: "new@example.com" } } };
         }
         if (message.type === "AUTH_SET_PASSWORD") return { ok: true };
+        if (message.type === "PROFILE_SAVE_MINE") return { ok: true };
         return { ok: true };
       });
 
     render(<SignInForm onSignedIn={onSignedIn} />);
-    await requestCreateCode("new@example.com");
+    // Bunny name left blank on purpose - matches the DoD's "bunny name left blank" fresh sign-up.
+    await requestCreateCode("new@example.com", "Robin");
 
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
     fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
 
-    await screen.findByLabelText("Password");
-    // onSignedIn must NOT fire on a bare verified code - the password step is mandatory.
-    expect(onSignedIn).not.toHaveBeenCalled();
-
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "correct-horse" } });
-    fireEvent.change(screen.getByLabelText("Confirm password"), {
-      target: { value: "correct-horse" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Set password" }));
-
-    await waitFor(() =>
-      expect(sendMessageSpy).toHaveBeenCalledWith({
-        type: "AUTH_SET_PASSWORD",
-        payload: { password: "correct-horse" },
-      })
-    );
     await waitFor(() =>
       expect(onSignedIn).toHaveBeenCalledWith({
-        user: { id: "user-a", email: "a@example.com" },
+        user: { id: "user-a", email: "new@example.com" },
       })
     );
+
+    expect(callOrder).toEqual([
+      "AUTH_REQUEST_OTP",
+      "AUTH_VERIFY_OTP",
+      "AUTH_SET_PASSWORD",
+      "PROFILE_SAVE_MINE",
+    ]);
+    expect(sendMessageSpy).toHaveBeenCalledWith({
+      type: "AUTH_SET_PASSWORD",
+      payload: { password: "correct-horse-battery" },
+    });
+    expect(sendMessageSpy).toHaveBeenCalledWith({
+      type: "PROFILE_SAVE_MINE",
+      payload: { humanName: "Robin", bunnyName: undefined },
+    });
   });
 
-  it("surfaces an AUTH_SET_PASSWORD failure without calling onSignedIn", async () => {
+  it("surfaces an inline AUTH_SET_PASSWORD failure with a Retry button in place of Verify code, without calling onSignedIn", async () => {
     const onSignedIn = vi.fn();
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
@@ -159,18 +196,62 @@ describe("SignInForm — create-account branch", () => {
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
     fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
 
-    await screen.findByLabelText("Password");
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "abc" } });
-    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "abc" } });
-    fireEvent.click(screen.getByRole("button", { name: "Set password" }));
-
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /password should be at least 6 characters/i
     );
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Verify code" })).not.toBeInTheDocument();
     expect(onSignedIn).not.toHaveBeenCalled();
   });
 
-  it("surfaces an inline error when the create-account code is wrong or expired, and does not advance to the password step", async () => {
+  // Definition of done's explicit negative case: a partial-completion failure must be retryable
+  // WITHOUT re-verifying a fresh OTP code. Confirmed directly here, not just by absence of a
+  // second AUTH_VERIFY_OTP call site in the source - by counting actual sendMessage calls.
+  it("Retry after a failed AUTH_SET_PASSWORD completes the account and sends AUTH_VERIFY_OTP exactly once total across both attempts", async () => {
+    const onSignedIn = vi.fn();
+    let setPasswordAttempts = 0;
+    const sendMessageSpy = vi
+      .spyOn(messenger, "sendMessage")
+      .mockImplementation(async (message: any) => {
+        if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
+        if (message.type === "AUTH_VERIFY_OTP") {
+          return { ok: true, session: { user: { id: "user-a", email: "a@example.com" } } };
+        }
+        if (message.type === "AUTH_SET_PASSWORD") {
+          setPasswordAttempts += 1;
+          if (setPasswordAttempts === 1) {
+            return { ok: false, error: "Network error, please retry" };
+          }
+          return { ok: true };
+        }
+        if (message.type === "PROFILE_SAVE_MINE") return { ok: true };
+        return { ok: true };
+      });
+
+    render(<SignInForm onSignedIn={onSignedIn} />);
+    await requestCreateCode();
+    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+
+    const retryButton = await screen.findByRole("button", { name: "Retry" });
+    expect(onSignedIn).not.toHaveBeenCalled();
+
+    fireEvent.click(retryButton);
+
+    await waitFor(() =>
+      expect(onSignedIn).toHaveBeenCalledWith({
+        user: { id: "user-a", email: "a@example.com" },
+      })
+    );
+
+    const verifyOtpCalls = sendMessageSpy.mock.calls.filter(
+      ([message]: any) => message.type === "AUTH_VERIFY_OTP"
+    );
+    expect(verifyOtpCalls).toHaveLength(1);
+    expect(setPasswordAttempts).toBe(2);
+  });
+
+  it("surfaces an inline error when the create-account code is wrong or expired, and never shows a Retry button (nothing was verified yet)", async () => {
     const onSignedIn = vi.fn();
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
@@ -187,7 +268,8 @@ describe("SignInForm — create-account branch", () => {
     fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/token has expired or is invalid/i);
-    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Verify code" })).toBeInTheDocument();
     expect(onSignedIn).not.toHaveBeenCalled();
   });
 
@@ -207,7 +289,7 @@ describe("SignInForm — create-account branch", () => {
     expect(onSkip1).toHaveBeenCalledTimes(1);
     unmount1();
 
-    // Skip from the create-account email step.
+    // Skip from the create-details step.
     const onSkip2 = vi.fn();
     const { unmount: unmount2 } = render(<SignInForm onSignedIn={vi.fn()} onSkip={onSkip2} />);
     goToCreateAccount();
@@ -215,23 +297,12 @@ describe("SignInForm — create-account branch", () => {
     expect(onSkip2).toHaveBeenCalledTimes(1);
     unmount2();
 
-    // Skip from the create-account code step.
+    // Skip from the create-code step, before entering/verifying a code.
     const onSkip3 = vi.fn();
-    const { unmount: unmount3 } = render(<SignInForm onSignedIn={vi.fn()} onSkip={onSkip3} />);
+    render(<SignInForm onSignedIn={vi.fn()} onSkip={onSkip3} />);
     await requestCreateCode();
     fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
     expect(onSkip3).toHaveBeenCalledTimes(1);
-    unmount3();
-
-    // Skip from the create-account password step.
-    const onSkip4 = vi.fn();
-    render(<SignInForm onSignedIn={vi.fn()} onSkip={onSkip4} />);
-    await requestCreateCode();
-    fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
-    await screen.findByLabelText("Password");
-    fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
-    expect(onSkip4).toHaveBeenCalledTimes(1);
   });
 
   it("omits Skip for now entirely outside the onboarding context (no onSkip prop)", async () => {
