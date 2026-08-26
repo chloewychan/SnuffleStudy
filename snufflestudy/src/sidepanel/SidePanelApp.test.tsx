@@ -188,22 +188,27 @@ describe("SidePanelApp", () => {
     expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument();
   });
 
-  it("replaces ActiveSessionView with UnlockRequestPanel (not an overlay) when 'Unlock requests' is triggered, and restores it on close", async () => {
+  // v3.4 Task 3: replaces the two separate "replaces ActiveSessionView with UnlockRequestPanel"/
+  // "...with TempPasscodePanel" regression guards (Fix 12) with one - showUnlockPanel/
+  // showTempPasscodePanel collapsed into one showFriendRequestPanel boolean, and the panel-shown
+  // branch now composes RequestUnlockForm.tsx (session-aware requester form) alongside
+  // FriendRequestPanel.tsx (approver-only) side by side, per Decision 5.
+  it("replaces ActiveSessionView with RequestUnlockForm+FriendRequestPanel (not an overlay) when 'Friend requests' is triggered, and restores it on close", async () => {
     // Regression guard for a panel-stacking bug introduced mid-Task-10 and reverted in a
-    // follow-up fix (see SidePanelApp.tsx's showUnlockPanel branch comment): opening this panel
-    // must fully replace ActiveSessionView's contents, the same "swap in a different screen
-    // entirely" pattern the COMPLETED/ABANDONED branches use - not render alongside it.
+    // follow-up fix (see SidePanelApp.tsx's showFriendRequestPanel branch comment): opening this
+    // panel must fully replace ActiveSessionView's contents, the same "swap in a different
+    // screen entirely" pattern the COMPLETED/ABANDONED branches use - not render alongside it.
     const session = machine.startSession(machine.createSession(input, "session_1", 0), 0);
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "SETTINGS_GET") {
         return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
       }
       if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session };
-      // UnlockRequestPanel's own fetches on mount (AUTH_GET_SESSION/UNLOCK_REQUESTS_FETCH/
-      // SESSION_LIST_EVENTS) - given healthy, empty-but-ok responses so it renders cleanly,
-      // matching UnlockRequestPanel.test.tsx's routeSendMessage default conventions.
+      // RequestUnlockForm's/FriendRequestPanel's own fetches on mount (AUTH_GET_SESSION/
+      // FRIEND_REQUESTS_FETCH/SESSION_LIST_EVENTS) - given healthy, empty-but-ok responses so
+      // both render cleanly.
       if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
-      if (message.type === "UNLOCK_REQUESTS_FETCH") return { ok: true, requests: [] };
+      if (message.type === "FRIEND_REQUESTS_FETCH") return { ok: true, requests: [] };
       if (message.type === "SESSION_LIST_EVENTS") return { ok: true, events: [] };
       return { ok: true };
     });
@@ -213,13 +218,15 @@ describe("SidePanelApp", () => {
       expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument()
     );
 
-    // ActiveSessionView's own trigger button (distinct from UnlockRequestPanel's identically
-    // worded <h2> heading below - only one of the two exists in the DOM at a time).
-    fireEvent.click(screen.getByRole("button", { name: "Unlock requests" }));
+    // ActiveSessionView's own trigger button (distinct from FriendRequestPanel's own <h2>
+    // heading below - only one of the two exists in the DOM at a time).
+    fireEvent.click(screen.getByRole("button", { name: "Friend requests" }));
 
     await waitFor(() =>
-      expect(screen.getByRole("heading", { name: "Unlock requests" })).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: "Friend requests" })).toBeInTheDocument()
     );
+    // Both the requester-side form and the approver-side panel are present together.
+    expect(screen.getByRole("heading", { name: "Request an unlock" })).toBeInTheDocument();
     // ActiveSessionView's content is gone entirely, not merely covered - this is the crux of the
     // regression this test guards against.
     expect(screen.queryByRole("timer")).not.toBeInTheDocument();
@@ -231,56 +238,7 @@ describe("SidePanelApp", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument()
     );
-    expect(screen.queryByRole("heading", { name: "Unlock requests" })).not.toBeInTheDocument();
-  });
-
-  it("replaces ActiveSessionView with TempPasscodePanel (not an overlay) when 'Temp passcode requests' is triggered, and restores it on close", async () => {
-    // Symmetric guard to the "Unlock requests" test above (Fix 12) - Task 10's regression test
-    // only covered the showUnlockPanel path even though SidePanelApp.tsx's showTempPasscodePanel
-    // branch is the exact same shape (see that branch's own "same reachable-during-an-active-
-    // session, replaces-not-overlays treatment as UnlockRequestPanel above" comment).
-    const session = machine.startSession(machine.createSession(input, "session_1", 0), 0);
-    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
-      if (message.type === "SETTINGS_GET") {
-        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
-      }
-      if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session };
-      // TempPasscodePanel's own fetches on mount (AUTH_GET_SESSION/TEMP_PASSCODE_REQUESTS_FETCH) -
-      // given healthy, empty-but-ok responses so it renders cleanly, matching
-      // TempPasscodePanel.test.tsx's own conventions.
-      if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
-      if (message.type === "TEMP_PASSCODE_REQUESTS_FETCH") return { ok: true, requests: [] };
-      return { ok: true };
-    });
-
-    render(<SidePanelApp />);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument()
-    );
-
-    // ActiveSessionView's own trigger button (distinct from TempPasscodePanel's own <h2> heading
-    // below - only one of the two exists in the DOM at a time).
-    fireEvent.click(screen.getByRole("button", { name: "Temp passcode requests" }));
-
-    await waitFor(() =>
-      expect(
-        screen.getByRole("heading", { name: "Temporary passcode requests" })
-      ).toBeInTheDocument()
-    );
-    // ActiveSessionView's content is gone entirely, not merely covered - same crux as the
-    // Unlock-requests regression guard above.
-    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "End session" })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument()
-    );
-    expect(
-      screen.queryByRole("heading", { name: "Temporary passcode requests" })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Friend requests" })).not.toBeInTheDocument();
   });
 
   it("shows a Pause control while FOCUSING, and a Resume control while PAUSED", async () => {

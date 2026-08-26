@@ -8,7 +8,10 @@ beforeEach(() => {
 });
 
 describe("FriendsTab", () => {
-  it("renders StudyRoomPanel, FriendGroupPanel, TempPasscodePanel, UnlockRequestPanel, and SessionEndRequestPanel, in that order", async () => {
+  // v3.4 Task 3: TempPasscodePanel/UnlockRequestPanel/SessionEndRequestPanel (v3.3 Task 1/Task
+  // 12) are replaced by one FriendRequestPanel, mounted in the same spot below StudyRoomPanel/
+  // FriendGroupPanel - three sections now, not five.
+  it("renders StudyRoomPanel, FriendGroupPanel, and FriendRequestPanel, in that order", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({
       ok: true,
       members: [],
@@ -18,56 +21,47 @@ describe("FriendsTab", () => {
 
     render(<FriendsTab />);
 
-    // Structural check: five top-level sections directly under .sp-friends-tab - the original two
-    // (StudyRoomPanel, FriendGroupPanel) plus TempPasscodePanel/UnlockRequestPanel (v3.3 Task 1)
-    // plus SessionEndRequestPanel (v3.3 Task 12, composed in below the panels Task 1 moved here,
-    // per Task 12's Deliverables).
+    // Structural check: three top-level sections directly under .sp-friends-tab.
     const sections = document.querySelectorAll(".sp-friends-tab > section");
-    expect(sections.length).toBe(5);
+    expect(sections.length).toBe(3);
 
     // Substantive check (beyond a bare mount-without-throwing smoke test): each section actually
     // renders its own panel's real heading text (read from source - StudyRoomPanel.tsx's idle-view
     // <h2>Study Rooms</h2>, FriendGroupPanel.tsx's <h2>Friend activity</h2>,
-    // TempPasscodePanel.tsx's <h2>Temporary passcode requests</h2>, UnlockRequestPanel.tsx's
-    // <h2>Unlock requests</h2>, and SessionEndRequestPanel.tsx's <h2>Session-end requests</h2> -
-    // not guessed).
+    // FriendRequestPanel.tsx's <h2>Friend requests</h2> - not guessed).
     const studyRoomsHeading = within(sections[0] as HTMLElement).getByRole("heading", {
       name: /^study rooms$/i,
     });
     const friendActivityHeading = within(sections[1] as HTMLElement).getByRole("heading", {
       name: /^friend activity$/i,
     });
-    const tempPasscodeHeading = within(sections[2] as HTMLElement).getByRole("heading", {
-      name: /^temporary passcode requests$/i,
-    });
-    const unlockRequestsHeading = within(sections[3] as HTMLElement).getByRole("heading", {
-      name: /^unlock requests$/i,
-    });
-    const sessionEndRequestsHeading = within(sections[4] as HTMLElement).getByRole("heading", {
-      name: /^session-end requests$/i,
+    const friendRequestsHeading = within(sections[2] as HTMLElement).getByRole("heading", {
+      name: /^friend requests$/i,
     });
     expect(studyRoomsHeading).toBeInTheDocument();
     expect(friendActivityHeading).toBeInTheDocument();
-    expect(tempPasscodeHeading).toBeInTheDocument();
-    expect(unlockRequestsHeading).toBeInTheDocument();
-    expect(sessionEndRequestsHeading).toBeInTheDocument();
+    expect(friendRequestsHeading).toBeInTheDocument();
 
-    // Confirms session={null} was actually wired through to UnlockRequestPanel (same as
-    // SettingsTab.tsx passed before v3.3 Task 1 moved it here): with session=null,
-    // UnlockRequestPanel's "Request an unlock" section (only rendered when isSessionActive, which
-    // requires a non-null session) must be absent - only the "Requests from friends" approver
-    // section should render.
+    // FriendRequestPanel.tsx has no `session` prop anymore (Decision 5 - it's approver-only by
+    // design now, not gated on session=null the way UnlockRequestPanel used to be) - only the
+    // "Requests from friends" approver section should render.
     expect(
-      within(sections[3] as HTMLElement).queryByRole("heading", { name: /request an unlock/i })
+      within(sections[2] as HTMLElement).queryByRole("heading", { name: /request an unlock/i })
     ).not.toBeInTheDocument();
     expect(
-      within(sections[3] as HTMLElement).getByRole("heading", { name: /requests from friends/i })
+      within(sections[2] as HTMLElement).getByRole("heading", { name: /requests from friends/i })
     ).toBeInTheDocument();
 
-    // All five composed panels fire their own real on-mount fetches rather than being stubbed out
-    // - confirms this is a genuine composition, not components that happen to render static markup.
-    // Waiting for these also lets the panels' async state updates settle before the test ends,
-    // avoiding act() warnings from updates that land after the assertions above.
+    // No Close button - Task 4's "no dead button in the first place" design (no onClose passed
+    // here, unlike the no-op onClose the three panels this replaces each carried).
+    expect(
+      within(sections[2] as HTMLElement).queryByRole("button", { name: /close/i })
+    ).not.toBeInTheDocument();
+
+    // All three composed panels fire their own real on-mount fetches rather than being stubbed
+    // out - confirms this is a genuine composition, not components that happen to render static
+    // markup. Waiting for these also lets the panels' async state updates settle before the test
+    // ends, avoiding act() warnings from updates that land after the assertions above.
     await waitFor(() =>
       expect(messenger.sendMessage).toHaveBeenCalledWith({ type: "STUDY_ROOM_LIST" })
     );
@@ -78,17 +72,7 @@ describe("FriendsTab", () => {
     );
     await waitFor(() =>
       expect(messenger.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "TEMP_PASSCODE_REQUESTS_FETCH" })
-      )
-    );
-    await waitFor(() =>
-      expect(messenger.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "UNLOCK_REQUESTS_FETCH" })
-      )
-    );
-    await waitFor(() =>
-      expect(messenger.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "SESSION_END_REQUESTS_FETCH" })
+        expect.objectContaining({ type: "FRIEND_REQUESTS_FETCH" })
       )
     );
   });
@@ -105,12 +89,8 @@ describe("FriendsTab", () => {
     await waitFor(() => {
       expect(screen.getByText(/could not load rooms/i)).toBeInTheDocument();
       expect(screen.getByText(/couldn't load friend activity/i)).toBeInTheDocument();
-      expect(screen.getByText(/couldn't load requests: network down/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/couldn't load unlock requests: network down/i)
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(/couldn't load session-end requests: network down/i)
+        screen.getByText(/couldn't load friend requests: network down/i)
       ).toBeInTheDocument();
     });
   });

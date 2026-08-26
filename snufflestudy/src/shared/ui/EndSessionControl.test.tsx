@@ -44,13 +44,18 @@ describe("EndSessionControl", () => {
 
   it("reveals an inline passcode prompt instead of sending immediately for a hard-mode session", () => {
     const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
+    // v3.4 Task 3: opening the prompt now also triggers the requester-side friend picker's own
+    // FRIENDS_LIST fetch (this test's own assertion below is only about SESSION_END never firing
+    // on prompt-open, not about sendMessage being called zero times overall).
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
 
     render(<EndSessionControl session={session} />);
     fireEvent.click(screen.getByRole("button", { name: "End session" }));
 
     expect(screen.getByPlaceholderText("Passcode")).toBeInTheDocument();
-    expect(sendMessageSpy).not.toHaveBeenCalled();
+    expect(sendMessageSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "SESSION_END" })
+    );
   });
 
   it("ends the hard-mode session when the correct passcode is submitted", async () => {
@@ -74,10 +79,16 @@ describe("EndSessionControl", () => {
 
   it("shows an error and keeps the prompt open when the passcode is incorrect, leaving the session active", async () => {
     const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
-    vi.spyOn(messenger, "sendMessage").mockResolvedValue({
-      ok: false,
-      error: "Incorrect passcode, or temporarily locked after repeated attempts.",
-    });
+    // v3.4 Task 3: routed by type - FRIENDS_LIST (the friend picker's own fetch, triggered by
+    // opening the prompt) must resolve cleanly here, or its own "Couldn't load your friends"
+    // alert would collide with this test's own passcode-error alert assertion below.
+    vi.spyOn(messenger, "sendMessage").mockImplementation(((msg: ExtensionMessage) => {
+      if (msg.type === "FRIENDS_LIST") return Promise.resolve({ ok: true, friendIds: [] });
+      return Promise.resolve({
+        ok: false,
+        error: "Incorrect passcode, or temporarily locked after repeated attempts.",
+      });
+    }) as never);
 
     render(<EndSessionControl session={session} />);
     fireEvent.click(screen.getByRole("button", { name: "End session" }));
@@ -91,9 +102,15 @@ describe("EndSessionControl", () => {
 
   it("shows an error and does not leave an unhandled rejection when the passcode sendMessage call rejects", async () => {
     const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
-    vi.spyOn(messenger, "sendMessage").mockRejectedValue(
-      new Error("Could not establish connection. Receiving end does not exist.")
-    );
+    // v3.4 Task 3: routed by type, same rationale as the incorrect-passcode test above - the
+    // friend picker's own FRIENDS_LIST fetch must not itself reject, or its own caught error
+    // would produce a second, colliding alert.
+    vi.spyOn(messenger, "sendMessage").mockImplementation(((msg: ExtensionMessage) => {
+      if (msg.type === "FRIENDS_LIST") return Promise.resolve({ ok: true, friendIds: [] });
+      return Promise.reject(
+        new Error("Could not establish connection. Receiving end does not exist.")
+      );
+    }) as never);
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     render(<EndSessionControl session={session} />);

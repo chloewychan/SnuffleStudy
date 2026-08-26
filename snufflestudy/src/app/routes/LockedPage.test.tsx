@@ -81,7 +81,7 @@ describe("LockedPage", () => {
         expiresAt: 0,
       },
     }));
-    mockMessages({ TEMP_PASSCODE_CREATE: createSpy });
+    mockMessages({ FRIEND_REQUEST_CREATE: createSpy });
     render(<LockedPage />);
 
     await waitFor(() =>
@@ -93,6 +93,7 @@ describe("LockedPage", () => {
       expect(screen.getByText("Waiting for your friend to respond…")).toBeInTheDocument()
     );
     expect(createSpy).toHaveBeenCalledWith({
+      kind: "site_temp_pass",
       sessionId: "session-1",
       hostname: "youtube.com",
       friendUserId: "user-b",
@@ -101,7 +102,7 @@ describe("LockedPage", () => {
 
   // v3.3 Task 11: the optional "why do you need this" input is sent through as `message` when
   // filled in, trimmed.
-  it("includes a trimmed message in TEMP_PASSCODE_CREATE when the requester fills it in", async () => {
+  it("includes a trimmed message in FRIEND_REQUEST_CREATE when the requester fills it in", async () => {
     const createSpy = vi.fn(() => ({
       ok: true,
       request: {
@@ -115,7 +116,7 @@ describe("LockedPage", () => {
         message: "Need to check the syllabus",
       },
     }));
-    mockMessages({ TEMP_PASSCODE_CREATE: createSpy });
+    mockMessages({ FRIEND_REQUEST_CREATE: createSpy });
     render(<LockedPage />);
 
     await waitFor(() =>
@@ -130,6 +131,7 @@ describe("LockedPage", () => {
       expect(screen.getByText("Waiting for your friend to respond…")).toBeInTheDocument()
     );
     expect(createSpy).toHaveBeenCalledWith({
+      kind: "site_temp_pass",
       sessionId: "session-1",
       hostname: "youtube.com",
       friendUserId: "user-b",
@@ -153,7 +155,7 @@ describe("LockedPage", () => {
         message: null,
       },
     }));
-    mockMessages({ TEMP_PASSCODE_CREATE: createSpy });
+    mockMessages({ FRIEND_REQUEST_CREATE: createSpy });
     render(<LockedPage />);
 
     await waitFor(() =>
@@ -167,6 +169,7 @@ describe("LockedPage", () => {
     // Exact-object match (no `message` key at all, not even `message: undefined`) - same
     // assertion style the "creates a temp passcode request" test above uses.
     expect(createSpy).toHaveBeenCalledWith({
+      kind: "site_temp_pass",
       sessionId: "session-1",
       hostname: "youtube.com",
       friendUserId: "user-b",
@@ -174,7 +177,7 @@ describe("LockedPage", () => {
   });
 
   // v3.3 Task 10: no code to enter anymore - once the request's status is "approved", LockedPage
-  // auto-claims it (TEMP_PASSCODE_CLAIM_APPROVAL) and navigates on success, with no user action in
+  // auto-claims it (FRIEND_REQUEST_CLAIM_TEMP_PASS) and navigates on success, with no user action in
   // between.
   it("auto-claims an approved request and navigates to the site, with no code entry anywhere", async () => {
     delete (window as any).location;
@@ -182,7 +185,7 @@ describe("LockedPage", () => {
     const claimSpy = vi.fn(() => ({ ok: true }));
 
     mockMessages({
-      TEMP_PASSCODE_CREATE: () => ({
+      FRIEND_REQUEST_CREATE: () => ({
         ok: true,
         request: {
           id: "req-1",
@@ -194,7 +197,7 @@ describe("LockedPage", () => {
           expiresAt: 0,
         },
       }),
-      TEMP_PASSCODE_CLAIM_APPROVAL: claimSpy,
+      FRIEND_REQUEST_CLAIM_TEMP_PASS: claimSpy,
     });
     render(<LockedPage />);
 
@@ -205,14 +208,14 @@ describe("LockedPage", () => {
 
     await waitFor(() => expect(window.location.href).toBe("https://youtube.com"));
     // mockMessages' dispatcher (above) calls each handler with message.payload, not the whole
-    // message - so this asserts the payload TEMP_PASSCODE_CLAIM_APPROVAL received, not the type.
+    // message - so this asserts the payload FRIEND_REQUEST_CLAIM_TEMP_PASS received, not the type.
     expect(claimSpy).toHaveBeenCalledWith({ requestId: "req-1" });
     expect(screen.queryByPlaceholderText("Code from your friend")).not.toBeInTheDocument();
   });
 
   it("shows an inline error with a retry button when claiming an approved request fails, without navigating away", async () => {
     mockMessages({
-      TEMP_PASSCODE_CREATE: () => ({
+      FRIEND_REQUEST_CREATE: () => ({
         ok: true,
         request: {
           id: "req-1",
@@ -224,7 +227,7 @@ describe("LockedPage", () => {
           expiresAt: 0,
         },
       }),
-      TEMP_PASSCODE_CLAIM_APPROVAL: () => ({ ok: false }),
+      FRIEND_REQUEST_CLAIM_TEMP_PASS: () => ({ ok: false }),
     });
     render(<LockedPage />);
 
@@ -241,7 +244,7 @@ describe("LockedPage", () => {
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 
-  it("retrying a failed claim re-fires TEMP_PASSCODE_CLAIM_APPROVAL for the same request", async () => {
+  it("retrying a failed claim re-fires FRIEND_REQUEST_CLAIM_TEMP_PASS for the same request", async () => {
     delete (window as any).location;
     (window as any).location = { href: "" };
     let attempt = 0;
@@ -251,7 +254,7 @@ describe("LockedPage", () => {
     });
 
     mockMessages({
-      TEMP_PASSCODE_CREATE: () => ({
+      FRIEND_REQUEST_CREATE: () => ({
         ok: true,
         request: {
           id: "req-1",
@@ -263,7 +266,7 @@ describe("LockedPage", () => {
           expiresAt: 0,
         },
       }),
-      TEMP_PASSCODE_CLAIM_APPROVAL: claimSpy,
+      FRIEND_REQUEST_CLAIM_TEMP_PASS: claimSpy,
     });
     render(<LockedPage />);
 
