@@ -1,9 +1,10 @@
 import { supabase } from "./supabaseClient";
 import { requireUserId } from "./authHelpers";
 
-// v3.4 Task 2: replaces friendGroupApi.ts entirely - the group mechanic (friend_groups/
-// group_memberships/invite_codes.group_id/users_share_a_group()) is gone, replaced by a direct
-// pairwise friendships table and are_friends() (supabase/migrations/20260815000040_v3.4_friendships.sql).
+// v3.4 Task 2: replaces friendGroupApi.ts entirely - the old group-sharing mechanic (friend_groups/
+// group_memberships/invite_codes.group_id and the helper that checked shared membership) is gone,
+// replaced by a direct pairwise friendships table and are_friends() (supabase/migrations/
+// 20260815000040_v3.4_friendships.sql).
 // Row shapes returned to callers (messageRouter.ts / UI components) are camelCase, mirroring the
 // rest of this codebase's TS conventions, even though the underlying Postgres columns are
 // snake_case.

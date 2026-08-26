@@ -581,8 +581,12 @@ drop table friend_groups;
 -- again for the friend_requests half - both edits land in this same version, in build order).
 -- Base body is the ACTUAL live 20260815000039 version (confirmed directly, see this migration's
 -- header comment - not 20260815000038 as the plan's prose claimed), with:
---   - the friend_groups/group_memberships/invite_codes sections removed entirely and replaced by
---     one friendships delete, since there is no "owner" concept left to reassign;
+--   - the friend_groups/group_memberships reassign-and-delete sections removed entirely and
+--     replaced by one friendships delete, since there is no "owner" concept left to reassign;
+--     invite_codes' own user-scoped cleanup (null used_by, delete created_by rows) is PRESERVED,
+--     just moved out from under the now-gone friend_groups branch it used to live inside - see
+--     that statement's own comment further down for why (found missing by live-testing account
+--     deletion, not carried over correctly on the first pass through this rewrite either);
 --   - the unlock_requests/temp_passcode_requests blocks RESTORED from 20260815000038 (see this
 --     migration's second header note - 20260815000039 silently dropped both despite claiming a
 --     verbatim copy; left as dropped here would carry a live FK-violation account-deletion bug
@@ -657,6 +661,23 @@ begin
   -- concept in a pairwise model, unlike friend_groups' owner-reassign-or-cascade handling this
   -- replaces. Either party leaving simply removes the one row between them. ===
   delete from friendships where user_id_a = p_user_id or user_id_b = p_user_id;
+
+  -- === invite_codes: found missing by actually exercising account deletion against the live
+  -- project (via scripts/verify-friendships.mjs), not by reading the plan's SQL alone -
+  -- `admin.auth.admin.deleteUser()` failed outright with "Database error deleting user" for any
+  -- account that had ever generated an invite code, the exact bug class this migration's own
+  -- header comment already found and fixed once for unlock_requests/temp_passcode_requests.
+  -- invite_codes.created_by/used_by both reference auth.users(id) with no ON DELETE CASCADE
+  -- (20260815000001) - the pre-v3.4 version of this function DID clean these up, but only as an
+  -- incidental part of its friend_groups-deletion branch (delete codes for groups about to be
+  -- deleted, then null out used_by / delete created_by codes for the caller specifically) - that
+  -- branch is gone entirely under the pairwise model (no group to delete), and its user-scoped
+  -- cleanup needs to survive independently of it. used_by is nulled (not deleted) rather than the
+  -- row removed, preserving the OTHER party's own invite_codes row/history the same way
+  -- unlock_requests' resolved_by nulling already does elsewhere in this function - only rows the
+  -- caller themselves created are deleted outright.
+  update invite_codes set used_by = null where used_by = p_user_id;
+  delete from invite_codes where created_by = p_user_id;
 
   delete from friendship_settings
    where user_id = p_user_id or friend_user_id = p_user_id;
