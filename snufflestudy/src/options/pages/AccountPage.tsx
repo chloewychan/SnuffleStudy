@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
-import type {
-  FriendGroup,
-  GroupMembership,
-  InviteCode,
-} from "../../infrastructure/backend/friendGroupApi";
+import type { InviteCode } from "../../infrastructure/backend/friendshipApi";
 import { SignInForm, type SignInFormSession } from "../../shared/ui/SignInForm";
 import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 
@@ -21,10 +17,6 @@ export function AccountPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
 
-  const [group, setGroup] = useState<FriendGroup | null>(null);
-  const [groupError, setGroupError] = useState<string | null>(null);
-  const [groupBusy, setGroupBusy] = useState(false);
-
   const [inviteCode, setInviteCode] = useState<InviteCode | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteBusy, setInviteBusy] = useState(false);
@@ -33,28 +25,20 @@ export function AccountPage() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinBusy, setJoinBusy] = useState(false);
 
-  const [membersGroupId, setMembersGroupId] = useState("");
-  const [members, setMembers] = useState<GroupMembership[] | null>(null);
-  const [membersError, setMembersError] = useState<string | null>(null);
-  const [membersBusy, setMembersBusy] = useState(false);
+  // v3.4 Task 2: flat "Your friends" list, replacing the group-scoped membersGroupId/"List
+  // members"/"Leave" UI entirely - loaded via one FRIENDS_LIST call instead of a manually-entered
+  // group id.
+  const [friends, setFriends] = useState<string[] | null>(null);
+  const [friendsError, setFriendsError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   // v3.3 Task 8: resolves each friend's userId to their human_name (falling back to the raw id,
   // same as before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
-  const displayName = useDisplayNames((members ?? []).map((m) => m.userId));
-
-  // v2 follow-up (Item 2, post-final-review): self-leave only - reuses membersGroupId (the same
-  // manual-entry field "List members" already uses) rather than adding a second group-id input.
-  // Owner-removes-a-specific-member (kick) has no obvious home in this manual-entry-only UI (there
-  // is no per-row member list beyond the raw `members` array below) - GROUP_LEAVE's targetUserId
-  // stays capable of it, this page just doesn't build a control for it, per this dispatch's
-  // "primary must-have is self-leave, kick UI is a skippable nice-to-have" guidance.
-  const [leaveError, setLeaveError] = useState<string | null>(null);
-  const [leaveBusy, setLeaveBusy] = useState(false);
-  const [leftGroupId, setLeftGroupId] = useState<string | null>(null);
-  const [leaveConfirming, setLeaveConfirming] = useState(false);
+  const displayName = useDisplayNames(friends ?? []);
 
   // v3.2 Task 8: account/data deletion. Same busy/error state shape as every other destructive
-  // action on this page (handleSignOut, handleLeaveGroup).
+  // action on this page (handleSignOut, handleRemoveFriend).
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteConfirming, setDeleteConfirming] = useState(false);
@@ -100,6 +84,28 @@ export function AccountPage() {
     };
   }, []);
 
+  // v3.4 Task 2: loads the flat "Your friends" list via one FRIENDS_LIST call once signed in -
+  // replaces the old manually-entered "Friend list ID"/"List members" form entirely.
+  function loadFriends() {
+    setFriendsError(null);
+    sendMessage<{ ok: boolean; friendIds?: string[]; error?: string }>({ type: "FRIENDS_LIST" })
+      .then((res) => {
+        if (!res.ok) {
+          setFriendsError(res.error ?? "Could not load friends.");
+          return;
+        }
+        setFriends(res.friendIds ?? []);
+      })
+      .catch((err) => {
+        console.error("Failed to load friends", err);
+        setFriendsError(err instanceof Error ? err.message : String(err));
+      });
+  }
+
+  useEffect(() => {
+    if (session) loadFriends();
+  }, [session]);
+
   function handleSignedIn(newSession: SignInFormSession) {
     setSession(newSession);
   }
@@ -114,9 +120,8 @@ export function AccountPage() {
         return;
       }
       setSession(null);
-      setGroup(null);
       setInviteCode(null);
-      setMembers(null);
+      setFriends(null);
       setNewPassword("");
       setConfirmNewPassword("");
       setPasswordSetAt(null);
@@ -159,7 +164,7 @@ export function AccountPage() {
   // v3.2 Task 8: routes to AUTH_DELETE_ACCOUNT -> accountApi.deleteAccount() -> the
   // delete-account Edge Function. Confirmation step per this task's own DoD ("irreversible"),
   // rendered inline in this page's own JSX (deleteConfirming) rather than a browser-native
-  // window.confirm() - see handleLeaveGroup's comment above for why: Chrome silently suppresses
+  // window.confirm() - QA-discovered bug (v3.2 Task 9): Chrome silently suppresses
   // confirm()/alert()/prompt() with no visible dialog at all when this Options page is shown
   // embedded inside chrome://extensions, which is its default presentation.
   async function handleDeleteAccount() {
@@ -179,9 +184,8 @@ export function AccountPage() {
       // account-scoped state so it renders back to the signed-out SignInForm, same as
       // handleSignOut.
       setSession(null);
-      setGroup(null);
       setInviteCode(null);
-      setMembers(null);
+      setFriends(null);
       setNewPassword("");
       setConfirmNewPassword("");
       setPasswordSetAt(null);
@@ -193,34 +197,15 @@ export function AccountPage() {
     }
   }
 
-  // v3.3 Task 5: "Invite a friend" collapses what used to be two separate steps (create a
-  // named group, then separately click "Generate invite code") into one action. The friend
-  // group this still creates underneath is an implementation detail - its name is
-  // auto-generated and never shown anywhere in this UI; only the resulting invite code is
-  // (see docs/implementation_plans/V3.3_Implementation_Plan.md Task 5). The real
-  // pairwise-friendship rebuild that would remove the group entirely is out of scope this
-  // version.
+  // v3.4 Task 2: "Invite a friend" is now a single step (Decision 2) - generate a code directly,
+  // no group to create first. Redemption connects the two users instantly (Decision 1: no
+  // accept/decline step).
   async function handleInviteAFriend() {
-    setGroupBusy(true);
-    setGroupError(null);
+    setInviteBusy(true);
     setInviteError(null);
     try {
-      const autoName = `Friends of ${session?.user.email ?? "me"}`;
-      const createRes = await sendMessage<{ ok: boolean; group?: FriendGroup; error?: string }>({
-        type: "GROUP_CREATE",
-        payload: { name: autoName },
-      });
-      if (!createRes.ok || !createRes.group) {
-        setGroupError(createRes.error ?? "Could not set up a friend invite.");
-        return;
-      }
-      setGroup(createRes.group);
-      setMembersGroupId(createRes.group.id);
-
-      setInviteBusy(true);
       const inviteRes = await sendMessage<{ ok: boolean; inviteCode?: InviteCode; error?: string }>({
-        type: "GROUP_GENERATE_INVITE_CODE",
-        payload: { groupId: createRes.group.id },
+        type: "FRIEND_INVITE_GENERATE_CODE",
       });
       if (!inviteRes.ok || !inviteRes.inviteCode) {
         setInviteError(inviteRes.error ?? "Could not generate an invite code.");
@@ -229,91 +214,58 @@ export function AccountPage() {
       setInviteCode(inviteRes.inviteCode);
     } catch (err) {
       console.error("Failed to invite a friend", err);
-      setGroupError(err instanceof Error ? err.message : String(err));
+      setInviteError(err instanceof Error ? err.message : String(err));
     } finally {
-      setGroupBusy(false);
       setInviteBusy(false);
     }
   }
 
-  async function handleJoinGroup(e: React.FormEvent) {
+  // v3.4 Task 2: "Add a friend" swaps GROUP_JOIN for FRIEND_REDEEM_CODE, and on success reloads
+  // the flat friends list instead of remembering a single groupId.
+  async function handleAddFriend(e: React.FormEvent) {
     e.preventDefault();
     setJoinBusy(true);
     setJoinError(null);
     try {
-      const res = await sendMessage<{ ok: boolean; membership?: GroupMembership; error?: string }>({
-        type: "GROUP_JOIN",
+      const res = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "FRIEND_REDEEM_CODE",
         payload: { code: joinCode },
       });
-      if (!res.ok || !res.membership) {
-        setJoinError(res.error ?? "Could not join with that code.");
+      if (!res.ok) {
+        setJoinError(res.error ?? "Could not add your friend with that code.");
         return;
       }
-      setMembersGroupId(res.membership.groupId);
       setJoinCode("");
+      loadFriends();
     } catch (err) {
-      console.error("Failed to join group", err);
+      console.error("Failed to redeem an invite code", err);
       setJoinError(err instanceof Error ? err.message : String(err));
     } finally {
       setJoinBusy(false);
     }
   }
 
-  async function handleListMembers(e: React.FormEvent) {
-    e.preventDefault();
-    setMembersBusy(true);
-    setMembersError(null);
-    try {
-      const res = await sendMessage<{ ok: boolean; members?: GroupMembership[]; error?: string }>({
-        type: "GROUP_LIST_MEMBERS",
-        payload: { groupId: membersGroupId },
-      });
-      if (!res.ok || !res.members) {
-        setMembersError(res.error ?? "Could not load members.");
-        return;
-      }
-      setMembers(res.members);
-    } catch (err) {
-      console.error("Failed to load group members", err);
-      setMembersError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setMembersBusy(false);
-    }
-  }
-
-  // QA-discovered bug (v3.2 Task 9): this used to gate on window.confirm(), but Chrome silently
-  // no-ops synchronous confirm()/alert()/prompt() calls - no dialog, no error, nothing - when
-  // this Options page is shown embedded inside chrome://extensions (options_ui.open_in_tab is
-  // false, WXT's default, never overridden in wxt.config.ts), which is how Chrome opens an
-  // extension's Options page by default. The `if (!window.confirm(...)) return` guard always
-  // silently short-circuited in that context, so the button appeared to do nothing at all.
-  // Fixed by moving the confirmation into this page's own JSX (leaveConfirming) instead of a
-  // browser-native dialog, which works identically regardless of how this page is being shown.
-  async function handleLeaveGroup() {
-    if (!membersGroupId) return;
-    setLeaveConfirming(false);
-    setLeaveBusy(true);
-    setLeaveError(null);
+  // v3.4 Task 2: "Remove friend" - either party can unilaterally end the friendship. On success,
+  // filters the removed id out of local `friends` state (optimistic-on-confirmed-success, same
+  // convention handleArchiveRoom in StudyRoomPanel.tsx already uses) rather than a full reload.
+  async function handleRemoveFriend(friendId: string) {
+    setRemovingId(friendId);
+    setRemoveError(null);
     try {
       const res = await sendMessage<{ ok: boolean; error?: string }>({
-        type: "GROUP_LEAVE",
-        payload: { groupId: membersGroupId },
+        type: "FRIEND_REMOVE",
+        payload: { friendUserId: friendId },
       });
       if (!res.ok) {
-        setLeaveError(res.error ?? "Could not leave your friends list.");
+        setRemoveError(res.error ?? "Could not remove this friend.");
         return;
       }
-      setLeftGroupId(membersGroupId);
-      setMembers(null);
-      if (group?.id === membersGroupId) {
-        setGroup(null);
-        setInviteCode(null);
-      }
+      setFriends((prev) => (prev ? prev.filter((id) => id !== friendId) : prev));
     } catch (err) {
-      console.error("Failed to leave group", err);
-      setLeaveError(err instanceof Error ? err.message : String(err));
+      console.error("Failed to remove a friend", err);
+      setRemoveError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLeaveBusy(false);
+      setRemovingId(null);
     }
   }
 
@@ -438,16 +390,9 @@ export function AccountPage() {
           <section>
             <h3>Invite a friend</h3>
             <p>Generates a one-time invite code you can share with a friend to connect.</p>
-            <button
-              type="button"
-              onClick={() => void handleInviteAFriend()}
-              disabled={groupBusy || inviteBusy}
-            >
-              {groupBusy || inviteBusy ? "Setting up your invite…" : "Invite a friend"}
+            <button type="button" onClick={() => void handleInviteAFriend()} disabled={inviteBusy}>
+              {inviteBusy ? "Setting up your invite…" : "Invite a friend"}
             </button>
-            {groupError && (
-              <p role="alert">Couldn't set up a friend invite: {groupError}. Please try again.</p>
-            )}
             {inviteError && (
               <p role="alert">
                 Couldn't generate an invite code: {inviteError}. Please try again.
@@ -463,7 +408,7 @@ export function AccountPage() {
 
           <section>
             <h3>Add a friend</h3>
-            <form onSubmit={handleJoinGroup}>
+            <form onSubmit={(e) => void handleAddFriend(e)}>
               <label>
                 Invite code
                 <input
@@ -484,60 +429,27 @@ export function AccountPage() {
 
           <section>
             <h3>Your friends</h3>
-            <form onSubmit={handleListMembers}>
-              <label>
-                Friend list ID
-                <input
-                  type="text"
-                  required
-                  value={membersGroupId}
-                  onChange={(e) => setMembersGroupId(e.target.value)}
-                />
-              </label>
-              <button type="submit" disabled={membersBusy || !membersGroupId}>
-                {membersBusy ? "Loading…" : "List members"}
-              </button>
-            </form>
-            {membersError && (
-              <p role="alert">Couldn't load members: {membersError}. Please try again.</p>
-            )}
-            {members && (
+            {friendsError && <p role="alert">Couldn't load friends: {friendsError}. Please try again.</p>}
+            {friends === null && !friendsError && <p>Loading…</p>}
+            {friends !== null && friends.length === 0 && <p>No friends yet — invite one above.</p>}
+            {friends !== null && friends.length > 0 && (
               <ul>
-                {members.map((m) => (
-                  <li key={m.userId}>
-                    {displayName(m.userId)} — joined {new Date(m.joinedAt).toLocaleString()}
+                {friends.map((friendId) => (
+                  <li key={friendId}>
+                    {displayName(friendId)}
+                    <button
+                      type="button"
+                      onClick={() => void handleRemoveFriend(friendId)}
+                      disabled={removingId === friendId}
+                    >
+                      {removingId === friendId ? "Removing…" : "Remove friend"}
+                    </button>
                   </li>
                 ))}
               </ul>
             )}
-            {!leaveConfirming ? (
-              <button
-                type="button"
-                onClick={() => setLeaveConfirming(true)}
-                disabled={leaveBusy || !membersGroupId}
-              >
-                Leave
-              </button>
-            ) : (
-              <div role="alertdialog" aria-label="Confirm leaving your friends list">
-                <p>Leave your friends list? You'll need a new invite code to reconnect.</p>
-                <button type="button" onClick={() => void handleLeaveGroup()} disabled={leaveBusy}>
-                  {leaveBusy ? "Leaving…" : "Yes, leave"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLeaveConfirming(false)}
-                  disabled={leaveBusy}
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-            {leaveError && (
-              <p role="alert">Couldn't leave: {leaveError}. Please try again.</p>
-            )}
-            {leftGroupId === membersGroupId && !leaveError && (
-              <p>You've left your friends list.</p>
+            {removeError && (
+              <p role="alert">Couldn't remove this friend: {removeError}. Please try again.</p>
             )}
           </section>
         </>

@@ -1,7 +1,7 @@
-// Covers messageRouter.ts's Task 5 additions (AUTH_*/GROUP_* cases) in isolation from the main
+// Covers messageRouter.ts's Task 5 additions (AUTH_*/FRIEND_* cases) in isolation from the main
 // messageRouter.test.ts suite. Spies on the supabaseClient singleton's `.auth` methods and on
-// friendGroupApi's exported functions (this repo's established test style - see
-// friendGroupApi.test.ts and OptionsApp.test.tsx's vi.spyOn(messenger, "sendMessage")) so these
+// friendshipApi's exported functions (this repo's established test style - see
+// friendshipApi.test.ts and OptionsApp.test.tsx's vi.spyOn(messenger, "sendMessage")) so these
 // cases are verified to route to the right underlying call with the right arguments, entirely
 // offline - no real network call is ever made.
 import "fake-indexeddb/auto";
@@ -9,8 +9,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import { handleMessage } from "./messageRouter";
 import { supabase } from "../infrastructure/backend/supabaseClient";
-import * as friendGroupApi from "../infrastructure/backend/friendGroupApi";
-import type { FriendGroup, GroupMembership, InviteCode } from "../infrastructure/backend/friendGroupApi";
+import * as friendshipApi from "../infrastructure/backend/friendshipApi";
+import type { Friendship, InviteCode } from "../infrastructure/backend/friendshipApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import type { FriendNudge } from "../infrastructure/backend/nudgeApi";
 import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
@@ -183,112 +183,112 @@ describe("messageRouter — AUTH_*", () => {
   });
 });
 
-describe("messageRouter — GROUP_*", () => {
-  it("GROUP_CREATE calls friendGroupApi.createGroup with the given name", async () => {
-    const group: FriendGroup = {
-      id: "group-1",
-      name: "Study Buddies",
-      ownerUserId: "user-a",
-      createdAt: "2026-01-01T00:00:00Z",
+describe("messageRouter — FRIEND_* (v3.4 Task 2 - replaces GROUP_*)", () => {
+  it("FRIEND_INVITE_GENERATE_CODE calls friendshipApi.generateInviteCode with no arguments (Decision 2: no groupId)", async () => {
+    const inviteCode: InviteCode = {
+      code: "ABCD1234",
+      createdBy: "user-a",
+      expiresAt: 1_736_294_400_000,
+      usedBy: null,
     };
-    const spy = vi.spyOn(friendGroupApi, "createGroup").mockResolvedValue(group);
+    const spy = vi.spyOn(friendshipApi, "generateInviteCode").mockResolvedValue(inviteCode);
 
     const result = (await handleMessage({
-      type: "GROUP_CREATE",
-      payload: { name: "Study Buddies" },
-    })) as { ok: boolean; group: FriendGroup };
+      type: "FRIEND_INVITE_GENERATE_CODE",
+    })) as { ok: boolean; inviteCode: InviteCode };
 
-    expect(spy).toHaveBeenCalledWith("Study Buddies");
-    expect(result).toEqual({ ok: true, group });
+    expect(spy).toHaveBeenCalledWith();
+    expect(result).toEqual({ ok: true, inviteCode });
   });
 
-  it("GROUP_CREATE propagates a thrown error as ok:false (outer handleMessage catch)", async () => {
-    vi.spyOn(friendGroupApi, "createGroup").mockRejectedValue(new Error("Not signed in."));
+  it("FRIEND_INVITE_GENERATE_CODE propagates a thrown error as ok:false (outer handleMessage catch)", async () => {
+    vi.spyOn(friendshipApi, "generateInviteCode").mockRejectedValue(new Error("Not signed in."));
 
     const result = (await handleMessage({
-      type: "GROUP_CREATE",
-      payload: { name: "x" },
+      type: "FRIEND_INVITE_GENERATE_CODE",
     })) as { ok: boolean; error?: string };
 
     expect(result).toEqual({ ok: false, error: "Not signed in." });
   });
 
-  it("GROUP_GENERATE_INVITE_CODE calls friendGroupApi.generateInviteCode with the given groupId", async () => {
-    const inviteCode: InviteCode = {
-      code: "ABCD1234",
-      groupId: "group-1",
-      createdBy: "user-a",
-      expiresAt: "2026-01-08T00:00:00Z",
-      usedBy: null,
+  it("FRIEND_REDEEM_CODE calls friendshipApi.redeemInviteCode with the given code", async () => {
+    const friendship: Friendship = {
+      userIdA: "user-a",
+      userIdB: "user-b",
+      initiatedBy: "user-a",
+      createdAt: 1_735_689_600_000,
     };
-    const spy = vi.spyOn(friendGroupApi, "generateInviteCode").mockResolvedValue(inviteCode);
+    const spy = vi.spyOn(friendshipApi, "redeemInviteCode").mockResolvedValue(friendship);
 
     const result = (await handleMessage({
-      type: "GROUP_GENERATE_INVITE_CODE",
-      payload: { groupId: "group-1" },
-    })) as { ok: boolean; inviteCode: InviteCode };
-
-    expect(spy).toHaveBeenCalledWith("group-1");
-    expect(result).toEqual({ ok: true, inviteCode });
-  });
-
-  it("GROUP_JOIN calls friendGroupApi.joinGroup with the given code", async () => {
-    const membership: GroupMembership = {
-      groupId: "group-1",
-      userId: "user-b",
-      joinedAt: "2026-01-02T00:00:00Z",
-    };
-    const spy = vi.spyOn(friendGroupApi, "joinGroup").mockResolvedValue(membership);
-
-    const result = (await handleMessage({
-      type: "GROUP_JOIN",
+      type: "FRIEND_REDEEM_CODE",
       payload: { code: "CODE1234" },
-    })) as { ok: boolean; membership: GroupMembership };
+    })) as { ok: boolean; friendship: Friendship };
 
     expect(spy).toHaveBeenCalledWith("CODE1234");
-    expect(result).toEqual({ ok: true, membership });
+    expect(result).toEqual({ ok: true, friendship });
   });
 
-  it("GROUP_LIST_MEMBERS calls friendGroupApi.listMembers with the given groupId", async () => {
-    const members: GroupMembership[] = [
-      { groupId: "group-1", userId: "user-a", joinedAt: "2026-01-01T00:00:00Z" },
-    ];
-    const spy = vi.spyOn(friendGroupApi, "listMembers").mockResolvedValue(members);
+  it("FRIEND_REDEEM_CODE propagates a thrown error as ok:false (e.g. expired/already-used code)", async () => {
+    vi.spyOn(friendshipApi, "redeemInviteCode").mockRejectedValue(
+      new Error("Invite code not found, expired, or already used.")
+    );
 
     const result = (await handleMessage({
-      type: "GROUP_LIST_MEMBERS",
-      payload: { groupId: "group-1" },
-    })) as { ok: boolean; members: GroupMembership[] };
+      type: "FRIEND_REDEEM_CODE",
+      payload: { code: "STALE123" },
+    })) as { ok: boolean; error?: string };
 
-    expect(spy).toHaveBeenCalledWith("group-1");
-    expect(result).toEqual({ ok: true, members });
+    expect(result).toEqual({ ok: false, error: "Invite code not found, expired, or already used." });
   });
 
-  it("GROUP_LIST_MINE calls friendGroupApi.listMyGroups", async () => {
-    const memberships: GroupMembership[] = [
-      { groupId: "group-1", userId: "user-a", joinedAt: "2026-01-01T00:00:00Z" },
-      { groupId: "group-2", userId: "user-a", joinedAt: "2026-01-02T00:00:00Z" },
-    ];
-    const spy = vi.spyOn(friendGroupApi, "listMyGroups").mockResolvedValue(memberships);
+  it("FRIENDS_LIST calls friendshipApi.listMyFriends", async () => {
+    const friendIds = ["user-b", "user-c"];
+    const spy = vi.spyOn(friendshipApi, "listMyFriends").mockResolvedValue(friendIds);
 
-    const result = (await handleMessage({ type: "GROUP_LIST_MINE" })) as {
+    const result = (await handleMessage({ type: "FRIENDS_LIST" })) as {
       ok: boolean;
-      memberships: GroupMembership[];
+      friendIds: string[];
     };
 
     expect(spy).toHaveBeenCalled();
-    expect(result).toEqual({ ok: true, memberships });
+    expect(result).toEqual({ ok: true, friendIds });
   });
 
-  it("GROUP_LIST_MINE propagates a thrown error as ok:false (outer handleMessage catch)", async () => {
-    vi.spyOn(friendGroupApi, "listMyGroups").mockRejectedValue(new Error("Not signed in."));
+  it("FRIENDS_LIST propagates a thrown error as ok:false (outer handleMessage catch)", async () => {
+    vi.spyOn(friendshipApi, "listMyFriends").mockRejectedValue(new Error("Not signed in."));
 
-    const result = (await handleMessage({ type: "GROUP_LIST_MINE" })) as {
+    const result = (await handleMessage({ type: "FRIENDS_LIST" })) as {
       ok: boolean;
       error?: string;
     };
 
     expect(result).toEqual({ ok: false, error: "Not signed in." });
+  });
+
+  it("FRIEND_REMOVE calls friendshipApi.removeFriend with the given friendUserId", async () => {
+    const spy = vi.spyOn(friendshipApi, "removeFriend").mockResolvedValue(undefined);
+
+    const result = (await handleMessage({
+      type: "FRIEND_REMOVE",
+      payload: { friendUserId: "user-b" },
+    })) as { ok: boolean };
+
+    expect(spy).toHaveBeenCalledWith("user-b");
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("FRIEND_REMOVE propagates a thrown error as ok:false (e.g. not actually friends)", async () => {
+    vi.spyOn(friendshipApi, "removeFriend").mockRejectedValue(
+      new Error("You aren't friends with this user.")
+    );
+
+    const result = (await handleMessage({
+      type: "FRIEND_REMOVE",
+      payload: { friendUserId: "user-stranger" },
+    })) as { ok: boolean; error?: string };
+
+    expect(result).toEqual({ ok: false, error: "You aren't friends with this user." });
   });
 });
 

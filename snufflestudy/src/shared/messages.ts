@@ -65,20 +65,25 @@ export type ExtensionMessage =
   | { type: "AUTH_SIGN_IN_PASSWORD"; payload: { email: string; password: string } }
   | { type: "AUTH_SIGN_OUT" }
   | { type: "AUTH_GET_SESSION" }
-  | { type: "GROUP_CREATE"; payload: { name: string } }
-  | { type: "GROUP_GENERATE_INVITE_CODE"; payload: { groupId: string } }
-  | { type: "GROUP_JOIN"; payload: { code: string } }
-  | { type: "GROUP_LIST_MEMBERS"; payload: { groupId: string } }
-  // v2 follow-up (Item 2, post-final-review): routes to friendGroupApi.leaveGroup() ->
-  // group_memberships' new DELETE policy (supabase/migrations/20260815000028_v2_group_leave.sql).
-  // Omitted/undefined targetUserId means "leave my own membership row"; a group owner may instead
-  // pass a specific targetUserId to remove someone else (kick) - both are the same RLS-gated
-  // DELETE, just naming a different row.
-  | { type: "GROUP_LEAVE"; payload: { groupId: string; targetUserId?: string } }
-  // v2 Task 7: routes to friendGroupApi.listMyGroups() - lets FriendGroupPanel.tsx discover
-  // which group(s) the current user is in (so it can then GROUP_LIST_MEMBERS per group) without
-  // the user having to paste a groupId in, unlike AccountPage.tsx's manual-entry flow.
-  | { type: "GROUP_LIST_MINE" }
+  // v3.4 Task 2: replaces GROUP_CREATE/GROUP_GENERATE_INVITE_CODE/GROUP_JOIN/GROUP_LIST_MEMBERS/
+  // GROUP_LEAVE/GROUP_LIST_MINE entirely - the group mechanic is gone, replaced by a direct
+  // pairwise friendships table (supabase/migrations/20260815000040_v3.4_friendships.sql). Routes
+  // to friendshipApi.generateInviteCode() - no groupId param any more (Decision 2): "Invite a
+  // friend" is now a single step instead of create-a-group-then-generate-a-code-for-it.
+  | { type: "FRIEND_INVITE_GENERATE_CODE" }
+  // Routes to friendshipApi.redeemInviteCode() -> redeem_invite_code() (rewritten to insert a
+  // friendships row directly between the two users instead of a group_memberships row). Instant
+  // connect on redemption, no accept/decline step (Decision 1).
+  | { type: "FRIEND_REDEEM_CODE"; payload: { code: string } }
+  // Routes to friendshipApi.listMyFriends() - a flat list of every friend's user id (self
+  // excluded), replacing the old GROUP_LIST_MINE -> N x GROUP_LIST_MEMBERS -> dedupe fan-out every
+  // call site (AccountPage.tsx, LockedPage.tsx, StudyRoomPanel.tsx's ManageAccessSection,
+  // useFriendGroupPanelData.ts's loadFriends) independently implemented under the group model.
+  | { type: "FRIENDS_LIST" }
+  // Routes to friendshipApi.removeFriend() - either party can unilaterally end the friendship
+  // (RLS: "either party can remove their friendship"), replacing GROUP_LEAVE's group-scoped
+  // "Leave"/kick semantics with a flat per-friend "Remove friend" action.
+  | { type: "FRIEND_REMOVE"; payload: { friendUserId: string } }
   // v2 Task 6: routes to sessionStatusSyncApi.fetchNewEventsForFriends via messageRouter.ts -
   // used by both alarmHandlers.ts's friend-poll alarm (indirectly, via a direct function call
   // since that's background-side code, not a message) and FriendGroupPanel.tsx (this message,
@@ -100,7 +105,7 @@ export type ExtensionMessage =
   // side. sessionId is the currently active session the requested hostname should be unlocked
   // for; unlockRequestApi.createRequest throws on failure (not signed in, insert error), which
   // messageRouter.ts's outer handleMessage try/catch turns into ok:false, same convention as
-  // GROUP_CREATE/GROUP_JOIN.
+  // FRIEND_INVITE_GENERATE_CODE/FRIEND_REDEEM_CODE.
   | { type: "UNLOCK_REQUEST_CREATE"; payload: { sessionId: string; hostname: string } }
   // v2 Task 8: routes to unlockRequestApi.resolveRequest - UnlockRequestPanel.tsx's friend
   // (approve/deny) side. "First responder wins" is enforced server-side (RLS - see
@@ -130,14 +135,14 @@ export type ExtensionMessage =
   // field (or several) at a time, keyed by which friend the change applies to. Throws on failure
   // (e.g. no row exists yet because the two users don't actually share a group), which
   // messageRouter.ts's outer handleMessage try/catch turns into ok:false, same convention as
-  // GROUP_CREATE/GROUP_JOIN/UNLOCK_REQUEST_CREATE.
+  // FRIEND_INVITE_GENERATE_CODE/FRIEND_REDEEM_CODE/UNLOCK_REQUEST_CREATE.
   | {
       type: "FRIENDSHIP_SETTINGS_UPDATE";
       payload: { friendUserId: string; patch: FriendshipSettingsPatch };
     }
   // v2 Task 12: routes to tempPasscodeApi.createRequest - LockedPage.tsx's requester-side
   // "request a temporary passcode" action. sessionId/hostname mirror UNLOCK_REQUEST_CREATE's
-  // shape; friendUserId is the picked designated friend (from GROUP_LIST_MINE/GROUP_LIST_MEMBERS,
+  // shape; friendUserId is the picked designated friend (from FRIENDS_LIST,
   // same friend-picker pattern FriendGroupPanel.tsx/UnlockRequestPanel.tsx already use).
   // createRequest throws on failure (not signed in, insert error) - the outer handleMessage
   // try/catch turns that into ok:false, same convention as UNLOCK_REQUEST_CREATE.
@@ -178,12 +183,12 @@ export type ExtensionMessage =
   // header comment on why those two stay a direct, narrower exception) - there's no reason for
   // this to skip the same message-passing convention every other *Api.ts write goes through.
   // Throws on failure (not signed in, RLS-denied insert) - the outer handleMessage try/catch
-  // turns that into ok:false, same convention as GROUP_CREATE.
+  // turns that into ok:false, same convention as FRIEND_INVITE_GENERATE_CODE.
   | { type: "STUDY_ROOM_CREATE"; payload: { name: string } }
   // v2 Task 13, fix round 1: routes to studyRoomApi.listRooms - StudyRoomPanel.tsx's room list.
   // Scoping to "rooms the user's groups have created" is entirely RLS-enforced server-side (see
   // supabase/migrations/20260815000019_v2_study_rooms_group_visibility_and_join_gate.sql) - this
-  // message does no client-side filtering of its own, same as GROUP_LIST_MINE.
+  // message does no client-side filtering of its own, same as FRIENDS_LIST.
   | { type: "STUDY_ROOM_LIST" }
   // v2 Task 13, fix round 1: routes to studyRoomApi.leaveRoom - StudyRoomPanel.tsx's leave
   // action sets left_at on the caller's own currently-open participant row. Throws on failure
@@ -215,7 +220,7 @@ export type ExtensionMessage =
   // studyRoomApi.ts's removeInvitee comment). Same outer-catch convention as above.
   | { type: "STUDY_ROOM_INVITEE_REMOVE"; payload: { roomId: string; userId: string } }
   // v3.3 Task 13: routes to studyRoomApi.listInvitees - seeds the "Manage access" section's
-  // current invitee list. Payload/response shapes mirror GROUP_LIST_MEMBERS's pattern (a roomId in
+  // current invitee list. Payload/response shapes mirror FRIENDS_LIST's pattern (a roomId in
   // place of a groupId), per this task's plan. RLS (not this message) restricts who actually gets
   // non-empty results back - same trust-RLS convention as STUDY_ROOM_LIST.
   | { type: "STUDY_ROOM_INVITEES_LIST"; payload: { roomId: string } }
@@ -227,7 +232,7 @@ export type ExtensionMessage =
   // to the cap), read by the panel right after stopRecording() resolves and forwarded here rather
   // than re-derived server-side (which would require decoding audio in a service worker - not
   // available). Throws on failure (not signed in, insert/upload error) - the outer handleMessage
-  // try/catch turns that into ok:false, same convention as GROUP_CREATE/STUDY_ROOM_CREATE.
+  // try/catch turns that into ok:false, same convention as FRIEND_INVITE_GENERATE_CODE/STUDY_ROOM_CREATE.
   | {
       type: "PRODUCER_TAG_UPLOAD";
       payload: { audioBase64: string; mimeType: string; durationMs: number };
@@ -300,9 +305,9 @@ export type ExtensionMessage =
   | { type: "SESSION_END_REQUESTS_FETCH"; payload: { sinceTimestamp: number } }
   // v3.2 Task 8: routes to accountApi.deleteAccount() - AccountPage.tsx's "Delete account"
   // action, gated behind its own confirm() prompt (same irreversible-action convention as
-  // GROUP_LEAVE's confirm in AccountPage.tsx) before this message is ever sent. No payload - the
+  // FRIEND_REMOVE's confirm in AccountPage.tsx) before this message is ever sent. No payload - the
   // Edge Function this ultimately invokes (supabase/functions/delete-account/index.ts) resolves
   // the target user exclusively from the caller's own bearer token, never from anything this
   // message could carry. Throws on failure (Edge Function error, network failure) - the outer
-  // handleMessage try/catch turns that into ok:false, same convention as GROUP_CREATE.
+  // handleMessage try/catch turns that into ok:false, same convention as FRIEND_INVITE_GENERATE_CODE.
   | { type: "AUTH_DELETE_ACCOUNT" };

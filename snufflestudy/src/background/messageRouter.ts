@@ -20,7 +20,7 @@ import {
   unlockHardBlockRuleForHostname,
 } from "../infrastructure/browser/declarativeNetRequestApi";
 import { supabase } from "../infrastructure/backend/supabaseClient";
-import * as friendGroupApi from "../infrastructure/backend/friendGroupApi";
+import * as friendshipApi from "../infrastructure/backend/friendshipApi";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
@@ -32,7 +32,7 @@ import * as studyRoomApi from "../infrastructure/backend/studyRoomApi";
 import * as producerTagApi from "../infrastructure/backend/producerTagApi";
 import * as accountApi from "../infrastructure/backend/accountApi";
 import * as profileApi from "../infrastructure/backend/profileApi";
-import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
+import { currentFriendSyncUserId, hasAnyFriend, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
 const historyRepo = new IndexedDbSessionRepository();
@@ -50,16 +50,17 @@ async function currentUserId(): Promise<string | null> {
 }
 
 // Starts the friend-poll alarm (v2 Task 6) when a session becomes active, but only if it's
-// actually worth running: signed in + friend-sync enabled (currentFriendSyncUserId) AND a
-// member of at least one group (isInAnyGroup) - being opted in with no group yet has nothing to
-// poll for. Fire-and-forget/best-effort like recordFriendStatusEvent (see friendSync.ts): the
-// group-membership check is a network call, so this must never block SESSION_START's own
+// actually worth running: signed in + friend-sync enabled (currentFriendSyncUserId) AND has at
+// least one friend (hasAnyFriend, v3.4 Task 2 - replaces isInAnyGroup()/group_memberships with a
+// direct friendships existence check) - being opted in with no friend yet has nothing to poll
+// for. Fire-and-forget/best-effort like recordFriendStatusEvent (see friendSync.ts): the
+// friendship-existence check is a network call, so this must never block SESSION_START's own
 // response on it.
 function maybeStartFriendPoll(): void {
   currentFriendSyncUserId()
     .then(async (userId) => {
       if (!userId) return;
-      if (await isInAnyGroup(userId)) {
+      if (await hasAnyFriend(userId)) {
         scheduleFriendPollAlarm();
       }
     })
@@ -535,44 +536,28 @@ async function routeMessage(
       return { ok: true, session: data.session };
     }
 
-    case "GROUP_CREATE": {
-      const group = await friendGroupApi.createGroup(message.payload.name);
-      return { ok: true, group };
-    }
-
-    case "GROUP_GENERATE_INVITE_CODE": {
-      const inviteCode = await friendGroupApi.generateInviteCode(message.payload.groupId);
+    case "FRIEND_INVITE_GENERATE_CODE": {
+      const inviteCode = await friendshipApi.generateInviteCode();
       return { ok: true, inviteCode };
     }
 
-    case "GROUP_JOIN": {
-      const membership = await friendGroupApi.joinGroup(message.payload.code);
-      return { ok: true, membership };
+    case "FRIEND_REDEEM_CODE": {
+      const friendship = await friendshipApi.redeemInviteCode(message.payload.code);
+      return { ok: true, friendship };
     }
 
-    case "GROUP_LIST_MEMBERS": {
-      const members = await friendGroupApi.listMembers(message.payload.groupId);
-      return { ok: true, members };
+    case "FRIENDS_LIST": {
+      const friendIds = await friendshipApi.listMyFriends();
+      return { ok: true, friendIds };
     }
 
-    case "GROUP_LEAVE": {
-      // leaveGroup throws (not signed in, Postgres error) rather than returning ok:false - the
-      // outer handleMessage try/catch (top of this file) turns that into { ok: false, error },
-      // same convention as GROUP_CREATE/GROUP_JOIN above. Fix round (Minor #1): a denied delete
-      // (a non-owner trying to remove someone else, or a self-leave of a group the caller wasn't
-      // actually a member of) is ALSO now a throw - RLS still silently filters it to zero
-      // affected rows at the database layer, but leaveGroup() itself now chains `.select()` onto
-      // the delete and throws "You aren't currently a member of that group." when the returned
-      // array is empty, rather than resolving as if the leave had succeeded. No change needed
-      // here: this case's existing thin-pass-through + the outer try/catch already surface that
-      // thrown error as { ok: false, error } correctly.
-      await friendGroupApi.leaveGroup(message.payload.groupId, message.payload.targetUserId);
+    case "FRIEND_REMOVE": {
+      // removeFriend throws (not signed in, Postgres error, or "You aren't friends with this
+      // user." when the delete matched zero rows) rather than returning ok:false - the outer
+      // handleMessage try/catch (top of this file) turns that into { ok: false, error }, same
+      // convention as FRIEND_INVITE_GENERATE_CODE/FRIEND_REDEEM_CODE above.
+      await friendshipApi.removeFriend(message.payload.friendUserId);
       return { ok: true };
-    }
-
-    case "GROUP_LIST_MINE": {
-      const memberships = await friendGroupApi.listMyGroups();
-      return { ok: true, memberships };
     }
 
     case "FRIEND_EVENTS_FETCH": {

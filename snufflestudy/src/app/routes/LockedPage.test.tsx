@@ -16,18 +16,13 @@ beforeEach(() => {
 // that, while `defaults` gives every pre-existing test (which only cares about
 // HARD_BLOCK_VERIFY_PASSCODE) a clean, error-free baseline for the new mount-time calls it never
 // used to have to think about.
+// v3.4 Task 2: FRIENDS_LIST replaces GROUP_LIST_MINE/GROUP_LIST_MEMBERS - already excludes self
+// by construction, so the default fixture is just the one other friend.
 function mockMessages(overrides: Record<string, (payload: any) => unknown> = {}) {
   const defaults: Record<string, (payload: any) => unknown> = {
     SESSION_GET_ACTIVE: () => ({ ok: true, session: { id: "session-1" } }),
     AUTH_GET_SESSION: () => ({ ok: true, session: { user: { id: "user-a" } } }),
-    GROUP_LIST_MINE: () => ({ ok: true, memberships: [{ groupId: "group-1", userId: "user-a", joinedAt: "" }] }),
-    GROUP_LIST_MEMBERS: () => ({
-      ok: true,
-      members: [
-        { groupId: "group-1", userId: "user-a", joinedAt: "" },
-        { groupId: "group-1", userId: "user-b", joinedAt: "" },
-      ],
-    }),
+    FRIENDS_LIST: () => ({ ok: true, friendIds: ["user-b"] }),
   };
   const handlers = { ...defaults, ...overrides };
   return vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
@@ -65,7 +60,7 @@ describe("LockedPage", () => {
     await waitFor(() => expect(window.location.href).toBe("https://youtube.com"));
   });
 
-  it("shows the friend picker (populated from the user's groups) once loaded", async () => {
+  it("shows the friend picker (populated via FRIENDS_LIST) once loaded", async () => {
     mockMessages();
     render(<LockedPage />);
 

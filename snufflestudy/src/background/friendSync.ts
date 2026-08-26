@@ -28,24 +28,26 @@ export async function currentFriendSyncUserId(): Promise<string | null> {
   }
 }
 
-// Whether the given (already-authenticated) user belongs to at least one friend group -
-// group_memberships' "members can read memberships of their own groups" RLS policy (supabase/
-// migrations/20260815000002_v2_rls_policies.sql) is satisfied by a user's own row, so this plain
-// filtered select works without any special-cased policy. Used to decide whether the
-// friend-poll alarm is worth running at all (per docs/Draft1_Architecture_Overview.md: "only
-// run the alarm while there is an active session with friend features enabled" - being signed
-// in and opted in with no group yet has nothing to poll for).
-export async function isInAnyGroup(userId: string): Promise<boolean> {
+// v3.4 Task 2: replaces isInAnyGroup()/group_memberships with a direct friendships existence
+// check - the group mechanic is gone (supabase/migrations/20260815000040_v3.4_friendships.sql).
+// Whether the given (already-authenticated) user has at least one friend - friendships'
+// "either party can read their friendship" RLS policy is satisfied by a user's own row on either
+// side, so this plain filtered select works without any special-cased policy. Used to decide
+// whether the friend-poll alarm is worth running at all (per
+// docs/Draft1_Architecture_Overview.md: "only run the alarm while there is an active session with
+// friend features enabled" - being signed in and opted in with no friend yet has nothing to poll
+// for).
+export async function hasAnyFriend(userId: string): Promise<boolean> {
   try {
     const { data, error } = await supabase
-      .from("group_memberships")
-      .select("group_id")
-      .eq("user_id", userId)
+      .from("friendships")
+      .select("user_id_a")
+      .or(`user_id_a.eq.${userId},user_id_b.eq.${userId}`)
       .limit(1);
     if (error) return false;
     return (data?.length ?? 0) > 0;
   } catch (err) {
-    console.error("Failed to check group membership for friend sync", err);
+    console.error("Failed to check friendship existence for friend sync", err);
     return false;
   }
 }

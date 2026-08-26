@@ -167,12 +167,18 @@ describe("AccountPage — signed out", () => {
 });
 
 describe("AccountPage — signed in", () => {
+  // v3.4 Task 2: AccountPage now loads the flat "Your friends" list via one FRIENDS_LIST call as
+  // soon as `session` is set - defaults to an empty list so every pre-existing test (which
+  // doesn't care about the friends list) gets a clean, error-free baseline.
   function mockSignedIn(overrides: Record<string, (message: any) => Promise<any>> = {}) {
     return vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       const override = overrides[message.type];
       if (override) return override(message);
       if (message.type === "AUTH_GET_SESSION") {
         return { ok: true, session: { user: { id: "user-a", email: "a@example.com" } } };
+      }
+      if (message.type === "FRIENDS_LIST") {
+        return { ok: true, friendIds: [] };
       }
       return { ok: true };
     });
@@ -290,22 +296,17 @@ describe("AccountPage — signed in", () => {
     });
   });
 
-  // v3.3 Task 5: "Invite a friend" collapses the old two-step create-group/generate-invite-code
-  // flow into one action - one click sends both GROUP_CREATE (with an auto-generated, never-shown
-  // name) and GROUP_GENERATE_INVITE_CODE, and only the resulting invite code renders.
-  it("invites a friend: one click creates a group and generates an invite code for it", async () => {
+  // v3.4 Task 2: "Invite a friend" is now a single step (Decision 2) - one click sends
+  // FRIEND_INVITE_GENERATE_CODE directly, no group to create first, and only the resulting
+  // invite code renders.
+  it("invites a friend: one click generates an invite code, with no group created first", async () => {
     mockSignedIn({
-      GROUP_CREATE: async () => ({
-        ok: true,
-        group: { id: "group-1", name: "Friends of a@example.com", ownerUserId: "user-a", createdAt: "2026-01-01T00:00:00Z" },
-      }),
-      GROUP_GENERATE_INVITE_CODE: async () => ({
+      FRIEND_INVITE_GENERATE_CODE: async () => ({
         ok: true,
         inviteCode: {
           code: "ABCD1234",
-          groupId: "group-1",
           createdBy: "user-a",
-          expiresAt: "2026-01-08T00:00:00Z",
+          expiresAt: new Date("2026-01-08T00:00:00Z").getTime(),
           usedBy: null,
         },
       }),
@@ -318,21 +319,23 @@ describe("AccountPage — signed in", () => {
 
     expect(await screen.findByText("ABCD1234")).toBeInTheDocument();
     expect(messenger.sendMessage).toHaveBeenCalledWith({
-      type: "GROUP_CREATE",
-      payload: { name: "Friends of a@example.com" },
+      type: "FRIEND_INVITE_GENERATE_CODE",
     });
-    expect(messenger.sendMessage).toHaveBeenCalledWith({
-      type: "GROUP_GENERATE_INVITE_CODE",
-      payload: { groupId: "group-1" },
-    });
+    // Decision 2: no group is created any more - GROUP_CREATE no longer exists as a message
+    // type, and this call site never sends it.
+    expect(messenger.sendMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "GROUP_CREATE" })
+    );
   });
 
-  it("adds a friend by invite code", async () => {
+  it("adds a friend by invite code, then reloads the flat friends list", async () => {
+    let friendsListCallCount = 0;
     mockSignedIn({
-      GROUP_JOIN: async () => ({
-        ok: true,
-        membership: { groupId: "group-1", userId: "user-a", joinedAt: "2026-01-02T00:00:00Z" },
-      }),
+      FRIEND_REDEEM_CODE: async () => ({ ok: true, friendship: {} }),
+      FRIENDS_LIST: async () => {
+        friendsListCallCount += 1;
+        return { ok: true, friendIds: friendsListCallCount === 1 ? [] : ["user-friend"] };
+      },
     });
 
     render(<AccountPage />);
@@ -343,88 +346,74 @@ describe("AccountPage — signed in", () => {
 
     await waitFor(() =>
       expect(messenger.sendMessage).toHaveBeenCalledWith({
-        type: "GROUP_JOIN",
+        type: "FRIEND_REDEEM_CODE",
         payload: { code: "CODE1234" },
       })
     );
+    // Reloads the flat friends list on success - the newly-added friend shows up without a
+    // manual refresh.
+    expect(await screen.findByText("user-friend")).toBeInTheDocument();
   });
 
-  it("lists members for a given friend list id", async () => {
+  it("lists your flat friends list via FRIENDS_LIST on mount", async () => {
     mockSignedIn({
-      GROUP_LIST_MEMBERS: async () => ({
-        ok: true,
-        members: [{ groupId: "group-1", userId: "user-a", joinedAt: "2026-01-01T00:00:00Z" }],
-      }),
+      FRIENDS_LIST: async () => ({ ok: true, friendIds: ["user-friend"] }),
     });
 
     render(<AccountPage />);
-    await waitFor(() => screen.getByLabelText("Friend list ID"));
 
-    fireEvent.change(screen.getByLabelText("Friend list ID"), { target: { value: "group-1" } });
-    fireEvent.click(screen.getByRole("button", { name: "List members" }));
-
-    expect(await screen.findByText(/user-a/i)).toBeInTheDocument();
+    expect(await screen.findByText("user-friend")).toBeInTheDocument();
   });
 
-  // v2 follow-up (Item 2, post-final-review): self-leave UI, gated behind a confirmation step
-  // (see AccountPage.tsx's handleLeaveGroup comment for why a bare click felt too easy to
-  // mis-fire). QA-discovered bug (v3.2 Task 9): this used to be window.confirm(), which Chrome
-  // silently no-ops with zero visible dialog when this Options page is shown embedded inside
-  // chrome://extensions (this repo's default, per options_ui.open_in_tab: false) - replaced
-  // with an inline two-click confirmation that works in every context this page can be viewed
-  // in. These tests now click the button twice (arm, then confirm) instead of mocking
-  // window.confirm.
-  describe("leaving your friends list", () => {
-    it("leaves the friend list typed into Friend list ID after confirming inline", async () => {
-      const leaveSpy = vi.fn(async () => ({ ok: true }));
-      mockSignedIn({ GROUP_LEAVE: leaveSpy });
+  it("shows a 'no friends yet' message when the friends list is empty", async () => {
+    mockSignedIn({ FRIENDS_LIST: async () => ({ ok: true, friendIds: [] }) });
 
-      render(<AccountPage />);
-      await waitFor(() => screen.getByLabelText("Friend list ID"));
-      fireEvent.change(screen.getByLabelText("Friend list ID"), { target: { value: "group-1" } });
+    render(<AccountPage />);
 
-      fireEvent.click(screen.getByRole("button", { name: "Leave" }));
-      fireEvent.click(await screen.findByRole("button", { name: /yes, leave/i }));
+    expect(await screen.findByText(/no friends yet/i)).toBeInTheDocument();
+  });
 
-      await waitFor(() =>
-        expect(leaveSpy).toHaveBeenCalledWith({
-          type: "GROUP_LEAVE",
-          payload: { groupId: "group-1" },
-        })
-      );
-      expect(await screen.findByText(/you've left your friends list/i)).toBeInTheDocument();
-    });
-
-    it("does not send GROUP_LEAVE when the inline confirmation is cancelled", async () => {
-      const leaveSpy = vi.fn(async () => ({ ok: true }));
-      mockSignedIn({ GROUP_LEAVE: leaveSpy });
-
-      render(<AccountPage />);
-      await waitFor(() => screen.getByLabelText("Friend list ID"));
-      fireEvent.change(screen.getByLabelText("Friend list ID"), { target: { value: "group-1" } });
-
-      fireEvent.click(screen.getByRole("button", { name: "Leave" }));
-      fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
-
-      // Give any stray microtask a chance to run before asserting the negative.
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(leaveSpy).not.toHaveBeenCalled();
-      expect(screen.getByRole("button", { name: "Leave" })).toBeInTheDocument();
-    });
-
-    it("surfaces a server-side denial (e.g. a non-owner trying to remove someone else) as an error", async () => {
+  // v3.4 Task 2: flat per-friend "Remove friend" action, replacing group-scoped "Leave". Either
+  // party can unilaterally remove a friendship - no confirmation step (unlike the old group-leave
+  // UI, which gated behind a two-click inline confirmation) since this is a single, easily
+  // reversible relationship, not "leaving" a shared list that others also depend on.
+  describe("removing a friend", () => {
+    it("removes a friend via FRIEND_REMOVE and drops them from the rendered list", async () => {
+      const removeSpy = vi.fn(async () => ({ ok: true }));
       mockSignedIn({
-        GROUP_LEAVE: async () => ({ ok: false, error: "Could not leave your friends list." }),
+        FRIENDS_LIST: async () => ({ ok: true, friendIds: ["user-friend"] }),
+        FRIEND_REMOVE: removeSpy,
       });
 
       render(<AccountPage />);
-      await waitFor(() => screen.getByLabelText("Friend list ID"));
-      fireEvent.change(screen.getByLabelText("Friend list ID"), { target: { value: "group-1" } });
+      await screen.findByText("user-friend");
 
-      fireEvent.click(screen.getByRole("button", { name: "Leave" }));
-      fireEvent.click(await screen.findByRole("button", { name: /yes, leave/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Remove friend" }));
 
-      expect(await screen.findByRole("alert")).toHaveTextContent(/could not leave your friends list/i);
+      await waitFor(() =>
+        expect(removeSpy).toHaveBeenCalledWith({
+          type: "FRIEND_REMOVE",
+          payload: { friendUserId: "user-friend" },
+        })
+      );
+      await waitFor(() => expect(screen.queryByText("user-friend")).not.toBeInTheDocument());
+    });
+
+    it("surfaces a server-side denial (e.g. not actually friends any more) as an error, without removing the row", async () => {
+      mockSignedIn({
+        FRIENDS_LIST: async () => ({ ok: true, friendIds: ["user-friend"] }),
+        FRIEND_REMOVE: async () => ({ ok: false, error: "You aren't friends with this user." }),
+      });
+
+      render(<AccountPage />);
+      await screen.findByText("user-friend");
+
+      fireEvent.click(screen.getByRole("button", { name: "Remove friend" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /you aren't friends with this user/i
+      );
+      expect(screen.getByText("user-friend")).toBeInTheDocument();
     });
   });
 

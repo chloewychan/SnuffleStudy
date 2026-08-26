@@ -8,7 +8,6 @@ import { remainingSeconds as computeRemainingSeconds } from "../../domain/sessio
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import { NUDGE_MESSAGES } from "../../domain/accountability/nudgeMessages";
 import type { StudySession } from "../../domain/session/sessionTypes";
-import type { GroupMembership } from "../../infrastructure/backend/friendGroupApi";
 
 // Minimal shape of AUTH_GET_SESSION's response this component needs - mirrors the same minimal
 // AuthUser/AuthSession shape duplicated in Header.tsx, AccountPage.tsx, and FriendGroupPanel.tsx.
@@ -42,7 +41,7 @@ interface ActiveSessionViewProps {
 //
 // StudySession has no room/roomId field - only accountabilityGroupId/accountabilityUserIds - so
 // the Figma mock's "Study Room" panel (friend list + Nudge) is built here against the session's
-// accountability group via GROUP_LIST_MEMBERS, not LiveKit's StudyRoom. "Send Producer Tag" from
+// accountability group (v3.4 Task 2: via FRIENDS_LIST, not LiveKit's StudyRoom - see this file's FRIENDS_LIST comment below for why this fetch is unreachable in practice anyway). "Send Producer Tag" from
 // the same mock is deliberately NOT implemented here: it would need the same record/upload/send
 // flow ProducerTagRecorder + producerTagApi already provide inside FriendGroupPanel, and this
 // plan's Global Constraint against adding new message types means it should reuse that exact
@@ -61,12 +60,12 @@ export function ActiveSessionView({
   const totalSeconds =
     session.state === "BREAK" ? session.breakDurationSeconds : session.focusDurationSeconds;
 
-  const [members, setMembers] = useState<GroupMembership[]>([]);
+  const [members, setMembers] = useState<string[]>([]);
   const [membersError, setMembersError] = useState<string | null>(null);
   const [nudgingUserId, setNudgingUserId] = useState<string | null>(null);
   const [nudgeError, setNudgeError] = useState<string | null>(null);
   // Fix 4 (final-review fix wave): the current user is themselves a member of their own
-  // accountability group, so GROUP_LIST_MEMBERS' unfiltered rows would otherwise include a "Nudge
+  // accountability group, so an unfiltered friend list would otherwise include a "Nudge
   // yourself" row. Resolved the same way FriendGroupPanel.tsx's loadFriends() already does (via
   // AUTH_GET_SESSION), then filtered out of the rendered list below.
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
@@ -82,7 +81,7 @@ export function ActiveSessionView({
       })
       .catch((err) => {
         // sendMessage (chrome.runtime.sendMessage) can reject — same rationale as the
-        // GROUP_LIST_MEMBERS fetch below. Not resolving the current user's id just means the
+        // FRIENDS_LIST fetch below. Not resolving the current user's id just means the
         // self-filter below is a no-op (self may render as a nudge target) - not a crash.
         if (cancelled) return;
         console.error("Failed to resolve current user for study room filtering", err);
@@ -92,22 +91,30 @@ export function ActiveSessionView({
     };
   }, []);
 
+  // v3.4 Task 2: GROUP_LIST_MEMBERS/group_memberships are gone (supabase/migrations/
+  // 20260815000040_v3.4_friendships.sql) - this fetch now calls FRIENDS_LIST instead. Note this
+  // was already effectively unreachable before this task: session.accountabilityGroupId
+  // (sessionTypes.ts) has no live producer anywhere in the codebase (nothing sets it on session
+  // creation), so this guard is always false in practice today. Left exactly as it was
+  // (session.accountabilityGroupId-gated) rather than redesigned - reworking this "Study Room"
+  // section to source from the real friendship model is Task 3/a future task's concern, not this
+  // one's; this is the minimal mechanical fix needed to keep this file compiling and behaving
+  // identically (still unreachable) now that its old backing table/message no longer exist.
   useEffect(() => {
     if (!session.accountabilityGroupId) return;
     let cancelled = false;
     setMembersError(null);
 
-    sendMessage<{ ok: boolean; members?: GroupMembership[]; error?: string }>({
-      type: "GROUP_LIST_MEMBERS",
-      payload: { groupId: session.accountabilityGroupId },
+    sendMessage<{ ok: boolean; friendIds?: string[]; error?: string }>({
+      type: "FRIENDS_LIST",
     })
       .then((res) => {
         if (cancelled) return;
-        if (!res.ok || !res.members) {
+        if (!res.ok) {
           setMembersError(res.error ?? "Could not load your study room.");
           return;
         }
-        setMembers(res.members);
+        setMembers(res.friendIds ?? []);
       })
       .catch((err) => {
         // sendMessage (chrome.runtime.sendMessage) can reject - e.g. "Could not establish
@@ -150,8 +157,8 @@ export function ActiveSessionView({
   }
 
   // Fix 4: exclude the current user from their own study room's nudge-able list - see
-  // FriendGroupPanel.tsx's identical `member.userId !== userId` filter in loadFriends().
-  const nudgeableMembers = members.filter((member) => member.userId !== selfUserId);
+  // FriendGroupPanel.tsx's identical self-filter in loadFriends().
+  const nudgeableMembers = members.filter((memberId) => memberId !== selfUserId);
 
   return (
     <div className="sp-tab-content sp-active-session">
@@ -187,10 +194,9 @@ export function ActiveSessionView({
       </section>
 
       <section className="sp-card sp-active-session__room">
-        {/* The group's display name (friendGroupApi.ts's FriendGroup.name) isn't part of this
-            task's Consumes list (only GROUP_LIST_MEMBERS/NUDGE_SEND) and GROUP_LIST_MEMBERS
-            itself returns bare GroupMembership rows with no name field - so this reads "Study
-            Room" generically rather than the Figma mock's group-name-interpolated title. */}
+        {/* No group display name exists to interpolate (the group mechanic is gone - v3.4 Task
+            2), so this reads "Study Room" generically rather than the Figma mock's
+            group-name-interpolated title, same as before this task. */}
         <h3 className="sp-card__title">Study Room</h3>
         {membersError && (
           <p role="alert">Couldn't load your study room: {membersError}.</p>
@@ -198,18 +204,18 @@ export function ActiveSessionView({
         {nudgeableMembers.length === 0 && !membersError && <p>No one else in your study room yet.</p>}
         {nudgeableMembers.length > 0 && (
           <ul className="sp-active-session__friend-list">
-            {nudgeableMembers.map((member) => (
-              <li key={member.userId}>
-                {/* No `profiles` table exists yet (see friendGroupApi.ts's listMembers()
-                    comment), so members are identified by raw user id - same convention already
-                    established by FriendGroupPanel.tsx/DigestCard/IncomingNudgeCard. */}
-                <span>Friend {member.userId}</span>
+            {nudgeableMembers.map((memberId) => (
+              <li key={memberId}>
+                {/* No `profiles`-based name resolution here - members are identified by raw user
+                    id, same convention already established by FriendGroupPanel.tsx/DigestCard/
+                    IncomingNudgeCard. */}
+                <span>Friend {memberId}</span>
                 <button
                   type="button"
-                  onClick={() => nudge(member.userId)}
-                  disabled={nudgingUserId === member.userId}
+                  onClick={() => nudge(memberId)}
+                  disabled={nudgingUserId === memberId}
                 >
-                  Nudge {member.userId}
+                  Nudge {memberId}
                 </button>
               </li>
             ))}

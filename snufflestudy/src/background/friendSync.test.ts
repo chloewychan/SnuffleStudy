@@ -4,7 +4,7 @@ import { supabase } from "../infrastructure/backend/supabaseClient";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
 import { ChromeStorageRepository } from "../infrastructure/storage/chromeStorageRepository";
 import { DEFAULT_USER_SETTINGS } from "../domain/settings/userSettings";
-import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
+import { currentFriendSyncUserId, hasAnyFriend, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
 
@@ -53,36 +53,36 @@ describe("friendSync.currentFriendSyncUserId", () => {
   });
 });
 
-describe("friendSync.isInAnyGroup", () => {
-  it("returns true when group_memberships has at least one row for the user", async () => {
+describe("friendSync.hasAnyFriend", () => {
+  it("returns true when friendships has at least one row for the user", async () => {
     const fromSpy = vi.spyOn(supabase, "from").mockReturnValue({
       select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockResolvedValue({ data: [{ group_id: "group-1" }], error: null }),
+      or: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [{ user_id_a: "user-a" }], error: null }),
     } as never);
 
-    expect(await isInAnyGroup("user-a")).toBe(true);
-    expect(fromSpy).toHaveBeenCalledWith("group_memberships");
+    expect(await hasAnyFriend("user-a")).toBe(true);
+    expect(fromSpy).toHaveBeenCalledWith("friendships");
   });
 
-  it("returns false when the user has no group memberships", async () => {
+  it("returns false when the user has no friends", async () => {
     vi.spyOn(supabase, "from").mockReturnValue({
       select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue({ data: [], error: null }),
     } as never);
 
-    expect(await isInAnyGroup("user-a")).toBe(false);
+    expect(await hasAnyFriend("user-a")).toBe(false);
   });
 
   it("returns false (does not throw) on a query error", async () => {
     vi.spyOn(supabase, "from").mockReturnValue({
       select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
+      or: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue({ data: null, error: { message: "boom" } }),
     } as never);
 
-    expect(await isInAnyGroup("user-a")).toBe(false);
+    expect(await hasAnyFriend("user-a")).toBe(false);
   });
 });
 

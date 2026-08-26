@@ -6,6 +6,7 @@ import { handleMessage } from "./messageRouter";
 import { handleAlarm } from "./alarmHandlers";
 import { stubFakeDeclarativeNetRequest } from "./testSupport/fakeDeclarativeNetRequest";
 import * as friendSync from "./friendSync";
+import { supabase } from "../infrastructure/backend/supabaseClient";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
@@ -215,7 +216,16 @@ describe("handleTabUpdate", () => {
     // alarmHandlers.test.ts's "notifies with distinct copy when the current user's own request
     // was approved..." test.
     vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue("user-a");
-    vi.spyOn(friendSync, "isInAnyGroup").mockResolvedValue(true);
+    vi.spyOn(friendSync, "hasAnyFriend").mockResolvedValue(true);
+    // v3.4 Task 2: pollFriendConnectionUpdates (alarmHandlers.ts's 8th stream) queries the
+    // supabase singleton directly (no dedicated *Api.ts module) - stubbed here so this test's
+    // real handleAlarm() call below doesn't make a genuine, unmocked network request for that one
+    // stream (every OTHER stream here is already mocked via its own *Api.ts spy).
+    vi.spyOn(supabase, "from").mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      gt: vi.fn().mockResolvedValue({ data: [], error: null }),
+    } as never);
     vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
       ok: true,
       events: [],

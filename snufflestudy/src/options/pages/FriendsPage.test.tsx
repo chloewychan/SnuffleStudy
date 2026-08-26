@@ -9,23 +9,16 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
-// Mirrors FriendGroupPanel.test.tsx's routeSendMessage helper exactly (same rationale: this page
-// fires several independent sendMessage calls on mount - AUTH_GET_SESSION, GROUP_LIST_MINE,
-// GROUP_LIST_MEMBERS per group, FRIENDSHIP_SETTINGS_LIST - a single blanket mockResolvedValue
-// can't give each a different shape).
+// v3.4 Task 2: mirrors FriendGroupPanel.test.tsx's routeSendMessage helper exactly (same
+// rationale: this page fires several independent sendMessage calls on mount - AUTH_GET_SESSION,
+// FRIENDS_LIST, FRIENDSHIP_SETTINGS_LIST - a single blanket mockResolvedValue can't give each a
+// different shape).
 type Handler = (msg: ExtensionMessage) => unknown;
 
 function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
   const defaults: Partial<Record<ExtensionMessage["type"], Handler>> = {
     AUTH_GET_SESSION: () => ({ ok: true, session: { user: { id: "user-self" } } }),
-    GROUP_LIST_MINE: () => ({ ok: true, memberships: [{ groupId: "group-1", userId: "user-self", joinedAt: "2026-01-01T00:00:00Z" }] }),
-    GROUP_LIST_MEMBERS: () => ({
-      ok: true,
-      members: [
-        { groupId: "group-1", userId: "user-self", joinedAt: "2026-01-01T00:00:00Z" },
-        { groupId: "group-1", userId: "user-friend", joinedAt: "2026-01-01T00:00:00Z" },
-      ],
-    }),
+    FRIENDS_LIST: () => ({ ok: true, friendIds: ["user-friend"] }),
     FRIENDSHIP_SETTINGS_LIST: () => ({ ok: true, settings: [sampleSettings] }),
     FRIENDSHIP_SETTINGS_UPDATE: () => ({ ok: true, settings: sampleSettings }),
   };
@@ -50,7 +43,7 @@ const sampleSettings: FriendshipSettings = {
 };
 
 describe("FriendsPage", () => {
-  it("lists a friend (discovered via GROUP_LIST_MINE/GROUP_LIST_MEMBERS) with their settings row's checkboxes", async () => {
+  it("lists a friend (discovered via FRIENDS_LIST) with their settings row's checkboxes", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
 
     render(<FriendsPage />);
@@ -113,9 +106,9 @@ describe("FriendsPage", () => {
     );
   });
 
-  it("shows a no-friends message when the user belongs to no groups", async () => {
+  it("shows a no-friends message when the user has no friends", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
-      routeSendMessage({ GROUP_LIST_MINE: () => ({ ok: true, memberships: [] }) })
+      routeSendMessage({ FRIENDS_LIST: () => ({ ok: true, friendIds: [] }) })
     );
 
     render(<FriendsPage />);

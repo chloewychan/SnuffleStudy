@@ -27,6 +27,8 @@ import { pollNewDigests } from "../infrastructure/backend/digestApi";
 import { pollRelevantTempPasscodeRequests } from "../infrastructure/backend/tempPasscodeApi";
 import type { TempPasscodeRequest } from "../domain/accountability/tempPasscodeRequest";
 import { pollIncomingProducerTagSends } from "../infrastructure/backend/producerTagApi";
+import * as profileApi from "../infrastructure/backend/profileApi";
+import { supabase } from "../infrastructure/backend/supabaseClient";
 import { nudgeMessageText } from "../domain/accountability/nudgeMessages";
 import { isWithinQuietHours } from "../domain/settings/userSettings";
 import {
@@ -44,8 +46,10 @@ import {
   setLastProducerTagPollAt,
   getLastSessionEndPollAt,
   setLastSessionEndPollAt,
+  getLastFriendConnectionPollAt,
+  setLastFriendConnectionPollAt,
 } from "../infrastructure/storage/friendPollState";
-import { currentFriendSyncUserId, isInAnyGroup, recordFriendStatusEvent } from "./friendSync";
+import { currentFriendSyncUserId, hasAnyFriend, recordFriendStatusEvent } from "./friendSync";
 
 const settingsRepo = new ChromeStorageRepository();
 const historyRepo = new IndexedDbSessionRepository();
@@ -469,18 +473,65 @@ async function pollSessionEndRequestUpdates(userId: string): Promise<void> {
   }
 }
 
-// Runs all seven poll streams (session-status events, nudges, unlock requests, daily digests,
-// temp passcode requests, producer tags, session-end requests) on every friend-poll alarm tick.
-// Best-effort throughout: none of pollSessionEventUpdates/pollNudgeUpdates/
-// pollUnlockRequestUpdates/pollDigestUpdates/pollTempPasscodeUpdates/pollProducerTagUpdates/
-// pollSessionEndRequestUpdates ever throws (each wraps its own body), but this outer try/catch
-// stays as a last-resort safety net so nothing here can take down the alarm listener.
+// v3.4 Task 2: eighth stream on this same alarm - new friend connections. Reuses Task 6's
+// alarm/notification path, not a new one, same as every other stream above. Same "only advance
+// the cursor on confirmed success" discipline as the seven streams above, using its own
+// independent cursor (getLastFriendConnectionPollAt/setLastFriendConnectionPollAt) so a failure
+// here never affects, and is never affected by, the other seven cursors.
+//
+// Finds friendships rows THIS user's invite code generated (initiated_by = userId) created since
+// the last poll, and shows one toast per new connection. Uses the same human-name-with-raw-id-
+// fallback resolution every other friend-facing notification in this codebase uses -
+// profileApi.fetchProfilesByIds([friendId]) then falls back to the raw id, mirroring
+// useDisplayNames.ts's own fallback - this is the one poll stream that needs a display name
+// inline in its own notification body, rather than leaving name resolution to a UI component,
+// since "a friend just connected" reads far better with a real name than a raw uuid, and unlike
+// the other streams, this is the FIRST time this specific friend's name is ever surfaced to this
+// user.
+async function pollFriendConnectionUpdates(userId: string): Promise<void> {
+  try {
+    const now = Date.now();
+    const since = (await getLastFriendConnectionPollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
+    const { data, error } = await supabase
+      .from("friendships")
+      .select("user_id_a, user_id_b, initiated_by, created_at")
+      .eq("initiated_by", userId)
+      .gt("created_at", new Date(since).toISOString());
+    if (error) {
+      // Same rationale as the other seven poll functions' identical branch: leave the persisted
+      // cursor untouched on a failed fetch so the next tick retries this exact window instead of
+      // silently losing whatever connection(s) were made during the outage.
+      return;
+    }
+    for (const row of data ?? []) {
+      const friendId = row.user_id_a === userId ? row.user_id_b : row.user_id_a;
+      const profiles = await profileApi.fetchProfilesByIds([friendId]);
+      const name = profiles[0]?.humanName ?? friendId;
+      showNotification(
+        `friend-connection-${friendId}-${row.created_at}`,
+        "New friend connection",
+        `${name} just connected using your invite`
+      );
+    }
+    await setLastFriendConnectionPollAt(now);
+  } catch (err) {
+    console.error("Failed to poll new friend connections", err);
+  }
+}
+
+// Runs all eight poll streams (session-status events, nudges, unlock requests, daily digests,
+// temp passcode requests, producer tags, session-end requests, friend connections) on every
+// friend-poll alarm tick. Best-effort throughout: none of pollSessionEventUpdates/
+// pollNudgeUpdates/pollUnlockRequestUpdates/pollDigestUpdates/pollTempPasscodeUpdates/
+// pollProducerTagUpdates/pollSessionEndRequestUpdates/pollFriendConnectionUpdates ever throws
+// (each wraps its own body), but this outer try/catch stays as a last-resort safety net so
+// nothing here can take down the alarm listener.
 async function handleFriendPollAlarm(): Promise<void> {
   try {
     // Re-check eligibility on every tick (fix round 1), not just once at alarm-start time
     // (messageRouter.ts's maybeStartFriendPoll runs this same pair of checks, but only when the
-    // alarm is first scheduled). friendSyncEnabled can be toggled off, or the user can leave
-    // their last group, mid-session without anything telling this already-running alarm to stop
+    // alarm is first scheduled). friendSyncEnabled can be toggled off, or the user can remove
+    // their last friend, mid-session without anything telling this already-running alarm to stop
     // - without re-checking here, it would keep polling Supabase every minute regardless,
     // contradicting the architecture doc's "keep backend load and battery use proportional to
     // actual usage" directive. Skips every fetch entirely (no network call against any table)
@@ -489,7 +540,7 @@ async function handleFriendPollAlarm(): Promise<void> {
     // SESSION_END/SESSION_DISMISS_* and this file's natural-completion path).
     const userId = await currentFriendSyncUserId();
     if (!userId) return;
-    if (!(await isInAnyGroup(userId))) return;
+    if (!(await hasAnyFriend(userId))) return;
 
     await pollSessionEventUpdates();
     await pollNudgeUpdates();
@@ -498,6 +549,7 @@ async function handleFriendPollAlarm(): Promise<void> {
     await pollTempPasscodeUpdates(userId);
     await pollProducerTagUpdates();
     await pollSessionEndRequestUpdates(userId);
+    await pollFriendConnectionUpdates(userId);
   } catch (err) {
     console.error("Failed to poll friend events", err);
   }

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
-import type { GroupMembership } from "../../infrastructure/backend/friendGroupApi";
 import type {
   FriendshipSettings,
   FriendshipSettingsPatch,
@@ -51,10 +50,12 @@ export function FriendsPage({ onSignInClick }: FriendsPageProps) {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Discovers who this page can show settings for: every distinct member (minus the current
-  // user) across every group the current user belongs to - identical derivation to
-  // FriendGroupPanel.tsx's loadFriends() (same GROUP_LIST_MINE + GROUP_LIST_MEMBERS calls), since
-  // "who is a friend" has the same definition everywhere in this codebase: anyone sharing a group.
+  // v3.4 Task 2: discovers who this page can show settings for - every friend of the current
+  // user, via one FRIENDS_LIST call, replacing the old AUTH_GET_SESSION -> GROUP_LIST_MINE ->
+  // Promise.all(GROUP_LIST_MEMBERS) -> dedupe fan-out entirely, same simplification as
+  // useFriendGroupPanelData.ts's loadFriends()/LockedPage.tsx's/StudyRoomPanel.tsx's identical
+  // fix - "who is a friend" now has the same definition everywhere in this codebase: an actual
+  // pairwise friendships row.
   function load() {
     setLoading(true);
     setError(null);
@@ -73,50 +74,27 @@ export function FriendsPage({ onSignInClick }: FriendsPageProps) {
           return undefined;
         }
 
-        return sendMessage<{ ok: boolean; memberships?: GroupMembership[]; error?: string }>({
-          type: "GROUP_LIST_MINE",
-        }).then((groupsRes) => {
-          if (!groupsRes.ok) {
-            setError(groupsRes.error ?? "Could not load your friends.");
+        return sendMessage<{ ok: boolean; friendIds?: string[]; error?: string }>({
+          type: "FRIENDS_LIST",
+        }).then((friendsRes) => {
+          if (!friendsRes.ok) {
+            setError(friendsRes.error ?? "Could not load your friends.");
             return undefined;
           }
-          const memberships = groupsRes.memberships ?? [];
-          const idsPromise: Promise<string[]> =
-            memberships.length === 0
-              ? Promise.resolve([])
-              : Promise.all(
-                  memberships.map((m) =>
-                    sendMessage<{ ok: boolean; members?: GroupMembership[]; error?: string }>({
-                      type: "GROUP_LIST_MEMBERS",
-                      payload: { groupId: m.groupId },
-                    })
-                  )
-                ).then((memberResponses) => {
-                  const ids = new Set<string>();
-                  for (const res of memberResponses) {
-                    if (!res.ok || !res.members) continue;
-                    for (const member of res.members) {
-                      if (member.userId !== userId) ids.add(member.userId);
-                    }
-                  }
-                  return [...ids];
-                });
-
-          return idsPromise.then((ids) => {
-            setFriendIds(ids);
-            return sendMessage<{ ok: boolean; settings?: FriendshipSettings[]; error?: string }>({
-              type: "FRIENDSHIP_SETTINGS_LIST",
-            }).then((settingsRes) => {
-              if (!settingsRes.ok) {
-                setError(settingsRes.error ?? "Could not load friend settings.");
-                return;
-              }
-              const byFriend: Record<string, FriendshipSettings> = {};
-              for (const row of settingsRes.settings ?? []) {
-                byFriend[row.friendUserId] = row;
-              }
-              setSettingsByFriend(byFriend);
-            });
+          const ids = friendsRes.friendIds ?? [];
+          setFriendIds(ids);
+          return sendMessage<{ ok: boolean; settings?: FriendshipSettings[]; error?: string }>({
+            type: "FRIENDSHIP_SETTINGS_LIST",
+          }).then((settingsRes) => {
+            if (!settingsRes.ok) {
+              setError(settingsRes.error ?? "Could not load friend settings.");
+              return;
+            }
+            const byFriend: Record<string, FriendshipSettings> = {};
+            for (const row of settingsRes.settings ?? []) {
+              byFriend[row.friendUserId] = row;
+            }
+            setSettingsByFriend(byFriend);
           });
         });
       })

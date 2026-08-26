@@ -3,15 +3,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { ActiveSessionView } from "./ActiveSessionView";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 import type { StudySession } from "../../domain/session/sessionTypes";
-import type { GroupMembership } from "../../infrastructure/backend/friendGroupApi";
 
-// GroupMembership (src/infrastructure/backend/friendGroupApi.ts) is { groupId, userId, joinedAt }
-// - no displayName field exists anywhere in this schema (that file's own listMembers() comment:
-// "There is no `profiles` table in this schema... member identity here is limited to whatever
-// group_memberships itself has, i.e. raw user_ids"). FriendGroupPanel.tsx/DigestCard/
-// IncomingNudgeCard all render raw user ids for the same reason - this fixture and the assertions
-// below follow that same established, real shape rather than a guessed displayName field.
-const mockMember: GroupMembership = { userId: "u2", groupId: "g1", joinedAt: "2026-01-01T00:00:00Z" };
+// v3.4 Task 2: friendshipApi.listMyFriends()/FRIENDS_LIST returns a flat string[] of friend user
+// ids (no groupId/joinedAt fields - the group mechanic is gone) - no displayName field exists
+// anywhere in this schema either, so members are still identified by raw user id.
+// FriendGroupPanel.tsx/DigestCard/IncomingNudgeCard all render raw user ids for the same reason -
+// this fixture and the assertions below follow that same established, real shape.
+const mockMemberId = "u2";
 
 const mockSession: StudySession = {
   id: "s1",
@@ -40,7 +38,7 @@ beforeEach(() => {
 
 describe("ActiveSessionView", () => {
   it("renders the goal, timer, pause/end controls, restricted sites, and study room members", async () => {
-    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, members: [mockMember] });
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, friendIds: [mockMemberId] });
 
     render(
       <ActiveSessionView
@@ -68,13 +66,12 @@ describe("ActiveSessionView", () => {
     expect(await screen.findByRole("button", { name: /nudge u2/i })).toBeInTheDocument();
 
     expect(messenger.sendMessage).toHaveBeenCalledWith({
-      type: "GROUP_LIST_MEMBERS",
-      payload: { groupId: "g1" },
+      type: "FRIENDS_LIST",
     });
   });
 
   it("sends a nudge to the selected friend", async () => {
-    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, members: [mockMember] });
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, friendIds: [mockMemberId] });
 
     render(
       <ActiveSessionView
@@ -99,7 +96,7 @@ describe("ActiveSessionView", () => {
 
   it("surfaces an error instead of crashing when the study room members fetch fails", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
-      if (message.type === "GROUP_LIST_MEMBERS") {
+      if (message.type === "FRIENDS_LIST") {
         throw new Error("network down");
       }
       return { ok: true };
@@ -119,7 +116,7 @@ describe("ActiveSessionView", () => {
 
   it("reports a server-side nudge rejection instead of silently swallowing it", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
-      if (message.type === "GROUP_LIST_MEMBERS") return { ok: true, members: [mockMember] };
+      if (message.type === "FRIENDS_LIST") return { ok: true, friendIds: [mockMemberId] };
       if (message.type === "NUDGE_SEND") return { ok: false, error: "Nudge cooldown active." };
       return { ok: true };
     });
@@ -139,7 +136,7 @@ describe("ActiveSessionView", () => {
   });
 
   it("calls onShowUnlockPanel/onShowTempPasscodePanel from their trigger buttons, without rendering the panels itself", async () => {
-    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, members: [] });
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, friendIds: [] });
     const onShowUnlockPanel = vi.fn();
     const onShowTempPasscodePanel = vi.fn();
 
@@ -162,20 +159,15 @@ describe("ActiveSessionView", () => {
   });
 
   it("does not list the current user as their own nudge target (Fix 4)", async () => {
-    // GROUP_LIST_MEMBERS returns every member of the group, including the current user
-    // themselves - AUTH_GET_SESSION resolves who that is, and the self row must be filtered out
-    // of the rendered/nudge-able list, while other friends still render normally.
-    const selfMember: GroupMembership = {
-      userId: "self-1",
-      groupId: "g1",
-      joinedAt: "2026-01-01T00:00:00Z",
-    };
+    // FRIENDS_LIST returns every friend, including the current user's own id if it were ever
+    // present - AUTH_GET_SESSION resolves who that is, and the self row must be filtered out of
+    // the rendered/nudge-able list, while other friends still render normally.
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "AUTH_GET_SESSION") {
         return { ok: true, session: { user: { id: "self-1" } } };
       }
-      if (message.type === "GROUP_LIST_MEMBERS") {
-        return { ok: true, members: [selfMember, mockMember] };
+      if (message.type === "FRIENDS_LIST") {
+        return { ok: true, friendIds: ["self-1", mockMemberId] };
       }
       return { ok: true };
     });
@@ -198,7 +190,7 @@ describe("ActiveSessionView", () => {
   });
 
   it("does not fetch study room members when the session has no accountabilityGroupId", async () => {
-    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, members: [mockMember] });
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, friendIds: [mockMemberId] });
     const { accountabilityGroupId, ...rest } = mockSession;
     const sessionWithoutGroup: StudySession = { ...rest };
 
@@ -212,7 +204,7 @@ describe("ActiveSessionView", () => {
 
     await screen.findAllByText("Finish essay");
     expect(messenger.sendMessage).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "GROUP_LIST_MEMBERS" })
+      expect.objectContaining({ type: "FRIENDS_LIST" })
     );
   });
 });

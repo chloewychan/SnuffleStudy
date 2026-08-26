@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { sendMessage } from "../../../infrastructure/messaging/extensionMessenger";
 import type { FriendEvent } from "../../../infrastructure/backend/sessionStatusSyncApi";
 import type { FriendNudge } from "../../../infrastructure/backend/nudgeApi";
-import type { GroupMembership } from "../../../infrastructure/backend/friendGroupApi";
 import type { DigestSummary } from "../../../infrastructure/backend/digestApi";
 import type { IncomingProducerTag } from "../../../infrastructure/backend/producerTagApi";
 
@@ -152,11 +151,11 @@ export function useFriendGroupPanelData() {
       });
   }
 
-  // Discovers who this panel's "send a nudge" picker can target: every distinct member (minus
-  // the current user) across every group the current user belongs to. There is no "list my
-  // groups" fetch anywhere else in this codebase yet (AccountPage.tsx only ever remembers the
-  // single group it just created/joined, in local component state - see friendGroupApi.ts's
-  // listMyGroups() comment), so this is the first caller of that new function/message.
+  // v3.4 Task 2: discovers who this panel's "send a nudge" picker can target - every friend of
+  // the current user, via one FRIENDS_LIST call, replacing the old AUTH_GET_SESSION ->
+  // GROUP_LIST_MINE -> Promise.all(GROUP_LIST_MEMBERS) -> dedupe fan-out entirely.
+  // selfUserId still comes from a standalone AUTH_GET_SESSION call, since NudgeSendForm.tsx uses
+  // it independently of the friends fetch (its sign-in-prompt-vs-empty-list branch).
   function loadFriends() {
     setFriendsLoading(true);
     setFriendsError(null);
@@ -175,36 +174,14 @@ export function useFriendGroupPanelData() {
           return undefined;
         }
 
-        return sendMessage<{ ok: boolean; memberships?: GroupMembership[]; error?: string }>({
-          type: "GROUP_LIST_MINE",
-        }).then((groupsRes) => {
-          if (!groupsRes.ok) {
-            setFriendsError(groupsRes.error ?? "Could not load your friends.");
+        return sendMessage<{ ok: boolean; friendIds?: string[]; error?: string }>({
+          type: "FRIENDS_LIST",
+        }).then((friendsRes) => {
+          if (!friendsRes.ok) {
+            setFriendsError(friendsRes.error ?? "Could not load your friends.");
             return undefined;
           }
-          const memberships = groupsRes.memberships ?? [];
-          if (memberships.length === 0) {
-            setFriendIds([]);
-            return undefined;
-          }
-
-          return Promise.all(
-            memberships.map((m) =>
-              sendMessage<{ ok: boolean; members?: GroupMembership[]; error?: string }>({
-                type: "GROUP_LIST_MEMBERS",
-                payload: { groupId: m.groupId },
-              })
-            )
-          ).then((memberResponses) => {
-            const ids = new Set<string>();
-            for (const res of memberResponses) {
-              if (!res.ok || !res.members) continue;
-              for (const member of res.members) {
-                if (member.userId !== userId) ids.add(member.userId);
-              }
-            }
-            setFriendIds([...ids]);
-          });
+          setFriendIds(friendsRes.friendIds ?? []);
         });
       })
       .catch((err) => {

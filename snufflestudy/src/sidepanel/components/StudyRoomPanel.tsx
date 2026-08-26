@@ -6,7 +6,6 @@ import * as producerTagApi from "../../infrastructure/backend/producerTagApi";
 import type { RoomProducerTagBroadcast } from "../../infrastructure/backend/producerTagApi";
 import type { StudyRoom, RoomParticipant, RoomInvitee } from "../../domain/rooms/studyRoom";
 import type { ProducerTag } from "../../domain/rooms/producerTag";
-import type { GroupMembership } from "../../infrastructure/backend/friendGroupApi";
 import { ProducerTagRecorder } from "./ProducerTagRecorder";
 import { SignInForm } from "../../shared/ui/SignInForm";
 import { useDisplayNames } from "../../shared/ui/useDisplayNames";
@@ -124,11 +123,10 @@ function RoomProducerTagItem({ tag }: { tag: RoomProducerTagEntry }) {
 }
 
 // v3.3 Task 13: the owner-only "Manage access" section for one room - lists the owner's friends
-// (via GROUP_LIST_MINE -> GROUP_LIST_MEMBERS, the same picker pattern LockedPage.tsx/
-// AccountPage.tsx already use, per this task's plan) with an add/remove toggle against each one,
-// backed by STUDY_ROOM_INVITEE_ADD/REMOVE/STUDY_ROOM_INVITEES_LIST. A separate component (not
-// inlined into the room-list <li> below) so its own friend/invitee fetch only ever runs for the
-// one room currently expanded, not once per owned room on every render.
+// with an add/remove toggle against each one, backed by STUDY_ROOM_INVITEE_ADD/REMOVE/
+// STUDY_ROOM_INVITEES_LIST. A separate component (not inlined into the room-list <li> below) so
+// its own friend/invitee fetch only ever runs for the one room currently expanded, not once per
+// owned room on every render.
 function ManageAccessSection({ roomId }: { roomId: string }) {
   const [friendIds, setFriendIds] = useState<string[] | null>(null);
   const [friendsError, setFriendsError] = useState<string | null>(null);
@@ -146,65 +144,23 @@ function ManageAccessSection({ roomId }: { roomId: string }) {
   useEffect(() => {
     let cancelled = false;
 
-    // Friend picker - same GROUP_LIST_MINE -> GROUP_LIST_MEMBERS pattern LockedPage.tsx/
-    // AccountPage.tsx already use. Unlike LockedPage.tsx, this doesn't need selfUserId separately -
-    // the caller only ever reaches this section already knowing they're this room's owner (the
-    // room-list view below only renders this component when `room.ownerUserId === selfUserId`) -
-    // but GROUP_LIST_MEMBERS still returns the caller's own membership row alongside everyone
-    // else's, so it's filtered out the same way LockedPage.tsx does, by re-checking against
-    // AUTH_GET_SESSION rather than assuming which id in the results is "self".
-    sendMessage<{ ok: boolean; session?: { user: { id: string } } | null; error?: string }>({
-      type: "AUTH_GET_SESSION",
+    // v3.4 Task 2: friend picker - one FRIENDS_LIST call, replacing the old GROUP_LIST_MINE ->
+    // GROUP_LIST_MEMBERS fan-out entirely - no more separate AUTH_GET_SESSION call to filter self
+    // out, since listMyFriends() already excludes self by construction (self never appears as
+    // "the other id" in its own friendships row).
+    sendMessage<{ ok: boolean; friendIds?: string[]; error?: string }>({
+      type: "FRIENDS_LIST",
     })
-      .then((sessionRes) => {
+      .then((res) => {
         if (cancelled) return;
-        const selfId = sessionRes.ok ? (sessionRes.session?.user.id ?? null) : null;
-
-        sendMessage<{ ok: boolean; memberships?: GroupMembership[]; error?: string }>({
-          type: "GROUP_LIST_MINE",
-        })
-          .then((groupsRes) => {
-            if (cancelled) return;
-            if (!groupsRes.ok) {
-              setFriendsError(groupsRes.error ?? "Could not load your friends.");
-              return;
-            }
-            const memberships = groupsRes.memberships ?? [];
-            if (memberships.length === 0) {
-              setFriendIds([]);
-              return;
-            }
-            Promise.all(
-              memberships.map((m) =>
-                sendMessage<{ ok: boolean; members?: GroupMembership[]; error?: string }>({
-                  type: "GROUP_LIST_MEMBERS",
-                  payload: { groupId: m.groupId },
-                })
-              )
-            )
-              .then((memberResponses) => {
-                if (cancelled) return;
-                const ids = new Set<string>();
-                for (const memberRes of memberResponses) {
-                  if (!memberRes.ok || !memberRes.members) continue;
-                  for (const member of memberRes.members) {
-                    if (member.userId !== selfId) ids.add(member.userId);
-                  }
-                }
-                setFriendIds([...ids]);
-              })
-              .catch((err) => {
-                console.error("Failed to load group members for the invite picker", err);
-                if (!cancelled) setFriendsError(err instanceof Error ? err.message : String(err));
-              });
-          })
-          .catch((err) => {
-            console.error("Failed to load groups for the invite picker", err);
-            if (!cancelled) setFriendsError(err instanceof Error ? err.message : String(err));
-          });
+        if (!res.ok) {
+          setFriendsError(res.error ?? "Could not load your friends.");
+          return;
+        }
+        setFriendIds(res.friendIds ?? []);
       })
       .catch((err) => {
-        console.error("Failed to load current user for the invite picker", err);
+        console.error("Failed to load friends for the invite picker", err);
         if (!cancelled) setFriendsError(err instanceof Error ? err.message : String(err));
       });
 

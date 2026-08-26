@@ -21,6 +21,7 @@ import * as producerTagApi from "../infrastructure/backend/producerTagApi";
 import type { IncomingProducerTag } from "../infrastructure/backend/producerTagApi";
 import * as sessionEndRequestApi from "../infrastructure/backend/sessionEndRequestApi";
 import type { SessionEndRequest } from "../domain/accountability/sessionEndRequest";
+import * as profileApi from "../infrastructure/backend/profileApi";
 import * as friendSync from "./friendSync";
 import {
   getLastFriendPollAt,
@@ -30,6 +31,7 @@ import {
   getLastTempPasscodePollAt,
   getLastProducerTagPollAt,
   getLastSessionEndPollAt,
+  getLastFriendConnectionPollAt,
 } from "../infrastructure/storage/friendPollState";
 import { classifySite } from "../domain/sites/siteRules";
 import type { CreateSessionInput, StudySession } from "../domain/session/sessionTypes";
@@ -279,16 +281,28 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       ok: true,
       requests: [],
     });
+    // v3.4 Task 2: same treatment for the eighth stream, new friend connections
+    // (pollFriendConnectionUpdates) - this one queries the supabase singleton directly (no
+    // dedicated *Api.ts module - see alarmHandlers.ts's own comment on why), so it's stubbed via
+    // supabase.from rather than vi.spyOn on an Api export, defaulted to "no new connections" so
+    // every pre-existing test in this describe block (which predates Task 2) never exercises a
+    // real network call. The dedicated "friend connection polling" tests further below override
+    // this per-test.
+    vi.spyOn(supabase, "from").mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      gt: vi.fn().mockResolvedValue({ data: [], error: null }),
+    } as never);
   });
 
   // handleFriendPollAlarm now re-checks friend-sync eligibility on every tick (fix round 1) -
   // spying directly on friendSync.ts's exports (rather than settings+supabase, like the
   // natural-completion test further below does) keeps these tests focused on
-  // handleFriendPollAlarm's own branching, independent of currentFriendSyncUserId/isInAnyGroup's
+  // handleFriendPollAlarm's own branching, independent of currentFriendSyncUserId/hasAnyFriend's
   // own implementation (covered separately by friendSync.test.ts).
   function mockFriendSyncEligible(userId = "user-a") {
     vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue(userId);
-    vi.spyOn(friendSync, "isInAnyGroup").mockResolvedValue(true);
+    vi.spyOn(friendSync, "hasAnyFriend").mockResolvedValue(true);
   }
 
   it("dispatches the friend-poll alarm to pollNewEventsForFriends when eligible, without touching session state, and never falls through to the session-alarm branch", async () => {
@@ -414,9 +428,9 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     expect(pollSpy).not.toHaveBeenCalled();
   });
 
-  it("skips the fetch entirely when the user is no longer in any group", async () => {
+  it("skips the fetch entirely when the user has no friends", async () => {
     vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue("user-a");
-    vi.spyOn(friendSync, "isInAnyGroup").mockResolvedValue(false);
+    vi.spyOn(friendSync, "hasAnyFriend").mockResolvedValue(false);
     const pollSpy = vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends");
 
     await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
@@ -1700,6 +1714,102 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     });
   });
 
+  describe("friend connection polling (v3.4 Task 2 - reuses this same alarm, not a parallel one)", () => {
+    // Query shape mirrors alarmHandlers.ts's pollFriendConnectionUpdates: friendships rows where
+    // initiated_by = the current user, created since the last poll. No dedicated *Api.ts module
+    // exists for this (see that function's own comment), so it's stubbed via supabase.from
+    // directly rather than vi.spyOn on an Api export, same as the beforeEach default above.
+    function mockFriendshipsQuery(rows: { user_id_a: string; user_id_b: string; initiated_by: string; created_at: string }[]) {
+      vi.spyOn(supabase, "from").mockReturnValue({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        gt: vi.fn().mockResolvedValue({ data: rows, error: null }),
+      } as never);
+    }
+
+    it("dispatches to a friendships query when eligible, in the same tick as the other seven streams", async () => {
+      mockFriendSyncEligible("user-a");
+      mockFriendshipsQuery([]);
+      const eventPollSpy = vi
+        .spyOn(sessionStatusSyncApi, "pollNewEventsForFriends")
+        .mockResolvedValue({ ok: true, events: [] });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(eventPollSpy).toHaveBeenCalledTimes(1);
+      expect(await getLastFriendConnectionPollAt()).not.toBeNull();
+    });
+
+    it("shows a chrome.notifications toast naming the friend by their human_name when a new connection this user's own invite generated is found", async () => {
+      mockFriendSyncEligible("user-a");
+      mockFriendshipsQuery([
+        {
+          user_id_a: "user-a",
+          user_id_b: "user-b",
+          initiated_by: "user-a",
+          created_at: "2026-01-01T00:00:00.000Z",
+        },
+      ]);
+      vi.spyOn(profileApi, "fetchProfilesByIds").mockResolvedValue([
+        { userId: "user-b", humanName: "Bea", bunnyName: null, updatedAt: "2026-01-01T00:00:00.000Z" },
+      ]);
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "friend-connection-user-b-2026-01-01T00:00:00.000Z",
+        expect.objectContaining({
+          title: "New friend connection",
+          message: "Bea just connected using your invite",
+        })
+      );
+    });
+
+    it("falls back to the raw user id when the new friend has no profile name set", async () => {
+      mockFriendSyncEligible("user-a");
+      mockFriendshipsQuery([
+        {
+          user_id_a: "user-b",
+          user_id_b: "user-a",
+          initiated_by: "user-a",
+          created_at: "2026-01-01T00:00:00.000Z",
+        },
+      ]);
+      vi.spyOn(profileApi, "fetchProfilesByIds").mockResolvedValue([]);
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "friend-connection-user-b-2026-01-01T00:00:00.000Z",
+        expect.objectContaining({
+          title: "New friend connection",
+          message: "user-b just connected using your invite",
+        })
+      );
+    });
+
+    it("does not notify when there are no new connections (e.g. a row where initiated_by is the OTHER party, which the real `.eq(\"initiated_by\", userId)` filter would never return in the first place)", async () => {
+      mockFriendSyncEligible("user-a");
+      mockFriendshipsQuery([]);
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).not.toHaveBeenCalled();
+    });
+
+    it("skips the fetch entirely when friend-sync is no longer enabled/signed-in (same eligibility gate as the other seven polls)", async () => {
+      vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue(null);
+      const fromSpy = vi.spyOn(supabase, "from");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(fromSpy).not.toHaveBeenCalled();
+    });
+  });
+
   it("cancels the friend-poll alarm and records a gated SESSION_COMPLETED event on natural completion", async () => {
     await settingsRepo.saveSettings({ ...DEFAULT_USER_SETTINGS, friendSyncEnabled: true });
     vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
@@ -1707,14 +1817,14 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       error: null,
     } as never);
     // messageRouter.ts's SESSION_START also evaluates whether to start the friend-poll alarm
-    // (currentFriendSyncUserId + isInAnyGroup, from friendSync.ts) - isInAnyGroup queries
-    // group_memberships directly against the supabase singleton, so it's stubbed here to look
-    // like the user belongs to a group, letting SESSION_START's own wiring start the alarm
-    // rather than needing a manual scheduleFriendPollAlarm() call to simulate it.
+    // (currentFriendSyncUserId + hasAnyFriend, from friendSync.ts) - hasAnyFriend queries
+    // friendships directly against the supabase singleton, so it's stubbed here to look like the
+    // user has a friend, letting SESSION_START's own wiring start the alarm rather than needing a
+    // manual scheduleFriendPollAlarm() call to simulate it.
     vi.spyOn(supabase, "from").mockReturnValue({
       select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockResolvedValue({ data: [{ group_id: "group-1" }], error: null }),
+      or: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [{ user_id_a: "user-a" }], error: null }),
     } as never);
     const recordSpy = vi
       .spyOn(sessionStatusSyncApi, "recordStatusEvent")

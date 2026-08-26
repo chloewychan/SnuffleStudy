@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { TempPasscodeRequest } from "../../domain/accountability/tempPasscodeRequest";
-import type { GroupMembership } from "../../infrastructure/backend/friendGroupApi";
 import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 
 // Minimal shape of what AUTH_GET_SESSION's response carries that this page actually needs -
@@ -38,10 +37,10 @@ export function LockedPage() {
   // action, never the existing permanent-passcode flow above.
   const [sessionId, setSessionId] = useState<string | null>(null);
 
-  // Friend picker - same GROUP_LIST_MINE -> GROUP_LIST_MEMBERS pattern FriendGroupPanel.tsx/
-  // UnlockRequestPanel.tsx already use. v3.3 Task 8: friends are now shown by human_name where
-  // one exists (useDisplayNames.ts below), falling back to the raw user id exactly like before
-  // this task for anyone with no profile/name set.
+  // v3.4 Task 2: friend picker - one FRIENDS_LIST call, replacing the old GROUP_LIST_MINE ->
+  // GROUP_LIST_MEMBERS fan-out pattern entirely. v3.3 Task 8: friends are now shown by human_name
+  // where one exists (useDisplayNames.ts below), falling back to the raw user id exactly like
+  // before this task for anyone with no profile/name set.
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
   const [friendIds, setFriendIds] = useState<string[] | null>(null);
   const [friendsError, setFriendsError] = useState<string | null>(null);
@@ -100,46 +99,19 @@ export function LockedPage() {
           return;
         }
 
-        sendMessage<{ ok: boolean; memberships?: GroupMembership[]; error?: string }>({
-          type: "GROUP_LIST_MINE",
+        sendMessage<{ ok: boolean; friendIds?: string[]; error?: string }>({
+          type: "FRIENDS_LIST",
         })
-          .then((groupsRes) => {
+          .then((friendsRes) => {
             if (cancelled) return;
-            if (!groupsRes.ok) {
-              setFriendsError(groupsRes.error ?? "Could not load your friends.");
+            if (!friendsRes.ok) {
+              setFriendsError(friendsRes.error ?? "Could not load your friends.");
               return;
             }
-            const memberships = groupsRes.memberships ?? [];
-            if (memberships.length === 0) {
-              setFriendIds([]);
-              return;
-            }
-            Promise.all(
-              memberships.map((m) =>
-                sendMessage<{ ok: boolean; members?: GroupMembership[]; error?: string }>({
-                  type: "GROUP_LIST_MEMBERS",
-                  payload: { groupId: m.groupId },
-                })
-              )
-            )
-              .then((memberResponses) => {
-                if (cancelled) return;
-                const ids = new Set<string>();
-                for (const memberRes of memberResponses) {
-                  if (!memberRes.ok || !memberRes.members) continue;
-                  for (const member of memberRes.members) {
-                    if (member.userId !== userId) ids.add(member.userId);
-                  }
-                }
-                setFriendIds([...ids]);
-              })
-              .catch((err) => {
-                console.error("Failed to load group members for the friend picker", err);
-                if (!cancelled) setFriendsError(err instanceof Error ? err.message : String(err));
-              });
+            setFriendIds(friendsRes.friendIds ?? []);
           })
           .catch((err) => {
-            console.error("Failed to load groups for the friend picker", err);
+            console.error("Failed to load friends for the friend picker", err);
             if (!cancelled) setFriendsError(err instanceof Error ? err.message : String(err));
           });
       })

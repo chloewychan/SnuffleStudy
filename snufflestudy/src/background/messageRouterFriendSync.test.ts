@@ -53,10 +53,11 @@ function mockSignedInWithNoGroups(userId = "user-a") {
     data: { session: { user: { id: userId } } },
     error: null,
   } as never);
-  // isInAnyGroup's group_memberships query - empty by default (no groups).
+  // hasAnyFriend's friendships query (v3.4 Task 2 - replaces isInAnyGroup's group_memberships
+  // query) - empty by default (no friends).
   vi.spyOn(supabase, "from").mockReturnValue({
     select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
+    or: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue({ data: [], error: null }),
   } as never);
 }
@@ -242,8 +243,8 @@ describe("messageRouter — friend-poll alarm start/stop wiring never touches th
     } as never);
     vi.spyOn(supabase, "from").mockReturnValue({
       select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockResolvedValue({ data: [{ group_id: "group-1" }], error: null }),
+      or: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [{ user_id_a: "user-a" }], error: null }),
     } as never);
 
     await createAndStartSession();
@@ -262,8 +263,8 @@ describe("messageRouter — friend-poll alarm start/stop wiring never touches th
     } as never);
     vi.spyOn(supabase, "from").mockReturnValue({
       select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockResolvedValue({ data: [{ group_id: "group-1" }], error: null }),
+      or: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [{ user_id_a: "user-a" }], error: null }),
     } as never);
     const sessionId = await createAndStartSession();
     expect(await chrome.alarms.get("snufflestudy-friend-poll")).toBeDefined();
@@ -282,8 +283,8 @@ describe("messageRouter — friend-poll alarm start/stop wiring never touches th
     } as never);
     vi.spyOn(supabase, "from").mockReturnValue({
       select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockResolvedValue({ data: [{ group_id: "group-1" }], error: null }),
+      or: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [{ user_id_a: "user-a" }], error: null }),
     } as never);
     const sessionId = await createAndStartSession();
 

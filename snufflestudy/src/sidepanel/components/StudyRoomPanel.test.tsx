@@ -596,11 +596,9 @@ describe("StudyRoomPanel — Manage access (v3.3 Task 13)", () => {
     createdAt: "2026-01-01T00:00:00.000Z",
   };
 
-  const memberships = [{ groupId: "group-1", userId: "user-self", joinedAt: "2026-01-01T00:00:00.000Z" }];
-  const members = [
-    { groupId: "group-1", userId: "user-self", joinedAt: "2026-01-01T00:00:00.000Z" },
-    { groupId: "group-1", userId: "friend-1", joinedAt: "2026-01-01T00:00:00.000Z" },
-  ];
+  // v3.4 Task 2: friendshipApi.listMyFriends()/FRIENDS_LIST returns a flat string[] of friend
+  // user ids, excluding self by construction - no group/membership fixture needed any more.
+  const friendIds = ["friend-1"];
 
   it("does not show a Manage access button for a room this user does not own", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
@@ -613,12 +611,11 @@ describe("StudyRoomPanel — Manage access (v3.3 Task 13)", () => {
     expect(screen.queryByText("Manage access")).not.toBeInTheDocument();
   });
 
-  it("shows a Manage access button for a room this user owns, expanding to list friends via GROUP_LIST_MINE/GROUP_LIST_MEMBERS with an Invite toggle", async () => {
+  it("shows a Manage access button for a room this user owns, expanding to list friends via FRIENDS_LIST with an Invite toggle", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
         STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
-        GROUP_LIST_MINE: () => ({ ok: true, memberships }),
-        GROUP_LIST_MEMBERS: () => ({ ok: true, members }),
+        FRIENDS_LIST: () => ({ ok: true, friendIds }),
         STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
       })
     );
@@ -638,8 +635,7 @@ describe("StudyRoomPanel — Manage access (v3.3 Task 13)", () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
         STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
-        GROUP_LIST_MINE: () => ({ ok: true, memberships }),
-        GROUP_LIST_MEMBERS: () => ({ ok: true, members }),
+        FRIENDS_LIST: () => ({ ok: true, friendIds }),
         STUDY_ROOM_INVITEES_LIST: () => ({
           ok: true,
           invitees: [{ roomId: "room-2", userId: "friend-1", invitedBy: "user-self", invitedAt: "2026-01-01T00:00:00.000Z" }],
@@ -658,8 +654,7 @@ describe("StudyRoomPanel — Manage access (v3.3 Task 13)", () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
         STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
-        GROUP_LIST_MINE: () => ({ ok: true, memberships }),
-        GROUP_LIST_MEMBERS: () => ({ ok: true, members }),
+        FRIENDS_LIST: () => ({ ok: true, friendIds }),
         STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
         STUDY_ROOM_INVITEE_ADD: () => ({ ok: true }),
       })
@@ -685,8 +680,7 @@ describe("StudyRoomPanel — Manage access (v3.3 Task 13)", () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
         STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
-        GROUP_LIST_MINE: () => ({ ok: true, memberships }),
-        GROUP_LIST_MEMBERS: () => ({ ok: true, members }),
+        FRIENDS_LIST: () => ({ ok: true, friendIds }),
         STUDY_ROOM_INVITEES_LIST: () => ({
           ok: true,
           invitees: [{ roomId: "room-2", userId: "friend-1", invitedBy: "user-self", invitedAt: "2026-01-01T00:00:00.000Z" }],
@@ -715,8 +709,7 @@ describe("StudyRoomPanel — Manage access (v3.3 Task 13)", () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
         STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
-        GROUP_LIST_MINE: () => ({ ok: true, memberships }),
-        GROUP_LIST_MEMBERS: () => ({ ok: true, members }),
+        FRIENDS_LIST: () => ({ ok: true, friendIds }),
         STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
         STUDY_ROOM_INVITEE_ADD: () => ({ ok: false, error: "not the room owner" }),
       })
@@ -737,8 +730,7 @@ describe("StudyRoomPanel — Manage access (v3.3 Task 13)", () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
         STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
-        GROUP_LIST_MINE: () => ({ ok: true, memberships }),
-        GROUP_LIST_MEMBERS: () => ({ ok: true, members }),
+        FRIENDS_LIST: () => ({ ok: true, friendIds }),
         STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
       })
     );

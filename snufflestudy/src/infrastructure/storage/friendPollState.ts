@@ -146,3 +146,23 @@ export async function getLastSessionEndPollAt(): Promise<number | null> {
 export async function setLastSessionEndPollAt(timestamp: number): Promise<void> {
   await chrome.storage.local.set({ [LAST_SESSION_END_POLL_KEY]: timestamp });
 }
+
+// v3.4 Task 2: an eighth, independent cursor for the new friend-connection stream
+// (pollFriendConnectionUpdates in alarmHandlers.ts) - reuses Task 6's alarm, not a new one, same
+// as every other stream on this file. Same get/set shape and the same "only advance on confirmed
+// success" discipline as the seven cursors above, for the identical reason: this is an eighth
+// logically separate stream delivered by the same chrome.alarms entry, so it needs its own "last
+// checked" bookmark that advances independently of the other seven's success/failure on any given
+// tick.
+const LAST_FRIEND_CONNECTION_POLL_KEY = "snufflestudy.friendPollLastConnectionCheckedAt";
+
+export async function getLastFriendConnectionPollAt(): Promise<number | null> {
+  const result = await chrome.storage.local.get<Record<typeof LAST_FRIEND_CONNECTION_POLL_KEY, number>>(
+    LAST_FRIEND_CONNECTION_POLL_KEY
+  );
+  return result[LAST_FRIEND_CONNECTION_POLL_KEY] ?? null;
+}
+
+export async function setLastFriendConnectionPollAt(timestamp: number): Promise<void> {
+  await chrome.storage.local.set({ [LAST_FRIEND_CONNECTION_POLL_KEY]: timestamp });
+}

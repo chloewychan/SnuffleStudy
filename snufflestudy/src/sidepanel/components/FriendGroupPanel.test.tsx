@@ -72,20 +72,20 @@ const sampleDigest: DigestSummary = {
 };
 
 // On mount, FriendGroupPanel now fires several independent sendMessage calls (v2 Task 7:
-// FRIEND_EVENTS_FETCH, AUTH_GET_SESSION, GROUP_LIST_MINE -> GROUP_LIST_MEMBERS per group,
-// NUDGES_FETCH; v2 Task 9: DIGEST_FETCH) - a single blanket `mockResolvedValue` (this file's
-// pre-Task-7 style) would route the same response to every one of them, which breaks the moment
-// any of them need different shapes. This router lets each test override only the message types
-// it cares about; everything else gets a healthy, empty-but-ok default so unrelated sections of
-// the panel render their "nothing here" state instead of an error.
+// FRIEND_EVENTS_FETCH, AUTH_GET_SESSION, FRIENDS_LIST (v3.4 Task 2 - replaces GROUP_LIST_MINE ->
+// GROUP_LIST_MEMBERS per group), NUDGES_FETCH; v2 Task 9: DIGEST_FETCH) - a single blanket
+// `mockResolvedValue` (this file's pre-Task-7 style) would route the same response to every one
+// of them, which breaks the moment any of them need different shapes. This router lets each test
+// override only the message types it cares about; everything else gets a healthy, empty-but-ok
+// default so unrelated sections of the panel render their "nothing here" state instead of an
+// error.
 type Handler = (msg: ExtensionMessage) => unknown;
 
 function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
   const defaults: Partial<Record<ExtensionMessage["type"], Handler>> = {
     FRIEND_EVENTS_FETCH: () => ({ ok: true, events: [] }),
     AUTH_GET_SESSION: () => ({ ok: true, session: { user: { id: "user-self" } } }),
-    GROUP_LIST_MINE: () => ({ ok: true, memberships: [] }),
-    GROUP_LIST_MEMBERS: () => ({ ok: true, members: [] }),
+    FRIENDS_LIST: () => ({ ok: true, friendIds: [] }),
     NUDGES_FETCH: () => ({ ok: true, nudges: [] }),
     NUDGE_SEND: () => ({ ok: true }),
     DIGEST_FETCH: () => ({ ok: true, digests: [] }),
@@ -213,15 +213,15 @@ describe("FriendGroupPanel — friend activity (pre-existing behavior)", () => {
   // loadFriends (an omission carried forward through every earlier "Refresh means refresh
   // everything" fix round, not a considered exclusion - see git history on the exclusion
   // comment), so a newly-joined member never appeared for anyone whose panel was already open.
-  it("also rediscovers friends via GROUP_LIST_MINE when the Refresh button is clicked", async () => {
+  it("also rediscovers friends via FRIENDS_LIST when the Refresh button is clicked", async () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
 
     render(<FriendGroupPanel onClose={() => {}} />);
-    await waitFor(() => expect(callsOfType(sendMessageSpy, "GROUP_LIST_MINE")).toHaveLength(1));
+    await waitFor(() => expect(callsOfType(sendMessageSpy, "FRIENDS_LIST")).toHaveLength(1));
 
     fireEvent.click(screen.getByRole("button", { name: /refresh/i }));
 
-    await waitFor(() => expect(callsOfType(sendMessageSpy, "GROUP_LIST_MINE")).toHaveLength(2));
+    await waitFor(() => expect(callsOfType(sendMessageSpy, "FRIENDS_LIST")).toHaveLength(2));
   });
 
   it("calls onClose when Close is clicked", async () => {
@@ -238,19 +238,12 @@ describe("FriendGroupPanel — friend activity (pre-existing behavior)", () => {
 });
 
 describe("FriendGroupPanel — send a nudge (v2 Task 7)", () => {
-  it("discovers friends via GROUP_LIST_MINE + GROUP_LIST_MEMBERS (excluding self) and renders the predefined message catalog", async () => {
+  it("discovers friends via FRIENDS_LIST (excluding self, by construction) and renders the predefined message catalog", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
-        GROUP_LIST_MINE: () => ({
+        FRIENDS_LIST: () => ({
           ok: true,
-          memberships: [{ groupId: "group-1", userId: "user-self", joinedAt: "2026-01-01T00:00:00Z" }],
-        }),
-        GROUP_LIST_MEMBERS: () => ({
-          ok: true,
-          members: [
-            { groupId: "group-1", userId: "user-self", joinedAt: "2026-01-01T00:00:00Z" },
-            { groupId: "group-1", userId: "user-friend", joinedAt: "2026-01-01T00:00:00Z" },
-          ],
+          friendIds: ["user-friend"],
         }),
       })
     );
@@ -278,14 +271,7 @@ describe("FriendGroupPanel — send a nudge (v2 Task 7)", () => {
   it("sends NUDGE_SEND with the selected friend and message, and shows a confirmation on success", async () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
-        GROUP_LIST_MINE: () => ({
-          ok: true,
-          memberships: [{ groupId: "group-1", userId: "user-self", joinedAt: "x" }],
-        }),
-        GROUP_LIST_MEMBERS: () => ({
-          ok: true,
-          members: [{ groupId: "group-1", userId: "user-friend", joinedAt: "x" }],
-        }),
+        FRIENDS_LIST: () => ({ ok: true, friendIds: ["user-friend"] }),
         NUDGE_SEND: () => ({ ok: true }),
       })
     );
@@ -304,10 +290,10 @@ describe("FriendGroupPanel — send a nudge (v2 Task 7)", () => {
     await waitFor(() => expect(screen.getByText("Nudge sent.")).toBeInTheDocument());
   });
 
-  // v3.2 Task 2: signed out, GROUP_LIST_MINE/GROUP_LIST_MEMBERS both degrade this section's
-  // friendIds to [] the same way "no groups yet" does, which used to render the misleading
-  // "No friends to nudge yet — join a group first." (implying an account/group problem, not a
-  // sign-in problem). This now distinguishes the two cases.
+  // v3.2 Task 2: signed out, FRIENDS_LIST degrades this section's friendIds to [] the same way
+  // "no friends yet" does, which used to render the misleading "No friends to nudge yet — join a
+  // group first." (implying an account/group problem, not a sign-in problem). This now
+  // distinguishes the two cases.
   it("shows an inline sign-in prompt instead of 'No friends to nudge yet' when signed out", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({ AUTH_GET_SESSION: () => ({ ok: true, session: null }) })
@@ -329,14 +315,7 @@ describe("FriendGroupPanel — send a nudge (v2 Task 7)", () => {
   it("shows the server's rejection reason inline (e.g. cooldown/toggle off) on ok:false, without silently swallowing it", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
-        GROUP_LIST_MINE: () => ({
-          ok: true,
-          memberships: [{ groupId: "group-1", userId: "user-self", joinedAt: "x" }],
-        }),
-        GROUP_LIST_MEMBERS: () => ({
-          ok: true,
-          members: [{ groupId: "group-1", userId: "user-friend", joinedAt: "x" }],
-        }),
+        FRIENDS_LIST: () => ({ ok: true, friendIds: ["user-friend"] }),
         NUDGE_SEND: () => ({
           ok: false,
           error: "Couldn't send that nudge — this friend may have nudges turned off, or you're on cooldown.",
@@ -500,14 +479,7 @@ describe("FriendGroupPanel — daily digest (v2 Task 9)", () => {
 // v2 Task 14.
 function routeSendMessageWithFriend(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
   return routeSendMessage({
-    GROUP_LIST_MINE: () => ({ ok: true, memberships: [{ groupId: "group-1", userId: "user-self", joinedAt: "x" }] }),
-    GROUP_LIST_MEMBERS: () => ({
-      ok: true,
-      members: [
-        { groupId: "group-1", userId: "user-self", joinedAt: "x" },
-        { groupId: "group-1", userId: "user-friend", joinedAt: "x" },
-      ],
-    }),
+    FRIENDS_LIST: () => ({ ok: true, friendIds: ["user-friend"] }),
     ...overrides,
   });
 }
