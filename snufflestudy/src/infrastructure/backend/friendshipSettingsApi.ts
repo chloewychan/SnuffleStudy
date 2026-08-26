@@ -21,7 +21,13 @@ export interface FriendshipSettings {
   receiveLiveNudges: boolean;
   sendLiveNudges: boolean;
   receiveDailyDigest: boolean;
-  nudgeCooldownSeconds: number;
+  // v3.4 Task 8: split from a single nudge_cooldown_seconds column into two independent
+  // per-type cooldowns (Written nudges vs. Audio nudges/Producer Tags), each defaulting to 60s -
+  // see supabase/migrations/20260815000044_v3.4_nudge_cooldowns_and_producer_tag_rate_limit.sql.
+  // Both types still share the one on/off toggle pair above (receiveLiveNudges/sendLiveNudges) -
+  // only the cooldown timers are separate.
+  nudgeCooldownSecondsWritten: number;
+  nudgeCooldownSecondsAudio: number;
   // New (Task 10) - the five per-field visibility toggles, defaults false ("most-private-by-
   // default" - see the migration's comment on why these five default differently from the three
   // above).
@@ -38,7 +44,8 @@ interface FriendshipSettingsRow {
   receive_live_nudges: boolean;
   send_live_nudges: boolean;
   receive_daily_digest: boolean;
-  nudge_cooldown_seconds: number;
+  nudge_cooldown_seconds_written: number;
+  nudge_cooldown_seconds_audio: number;
   share_distraction_attempts: boolean;
   share_current_domain: boolean;
   share_goal_text: boolean;
@@ -53,7 +60,8 @@ function toFriendshipSettings(row: FriendshipSettingsRow): FriendshipSettings {
     receiveLiveNudges: row.receive_live_nudges,
     sendLiveNudges: row.send_live_nudges,
     receiveDailyDigest: row.receive_daily_digest,
-    nudgeCooldownSeconds: row.nudge_cooldown_seconds,
+    nudgeCooldownSecondsWritten: row.nudge_cooldown_seconds_written,
+    nudgeCooldownSecondsAudio: row.nudge_cooldown_seconds_audio,
     shareDistractionAttempts: row.share_distraction_attempts,
     shareCurrentDomain: row.share_current_domain,
     shareGoalText: row.share_goal_text,
@@ -74,7 +82,12 @@ function toRowPatch(patch: FriendshipSettingsPatch): Record<string, boolean | nu
   if (patch.receiveLiveNudges !== undefined) row.receive_live_nudges = patch.receiveLiveNudges;
   if (patch.sendLiveNudges !== undefined) row.send_live_nudges = patch.sendLiveNudges;
   if (patch.receiveDailyDigest !== undefined) row.receive_daily_digest = patch.receiveDailyDigest;
-  if (patch.nudgeCooldownSeconds !== undefined) row.nudge_cooldown_seconds = patch.nudgeCooldownSeconds;
+  if (patch.nudgeCooldownSecondsWritten !== undefined) {
+    row.nudge_cooldown_seconds_written = patch.nudgeCooldownSecondsWritten;
+  }
+  if (patch.nudgeCooldownSecondsAudio !== undefined) {
+    row.nudge_cooldown_seconds_audio = patch.nudgeCooldownSecondsAudio;
+  }
   if (patch.shareDistractionAttempts !== undefined) {
     row.share_distraction_attempts = patch.shareDistractionAttempts;
   }

@@ -72,20 +72,20 @@ export function PrivacyPolicyPage() {
           </li>
           <li>
             <strong>Postgres (database)</strong> - if you add friends, use study rooms, or
-            Producer Tags: your friend connections, invite codes, per-friend privacy
+            audio nudges: your friend connections, invite codes, per-friend privacy
             toggles, generic session-status events (session started/paused/distracted/completed,
             etc. - never a site name or your goal text, and only synced at all if you turn on
             "Share session activity" in Settings), unlock requests and temporary-passcode
-            requests you send or receive, study rooms and who's in them, Producer Tag metadata and
-            who you sent a tag to, your daily digest numbers, nudges, and a short-lived rate-limit
+            requests you send or receive, study rooms and who's in them, audio nudge metadata and
+            who you sent one to, your daily digest numbers, nudges, and a short-lived rate-limit
             timestamp for the AI coaching feature (see Anthropic, below).
           </li>
           <li>
-            <strong>Storage</strong> - Producer Tag audio: short voice clips you record and send
-            to friends or into a study room.
+            <strong>Storage</strong> - audio nudge recordings: short voice clips you record and
+            send to friends or into a study room.
           </li>
           <li>
-            <strong>Realtime</strong> - used to deliver live presence and Producer Tag broadcasts
+            <strong>Realtime</strong> - used to deliver live presence and audio nudge broadcasts
             inside a study room while you're in it; not separately persisted beyond the Postgres
             rows above.
           </li>
@@ -137,9 +137,9 @@ export function PrivacyPolicyPage() {
         <h3>Deleting your data</h3>
         <p>
           The Account page's "Delete account" action permanently removes every row across every
-          table above tied to your account, your Producer Tag audio from Storage, and your account
-          itself - irreversibly. On-device data (chrome.storage.local, IndexedDB) is separate and
-          local; uninstalling the extension removes that.
+          table above tied to your account, your audio nudge recordings from Storage, and your
+          account itself - irreversibly. On-device data (chrome.storage.local, IndexedDB) is
+          separate and local; uninstalling the extension removes that.
         </p>
       </section>
     </div>

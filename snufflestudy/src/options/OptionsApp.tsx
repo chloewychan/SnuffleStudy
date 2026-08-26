@@ -110,7 +110,7 @@ export function OptionsApp() {
           <section>
             <h2>Camera &amp; microphone access</h2>
             <p>
-              Study Rooms (video/audio) and Producer Tags (voice clips) need camera/microphone
+              Study Rooms (video/audio) and audio nudges (voice clips) need camera/microphone
               access. The side panel can't show that permission prompt itself — grant it once
               here, in this full tab, and the side panel will be able to use it afterward.
             </p>

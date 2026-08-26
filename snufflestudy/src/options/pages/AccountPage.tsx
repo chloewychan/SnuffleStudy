@@ -410,7 +410,7 @@ export function AccountPage() {
             <h3>Delete account</h3>
             <p>
               Permanently deletes your account and every record tied to it across SnuffleStudy's
-              servers - friend connections, study rooms, Producer Tags, digests, nudges, and
+              servers - friend connections, study rooms, audio nudges, digests, nudges, and
               everything else. This cannot be undone. See the Privacy page for the full list of
               what's stored and where.
             </p>
@@ -422,7 +422,7 @@ export function AccountPage() {
               <div role="alertdialog" aria-label="Confirm account deletion">
                 <p>
                   <strong>Are you sure?</strong> This removes your friend connections (or hands
-                  them off to another friend), study room history, Producer Tags, digests, and
+                  them off to another friend), study room history, audio nudges, digests, and
                   every other record tied to your account, everywhere. This cannot be undone.
                 </p>
                 <button

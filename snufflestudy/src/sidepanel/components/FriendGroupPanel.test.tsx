@@ -249,7 +249,11 @@ describe("FriendGroupPanel — friend activity (pre-existing behavior)", () => {
   });
 });
 
-describe("FriendGroupPanel — send a nudge (v2 Task 7)", () => {
+// v3.4 Task 8: NudgeSendForm.tsx (source of these tests originally) is now merged into
+// NudgeSendSection.tsx with a Written/Audio toggle. "Written" is the default mode, so every test
+// below - written entirely against the panel's default render, with no toggle click - still
+// exercises the exact same behavior as before the merge.
+describe("FriendGroupPanel — send a nudge, written mode (v2 Task 7, merged v3.4 Task 8)", () => {
   it("discovers friends via FRIENDS_LIST (excluding self, by construction) and renders the predefined message catalog", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
@@ -496,7 +500,11 @@ function routeSendMessageWithFriend(overrides: Partial<Record<ExtensionMessage["
   });
 }
 
-describe("FriendGroupPanel — Producer Tags (v2 Task 14)", () => {
+// v3.4 Task 8: ProducerTagSection.tsx (source of these tests originally) is now merged into
+// NudgeSendSection.tsx. The incoming-tags list still renders unconditionally (unaffected by the
+// Written/Audio toggle - same as before the merge), but the record/send flow now lives behind the
+// "Audio" toggle button, so those specific tests click it first before finding the recorder.
+describe("FriendGroupPanel — Producer Tags / audio nudges (v2 Task 14, merged v3.4 Task 8)", () => {
   it("fetches incoming producer tags on mount via PRODUCER_TAG_SENDS_FETCH and renders them", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
@@ -573,9 +581,11 @@ describe("FriendGroupPanel — Producer Tags (v2 Task 14)", () => {
 
     render(<FriendGroupPanel onClose={() => {}} />);
     // "Send to friend <id>" only renders once ProducerTagRecorder reaches its preview step (after
-    // Record -> Stop) - the friend picker itself (shared with "Send a nudge") is what's loaded by
-    // this point, confirmed via its <option>.
+    // Record -> Stop) - the friend picker itself (shared with written nudges) is what's loaded by
+    // this point, confirmed via its <option>. v3.4 Task 8: ProducerTagRecorder itself only renders
+    // in Audio mode now, so the toggle must be clicked first (Written is the default mode).
     await screen.findByRole("option", { name: "user-friend" });
+    fireEvent.click(screen.getByRole("button", { name: "Audio" }));
 
     fireEvent.click(screen.getByText("Record a tag (10s max)"));
     fireEvent.click(screen.getByText("Stop"));
@@ -605,6 +615,7 @@ describe("FriendGroupPanel — Producer Tags (v2 Task 14)", () => {
 
     render(<FriendGroupPanel onClose={() => {}} />);
     await screen.findByRole("option", { name: "user-friend" });
+    fireEvent.click(screen.getByRole("button", { name: "Audio" }));
     fireEvent.click(screen.getByText("Record a tag (10s max)"));
     fireEvent.click(screen.getByText("Stop"));
     await waitFor(() => expect(screen.getByText("Send to friend user-friend")).not.toBeDisabled());
@@ -615,5 +626,37 @@ describe("FriendGroupPanel — Producer Tags (v2 Task 14)", () => {
       "Failed to upload the recorded audio."
     );
     expect(callsOfType(sendMessageSpy, "PRODUCER_TAG_SEND_TO_FRIEND")).toHaveLength(0);
+  });
+});
+
+// v3.4 Task 8 DoD: "The merged 'Send a nudge' section shows exactly one friend picker and a
+// Written/Audio toggle, never two separate friend pickers."
+describe("FriendGroupPanel — merged nudge section, one picker + mode toggle (v3.4 Task 8)", () => {
+  it("shows exactly one friend picker with a Written/Audio toggle, and switching modes swaps the content without adding a second picker", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ FRIENDS_LIST: () => ({ ok: true, friendIds: ["user-friend"] }) })
+    );
+
+    render(<FriendGroupPanel onClose={() => {}} />);
+    await screen.findByRole("option", { name: "user-friend" });
+
+    // Exactly one friend <select> in the whole panel - not one for written nudges and a second,
+    // independent one for audio nudges/Producer Tags.
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
+
+    // Written is the default mode: message catalog visible, recorder not.
+    expect(screen.getByRole("button", { name: "You've got this." })).toBeInTheDocument();
+    expect(screen.queryByText(/Record a tag/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Written" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Audio" })).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Audio" }));
+
+    // Audio mode: recorder visible, written message catalog hidden - still exactly one picker.
+    expect(screen.getByText(/Record a tag/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "You've got this." })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Audio" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Written" })).toHaveAttribute("aria-pressed", "false");
   });
 });

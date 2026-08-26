@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { IncomingNudgeCard } from "./friendGroupPanel/IncomingNudgeCard";
-import { NudgeSendForm } from "./friendGroupPanel/NudgeSendForm";
+import { NudgeSendSection } from "./friendGroupPanel/NudgeSendSection";
 import { DigestSection } from "./friendGroupPanel/DigestSection";
-import { ProducerTagSection } from "./friendGroupPanel/ProducerTagSection";
 import { FriendEventFeed } from "./friendGroupPanel/FriendEventFeed";
 import { useFriendGroupPanelData } from "./friendGroupPanel/useFriendGroupPanelData";
 
@@ -13,17 +12,21 @@ interface FriendGroupPanelProps {
   onClose?: () => void;
 }
 
-// v3.2 Task 7: this panel is now a thin container composing five focused sections (see
-// ./friendGroupPanel/*) plus the shared useFriendGroupPanelData() hook that owns the five
-// independent load* fetches (events, friends, nudges, digests, producer tags) and their state.
-// Split out with no behavior change from the pre-split ~590-line version - same messages sent,
-// same rendering order, same CSS class names. See docs/reports/v3.2/task-7-report.md for the
-// per-file rundown and the judgment calls behind how state/props were divided.
+// v3.2 Task 7: this panel is a thin container composing focused sections (see
+// ./friendGroupPanel/*) plus the shared useFriendGroupPanelData() hook that owns the independent
+// load* fetches (events, friends, nudges, digests, producer tags) and their state. Split out with
+// no behavior change from the pre-split ~590-line version - same messages sent, same rendering
+// order, same CSS class names. See docs/reports/v3.2/task-7-report.md for the per-file rundown and
+// the judgment calls behind how state/props were divided.
 //
-// `selectedFriendId`/`effectiveFriendId` stay here rather than in the hook or either section,
-// because they're genuinely shared UI state, not fetch state: NudgeSendForm's <select> sets it,
-// and both NudgeSendForm's message buttons and ProducerTagSection's send target read it - the one
-// piece of state neither an individual section nor the load-focused hook owns exclusively.
+// v3.4 Task 8: NudgeSendForm.tsx and ProducerTagSection.tsx (previously two separate mounts here,
+// each with its own <h3>) are merged into one NudgeSendSection.tsx with a Written/Audio toggle -
+// see that file and supabase/migrations/20260815000044_v3.4_nudge_cooldowns_and_producer_tag_rate_limit.sql.
+//
+// `selectedFriendId`/`effectiveFriendId` stay here rather than in the hook or NudgeSendSection
+// itself, because they're genuinely shared UI state, not fetch state: NudgeSendSection's <select>
+// sets it, and both its written-message buttons and its audio-recorder's send target read it - the
+// one piece of state neither the merged section nor the load-focused hook owns exclusively.
 export function FriendGroupPanel({ onClose }: FriendGroupPanelProps) {
   const {
     events,
@@ -102,7 +105,7 @@ export function FriendGroupPanel({ onClose }: FriendGroupPanelProps) {
         <p role="alert">Couldn't load incoming nudges: {nudgesError}. Please try again.</p>
       )}
 
-      <NudgeSendForm
+      <NudgeSendSection
         friendsLoading={friendsLoading}
         friendsError={friendsError}
         friendIds={friendIds}
@@ -110,6 +113,8 @@ export function FriendGroupPanel({ onClose }: FriendGroupPanelProps) {
         effectiveFriendId={effectiveFriendId}
         onSelectFriend={setSelectedFriendId}
         onFriendsReload={loadFriends}
+        incomingTags={incomingTags}
+        tagsError={tagsError}
       />
 
       <DigestSection
@@ -118,12 +123,6 @@ export function FriendGroupPanel({ onClose }: FriendGroupPanelProps) {
         friendIds={friendIds}
         selfUserId={selfUserId}
         onReload={loadDigests}
-      />
-
-      <ProducerTagSection
-        effectiveFriendId={effectiveFriendId}
-        incomingTags={incomingTags}
-        tagsError={tagsError}
       />
 
       <FriendEventFeed events={events} error={error} loading={loading} onRefresh={handleRefresh} />
