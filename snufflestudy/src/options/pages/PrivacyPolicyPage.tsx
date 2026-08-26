@@ -9,7 +9,7 @@
 //     hard-block passcode credential, and per-feature poll-cursor timestamps.
 //   - IndexedDB: grepped every `openDB(...)` call - two local databases, "snufflestudy"
 //     (indexedDbRepository.ts: session history + session events) and "snufflestudy-tasks"
-//     (taskRepository.ts: tasks/breakdown items).
+//     (taskRepository.ts: tasks).
 //   - Supabase Postgres table list: the same fourteen-table audit this task's account-deletion
 //     migration documents (supabase/migrations/20260815000032_v3.2_account_deletion.sql).
 //   - Anthropic: read supabase/functions/generate-coaching-message/index.ts in full - confirms the
@@ -51,7 +51,7 @@ export function PrivacyPolicyPage() {
           </li>
           <li>
             <strong>IndexedDB</strong> - your full session history and per-session events (one
-            local database), and your tasks/task breakdowns (a second local database).
+            local database), and your tasks (a second local database).
           </li>
         </ul>
         <p>

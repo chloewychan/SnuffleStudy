@@ -5,11 +5,7 @@ import type { FriendshipSettingsPatch } from "../infrastructure/backend/friendsh
 import type { FriendRequestKind } from "../domain/accountability/friendRequest";
 
 export type ExtensionMessage =
-  // taskBreakdownItemId lives here (not on CreateSessionInput itself - see sessionTypes.ts's
-  // comment on StudySession.taskBreakdownItemId) since this file has no restriction against
-  // additive changes. messageRouter.ts's SESSION_CREATE handler reads it off this payload and
-  // merges it onto the StudySession it saves.
-  | { type: "SESSION_CREATE"; payload: CreateSessionInput & { taskBreakdownItemId?: string } }
+  | { type: "SESSION_CREATE"; payload: CreateSessionInput }
   | { type: "SESSION_START"; payload: { sessionId: string } }
   | { type: "SESSION_PAUSE"; payload: { sessionId: string } }
   | { type: "SESSION_RESUME"; payload: { sessionId: string } }
@@ -46,7 +42,6 @@ export type ExtensionMessage =
   | { type: "TASK_UPDATE"; payload: Task }
   | { type: "TASK_DELETE"; payload: { taskId: string } }
   | { type: "TASK_LIST" }
-  | { type: "TASK_ADD_BREAKDOWN_ITEM"; payload: { taskId: string; description: string } }
   // Auth: OTP code-entry flow, not magic-link-click - see messageRouter.ts's AUTH_* cases for
   // why (a clickable link's redirect target would need a chrome-extension://<id>/... URL
   // registered with Supabase, and the extension ID differs between dev/unpacked and published

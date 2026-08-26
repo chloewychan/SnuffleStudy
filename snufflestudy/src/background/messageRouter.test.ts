@@ -847,38 +847,25 @@ describe("messageRouter — SESSION_LIST_HISTORY / SESSION_COUNT_BY_STATE / SESS
   });
 });
 
-describe("messageRouter — TASK_CREATE / TASK_UPDATE / TASK_DELETE / TASK_LIST / TASK_ADD_BREAKDOWN_ITEM", () => {
+describe("messageRouter — TASK_CREATE / TASK_UPDATE / TASK_DELETE / TASK_LIST", () => {
   it("creates a task and lists it", async () => {
     const created = (await handleMessage({
       type: "TASK_CREATE",
       payload: { title: "STAT231" },
-    })) as { ok: boolean; task: { id: string; title: string; breakdown: unknown[] } };
+    })) as { ok: boolean; task: { id: string; title: string } };
 
     expect(created.ok).toBe(true);
     expect(created.task.title).toBe("STAT231");
-    expect(created.task.breakdown).toEqual([]);
+    // Task's type carries only id/userId/title/createdAt/completedAt (verified at compile time,
+    // not by a runtime key-presence check) - the removed sub-item feature this task used to
+    // nest a checklist under no longer exists at all.
+    expect(Object.keys(created.task).sort()).toEqual(["createdAt", "id", "title", "userId"]);
 
     const listed = (await handleMessage({ type: "TASK_LIST" })) as {
       ok: boolean;
       tasks: { id: string }[];
     };
     expect(listed.tasks.map((t) => t.id)).toContain(created.task.id);
-  });
-
-  it("adds a breakdown item to a task via TASK_ADD_BREAKDOWN_ITEM", async () => {
-    const created = (await handleMessage({
-      type: "TASK_CREATE",
-      payload: { title: "STAT231" },
-    })) as { task: { id: string } };
-
-    const result = (await handleMessage({
-      type: "TASK_ADD_BREAKDOWN_ITEM",
-      payload: { taskId: created.task.id, description: "Chapter 6 of STAT231" },
-    })) as { ok: boolean; task: { breakdown: { id: string; description: string }[] } };
-
-    expect(result.ok).toBe(true);
-    expect(result.task.breakdown).toHaveLength(1);
-    expect(result.task.breakdown[0]!.description).toBe("Chapter 6 of STAT231");
   });
 
   it("updates a task via TASK_UPDATE", async () => {
@@ -912,40 +899,5 @@ describe("messageRouter — TASK_CREATE / TASK_UPDATE / TASK_DELETE / TASK_LIST 
 
     const listed = (await handleMessage({ type: "TASK_LIST" })) as { tasks: { id: string }[] };
     expect(listed.tasks.map((t) => t.id)).not.toContain(created.task.id);
-  });
-});
-
-describe("messageRouter — SESSION_END does NOT mark a linked task breakdown item complete", () => {
-  // Fix round 1: breakdown-item completion only happens on natural completion
-  // (alarmHandlers.test.ts's "handleAlarm marks a linked task breakdown item's completedAt"
-  // block covers that path) - SESSION_END always represents an early/manual end (see that
-  // handler's own comment in messageRouter.ts) and must never mark anything done.
-  it("leaves the breakdown item's completedAt unset when a session with a taskBreakdownItemId is ended early via SESSION_END", async () => {
-    const createdTask = (await handleMessage({
-      type: "TASK_CREATE",
-      payload: { title: "STAT231" },
-    })) as { task: { id: string } };
-    const withItem = (await handleMessage({
-      type: "TASK_ADD_BREAKDOWN_ITEM",
-      payload: { taskId: createdTask.task.id, description: "Chapter 6 of STAT231" },
-    })) as { task: { breakdown: { id: string }[] } };
-    const breakdownItemId = withItem.task.breakdown[0]!.id;
-
-    const createdSession = (await handleMessage({
-      type: "SESSION_CREATE",
-      payload: { ...createInput, goal: "Chapter 6 of STAT231", taskBreakdownItemId: breakdownItemId },
-    })) as { session: { id: string; taskBreakdownItemId?: string } };
-    expect(createdSession.session.taskBreakdownItemId).toBe(breakdownItemId);
-    await handleMessage({ type: "SESSION_START", payload: { sessionId: createdSession.session.id } });
-
-    await handleMessage({ type: "SESSION_END", payload: { sessionId: createdSession.session.id } });
-
-    const listed = (await handleMessage({ type: "TASK_LIST" })) as {
-      tasks: { id: string; breakdown: { id: string; completedAt?: number }[] }[];
-    };
-    const item = listed.tasks
-      .find((t) => t.id === createdTask.task.id)
-      ?.breakdown.find((i) => i.id === breakdownItemId);
-    expect(item?.completedAt).toBeUndefined();
   });
 });

@@ -55,10 +55,9 @@ export async function hasAnyFriend(userId: string): Promise<boolean> {
 // Fire-and-forget wrapper around sessionStatusSyncApi.recordStatusEvent, gated by
 // currentFriendSyncUserId() so a signed-out/opted-out user's session transitions never touch
 // Supabase at all. Never throws and is never awaited by callers - matches this codebase's
-// existing best-effort patterns (e.g. alarmHandlers.ts's markBreakdownItemCompleted call,
-// CompletionScreen.tsx's count fetch): a sync failure must never prevent the local session
-// state transition it's attached to from succeeding. displayLabel must always be a generic,
-// non-identifying string - never a raw hostname/goal text (see session_status_events'
+// existing best-effort patterns (e.g. CompletionScreen.tsx's count fetch): a sync failure must
+// never prevent the local session state transition it's attached to from succeeding. displayLabel
+// must always be a generic, non-identifying string - never a raw hostname/goal text (see session_status_events'
 // display_label column comment in the schema migration; per-field privacy opt-in is Task 10's
 // scope, not built yet).
 // v2 Task 10: `extra` optionally carries the real hostname (DISTRACTION_ATTEMPT's call site in

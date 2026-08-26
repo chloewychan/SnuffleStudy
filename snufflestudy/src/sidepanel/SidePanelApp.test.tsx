@@ -362,45 +362,6 @@ describe("SidePanelApp", () => {
     expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
-  it("pre-fills the session goal from a Task Vault breakdown item's 'Start a session from this' action", async () => {
-    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
-      if (message.type === "SETTINGS_GET") {
-        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
-      }
-      if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session: null };
-      if (message.type === "TASK_LIST") {
-        return {
-          ok: true,
-          tasks: [
-            {
-              id: "task_1",
-              title: "STAT231",
-              createdAt: 1000,
-              breakdown: [{ id: "item_1", description: "Chapter 6 of STAT231" }],
-            },
-          ],
-        };
-      }
-      return { ok: true };
-    });
-
-    render(<SidePanelApp />);
-    // Task Vault is no longer a separate routed view reached via its own button - it's embedded
-    // directly inside the "Study" tab (Task 6's StudyTab) alongside the session setup form.
-    await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("tab", { name: "Study" }));
-
-    await screen.findByText("Chapter 6 of STAT231");
-
-    fireEvent.click(screen.getByRole("button", { name: "Start a session from this" }));
-
-    // Goal is a <select> populated from the Task Vault (Task 5), not a free-text input with a
-    // placeholder - assert on the labeled control's value instead.
-    await waitFor(() =>
-      expect(screen.getByLabelText(/goal/i)).toHaveValue("Chapter 6 of STAT231")
-    );
-  });
-
   it("does not crash or leave an unhandled rejection when End session's sendMessage rejects", async () => {
     const session = machine.startSession(machine.createSession(input, "session_1", 0), 0);
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {

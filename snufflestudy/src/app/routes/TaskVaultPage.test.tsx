@@ -14,29 +14,27 @@ function buildTask(overrides: Partial<Task> = {}): Task {
     userId: null,
     title: "STAT231",
     createdAt: 1000,
-    breakdown: [],
     ...overrides,
   };
 }
 
 describe("TaskVaultPage", () => {
-  it("loads tasks on mount via TASK_LIST and renders them with their breakdown items", async () => {
+  it("loads tasks on mount via TASK_LIST and renders them", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({
       ok: true,
-      tasks: [buildTask({ breakdown: [{ id: "item_1", description: "Chapter 6 of STAT231" }] })],
+      tasks: [buildTask()],
     });
 
-    render(<TaskVaultPage onClose={vi.fn()} onStartSessionFromBreakdownItem={vi.fn()} />);
+    render(<TaskVaultPage onClose={vi.fn()} />);
 
     expect(await screen.findByText("STAT231")).toBeInTheDocument();
-    expect(screen.getByText("Chapter 6 of STAT231")).toBeInTheDocument();
     expect(messenger.sendMessage).toHaveBeenCalledWith({ type: "TASK_LIST" });
   });
 
   it("shows a message when there are no tasks yet", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, tasks: [] });
 
-    render(<TaskVaultPage onClose={vi.fn()} onStartSessionFromBreakdownItem={vi.fn()} />);
+    render(<TaskVaultPage onClose={vi.fn()} />);
 
     expect(await screen.findByText("No tasks yet.")).toBeInTheDocument();
   });
@@ -47,7 +45,7 @@ describe("TaskVaultPage", () => {
     );
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    render(<TaskVaultPage onClose={vi.fn()} onStartSessionFromBreakdownItem={vi.fn()} />);
+    render(<TaskVaultPage onClose={vi.fn()} />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/Could not establish connection/);
     expect(consoleErrorSpy).toHaveBeenCalled();
@@ -61,7 +59,7 @@ describe("TaskVaultPage", () => {
       throw new Error(`unexpected message ${message.type}`);
     });
 
-    render(<TaskVaultPage onClose={vi.fn()} onStartSessionFromBreakdownItem={vi.fn()} />);
+    render(<TaskVaultPage onClose={vi.fn()} />);
     await screen.findByText("No tasks yet.");
 
     fireEvent.change(screen.getByPlaceholderText("STAT231"), { target: { value: "New task" } });
@@ -74,105 +72,6 @@ describe("TaskVaultPage", () => {
     });
   });
 
-  it("adds a breakdown item to a task via TASK_ADD_BREAKDOWN_ITEM", async () => {
-    const task = buildTask();
-    const updatedTask = {
-      ...task,
-      breakdown: [{ id: "item_1", description: "Chapter 6 of STAT231" }],
-    };
-    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
-      if (message.type === "TASK_LIST") return { ok: true, tasks: [task] };
-      if (message.type === "TASK_ADD_BREAKDOWN_ITEM") return { ok: true, task: updatedTask };
-      throw new Error(`unexpected message ${message.type}`);
-    });
-
-    render(<TaskVaultPage onClose={vi.fn()} onStartSessionFromBreakdownItem={vi.fn()} />);
-    await screen.findByText("STAT231");
-
-    fireEvent.change(screen.getByLabelText("Add breakdown item for STAT231"), {
-      target: { value: "Chapter 6 of STAT231" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Add breakdown item" }));
-
-    expect(await screen.findByText("Chapter 6 of STAT231")).toBeInTheDocument();
-    expect(messenger.sendMessage).toHaveBeenCalledWith({
-      type: "TASK_ADD_BREAKDOWN_ITEM",
-      payload: { taskId: "task_1", description: "Chapter 6 of STAT231" },
-    });
-  });
-
-  it('invokes onStartSessionFromBreakdownItem with the item description as goal when "Start a session from this" is clicked', async () => {
-    const task = buildTask({
-      breakdown: [{ id: "item_1", description: "Chapter 6 of STAT231" }],
-    });
-    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, tasks: [task] });
-    const onStart = vi.fn();
-
-    render(<TaskVaultPage onClose={vi.fn()} onStartSessionFromBreakdownItem={onStart} />);
-    await screen.findByText("Chapter 6 of STAT231");
-
-    fireEvent.click(screen.getByRole("button", { name: "Start a session from this" }));
-
-    expect(onStart).toHaveBeenCalledWith({
-      goal: "Chapter 6 of STAT231",
-      taskBreakdownItemId: "item_1",
-    });
-  });
-
-  it("toggles a breakdown item's completion via TASK_UPDATE and hides the start-session action once completed", async () => {
-    const task = buildTask({
-      breakdown: [{ id: "item_1", description: "Chapter 6 of STAT231" }],
-    });
-    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
-      async (message: any) => {
-        if (message.type === "TASK_LIST") return { ok: true, tasks: [task] };
-        if (message.type === "TASK_UPDATE") return { ok: true, task: message.payload };
-        throw new Error(`unexpected message ${message.type}`);
-      }
-    );
-
-    render(<TaskVaultPage onClose={vi.fn()} onStartSessionFromBreakdownItem={vi.fn()} />);
-    await screen.findByText("Chapter 6 of STAT231");
-
-    fireEvent.click(screen.getByRole("checkbox"));
-
-    await waitFor(() =>
-      expect(sendMessageSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "TASK_UPDATE",
-          payload: expect.objectContaining({
-            breakdown: [expect.objectContaining({ id: "item_1", completedAt: expect.any(Number) })],
-          }),
-        })
-      )
-    );
-
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("button", { name: "Start a session from this" })
-      ).not.toBeInTheDocument()
-    );
-  });
-
-  it("rolls back the checkbox state when TASK_UPDATE fails", async () => {
-    const task = buildTask({
-      breakdown: [{ id: "item_1", description: "Chapter 6 of STAT231" }],
-    });
-    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
-      if (message.type === "TASK_LIST") return { ok: true, tasks: [task] };
-      if (message.type === "TASK_UPDATE") return { ok: false, error: "boom" };
-      throw new Error(`unexpected message ${message.type}`);
-    });
-
-    render(<TaskVaultPage onClose={vi.fn()} onStartSessionFromBreakdownItem={vi.fn()} />);
-    await screen.findByText("Chapter 6 of STAT231");
-
-    fireEvent.click(screen.getByRole("checkbox"));
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("boom");
-    await waitFor(() => expect(screen.getByRole("checkbox")).not.toBeChecked());
-  });
-
   it("deletes a task via TASK_DELETE and removes it from the list", async () => {
     const task = buildTask();
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
@@ -181,7 +80,7 @@ describe("TaskVaultPage", () => {
       throw new Error(`unexpected message ${message.type}`);
     });
 
-    render(<TaskVaultPage onClose={vi.fn()} onStartSessionFromBreakdownItem={vi.fn()} />);
+    render(<TaskVaultPage onClose={vi.fn()} />);
     await screen.findByText("STAT231");
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
@@ -197,7 +96,7 @@ describe("TaskVaultPage", () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, tasks: [] });
     const onClose = vi.fn();
 
-    render(<TaskVaultPage onClose={onClose} onStartSessionFromBreakdownItem={vi.fn()} />);
+    render(<TaskVaultPage onClose={onClose} />);
     await screen.findByText("No tasks yet.");
 
     fireEvent.click(screen.getByRole("button", { name: "Back" }));

@@ -8,7 +8,6 @@ import {
 } from "../infrastructure/browser/alarmsApi";
 import { ChromeStorageRepository } from "../infrastructure/storage/chromeStorageRepository";
 import { IndexedDbSessionRepository } from "../infrastructure/storage/indexedDbRepository";
-import { IndexedDbTaskRepository } from "../infrastructure/storage/taskRepository";
 import * as machine from "../domain/session/sessionMachine";
 import { showNotification } from "../infrastructure/browser/notificationsApi";
 import {
@@ -44,12 +43,10 @@ import { currentFriendSyncUserId, hasAnyFriend, recordFriendStatusEvent } from "
 
 const settingsRepo = new ChromeStorageRepository();
 const historyRepo = new IndexedDbSessionRepository();
-const taskRepo = new IndexedDbTaskRepository();
 
 // A naturally-completing session never routes back through recordFriendStatusEvent's usual
 // caller (messageRouter.ts) - this file's handleAlarm is the only place SESSION_COMPLETED can
-// be recorded from (v1 Task 4's markBreakdownItemCompleted needed the exact same relocation for
-// the exact same reason - see this file's own comment on that function). Look-back window for
+// be recorded from. Look-back window for
 // the very first poll of either stream, before any cursor (getLastFriendPollAt/
 // getLastNudgePollAt) has ever been persisted for it - 5 minutes is comfortably wider than one
 // alarm interval (1 minute) so an event/nudge from just before this device started polling still
@@ -501,29 +498,6 @@ async function handleTempUnlockRelockAlarm(hostname: string): Promise<void> {
   }
 }
 
-// Task Vault breakdown-item completion (Task 4, fix round 1): a linked TaskBreakdownItem is
-// only marked done when its session completes *naturally* (this file, timer-driven), not
-// when it's ended early/manually (messageRouter.ts's SESSION_END, which always represents an
-// abandonment - see that handler's own comment). TaskRepository has no "find task by
-// breakdown item id" lookup (its interface is fixed to
-// create/update/delete/list/addBreakdownItem per Task 4's brief), so this scans list() for
-// the owning task rather than adding a new repository method.
-async function markBreakdownItemCompleted(taskBreakdownItemId: string, now: number): Promise<void> {
-  // listAll(), not list(userId) - this is a timer-driven background reconciliation with no
-  // "current signed-in user" to scope by (see taskRepository.ts's own comment on listAll()):
-  // whoever was signed in (or not) when the task/session was created might not be who's signed
-  // in, or signed in at all, by the time that session naturally completes.
-  const tasks = await taskRepo.listAll();
-  const task = tasks.find((t) => t.breakdown.some((item) => item.id === taskBreakdownItemId));
-  if (!task) return;
-  await taskRepo.update({
-    ...task,
-    breakdown: task.breakdown.map((item) =>
-      item.id === taskBreakdownItemId ? { ...item, completedAt: now } : item
-    ),
-  });
-}
-
 export async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
   // The friend-poll alarm (v2 Task 6) is a completely separate lifecycle from the session-timer
   // alarm below - handled and returned from here first so it never falls through the
@@ -566,16 +540,6 @@ export async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
     // succeeded by this point.
     cancelFriendPollAlarm();
     recordFriendStatusEvent("SESSION_COMPLETED", completed.id, "completed a focus session");
-    if (completed.taskBreakdownItemId) {
-      try {
-        // Best-effort: a Task Vault storage failure here must not prevent the session's own
-        // archival/active-session update/notification above, which have already succeeded by
-        // this point - the natural-completion flow itself is the part the user is relying on.
-        await markBreakdownItemCompleted(completed.taskBreakdownItemId, now);
-      } catch (err) {
-        console.error("Failed to mark linked task breakdown item complete", err);
-      }
-    }
     showNotification("session-complete", "Goal complete", `"${session.goal}" is done. Nice work.`);
     return;
   }

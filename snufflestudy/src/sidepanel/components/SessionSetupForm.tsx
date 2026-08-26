@@ -7,11 +7,6 @@ import type { Task } from "../../domain/tasks/taskTypes";
 
 interface SessionSetupFormProps {
   settings: UserSettings;
-  // Set by SidePanelApp when the user picked "Start a session from this" on a Task Vault
-  // breakdown item (app/routes/TaskVaultPage.tsx) - pre-fills the goal field with that item's
-  // description, but the field stays freely editable afterward (it's only the initial value).
-  initialGoal?: string;
-  taskBreakdownItemId?: string;
   // When provided, the Goal select is populated from this list instead of this component fetching
   // its own TASK_LIST copy. StudyTab.tsx (which mounts this component right next to TaskVaultPage)
   // passes its own task list here, sourced from TaskVaultPage's onTasksChanged callback - that's
@@ -22,13 +17,8 @@ interface SessionSetupFormProps {
   tasks?: Task[];
 }
 
-export function SessionSetupForm({
-  settings,
-  initialGoal,
-  taskBreakdownItemId,
-  tasks: tasksProp,
-}: SessionSetupFormProps) {
-  const [goal, setGoal] = useState(initialGoal ?? "");
+export function SessionSetupForm({ settings, tasks: tasksProp }: SessionSetupFormProps) {
+  const [goal, setGoal] = useState("");
   const [fetchedTasks, setFetchedTasks] = useState<Task[]>([]);
   const [focusHours, setFocusHours] = useState(Math.floor(settings.defaultFocusDurationSeconds / 3600));
   const [focusMinutes, setFocusMinutes] = useState(
@@ -94,7 +84,6 @@ export function SessionSetupForm({
           allowedSites: settings.defaultAllowedSites,
           restrictedSites: settings.defaultRestrictedSites,
           restrictionMode,
-          taskBreakdownItemId,
         },
       });
 
@@ -125,10 +114,9 @@ export function SessionSetupForm({
           <option value="" disabled>
             Choose a task from the Task Vault
           </option>
-          {/* initialGoal (from the Task Vault "Start a session from this" flow) is a breakdown
-              item's description, which won't generally match any tasks[].title exactly - render
-              it as its own option so the select can display/hold it without forcing it into the
-              Task Vault list, while still letting the user pick a different task afterward. */}
+          {/* A freely-typed goal won't generally match any tasks[].title exactly - render it as
+              its own option so the select can display/hold it without forcing it into the Task
+              Vault list, while still letting the user pick a different task afterward. */}
           {goal && !tasks.some((task) => task.title === goal) && <option value={goal}>{goal}</option>}
           {tasks.map((task) => (
             <option key={task.id} value={task.title}>

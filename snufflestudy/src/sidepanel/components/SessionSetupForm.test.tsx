@@ -13,13 +13,14 @@ describe("SessionSetupForm", () => {
   it("creates and starts a session on submit", async () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "TASK_LIST") {
-        return { ok: true, tasks: [{ id: "t1", title: "Read chapter 3", createdAt: 1, breakdown: [] }] };
+        return { ok: true, tasks: [{ id: "t1", title: "Read chapter 3", createdAt: 1 }] };
       }
       if (message.type === "SESSION_CREATE") return { ok: true, session: { id: "session_1" } };
       return { ok: true };
     });
 
     render(<SessionSetupForm settings={DEFAULT_USER_SETTINGS} />);
+    expect(screen.getByLabelText(/goal/i)).toHaveValue("");
 
     fireEvent.change(await screen.findByLabelText(/goal/i), {
       target: { value: "Read chapter 3" },
@@ -157,67 +158,6 @@ describe("SessionSetupForm", () => {
     expect(permissionSpy).not.toHaveBeenCalled();
   });
 
-  it("pre-fills the goal field from initialGoal and passes taskBreakdownItemId through on create", async () => {
-    // Task Vault (app/routes/TaskVaultPage.tsx) "Start a session from this" flow: SidePanelApp
-    // passes the breakdown item's description as initialGoal and its id as taskBreakdownItemId.
-    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
-      if (message.type === "TASK_LIST") return { ok: true, tasks: [] };
-      if (message.type === "SESSION_CREATE") return { ok: true, session: { id: "session_1" } };
-      return { ok: true };
-    });
-
-    render(
-      <SessionSetupForm
-        settings={DEFAULT_USER_SETTINGS}
-        initialGoal="Chapter 6 of STAT231"
-        taskBreakdownItemId="item_1"
-      />
-    );
-
-    expect(await screen.findByLabelText(/goal/i)).toHaveValue("Chapter 6 of STAT231");
-
-    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
-
-    await waitFor(() =>
-      expect(sendMessageSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "SESSION_CREATE",
-          payload: expect.objectContaining({
-            goal: "Chapter 6 of STAT231",
-            taskBreakdownItemId: "item_1",
-          }),
-        })
-      )
-    );
-  });
-
-  it("leaves the goal field empty and omits taskBreakdownItemId when neither is provided", async () => {
-    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
-      if (message.type === "TASK_LIST") {
-        return { ok: true, tasks: [{ id: "t1", title: "Read chapter 3", createdAt: 1, breakdown: [] }] };
-      }
-      if (message.type === "SESSION_CREATE") return { ok: true, session: { id: "session_1" } };
-      return { ok: true };
-    });
-
-    render(<SessionSetupForm settings={DEFAULT_USER_SETTINGS} />);
-    expect(screen.getByLabelText(/goal/i)).toHaveValue("");
-
-    fireEvent.change(await screen.findByLabelText(/goal/i), {
-      target: { value: "Read chapter 3" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
-
-    await waitFor(() =>
-      expect(sendMessageSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "SESSION_CREATE",
-          payload: expect.objectContaining({ goal: "Read chapter 3", taskBreakdownItemId: undefined }),
-        })
-      )
-    );
-  });
-
   it("does not request hard-block host permission in hard mode when no restricted sites are configured", async () => {
     const permissionSpy = vi.spyOn(permissionsApi, "requestHardBlockHostPermission");
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
@@ -245,8 +185,8 @@ describe("SessionSetupForm", () => {
         return {
           ok: true,
           tasks: [
-            { id: "t1", title: "Finish essay", createdAt: 1, breakdown: [] },
-            { id: "t2", title: "Read chapter 4", createdAt: 2, breakdown: [] },
+            { id: "t1", title: "Finish essay", createdAt: 1 },
+            { id: "t2", title: "Read chapter 4", createdAt: 2 },
           ],
         };
       }
@@ -268,7 +208,7 @@ describe("SessionSetupForm", () => {
     render(
       <SessionSetupForm
         settings={DEFAULT_USER_SETTINGS}
-        tasks={[{ id: "t1", userId: null, title: "From parent", createdAt: 1, breakdown: [] }]}
+        tasks={[{ id: "t1", userId: null, title: "From parent", createdAt: 1 }]}
       />
     );
 

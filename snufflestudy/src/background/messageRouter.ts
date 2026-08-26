@@ -99,14 +99,7 @@ async function routeMessage(
     case "SESSION_CREATE": {
       const validation = validateCreateSessionInput(message.payload);
       if (!validation.valid) return { ok: false, errors: validation.errors };
-      // taskBreakdownItemId lives on the SESSION_CREATE message payload, not on
-      // CreateSessionInput (sessionTypes.ts permits only two additive changes across v2, and
-      // this isn't one of them) - so it's merged onto the StudySession here rather than
-      // threaded through machine.createSession.
-      const session = {
-        ...machine.createSession(message.payload, newId(), now),
-        taskBreakdownItemId: message.payload.taskBreakdownItemId,
-      };
+      const session = machine.createSession(message.payload, newId(), now);
       await settingsRepo.saveActiveSession(session);
       return { ok: true, session };
     }
@@ -237,10 +230,7 @@ async function routeMessage(
       // mirrors alarmHandlers.ts's COMPLETED handling (see its comment) so the UI gets a
       // chance to render an acknowledgment screen (AbandonedScreen) instead of snapping
       // straight back to idle/setup. It's cleared once the user acknowledges it via
-      // SESSION_DISMISS_ABANDONED below. Note: breakdown-item completion (Task 4) is NOT a
-      // side effect here - a manually/early-ended session should not mark its linked
-      // TaskBreakdownItem done; that only happens on natural completion
-      // (alarmHandlers.ts's handleAlarm).
+      // SESSION_DISMISS_ABANDONED below.
       await settingsRepo.saveActiveSession(ended);
       cancelSessionAlarm();
       // This is the only path that produces an abandoned session (see this case's own comment
@@ -455,7 +445,6 @@ async function routeMessage(
         userId: await currentUserId(),
         title: message.payload.title,
         createdAt: now,
-        breakdown: [],
       };
       await taskRepo.create(task);
       return { ok: true, task };
@@ -473,14 +462,6 @@ async function routeMessage(
 
     case "TASK_LIST": {
       return { ok: true, tasks: await taskRepo.list(await currentUserId()) };
-    }
-
-    case "TASK_ADD_BREAKDOWN_ITEM": {
-      const task = await taskRepo.addBreakdownItem(
-        message.payload.taskId,
-        message.payload.description
-      );
-      return { ok: true, task };
     }
 
     case "AUTH_REQUEST_OTP": {

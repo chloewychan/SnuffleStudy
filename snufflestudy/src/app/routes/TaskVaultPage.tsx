@@ -1,27 +1,19 @@
 import { useEffect, useState, type FormEvent } from "react";
-import type { Task, TaskBreakdownItem } from "../../domain/tasks/taskTypes";
+import type { Task } from "../../domain/tasks/taskTypes";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 
 interface TaskVaultPageProps {
   onClose: () => void;
-  // Bubbles up to SidePanelApp, which pre-fills SessionSetupForm's goal with the breakdown
-  // item's description and threads taskBreakdownItemId through SESSION_CREATE, so the ending
-  // session can mark this item's completedAt (messageRouter.ts's SESSION_END handler).
-  onStartSessionFromBreakdownItem: (params: { goal: string; taskBreakdownItemId: string }) => void;
   // Fix 1 (final-review fix wave): fires with this component's own `tasks` list every time it
-  // changes (initial TASK_LIST load, create/delete/update/breakdown-item mutations). StudyTab.tsx
-  // uses this to mirror the list into a prop it hands to SessionSetupForm's Goal select, so a task
-  // created here is immediately selectable there too - without SessionSetupForm issuing its own,
-  // separate TASK_LIST fetch. Optional so this component still works unchanged when mounted
-  // standalone (e.g. this file's own tests, which don't pass it).
+  // changes (initial TASK_LIST load, create/delete mutations). StudyTab.tsx uses this to mirror
+  // the list into a prop it hands to SessionSetupForm's Goal select, so a task created here is
+  // immediately selectable there too - without SessionSetupForm issuing its own, separate
+  // TASK_LIST fetch. Optional so this component still works unchanged when mounted standalone
+  // (e.g. this file's own tests, which don't pass it).
   onTasksChanged?: (tasks: Task[]) => void;
 }
 
-export function TaskVaultPage({
-  onClose,
-  onStartSessionFromBreakdownItem,
-  onTasksChanged,
-}: TaskVaultPageProps) {
+export function TaskVaultPage({ onClose, onTasksChanged }: TaskVaultPageProps) {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -29,7 +21,6 @@ export function TaskVaultPage({
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const [breakdownDrafts, setBreakdownDrafts] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -94,58 +85,6 @@ export function TaskVaultPage({
     }
   }
 
-  async function handleAddBreakdownItem(taskId: string) {
-    const description = (breakdownDrafts[taskId] ?? "").trim();
-    if (!description) return;
-
-    setActionError(null);
-    try {
-      const res = await sendMessage<{ ok: boolean; task?: Task; error?: string }>({
-        type: "TASK_ADD_BREAKDOWN_ITEM",
-        payload: { taskId, description },
-      });
-      if (!res.ok || !res.task) {
-        setActionError(res.error ?? "Could not add breakdown item.");
-        return;
-      }
-      setTasks((prev) => prev?.map((t) => (t.id === taskId ? res.task! : t)) ?? prev);
-      setBreakdownDrafts((prev) => ({ ...prev, [taskId]: "" }));
-    } catch (err) {
-      console.error("Failed to add breakdown item", err);
-      setActionError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function handleToggleBreakdownItem(task: Task, item: TaskBreakdownItem) {
-    // Optimistic update (mirrors OptionsApp.updateSettings): reflect the toggle immediately,
-    // but roll back to the previous list if the save fails, so the UI never shows a checkbox
-    // state that isn't actually persisted.
-    const previous = tasks;
-    const updatedTask: Task = {
-      ...task,
-      breakdown: task.breakdown.map((i) =>
-        i.id === item.id ? { ...i, completedAt: i.completedAt ? undefined : Date.now() } : i
-      ),
-    };
-    setTasks((prev) => prev?.map((t) => (t.id === task.id ? updatedTask : t)) ?? prev);
-    setActionError(null);
-
-    try {
-      const res = await sendMessage<{ ok: boolean; error?: string }>({
-        type: "TASK_UPDATE",
-        payload: updatedTask,
-      });
-      if (!res.ok) {
-        setTasks(previous);
-        setActionError(res.error ?? "Could not update breakdown item.");
-      }
-    } catch (err) {
-      console.error("Failed to update breakdown item", err);
-      setTasks(previous);
-      setActionError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
   async function handleDeleteTask(taskId: string) {
     const previous = tasks;
     setTasks((prev) => prev?.filter((t) => t.id !== taskId) ?? prev);
@@ -207,56 +146,6 @@ export function TaskVaultPage({
                   Delete
                 </button>
               </div>
-
-              {task.breakdown.length > 0 && (
-                <ul className="task-vault-page__breakdown">
-                  {task.breakdown.map((item) => (
-                    <li key={item.id} className="task-vault-page__breakdown-item">
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(item.completedAt)}
-                          onChange={() => void handleToggleBreakdownItem(task, item)}
-                        />
-                        {item.description}
-                      </label>
-                      {!item.completedAt && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onStartSessionFromBreakdownItem({
-                              goal: item.description,
-                              taskBreakdownItemId: item.id,
-                            })
-                          }
-                        >
-                          Start a session from this
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <form
-                className="task-vault-page__add-breakdown"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void handleAddBreakdownItem(task.id);
-                }}
-              >
-                <input
-                  aria-label={`Add breakdown item for ${task.title}`}
-                  value={breakdownDrafts[task.id] ?? ""}
-                  onChange={(e) =>
-                    setBreakdownDrafts((prev) => ({ ...prev, [task.id]: e.target.value }))
-                  }
-                  placeholder="Chapter 6 of STAT231"
-                />
-                <button type="submit" disabled={!(breakdownDrafts[task.id] ?? "").trim()}>
-                  Add breakdown item
-                </button>
-              </form>
             </li>
           ))}
         </ul>

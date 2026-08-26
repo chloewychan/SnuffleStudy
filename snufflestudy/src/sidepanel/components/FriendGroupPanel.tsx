@@ -15,7 +15,7 @@ interface FriendGroupPanelProps {
 // independent load* fetches (events, friends, nudges, digests, producer tags) and their state.
 // Split out with no behavior change from the pre-split ~590-line version - same messages sent,
 // same rendering order, same CSS class names. See docs/reports/v3.2/task-7-report.md for the
-// file-by-file breakdown and the judgment calls behind how state/props were divided.
+// per-file rundown and the judgment calls behind how state/props were divided.
 //
 // `selectedFriendId`/`effectiveFriendId` stay here rather than in the hook or either section,
 // because they're genuinely shared UI state, not fetch state: NudgeSendForm's <select> sets it,

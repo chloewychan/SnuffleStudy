@@ -1,5 +1,5 @@
 import { openDB, type IDBPDatabase } from "idb";
-import type { Task, TaskBreakdownItem } from "../../domain/tasks/taskTypes";
+import type { Task } from "../../domain/tasks/taskTypes";
 
 // A separate database from indexedDbRepository.ts's "snufflestudy" (sessions/events) rather
 // than a new store bolted onto it - that would require bumping DB_VERSION there and keeping
@@ -39,13 +39,9 @@ export interface TaskRepository {
   update(task: Task): Promise<void>;
   delete(taskId: string): Promise<void>;
   list(userId: string | null): Promise<Task[]>;
-  // Every task regardless of owner - for internal reconciliation only (alarmHandlers.ts's
-  // markBreakdownItemCompleted: a timer-driven background event with no "current signed-in
-  // user" to scope by, that has to find whichever task a completing session's breakdown item
-  // belongs to no matter who created it, or who - if anyone - happens to be signed in right
-  // now). Never exposed through a TASK_* message; user-facing reads always go through list().
+  // Every task regardless of owner - for internal reconciliation only. Never exposed through a
+  // TASK_* message; user-facing reads always go through list().
   listAll(): Promise<Task[]>;
-  addBreakdownItem(taskId: string, description: string): Promise<Task>;
   // Removes every task belonging to one account - the local-storage half of account deletion
   // (supabase/migrations/20260815000032_v3.2_account_deletion.sql only ever reaches Supabase
   // tables; nothing server-side can delete a row that never left this device). userId is
@@ -148,25 +144,6 @@ export class IndexedDbTaskRepository implements TaskRepository {
         cursor = await cursor.continue();
       }
       await tx.done;
-    } finally {
-      db.close();
-    }
-  }
-
-  async addBreakdownItem(taskId: string, description: string): Promise<Task> {
-    const db = await getDb();
-    try {
-      const task = (await db.get(TASKS_STORE, taskId)) as Task | undefined;
-      if (!task) {
-        throw new Error(`No task with id ${taskId}`);
-      }
-      const item: TaskBreakdownItem = {
-        id: crypto.randomUUID(),
-        description,
-      };
-      const updated: Task = { ...task, breakdown: [...task.breakdown, item] };
-      await db.put(TASKS_STORE, updated);
-      return fromStorageRecord(updated);
     } finally {
       db.close();
     }

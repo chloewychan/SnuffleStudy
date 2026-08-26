@@ -9,7 +9,6 @@ function buildTask(id: string, createdAt: number, overrides: Partial<Task> = {})
     userId: null,
     title: `Task ${id}`,
     createdAt,
-    breakdown: [],
     ...overrides,
   };
 }
@@ -60,36 +59,6 @@ describe("IndexedDbTaskRepository", () => {
     expect(tasks.map((t) => t.id)).toEqual(["task_2"]);
   });
 
-  it("adds a breakdown item to a task and returns the updated task", async () => {
-    const repo = new IndexedDbTaskRepository();
-    await repo.create(buildTask("task_1", 1000));
-
-    const updated = await repo.addBreakdownItem("task_1", "Chapter 6 of STAT231");
-
-    expect(updated.breakdown).toHaveLength(1);
-    expect(updated.breakdown[0]!.description).toBe("Chapter 6 of STAT231");
-    expect(updated.breakdown[0]!.completedAt).toBeUndefined();
-    expect(updated.breakdown[0]!.id).toEqual(expect.any(String));
-
-    const tasks = await repo.list(null);
-    expect(tasks[0]!.breakdown).toHaveLength(1);
-  });
-
-  it("appends multiple breakdown items without clobbering earlier ones", async () => {
-    const repo = new IndexedDbTaskRepository();
-    await repo.create(buildTask("task_1", 1000));
-
-    await repo.addBreakdownItem("task_1", "First item");
-    const afterSecond = await repo.addBreakdownItem("task_1", "Second item");
-
-    expect(afterSecond.breakdown.map((i) => i.description)).toEqual(["First item", "Second item"]);
-  });
-
-  it("rejects adding a breakdown item to a nonexistent task", async () => {
-    const repo = new IndexedDbTaskRepository();
-    await expect(repo.addBreakdownItem("does-not-exist", "desc")).rejects.toThrow();
-  });
-
   // QA-discovered bug (v3.2): tasks used to have no account scoping at all - every account (and
   // signed-out use) shared the exact same list.
   describe("account scoping", () => {
@@ -118,7 +87,7 @@ describe("IndexedDbTaskRepository", () => {
       });
       await new Promise<void>((resolve, reject) => {
         const tx = v1Db.transaction("tasks", "readwrite");
-        tx.objectStore("tasks").put({ id: "legacy_task", title: "Pre-migration task", createdAt: 500, breakdown: [] });
+        tx.objectStore("tasks").put({ id: "legacy_task", title: "Pre-migration task", createdAt: 500 });
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
