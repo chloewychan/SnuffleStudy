@@ -13,6 +13,7 @@ const sampleProfile: Profile = {
   humanName: "Alice",
   bunnyName: "Fluffball",
   updatedAt: "2026-01-01T00:00:00Z",
+  passwordSetAt: null,
 };
 
 describe("useDisplayNames", () => {

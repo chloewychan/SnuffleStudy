@@ -1398,7 +1398,13 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
         },
       ]);
       vi.spyOn(profileApi, "fetchProfilesByIds").mockResolvedValue([
-        { userId: "user-b", humanName: "Bea", bunnyName: null, updatedAt: "2026-01-01T00:00:00.000Z" },
+        {
+          userId: "user-b",
+          humanName: "Bea",
+          bunnyName: null,
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          passwordSetAt: null,
+        },
       ]);
       const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
 

@@ -11,6 +11,11 @@ export interface Profile {
   humanName: string | null;
   bunnyName: string | null;
   updatedAt: string;
+  // v3.4 Task 6: durable, server-side signal for "does this account already have a password to
+  // prove before changing it" - see markPasswordSet()'s own comment below and
+  // background/messageRouter.ts's AUTH_SET_PASSWORD case. null means no password has ever been
+  // set for this account.
+  passwordSetAt: number | null;
 }
 
 interface ProfileRow {
@@ -18,6 +23,7 @@ interface ProfileRow {
   human_name: string | null;
   bunny_name: string | null;
   updated_at: string;
+  password_set_at: string | null;
 }
 
 function toProfile(row: ProfileRow): Profile {
@@ -26,6 +32,7 @@ function toProfile(row: ProfileRow): Profile {
     humanName: row.human_name,
     bunnyName: row.bunny_name,
     updatedAt: row.updated_at,
+    passwordSetAt: row.password_set_at ? new Date(row.password_set_at).getTime() : null,
   };
 }
 
@@ -84,6 +91,23 @@ export async function saveMyProfile(patch: {
 // group-mate's) - a stranger's id in `userIds` is silently omitted from the result, not an error
 // and not a raw uuid leaking through. Callers (useDisplayNames.ts) are expected to fall back to
 // the raw id for any userId that doesn't come back with a humanName.
+// v3.4 Task 6: separate from saveMyProfile() deliberately - password_set_at must never be
+// client-supplied (it's proof-of-state, not user-editable content like humanName/bunnyName), so it
+// gets its own narrow function rather than an optional field on saveMyProfile()'s patch type, which
+// would invite a caller to pass an arbitrary timestamp. Upserts (not a plain update) for the same
+// reason saveMyProfile() does - a brand-new account's profiles row may not exist yet at the moment
+// AUTH_SET_PASSWORD first fires (Task 7's create-account flow calls AUTH_SET_PASSWORD and
+// PROFILE_SAVE_MINE together, in an order this function must not depend on).
+export async function markPasswordSet(): Promise<void> {
+  const userId = await requireUserId();
+  const { error } = await supabase
+    .from("profiles")
+    .upsert({ user_id: userId, password_set_at: new Date().toISOString() }, { onConflict: "user_id" });
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function fetchProfilesByIds(userIds: string[]): Promise<Profile[]> {
   if (userIds.length === 0) return [];
   try {

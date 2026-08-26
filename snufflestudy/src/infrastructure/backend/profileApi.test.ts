@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { supabase } from "./supabaseClient";
-import { getMyProfile, saveMyProfile, fetchProfilesByIds } from "./profileApi";
+import { getMyProfile, saveMyProfile, fetchProfilesByIds, markPasswordSet } from "./profileApi";
 
 // Spies on the supabaseClient module's exported singleton, same boundary/style as
 // friendGroupApi.test.ts/friendshipSettingsApi.test.ts - nothing here ever lets the real client
@@ -55,6 +55,7 @@ const sampleRow = {
   human_name: "Alice",
   bunny_name: "Fluffball",
   updated_at: "2026-01-01T00:00:00Z",
+  password_set_at: null,
 };
 
 const sampleProfile = {
@@ -62,6 +63,7 @@ const sampleProfile = {
   humanName: "Alice",
   bunnyName: "Fluffball",
   updatedAt: "2026-01-01T00:00:00Z",
+  passwordSetAt: null,
 };
 
 describe("profileApi.getMyProfile", () => {
@@ -102,6 +104,22 @@ describe("profileApi.getMyProfile", () => {
     );
 
     await expect(getMyProfile()).rejects.toThrow("boom");
+  });
+
+  // v3.4 Task 6: password_set_at is stored as a timestamptz string, mapped to epoch millis (or
+  // null) by toProfile() - see profileApi.ts.
+  it("maps a non-null password_set_at to epoch millis", async () => {
+    mockSignedIn("user-a");
+    vi.spyOn(supabase, "from").mockReturnValue(
+      makeBuilder({
+        data: { ...sampleRow, password_set_at: "2026-01-02T00:00:00.000Z" },
+        error: null,
+      }) as never
+    );
+
+    const result = await getMyProfile();
+
+    expect(result?.passwordSetAt).toBe(new Date("2026-01-02T00:00:00.000Z").getTime());
   });
 });
 
@@ -222,5 +240,42 @@ describe("profileApi.fetchProfilesByIds", () => {
     const result = await fetchProfilesByIds(["user-a"]);
 
     expect(result).toEqual([sampleProfile]);
+  });
+});
+
+// v3.4 Task 6: markPasswordSet() is deliberately separate from saveMyProfile() - see its own
+// comment in profileApi.ts.
+describe("profileApi.markPasswordSet", () => {
+  it("upserts { user_id, password_set_at } with onConflict: user_id, using the caller's own id", async () => {
+    mockSignedIn("user-a");
+    const builder = makeBuilder({ data: null, error: null });
+    const fromSpy = vi.spyOn(supabase, "from").mockReturnValue(builder as never);
+    vi.useFakeTimers().setSystemTime(new Date("2026-01-03T00:00:00.000Z"));
+
+    await markPasswordSet();
+
+    expect(fromSpy).toHaveBeenCalledWith("profiles");
+    expect(builder.upsert).toHaveBeenCalledWith(
+      { user_id: "user-a", password_set_at: "2026-01-03T00:00:00.000Z" },
+      { onConflict: "user_id" }
+    );
+    vi.useRealTimers();
+  });
+
+  it("throws on an upsert failure", async () => {
+    mockSignedIn("user-a");
+    vi.spyOn(supabase, "from").mockReturnValue(
+      makeBuilder({ data: null, error: { message: "boom" } }) as never
+    );
+
+    await expect(markPasswordSet()).rejects.toThrow("boom");
+  });
+
+  it("throws when not signed in, without touching the database", async () => {
+    mockSignedOut();
+    const fromSpy = vi.spyOn(supabase, "from");
+
+    await expect(markPasswordSet()).rejects.toThrow(/not signed in/i);
+    expect(fromSpy).not.toHaveBeenCalled();
   });
 });

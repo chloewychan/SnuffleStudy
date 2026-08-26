@@ -252,6 +252,100 @@ describe("AccountPage — signed in", () => {
       );
       expect(screen.queryByText("Password updated.")).not.toBeInTheDocument();
     });
+
+    // v3.4 Task 6: `passwordSetAt` (loaded via PROFILE_GET_MINE) gates whether a "Current
+    // password" field renders/is required at all - these two states are asserted explicitly here
+    // rather than only via the JSX, per this task's own DoD.
+    it("does not render a Current password field for an account that has never had a password", async () => {
+      mockSignedIn();
+      render(<AccountPage />);
+      await waitFor(() => screen.getByText(/signed in as a@example.com/i));
+
+      expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
+    });
+
+    function mockSignedInWithExistingPassword(
+      overrides: Record<string, (message: any) => Promise<any>> = {}
+    ) {
+      return mockSignedIn({
+        PROFILE_GET_MINE: async () => ({
+          ok: true,
+          profile: {
+            userId: "user-a",
+            humanName: null,
+            bunnyName: null,
+            updatedAt: "2026-01-01T00:00:00Z",
+            passwordSetAt: 1700000000000,
+          },
+        }),
+        ...overrides,
+      });
+    }
+
+    it("renders and requires a Current password field for an account that already has a password", async () => {
+      mockSignedInWithExistingPassword();
+      render(<AccountPage />);
+      await waitFor(() => screen.getByText(/signed in as a@example.com/i));
+
+      expect(await screen.findByLabelText("Current password")).toBeInTheDocument();
+
+      const submitButton = screen.getByRole("button", { name: "Set password" });
+      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("Confirm new password"), {
+        target: { value: "new-pw" },
+      });
+      // New/confirm match, but Current password is still empty - stays disabled.
+      expect(submitButton).toBeDisabled();
+
+      fireEvent.change(screen.getByLabelText("Current password"), { target: { value: "old-pw" } });
+      expect(submitButton).not.toBeDisabled();
+    });
+
+    it("sends currentPassword in the AUTH_SET_PASSWORD payload for an account that already has a password", async () => {
+      const setPasswordSpy = vi.fn(async () => ({ ok: true }));
+      mockSignedInWithExistingPassword({ AUTH_SET_PASSWORD: setPasswordSpy });
+
+      render(<AccountPage />);
+      await waitFor(() => screen.getByText(/signed in as a@example.com/i));
+      await screen.findByLabelText("Current password");
+
+      fireEvent.change(screen.getByLabelText("Current password"), { target: { value: "old-pw" } });
+      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("Confirm new password"), {
+        target: { value: "new-pw" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+
+      await waitFor(() =>
+        expect(setPasswordSpy).toHaveBeenCalledWith({
+          type: "AUTH_SET_PASSWORD",
+          payload: { password: "new-pw", currentPassword: "old-pw" },
+        })
+      );
+      // Success clears currentPassword alongside the other two fields.
+      await waitFor(() => expect(screen.getByLabelText("Current password")).toHaveValue(""));
+    });
+
+    it("surfaces 'Current password is incorrect' without clearing the current password field", async () => {
+      mockSignedInWithExistingPassword({
+        AUTH_SET_PASSWORD: async () => ({ ok: false, error: "Current password is incorrect." }),
+      });
+
+      render(<AccountPage />);
+      await waitFor(() => screen.getByText(/signed in as a@example.com/i));
+      await screen.findByLabelText("Current password");
+
+      fireEvent.change(screen.getByLabelText("Current password"), { target: { value: "wrong-pw" } });
+      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("Confirm new password"), {
+        target: { value: "new-pw" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(/current password is incorrect/i);
+      // "Don't wipe input on a failed attempt" - the field the user needs to look at again.
+      expect(screen.getByLabelText("Current password")).toHaveValue("wrong-pw");
+    });
   });
 
   // v3.3 Task 14 DoD: "An account created before this feature shipped (no password set) can

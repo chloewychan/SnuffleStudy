@@ -490,9 +490,41 @@ async function routeMessage(
     // @supabase/auth-js 2.112.3 .d.ts: `updateUser(attributes: UserAttributes, options?)` where
     // UserAttributes.password is `string | undefined`, returning `UserResponse` -
     // `{ data: { user }, error: null } | { data: null, error: AuthError }`).
+    // v3.4 Task 6: Verify the CURRENT password before changing it, but only when one already
+    // exists to verify against - profiles.password_set_at is the durable, server-side signal for
+    // that (the client can't reliably infer "does this account already have a password" from the
+    // Supabase session object alone). getMyProfile() throws if not signed in - both call sites
+    // (this and Task 7's create-account completion step) only ever invoke this while already
+    // signed in, same precondition the pre-existing comment above already documents.
     case "AUTH_SET_PASSWORD": {
+      const profile = await profileApi.getMyProfile();
+      if (profile?.passwordSetAt) {
+        const currentPassword = message.payload.currentPassword;
+        if (!currentPassword) {
+          return { ok: false, error: "Current password is required." };
+        }
+        const { data: sessionData } = await supabase.auth.getSession();
+        const email = sessionData.session?.user.email;
+        if (!email) {
+          return { ok: false, error: "Could not verify your current password." };
+        }
+        // Reuses the exact same signInWithPassword call AUTH_SIGN_IN_PASSWORD already makes - a
+        // failed attempt here is exactly a wrong-password AuthError, same shape as that case
+        // already handles (see this file's AUTH_SIGN_IN_PASSWORD comment for the confirmed
+        // supabase-js return shape). This does not create a NEW session or replace the caller's
+        // current one - it's a pure verification call; whatever error/success it returns is read
+        // and discarded, never stored.
+        const { error: verifyError } = await supabase.auth.signInWithPassword({
+          email,
+          password: currentPassword,
+        });
+        if (verifyError) {
+          return { ok: false, error: "Current password is incorrect." };
+        }
+      }
       const { error } = await supabase.auth.updateUser({ password: message.payload.password });
       if (error) return { ok: false, error: error.message };
+      await profileApi.markPasswordSet();
       return { ok: true };
     }
 

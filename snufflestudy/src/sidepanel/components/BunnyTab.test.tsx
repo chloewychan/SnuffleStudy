@@ -80,6 +80,7 @@ describe("BunnyTab", () => {
       bunnyName: "Fluffball",
       humanName: "Alice",
       updatedAt: "2026-01-01T00:00:00Z",
+      passwordSetAt: null,
     };
     mockMessages({ PROFILE_GET_MINE: () => ({ ok: true, profile: savedProfile }) });
     render(<BunnyTab />);

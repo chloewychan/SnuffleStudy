@@ -56,7 +56,12 @@ export type ExtensionMessage =
   // change a password later) - both route through supabase.auth.updateUser({ password }), which
   // requires an existing session (see messageRouter.ts's AUTH_SET_PASSWORD case). Response shape:
   // { ok: boolean; error?: string }.
-  | { type: "AUTH_SET_PASSWORD"; payload: { password: string } }
+  // v3.4 Task 6: `currentPassword` is optional and only meaningful when the signed-in user's
+  // profile already has `passwordSetAt` set - messageRouter.ts's handler requires and verifies it
+  // in that case (via supabase.auth.signInWithPassword) before changing anything, and ignores it
+  // otherwise. Omitted entirely by SignInForm.tsx's create-account caller (never has an existing
+  // password to prove) and by AccountPage.tsx when passwordSetAt is null.
+  | { type: "AUTH_SET_PASSWORD"; payload: { password: string; currentPassword?: string } }
   // Sign-in branch's "Sign in with a password" peer option (SignInForm.tsx) -
   // supabase.auth.signInWithPassword({ email, password }). Response shape mirrors
   // AUTH_VERIFY_OTP's: { ok: boolean; session?: <session>; error?: string }.

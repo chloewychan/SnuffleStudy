@@ -96,7 +96,14 @@ describe("messageRouter — AUTH_*", () => {
   });
 
   // v3.3 Task 14: password auth.
-  it("AUTH_SET_PASSWORD calls updateUser with the given password", async () => {
+  // v3.4 Task 6: AUTH_SET_PASSWORD now first checks profileApi.getMyProfile().passwordSetAt to
+  // decide whether a currentPassword must be verified first - see messageRouter.ts's case. These
+  // two tests cover the "no password set yet" branch (profile: null), matching the pre-Task-6
+  // behavior other than the added markPasswordSet() call on success. The "already has a password"
+  // branch (require/verify/reject currentPassword) is covered in its own describe block below.
+  it("AUTH_SET_PASSWORD calls updateUser with the given password when no password is set yet", async () => {
+    vi.spyOn(profileApi, "getMyProfile").mockResolvedValue(null);
+    const markSpy = vi.spyOn(profileApi, "markPasswordSet").mockResolvedValue(undefined);
     const spy = vi.spyOn(supabase.auth, "updateUser").mockResolvedValue({
       data: { user: { id: "user-a" } },
       error: null,
@@ -108,10 +115,13 @@ describe("messageRouter — AUTH_*", () => {
     })) as { ok: boolean };
 
     expect(spy).toHaveBeenCalledWith({ password: "correct-horse-battery-staple" });
+    expect(markSpy).toHaveBeenCalled();
     expect(result).toEqual({ ok: true });
   });
 
   it("AUTH_SET_PASSWORD surfaces a Supabase error as ok:false", async () => {
+    vi.spyOn(profileApi, "getMyProfile").mockResolvedValue(null);
+    const markSpy = vi.spyOn(profileApi, "markPasswordSet").mockResolvedValue(undefined);
     vi.spyOn(supabase.auth, "updateUser").mockResolvedValue({
       data: { user: null },
       error: { message: "Password should be at least 6 characters" },
@@ -123,6 +133,81 @@ describe("messageRouter — AUTH_*", () => {
     })) as { ok: boolean; error?: string };
 
     expect(result).toEqual({ ok: false, error: "Password should be at least 6 characters" });
+    // A failed updateUser must never be followed by markPasswordSet - that would falsely record
+    // a password change that didn't happen.
+    expect(markSpy).not.toHaveBeenCalled();
+  });
+
+  describe("AUTH_SET_PASSWORD — current password required once one is already set (v3.4 Task 6)", () => {
+    const existingPasswordProfile: Profile = {
+      userId: "user-a",
+      humanName: null,
+      bunnyName: null,
+      updatedAt: "2026-01-01T00:00:00Z",
+      passwordSetAt: 1700000000000,
+    };
+
+    it("rejects with no currentPassword at all, without touching updateUser", async () => {
+      vi.spyOn(profileApi, "getMyProfile").mockResolvedValue(existingPasswordProfile);
+      const updateSpy = vi.spyOn(supabase.auth, "updateUser");
+
+      const result = (await handleMessage({
+        type: "AUTH_SET_PASSWORD",
+        payload: { password: "new-pw" },
+      })) as { ok: boolean; error?: string };
+
+      expect(result).toEqual({ ok: false, error: "Current password is required." });
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it("verifies currentPassword via signInWithPassword and rejects a wrong one, without touching updateUser", async () => {
+      vi.spyOn(profileApi, "getMyProfile").mockResolvedValue(existingPasswordProfile);
+      vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
+        data: { session: { access_token: "tok", user: { id: "user-a", email: "a@example.com" } } },
+        error: null,
+      } as never);
+      const verifySpy = vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
+        data: { session: null, user: null },
+        error: { message: "Invalid login credentials" },
+      } as never);
+      const updateSpy = vi.spyOn(supabase.auth, "updateUser");
+
+      const result = (await handleMessage({
+        type: "AUTH_SET_PASSWORD",
+        payload: { password: "new-pw", currentPassword: "wrong-pw" },
+      })) as { ok: boolean; error?: string };
+
+      expect(verifySpy).toHaveBeenCalledWith({ email: "a@example.com", password: "wrong-pw" });
+      expect(result).toEqual({ ok: false, error: "Current password is incorrect." });
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it("succeeds and calls markPasswordSet once the correct currentPassword verifies", async () => {
+      vi.spyOn(profileApi, "getMyProfile").mockResolvedValue(existingPasswordProfile);
+      vi.spyOn(supabase.auth, "getSession").mockResolvedValue({
+        data: { session: { access_token: "tok", user: { id: "user-a", email: "a@example.com" } } },
+        error: null,
+      } as never);
+      const verifySpy = vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
+        data: { session: { access_token: "tok2" }, user: { id: "user-a" } },
+        error: null,
+      } as never);
+      const updateSpy = vi.spyOn(supabase.auth, "updateUser").mockResolvedValue({
+        data: { user: { id: "user-a" } },
+        error: null,
+      } as never);
+      const markSpy = vi.spyOn(profileApi, "markPasswordSet").mockResolvedValue(undefined);
+
+      const result = (await handleMessage({
+        type: "AUTH_SET_PASSWORD",
+        payload: { password: "new-pw", currentPassword: "old-pw" },
+      })) as { ok: boolean };
+
+      expect(verifySpy).toHaveBeenCalledWith({ email: "a@example.com", password: "old-pw" });
+      expect(updateSpy).toHaveBeenCalledWith({ password: "new-pw" });
+      expect(markSpy).toHaveBeenCalled();
+      expect(result).toEqual({ ok: true });
+    });
   });
 
   it("AUTH_SIGN_IN_PASSWORD calls signInWithPassword with the given email/password", async () => {
@@ -470,6 +555,7 @@ describe("messageRouter — PROFILE_* (v3.3 Task 8)", () => {
     humanName: "Alice",
     bunnyName: "Fluffball",
     updatedAt: "2026-01-01T00:00:00Z",
+    passwordSetAt: null,
   };
 
   it("PROFILE_GET_MINE calls profileApi.getMyProfile and returns its result", async () => {

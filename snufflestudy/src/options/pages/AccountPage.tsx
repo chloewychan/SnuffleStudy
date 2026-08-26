@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { InviteCode } from "../../infrastructure/backend/friendshipApi";
+import type { Profile } from "../../infrastructure/backend/profileApi";
 import { SignInForm, type SignInFormSession } from "../../shared/ui/SignInForm";
 import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 
@@ -48,8 +49,15 @@ export function AccountPage() {
   // to be optional), and the normal way to change a password later. No longer the primary way a
   // password gets set (that's now mandatory at signup, inside SignInForm.tsx's create-account
   // branch) - this is a secondary action, always available while signed in.
+  // v3.4 Task 6: `passwordSetAt` is now also loaded from the signed-in user's profile
+  // (PROFILE_GET_MINE, below) rather than starting purely local - it's the durable, server-side
+  // signal for whether a "Current password" field needs to be shown/required at all. It's still
+  // updated locally to Date.now() on a successful set (unchanged from before this task), which
+  // both confirms the "Password updated." message and immediately flips a first-time set into
+  // "current password now required" for any subsequent change, without waiting on a re-fetch.
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [passwordSetAt, setPasswordSetAt] = useState<number | null>(null);
@@ -106,6 +114,32 @@ export function AccountPage() {
     if (session) loadFriends();
   }, [session]);
 
+  // v3.4 Task 6: loads `passwordSetAt` from the signed-in user's profile once signed in - the
+  // password section below (rendered further down, once `session` is set) needs this resolved
+  // before it can decide whether to show/require the "Current password" field, same "fetch once
+  // signed in" shape as loadFriends() above.
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    sendMessage<{ ok: boolean; profile?: Profile | null; error?: string }>({
+      type: "PROFILE_GET_MINE",
+    })
+      .then((res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          console.error("Failed to load your profile", res.error);
+          return;
+        }
+        setPasswordSetAt(res.profile?.passwordSetAt ?? null);
+      })
+      .catch((err) => {
+        console.error("Failed to load your profile", err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
   function handleSignedIn(newSession: SignInFormSession) {
     setSession(newSession);
   }
@@ -124,6 +158,7 @@ export function AccountPage() {
       setFriends(null);
       setNewPassword("");
       setConfirmNewPassword("");
+      setCurrentPassword("");
       setPasswordSetAt(null);
     } catch (err) {
       console.error("Failed to sign out", err);
@@ -137,6 +172,13 @@ export function AccountPage() {
   // message SignInForm.tsx's create-account step uses). Submit is disabled until both fields are
   // non-empty and match - same "genuinely disabled, not just visually" contract as
   // SignInForm.tsx's own password step.
+  // v3.4 Task 6: `currentPassword` is only sent when `passwordSetAt !== null` - there's nothing
+  // to verify against otherwise (see messageRouter.ts's AUTH_SET_PASSWORD case), and sending an
+  // empty string would read as "verify against an empty password" rather than "nothing to
+  // verify." On success, `currentPassword` is cleared alongside `newPassword`/`confirmNewPassword`
+  // (its job is done). On failure it's left as-is, same "don't wipe input on a failed attempt"
+  // convention this form already follows for the other two fields - the field the user needs to
+  // look at again (e.g. after "Current password is incorrect") is right there.
   async function handleSetPassword(e: React.FormEvent) {
     e.preventDefault();
     setPasswordBusy(true);
@@ -144,7 +186,10 @@ export function AccountPage() {
     try {
       const res = await sendMessage<{ ok: boolean; error?: string }>({
         type: "AUTH_SET_PASSWORD",
-        payload: { password: newPassword },
+        payload: {
+          password: newPassword,
+          ...(passwordSetAt !== null ? { currentPassword } : {}),
+        },
       });
       if (!res.ok) {
         setPasswordError(res.error ?? "Could not set your password.");
@@ -152,6 +197,7 @@ export function AccountPage() {
       }
       setNewPassword("");
       setConfirmNewPassword("");
+      setCurrentPassword("");
       setPasswordSetAt(Date.now());
     } catch (err) {
       console.error("Failed to set a password", err);
@@ -188,6 +234,7 @@ export function AccountPage() {
       setFriends(null);
       setNewPassword("");
       setConfirmNewPassword("");
+      setCurrentPassword("");
       setPasswordSetAt(null);
     } catch (err) {
       console.error("Failed to delete account", err);
@@ -312,6 +359,17 @@ export function AccountPage() {
               predates this feature, it may not have one yet - setting one here also fixes that.
             </p>
             <form onSubmit={(e) => void handleSetPassword(e)}>
+              {passwordSetAt !== null && (
+                <label>
+                  Current password
+                  <input
+                    type="password"
+                    required
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                  />
+                </label>
+              )}
               <label>
                 New password
                 <input
@@ -335,7 +393,8 @@ export function AccountPage() {
                 disabled={
                   passwordBusy ||
                   !newPassword ||
-                  newPassword !== confirmNewPassword
+                  newPassword !== confirmNewPassword ||
+                  (passwordSetAt !== null && !currentPassword)
                 }
               >
                 {passwordBusy ? "Saving…" : "Set password"}
