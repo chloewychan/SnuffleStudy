@@ -1,0 +1,24 @@
+-- v3.4 Task 6: Require the current password before changing it.
+--
+-- Deviation from the implementation plan, documented here and in
+-- docs/reports/v3.4/task-6-report.md: the plan's Task 6 Interfaces section describes this single
+-- column as "folded into the same migration file as Task 8" (Task 8 adds its own, unrelated
+-- nudge-cooldown columns to friendship_settings). That can't work as written - migrations in this
+-- repo are strictly cumulative/immutable once applied (see the plan's Global Constraints), and
+-- this migration is being applied to the live dev DB now, well before Task 8 exists as a file.
+-- This is therefore its own standalone migration, holding only the one column Task 6 needs.
+-- Task 8 will create its own separate migration file for its own columns.
+--
+-- `password_set_at` is the durable, server-side signal for "does this account already have a
+-- password to prove before changing it" - the client can't reliably infer that from the Supabase
+-- session object alone. Nullable: null means "no password has ever been set for this account"
+-- (an OTP-only account, or a brand-new account mid-signup before AUTH_SET_PASSWORD has run for it
+-- the first time) - see background/messageRouter.ts's AUTH_SET_PASSWORD case and
+-- infrastructure/backend/profileApi.ts's markPasswordSet().
+--
+-- No RLS policy change needed: profiles' existing "self can update own profile" UPDATE policy
+-- (supabase/migrations/20260815000034_v3.3_profiles.sql) already covers writing this column -
+-- `using (user_id = auth.uid()) with check (user_id = auth.uid())` has no per-column restriction,
+-- and markPasswordSet() only ever upserts under the caller's own requireUserId()-derived user_id,
+-- never a client-supplied one - confirmed directly against that migration file before writing this.
+alter table profiles add column password_set_at timestamptz;
