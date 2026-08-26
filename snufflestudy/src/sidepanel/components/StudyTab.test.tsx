@@ -25,6 +25,11 @@ describe("StudyTab", () => {
     // Task Vault card title (TaskVaultPage.tsx renders it as an <h2>).
     expect(screen.getByRole("heading", { name: /task vault/i })).toBeInTheDocument();
 
+    // v3.4 Task 4: TaskVaultPage's onClose is now optional (rendered only when a real handler is
+    // passed), and this component no longer passes a no-op - this used to be a routed page with
+    // somewhere real to go back to, now permanently embedded here with nowhere to go.
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+
     await waitFor(() => expect(messenger.sendMessage).toHaveBeenCalledWith({ type: "TASK_LIST" }));
   });
 

@@ -235,6 +235,18 @@ describe("FriendGroupPanel — friend activity (pre-existing behavior)", () => {
 
     expect(onClose).toHaveBeenCalled();
   });
+
+  // v3.4 Task 4: onClose is now optional - FriendsTab.tsx (the only production mount point) no
+  // longer passes one at all, so the Close button must not render there. Verified directly rather
+  // than inferred from reading the source.
+  it("does not render a Close button when onClose is omitted", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
+
+    render(<FriendGroupPanel />);
+    await waitFor(() => screen.getByText("No recent friend activity."));
+
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+  });
 });
 
 describe("FriendGroupPanel — send a nudge (v2 Task 7)", () => {

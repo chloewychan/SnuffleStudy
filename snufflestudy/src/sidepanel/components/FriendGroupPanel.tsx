@@ -7,7 +7,10 @@ import { FriendEventFeed } from "./friendGroupPanel/FriendEventFeed";
 import { useFriendGroupPanelData } from "./friendGroupPanel/useFriendGroupPanelData";
 
 interface FriendGroupPanelProps {
-  onClose: () => void;
+  // v3.4 Task 4: optional - this used to be a routed page with somewhere real to close to;
+  // permanently embedded in FriendsTab.tsx now, with nowhere to go, so FriendsTab.tsx no longer
+  // passes a no-op here. The Close button below only renders when a real handler is passed.
+  onClose?: () => void;
 }
 
 // v3.2 Task 7: this panel is now a thin container composing five focused sections (see
@@ -85,9 +88,11 @@ export function FriendGroupPanel({ onClose }: FriendGroupPanelProps) {
     <div className="friend-group-panel">
       <header className="friend-group-panel__header">
         <h2>Friend activity</h2>
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
+        {onClose && (
+          <button type="button" onClick={onClose}>
+            Close
+          </button>
+        )}
       </header>
 
       {visibleNudge && (

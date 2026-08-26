@@ -24,7 +24,7 @@ export function StudyTab({ settings }: StudyTabProps) {
         <SessionSetupForm settings={settings} tasks={tasks} />
       </section>
       <section className="sp-card">
-        <TaskVaultPage onClose={() => {}} onTasksChanged={setTasks} />
+        <TaskVaultPage onTasksChanged={setTasks} />
       </section>
     </div>
   );

@@ -58,7 +58,13 @@ interface RoomProducerTagEntry {
 }
 
 interface StudyRoomPanelProps {
-  onClose: () => void;
+  // v3.4 Task 4: optional - this used to be a routed page with somewhere real to close to;
+  // permanently embedded in FriendsTab.tsx now, with nowhere to go, so FriendsTab.tsx no longer
+  // passes a no-op here. Each of this panel's three Close buttons below (signed-out gate,
+  // joined-room header, room-list header) only renders when a real handler is passed - the
+  // conditional removes the dead default, not the capability itself, for any future call site
+  // that DOES have somewhere to close to.
+  onClose?: () => void;
 }
 
 // Local, UI-only view of "who's currently in the joined room" - keyed by userId so a presence
@@ -735,16 +741,18 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
   // falls through to the normal view's own error handling (loadRooms()'s STUDY_ROOM_LIST call
   // surfaces the same underlying failure there) instead of asserting "sign in" when the real
   // answer is "couldn't check." No `onSkip` - there's nothing to skip to from inside a
-  // permanently-embedded panel (FriendsTab.tsx composes this with a no-op onClose, same as the
-  // other three gated panels).
+  // permanently-embedded panel (FriendsTab.tsx composes this with no onClose at all - v3.4 Task
+  // 4 - so the Close button below simply doesn't render there).
   if (selfLoaded && selfUserId === null && !selfError) {
     return (
       <div className="study-room-panel">
         <header className="study-room-panel__header">
           <h2>Study Rooms</h2>
-          <button type="button" onClick={onClose}>
-            Close
-          </button>
+          {onClose && (
+            <button type="button" onClick={onClose}>
+              Close
+            </button>
+          )}
         </header>
         {selfError && <p role="alert">Couldn't verify sign-in: {selfError}.</p>}
         <div className="study-room-panel__sign-in">
@@ -765,9 +773,11 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
       <div className="study-room-panel">
         <header className="study-room-panel__header">
           <h2>{joinedRoom.name}</h2>
-          <button type="button" onClick={onClose}>
-            Close
-          </button>
+          {onClose && (
+            <button type="button" onClick={onClose}>
+              Close
+            </button>
+          )}
         </header>
 
         <div className="study-room-panel__grid">
@@ -843,9 +853,11 @@ export function StudyRoomPanel({ onClose }: StudyRoomPanelProps) {
     <div className="study-room-panel">
       <header className="study-room-panel__header">
         <h2>Study Rooms</h2>
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
+        {onClose && (
+          <button type="button" onClick={onClose}>
+            Close
+          </button>
+        )}
       </header>
 
       <section className="study-room-panel__create">

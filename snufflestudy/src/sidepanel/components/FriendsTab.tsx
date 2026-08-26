@@ -16,11 +16,12 @@ import { FriendRequestPanel } from "./FriendRequestPanel";
 // task report; the verified design order was used since fixing it is entirely within this file's
 // scope (no changes to either composed component required).
 //
-// Both onClose props are no-ops for the same reason as Task 6's TaskVaultPage: these were
-// originally routed pages with a back button, now permanently embedded side by side in a tab with
-// nowhere to "close" to. Both panels do render a visible "Close" button tied to onClose that will
-// visibly do nothing when clicked - a known, accepted leftover (see Task 6 precedent), not
-// something to fix by modifying the reused components.
+// v3.4 Task 4: neither onClose is passed anymore - these were originally routed pages with a
+// back button, now permanently embedded side by side in a tab with nowhere to "close" to. Rather
+// than the previous no-op onClose={() => {}} (which rendered a visible "Close" button that did
+// nothing when clicked), StudyRoomPanel/FriendGroupPanel now treat onClose as optional and only
+// render their Close button when a real handler is passed - so simply omitting it here removes
+// the dead button entirely instead of leaving a fake one in place.
 //
 // v3.4 Task 3: TempPasscodePanel/UnlockRequestPanel/SessionEndRequestPanel (which moved here in
 // v3.3 Task 1/Task 12, below the existing two panels) are replaced by one FriendRequestPanel,
@@ -36,10 +37,10 @@ export function FriendsTab() {
   return (
     <div className="sp-tab-content sp-friends-tab">
       <section className="sp-card">
-        <StudyRoomPanel onClose={() => {}} />
+        <StudyRoomPanel />
       </section>
       <section className="sp-card">
-        <FriendGroupPanel onClose={() => {}} />
+        <FriendGroupPanel />
       </section>
       <section className="sp-card">
         <FriendRequestPanel />

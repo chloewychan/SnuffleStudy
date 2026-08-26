@@ -3,7 +3,10 @@ import type { Task } from "../../domain/tasks/taskTypes";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 
 interface TaskVaultPageProps {
-  onClose: () => void;
+  // v3.4 Task 4: optional - this used to be a routed page with somewhere real to close to;
+  // permanently embedded in StudyTab.tsx now, with nowhere to go, so StudyTab.tsx no longer
+  // passes a no-op here. The Back button below only renders when a real handler is passed.
+  onClose?: () => void;
   // Fix 1 (final-review fix wave): fires with this component's own `tasks` list every time it
   // changes (initial TASK_LIST load, create/delete mutations). StudyTab.tsx uses this to mirror
   // the list into a prop it hands to SessionSetupForm's Goal select, so a task created here is
@@ -110,9 +113,11 @@ export function TaskVaultPage({ onClose, onTasksChanged }: TaskVaultPageProps) {
     <div className="task-vault-page">
       <div className="task-vault-page__header">
         <h2>Task Vault</h2>
-        <button type="button" onClick={onClose}>
-          Back
-        </button>
+        {onClose && (
+          <button type="button" onClick={onClose}>
+            Back
+          </button>
+        )}
       </div>
 
       <form className="task-vault-page__new-task" onSubmit={handleCreateTask}>

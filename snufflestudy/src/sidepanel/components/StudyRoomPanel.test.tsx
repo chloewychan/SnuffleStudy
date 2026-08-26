@@ -1066,3 +1066,88 @@ describe("StudyRoomPanel — signed-out gate (v3.2 Task 2)", () => {
     });
   });
 });
+
+// v3.4 Task 4: onClose is now optional - each of this panel's three render branches (signed-out
+// gate, room-list header, joined-room header) only shows a Close button when a real handler is
+// passed. FriendsTab.tsx (the only production mount point) no longer passes one at all, so these
+// tests verify absence there is real (not just inferred from reading the source) and that the
+// capability itself still works for any future caller that DOES pass a real handler.
+describe("StudyRoomPanel — dead Close button removal (v3.4 Task 4)", () => {
+  it("does not render a Close button in the signed-out gate when onClose is omitted", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ AUTH_GET_SESSION: () => ({ ok: true, session: null }) })
+    );
+
+    render(<StudyRoomPanel />);
+
+    await screen.findByText("Sign in to create or join a study room with your friends.");
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+  });
+
+  it("renders a working Close button in the signed-out gate when onClose is passed", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ AUTH_GET_SESSION: () => ({ ok: true, session: null }) })
+    );
+    const onClose = vi.fn();
+
+    render(<StudyRoomPanel onClose={onClose} />);
+
+    await screen.findByText("Sign in to create or join a study room with your friends.");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("does not render a Close button in the room-list view when onClose is omitted", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+
+    render(<StudyRoomPanel />);
+
+    await screen.findByText("Thursday study group");
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+  });
+
+  it("renders a working Close button in the room-list view when onClose is passed", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+    const onClose = vi.fn();
+
+    render(<StudyRoomPanel onClose={onClose} />);
+
+    await screen.findByText("Thursday study group");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("does not render a Close button in the joined-room view when onClose is omitted", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+
+    render(<StudyRoomPanel />);
+    await screen.findByText("Thursday study group");
+    fireEvent.click(screen.getByText("Join"));
+
+    await screen.findByText("Leave room");
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+  });
+
+  it("renders a working Close button in the joined-room view when onClose is passed", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
+    );
+    vi.mocked(studyRoomApi.joinRoom).mockResolvedValue({ token: "livekit-jwt" });
+    const onClose = vi.fn();
+
+    render(<StudyRoomPanel onClose={onClose} />);
+    await screen.findByText("Thursday study group");
+    fireEvent.click(screen.getByText("Join"));
+
+    await screen.findByText("Leave room");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalled();
+  });
+});

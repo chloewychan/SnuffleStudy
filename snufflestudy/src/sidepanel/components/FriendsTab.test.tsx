@@ -52,8 +52,16 @@ describe("FriendsTab", () => {
       within(sections[2] as HTMLElement).getByRole("heading", { name: /requests from friends/i })
     ).toBeInTheDocument();
 
-    // No Close button - Task 4's "no dead button in the first place" design (no onClose passed
-    // here, unlike the no-op onClose the three panels this replaces each carried).
+    // No Close button anywhere - v3.4 Task 4: StudyRoomPanel/FriendGroupPanel's onClose is now
+    // optional (rendered only when a real handler is passed), and this component no longer
+    // passes a no-op to either. FriendRequestPanel.tsx (Task 3) never had one to begin with -
+    // "no dead button in the first place" design.
+    expect(
+      within(sections[0] as HTMLElement).queryByRole("button", { name: /close/i })
+    ).not.toBeInTheDocument();
+    expect(
+      within(sections[1] as HTMLElement).queryByRole("button", { name: /close/i })
+    ).not.toBeInTheDocument();
     expect(
       within(sections[2] as HTMLElement).queryByRole("button", { name: /close/i })
     ).not.toBeInTheDocument();

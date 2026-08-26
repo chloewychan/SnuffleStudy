@@ -102,4 +102,16 @@ describe("TaskVaultPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(onClose).toHaveBeenCalled();
   });
+
+  // v3.4 Task 4: onClose is now optional - StudyTab.tsx (the only production mount point) no
+  // longer passes one at all, so the Back button must not render there. Verified directly rather
+  // than inferred from reading the source.
+  it("does not render a Back button when onClose is omitted", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, tasks: [] });
+
+    render(<TaskVaultPage />);
+    await screen.findByText("No tasks yet.");
+
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+  });
 });
