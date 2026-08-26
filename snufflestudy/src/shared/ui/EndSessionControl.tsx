@@ -1,14 +1,15 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { StudySession } from "../../domain/session/sessionTypes";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
-import type { SessionEndRequest } from "../../domain/accountability/sessionEndRequest";
+import type { FriendRequest } from "../../domain/accountability/friendRequest";
+import { useDisplayNames } from "./useDisplayNames";
 
 interface EndSessionControlProps {
   session: StudySession;
 }
 
 // v3.3 Task 12: mirrors LockedPage.tsx's STATUS_LABEL const for its temp-passcode status block.
-const END_REQUEST_STATUS_LABEL: Record<SessionEndRequest["status"], string> = {
+const END_REQUEST_STATUS_LABEL: Record<FriendRequest["status"], string> = {
   pending: "Pending",
   approved: "Approved",
   denied: "Denied",
@@ -24,21 +25,62 @@ const END_REQUEST_STATUS_LABEL: Record<SessionEndRequest["status"], string> = {
 //
 // v3.3 Task 12: alongside that unchanged passcode form, `promptOpen` now also offers "Request a
 // temporary pass from a friend" — mirrors LockedPage.tsx's temp-passcode request/status pattern
-// (SESSION_END_REQUEST_CREATE, then poll via SESSION_END_REQUESTS_FETCH for "Check status", then
-// once approved, an "End session now" button). Deliberately does NOT auto-claim the way
-// LockedPage.tsx's temp-passcode flow does (per the Global Constraints note: ending a session is
-// disruptive, so an approved session-end request is never auto-applied - not even by this
-// component reacting to its own poll result on its own; a human still has to click "End session
-// now").
+// (v3.4 Task 3: FRIEND_REQUEST_CREATE("session_end", ...), then poll via FRIEND_REQUESTS_FETCH
+// for "Check status", then once approved, an "End session now" button). Deliberately does NOT
+// auto-claim the way LockedPage.tsx's temp-passcode flow does (per the Global Constraints note:
+// ending a session is disruptive, so an approved session-end request is never auto-applied - not
+// even by this component reacting to its own poll result on its own; a human still has to click
+// "End session now").
+//
+// v3.4 Task 3: this form gained a friend picker + optional message field, matching
+// LockedPage.tsx's exact pattern - previously a bare button with no target (any friend sharing a
+// group with the requester could resolve it, mirroring unlock_requests' group-wide shape); now
+// the requester picks a specific friend, same as site_temp_pass requests already did.
 export function EndSessionControl({ session }: EndSessionControlProps) {
   const [promptOpen, setPromptOpen] = useState(false);
   const [passcode, setPasscode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const [endRequest, setEndRequest] = useState<SessionEndRequest | null>(null);
+  const [endRequest, setEndRequest] = useState<FriendRequest | null>(null);
   const [endRequestBusy, setEndRequestBusy] = useState(false);
   const [endRequestError, setEndRequestError] = useState<string | null>(null);
+
+  // v3.4 Task 3: friend picker state, mirroring LockedPage.tsx's friendIds/selectedFriendId/
+  // requestMessage exactly - one FRIENDS_LIST call, same friend-picker pattern
+  // RequestUnlockForm.tsx/LockedPage.tsx already use.
+  const [friendIds, setFriendIds] = useState<string[] | null>(null);
+  const [friendsError, setFriendsError] = useState<string | null>(null);
+  const [selectedFriendId, setSelectedFriendId] = useState("");
+  const [requestMessage, setRequestMessage] = useState("");
+
+  // v3.3 Task 8: resolves each friend id to their human_name (falling back to the raw id, same
+  // as LockedPage.tsx's identical picker) - see shared/ui/useDisplayNames.ts.
+  const displayName = useDisplayNames(friendIds ?? []);
+
+  useEffect(() => {
+    if (!promptOpen) return;
+    let cancelled = false;
+    sendMessage<{ ok: boolean; friendIds?: string[]; error?: string }>({ type: "FRIENDS_LIST" })
+      .then((res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          setFriendsError(res.error ?? "Could not load your friends.");
+          return;
+        }
+        setFriendIds(res.friendIds ?? []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to load friends for the session-end friend picker", err);
+        setFriendsError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [promptOpen]);
+
+  const effectiveFriendId = selectedFriendId || friendIds?.[0] || "";
 
   function endImmediately() {
     sendMessage({ type: "SESSION_END", payload: { sessionId: session.id } }).catch((err) =>
@@ -95,13 +137,22 @@ export function EndSessionControl({ session }: EndSessionControlProps) {
 
   // v3.3 Task 12: requester side - "Request a temporary pass from a friend". Mirrors
   // LockedPage.tsx's handleRequestTempPasscode shape (sendMessage, store the created request in
-  // state on success, surface an inline error otherwise).
+  // state on success, surface an inline error otherwise). v3.4 Task 3: now sends
+  // FRIEND_REQUEST_CREATE("session_end", ...) with the picked friendUserId/optional message,
+  // trimmed and omitted entirely when empty - same convention LockedPage.tsx's
+  // handleRequestTempPasscode already established.
   function handleRequestPass() {
     setEndRequestBusy(true);
     setEndRequestError(null);
-    sendMessage<{ ok: boolean; request?: SessionEndRequest; error?: string }>({
-      type: "SESSION_END_REQUEST_CREATE",
-      payload: { sessionId: session.id },
+    const trimmedMessage = requestMessage.trim();
+    sendMessage<{ ok: boolean; request?: FriendRequest; error?: string }>({
+      type: "FRIEND_REQUEST_CREATE",
+      payload: {
+        kind: "session_end",
+        sessionId: session.id,
+        friendUserId: effectiveFriendId,
+        ...(trimmedMessage ? { message: trimmedMessage } : {}),
+      },
     })
       .then((res) => {
         if (!res.ok || !res.request) {
@@ -118,15 +169,15 @@ export function EndSessionControl({ session }: EndSessionControlProps) {
   }
 
   // v3.3 Task 12: mirrors LockedPage.tsx's handleRefreshTempRequestStatus shape - a fresh
-  // SESSION_END_REQUESTS_FETCH, then find this request by id and replace local state with its
+  // FRIEND_REQUESTS_FETCH, then find this request by id and replace local state with its
   // current (possibly still-pending) status. sinceTimestamp: 0 mirrors LockedPage.tsx's own
   // "check on one specific request by id" usage of this fetch, not a real lookback window.
   function handleCheckStatus() {
     if (!endRequest) return;
     setEndRequestBusy(true);
     setEndRequestError(null);
-    sendMessage<{ ok: boolean; requests?: SessionEndRequest[]; error?: string }>({
-      type: "SESSION_END_REQUESTS_FETCH",
+    sendMessage<{ ok: boolean; requests?: FriendRequest[]; error?: string }>({
+      type: "FRIEND_REQUESTS_FETCH",
       payload: { sinceTimestamp: 0 },
     })
       .then((res) => {
@@ -206,7 +257,42 @@ export function EndSessionControl({ session }: EndSessionControlProps) {
 
           {!endRequest && (
             <>
-              <button type="button" onClick={handleRequestPass} disabled={endRequestBusy}>
+              {friendsError && <p role="alert">Couldn't load your friends: {friendsError}.</p>}
+              {friendIds && friendIds.length > 0 && (
+                <label>
+                  Ask
+                  <select
+                    value={effectiveFriendId}
+                    onChange={(e) => setSelectedFriendId(e.target.value)}
+                    disabled={endRequestBusy}
+                  >
+                    {friendIds.map((id) => (
+                      <option key={id} value={id}>
+                        {displayName(id)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {friendIds && friendIds.length === 0 && !friendsError && (
+                <p>No friends available to ask yet - add a friend first.</p>
+              )}
+              <label>
+                Why do you need this? (optional)
+                <input
+                  type="text"
+                  value={requestMessage}
+                  onChange={(e) => setRequestMessage(e.target.value)}
+                  placeholder="Why do you need this? (optional)"
+                  maxLength={280}
+                  disabled={endRequestBusy}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handleRequestPass}
+                disabled={endRequestBusy || !effectiveFriendId}
+              >
                 {endRequestBusy ? "Requesting…" : "Request a temporary pass from a friend"}
               </button>
               {endRequestError && <p role="alert">{endRequestError}</p>}

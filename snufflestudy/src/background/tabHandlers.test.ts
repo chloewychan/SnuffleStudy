@@ -9,7 +9,7 @@ import * as friendSync from "./friendSync";
 import { supabase } from "../infrastructure/backend/supabaseClient";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
-import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
+import * as friendRequestApi from "../infrastructure/backend/friendRequestApi";
 import type { CreateSessionInput } from "../domain/session/sessionTypes";
 
 beforeEach(() => {
@@ -17,7 +17,7 @@ beforeEach(() => {
   stubFakeDeclarativeNetRequest();
   indexedDB.deleteDatabase("snufflestudy");
   // Added alongside the v2 Task 8 unlock-request test below, which spies on friendSync.ts's/
-  // sessionStatusSyncApi's/nudgeApi's/unlockRequestApi's exports - restoring between tests keeps
+  // sessionStatusSyncApi's/nudgeApi's/friendRequestApi's exports - restoring between tests keeps
   // that isolated rather than leaking into other tests in this file (mirrors
   // alarmHandlers.test.ts's identical beforeEach convention).
   vi.restoreAllMocks();
@@ -168,7 +168,7 @@ describe("handleTabUpdate", () => {
   // by a friend, becomes accessible without a distraction warning for the rest of the session."
   // This is the actual DoD-critical assertion end-to-end, entirely at the domain/integration
   // level - no live database needed: an approved unlock request (delivered via
-  // alarmHandlers.ts's friend-poll alarm, mocked here at the unlockRequestApi boundary, same as
+  // alarmHandlers.ts's friend-poll alarm, mocked here at the friendRequestApi boundary, same as
   // alarmHandlers.test.ts's own unlock-request-polling tests) merges the hostname into the
   // active session's allowedSites, and THEN a real navigation to that exact hostname must not
   // record a distraction attempt or escalate interventionLevel - proving tabHandlers.ts's
@@ -231,18 +231,22 @@ describe("handleTabUpdate", () => {
       events: [],
     });
     vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
-    vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+    vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
       ok: true,
       requests: [
         {
           id: "req-1",
+          kind: "site_unlock",
           sessionId: created.session.id,
           requesterUserId: "user-a",
+          friendUserId: null,
+          message: null,
           hostname: "youtube.com",
           status: "approved",
           requestedAt: Date.now(),
           resolvedAt: Date.now(),
           resolvedBy: "user-b",
+          expiresAt: null,
         },
       ],
     });

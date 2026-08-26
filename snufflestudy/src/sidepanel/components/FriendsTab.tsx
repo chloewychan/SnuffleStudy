@@ -1,8 +1,6 @@
 import { FriendGroupPanel } from "./FriendGroupPanel";
 import { StudyRoomPanel } from "./StudyRoomPanel";
-import { TempPasscodePanel } from "./TempPasscodePanel";
-import { UnlockRequestPanel } from "./UnlockRequestPanel";
-import { SessionEndRequestPanel } from "./SessionEndRequestPanel";
+import { FriendRequestPanel } from "./FriendRequestPanel";
 
 // Task 7: composes two already-tested, previously-routed panels side by side, following the same
 // "always both visible, no navigation" pattern StudyTab.tsx (Task 6) established for
@@ -24,15 +22,16 @@ import { SessionEndRequestPanel } from "./SessionEndRequestPanel";
 // visibly do nothing when clicked - a known, accepted leftover (see Task 6 precedent), not
 // something to fix by modifying the reused components.
 //
-// v3.3 Task 1: TempPasscodePanel and UnlockRequestPanel move here from SettingsTab.tsx (which
-// Task 7 rebuilds), below the existing two panels, in that order - per the V3.3 Implementation
-// Plan's Task 1 Deliverables. session={null} is passed to UnlockRequestPanel for the same reason
-// SettingsTab.tsx passed it: this tab has no notion of an "active session" to request an unlock
-// for, so only its "Requests from friends" approver section renders. Both onClose props are
-// no-ops for the same reason as the two panels above - no "close" destination once embedded.
-//
-// v3.3 Task 12: SessionEndRequestPanel composed in below the panels Task 1 moved here, per this
-// task's Deliverables. Same no-op onClose treatment as every other panel in this tab.
+// v3.4 Task 3: TempPasscodePanel/UnlockRequestPanel/SessionEndRequestPanel (which moved here in
+// v3.3 Task 1/Task 12, below the existing two panels) are replaced by one FriendRequestPanel,
+// mounted in the same spot. No `session` prop needed anymore, unlike the old
+// `UnlockRequestPanel session={null}` usage - this tab has no notion of an "active session" to
+// request an unlock for, and FriendRequestPanel.tsx is approver-only by design now (Decision 5,
+// docs/implementation_plans/V3.4_Implementation_Plan.md - the requester-side "request an unlock"
+// section lives in the new, session-aware RequestUnlockForm.tsx instead, composed only at
+// SidePanelApp.tsx's active-session call site, not here). No onClose passed - Task 4's "no dead
+// button in the first place" design (FriendRequestPanel.tsx's Close button only renders when a
+// real handler is passed), unlike the no-op onClose the three panels this replaces each carried.
 export function FriendsTab() {
   return (
     <div className="sp-tab-content sp-friends-tab">
@@ -43,13 +42,7 @@ export function FriendsTab() {
         <FriendGroupPanel onClose={() => {}} />
       </section>
       <section className="sp-card">
-        <TempPasscodePanel onClose={() => {}} />
-      </section>
-      <section className="sp-card">
-        <UnlockRequestPanel session={null} onClose={() => {}} />
-      </section>
-      <section className="sp-card">
-        <SessionEndRequestPanel onClose={() => {}} />
+        <FriendRequestPanel />
       </section>
     </div>
   );

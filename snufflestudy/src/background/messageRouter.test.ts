@@ -4,7 +4,7 @@ import { fakeBrowser } from "wxt/testing/fake-browser";
 import { handleMessage } from "./messageRouter";
 import { handleAlarm } from "./alarmHandlers";
 import { stubFakeDeclarativeNetRequest } from "./testSupport/fakeDeclarativeNetRequest";
-import * as sessionEndRequestApi from "../infrastructure/backend/sessionEndRequestApi";
+import * as friendRequestApi from "../infrastructure/backend/friendRequestApi";
 import type { CreateSessionInput } from "../domain/session/sessionTypes";
 import type { UserSettings } from "../domain/settings/userSettings";
 import type { Task } from "../domain/tasks/taskTypes";
@@ -278,7 +278,7 @@ describe("messageRouter — SESSION_END with an approved temporary pass (v3.3 Ta
     await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
     const sessionId = await createAndStartHardSession();
     const isApprovedSpy = vi
-      .spyOn(sessionEndRequestApi, "isApprovedForSelf")
+      .spyOn(friendRequestApi, "isApprovedForSelf")
       .mockResolvedValue(true);
 
     const ended = (await handleMessage({
@@ -286,19 +286,19 @@ describe("messageRouter — SESSION_END with an approved temporary pass (v3.3 Ta
       payload: { sessionId, endRequestId: "end-req-1" },
     })) as { ok: boolean; session: { state: string } };
 
-    expect(isApprovedSpy).toHaveBeenCalledWith("end-req-1", sessionId);
+    expect(isApprovedSpy).toHaveBeenCalledWith("end-req-1", "session_end", sessionId);
     expect(ended.ok).toBe(true);
     expect(ended.session.state).toBe("ABANDONED");
   });
 
   // The negative case this task's DoD names explicitly: isApprovedForSelf returning false (e.g.
   // because the caller is the resolving friend, not the requester - see
-  // sessionEndRequestApi.ts's isApprovedForSelf for why that specific check exists) must reject
+  // friendRequestApi.ts's isApprovedForSelf for why that specific check exists) must reject
   // SESSION_END and leave the session untouched, exactly like an incorrect passcode does.
   it("rejects SESSION_END with an endRequestId that isApprovedForSelf denies, leaving the session active", async () => {
     await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
     const sessionId = await createAndStartHardSession();
-    vi.spyOn(sessionEndRequestApi, "isApprovedForSelf").mockResolvedValue(false);
+    vi.spyOn(friendRequestApi, "isApprovedForSelf").mockResolvedValue(false);
 
     const result = (await handleMessage({
       type: "SESSION_END",
@@ -321,7 +321,7 @@ describe("messageRouter — SESSION_END with an approved temporary pass (v3.3 Ta
     // passcode-path test above, but for the endRequestId branch: isApprovedForSelf denying it must
     // still reject, independent of whether a permanent passcode exists at all.
     const sessionId = await createAndStartHardSession();
-    vi.spyOn(sessionEndRequestApi, "isApprovedForSelf").mockResolvedValue(false);
+    vi.spyOn(friendRequestApi, "isApprovedForSelf").mockResolvedValue(false);
 
     const result = (await handleMessage({
       type: "SESSION_END",
@@ -334,7 +334,7 @@ describe("messageRouter — SESSION_END with an approved temporary pass (v3.3 Ta
   it("never calls isApprovedForSelf when endRequestId is absent - the existing passcode path is untouched", async () => {
     await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
     const sessionId = await createAndStartHardSession();
-    const isApprovedSpy = vi.spyOn(sessionEndRequestApi, "isApprovedForSelf");
+    const isApprovedSpy = vi.spyOn(friendRequestApi, "isApprovedForSelf");
     // This file's top-level beforeEach does not call vi.restoreAllMocks() between tests (unlike
     // messageRouterTempPasscode.test.ts's own beforeEach) - vi.spyOn on an already-spied export
     // returns the SAME spy object across tests in this file, so its call history from the earlier
@@ -351,7 +351,7 @@ describe("messageRouter — SESSION_END with an approved temporary pass (v3.3 Ta
 
   it("propagates a thrown isApprovedForSelf error as ok:false (outer handleMessage try/catch) rather than falling through to abandon the session", async () => {
     const sessionId = await createAndStartHardSession();
-    vi.spyOn(sessionEndRequestApi, "isApprovedForSelf").mockRejectedValue(
+    vi.spyOn(friendRequestApi, "isApprovedForSelf").mockRejectedValue(
       new Error("Not signed in.")
     );
 

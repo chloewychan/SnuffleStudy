@@ -5,16 +5,12 @@ import {
   setLastFriendPollAt,
   getLastNudgePollAt,
   setLastNudgePollAt,
-  getLastUnlockPollAt,
-  setLastUnlockPollAt,
+  getLastFriendRequestPollAt,
+  setLastFriendRequestPollAt,
   getLastDigestPollAt,
   setLastDigestPollAt,
-  getLastTempPasscodePollAt,
-  setLastTempPasscodePollAt,
   getLastProducerTagPollAt,
   setLastProducerTagPollAt,
-  getLastSessionEndPollAt,
-  setLastSessionEndPollAt,
 } from "./friendPollState";
 
 beforeEach(() => {
@@ -62,27 +58,29 @@ describe("friendPollState — nudge cursor", () => {
   });
 });
 
-// v2 Task 8: a third, independent cursor for the unlock-request stream polled by the same alarm
-// tick - see this file's own comment on getLastUnlockPollAt/setLastUnlockPollAt for why it's
-// separate from both cursors above.
-describe("friendPollState — unlock-request cursor", () => {
-  it("returns null when no last-checked-for-unlock-requests timestamp has ever been persisted", async () => {
-    expect(await getLastUnlockPollAt()).toBeNull();
+// v3.4 Task 3: a third, independent cursor for the consolidated friend-request stream (replaces
+// the unlock-request/temp-passcode-request/session-end-request cursors this task retires, now
+// that all three kinds are one friend_requests table behind one poll query) - see this file's own
+// comment on getLastFriendRequestPollAt/setLastFriendRequestPollAt for why it's separate from
+// both cursors above.
+describe("friendPollState — friend-request cursor", () => {
+  it("returns null when no last-checked-for-friend-requests timestamp has ever been persisted", async () => {
+    expect(await getLastFriendRequestPollAt()).toBeNull();
   });
 
   it("round-trips a timestamp through chrome.storage.local", async () => {
-    await setLastUnlockPollAt(1_700_000_000_000);
-    expect(await getLastUnlockPollAt()).toBe(1_700_000_000_000);
+    await setLastFriendRequestPollAt(1_700_000_000_000);
+    expect(await getLastFriendRequestPollAt()).toBe(1_700_000_000_000);
   });
 
   it("is independent of the friend-events and nudge cursors - setting one never affects the others", async () => {
     await setLastFriendPollAt(1_700_000_000_000);
     await setLastNudgePollAt(1_800_000_000_000);
-    await setLastUnlockPollAt(1_900_000_000_000);
+    await setLastFriendRequestPollAt(1_900_000_000_000);
 
     expect(await getLastFriendPollAt()).toBe(1_700_000_000_000);
     expect(await getLastNudgePollAt()).toBe(1_800_000_000_000);
-    expect(await getLastUnlockPollAt()).toBe(1_900_000_000_000);
+    expect(await getLastFriendRequestPollAt()).toBe(1_900_000_000_000);
   });
 });
 
@@ -102,47 +100,19 @@ describe("friendPollState — digest cursor", () => {
   it("is independent of the other three cursors - setting one never affects the others", async () => {
     await setLastFriendPollAt(1_700_000_000_000);
     await setLastNudgePollAt(1_800_000_000_000);
-    await setLastUnlockPollAt(1_900_000_000_000);
+    await setLastFriendRequestPollAt(1_900_000_000_000);
     await setLastDigestPollAt(2_000_000_000_000);
 
     expect(await getLastFriendPollAt()).toBe(1_700_000_000_000);
     expect(await getLastNudgePollAt()).toBe(1_800_000_000_000);
-    expect(await getLastUnlockPollAt()).toBe(1_900_000_000_000);
+    expect(await getLastFriendRequestPollAt()).toBe(1_900_000_000_000);
     expect(await getLastDigestPollAt()).toBe(2_000_000_000_000);
   });
 });
 
-// v2 Task 12: a fifth, independent cursor for the temp-passcode-request stream polled by the same
-// alarm tick - see this file's own comment on getLastTempPasscodePollAt/setLastTempPasscodePollAt
-// for why it's separate from all four cursors above.
-describe("friendPollState — temp passcode request cursor", () => {
-  it("returns null when no last-checked-for-temp-passcode-requests timestamp has ever been persisted", async () => {
-    expect(await getLastTempPasscodePollAt()).toBeNull();
-  });
-
-  it("round-trips a timestamp through chrome.storage.local", async () => {
-    await setLastTempPasscodePollAt(1_700_000_000_000);
-    expect(await getLastTempPasscodePollAt()).toBe(1_700_000_000_000);
-  });
-
-  it("is independent of the other four cursors - setting one never affects the others", async () => {
-    await setLastFriendPollAt(1_700_000_000_000);
-    await setLastNudgePollAt(1_800_000_000_000);
-    await setLastUnlockPollAt(1_900_000_000_000);
-    await setLastDigestPollAt(2_000_000_000_000);
-    await setLastTempPasscodePollAt(2_100_000_000_000);
-
-    expect(await getLastFriendPollAt()).toBe(1_700_000_000_000);
-    expect(await getLastNudgePollAt()).toBe(1_800_000_000_000);
-    expect(await getLastUnlockPollAt()).toBe(1_900_000_000_000);
-    expect(await getLastDigestPollAt()).toBe(2_000_000_000_000);
-    expect(await getLastTempPasscodePollAt()).toBe(2_100_000_000_000);
-  });
-});
-
-// v2 Task 14: a sixth, independent cursor for the producer-tag (friend-delivery) stream polled by
+// v2 Task 14: a fifth, independent cursor for the producer-tag (friend-delivery) stream polled by
 // the same alarm tick - see this file's own comment on getLastProducerTagPollAt/
-// setLastProducerTagPollAt for why it's separate from all five cursors above.
+// setLastProducerTagPollAt for why it's separate from all four cursors above.
 describe("friendPollState — producer-tag cursor", () => {
   it("returns null when no last-checked-for-producer-tags timestamp has ever been persisted", async () => {
     expect(await getLastProducerTagPollAt()).toBeNull();
@@ -153,51 +123,17 @@ describe("friendPollState — producer-tag cursor", () => {
     expect(await getLastProducerTagPollAt()).toBe(1_700_000_000_000);
   });
 
-  it("is independent of the other five cursors - setting one never affects the others", async () => {
+  it("is independent of the other four cursors - setting one never affects the others", async () => {
     await setLastFriendPollAt(1_700_000_000_000);
     await setLastNudgePollAt(1_800_000_000_000);
-    await setLastUnlockPollAt(1_900_000_000_000);
+    await setLastFriendRequestPollAt(1_900_000_000_000);
     await setLastDigestPollAt(2_000_000_000_000);
-    await setLastTempPasscodePollAt(2_100_000_000_000);
     await setLastProducerTagPollAt(2_200_000_000_000);
 
     expect(await getLastFriendPollAt()).toBe(1_700_000_000_000);
     expect(await getLastNudgePollAt()).toBe(1_800_000_000_000);
-    expect(await getLastUnlockPollAt()).toBe(1_900_000_000_000);
+    expect(await getLastFriendRequestPollAt()).toBe(1_900_000_000_000);
     expect(await getLastDigestPollAt()).toBe(2_000_000_000_000);
-    expect(await getLastTempPasscodePollAt()).toBe(2_100_000_000_000);
     expect(await getLastProducerTagPollAt()).toBe(2_200_000_000_000);
-  });
-});
-
-// v3.3 Task 12: a seventh, independent cursor for the session-end-request stream polled by the
-// same alarm tick - see this file's own comment on getLastSessionEndPollAt/setLastSessionEndPollAt
-// for why it's separate from all six cursors above.
-describe("friendPollState — session-end request cursor", () => {
-  it("returns null when no last-checked-for-session-end-requests timestamp has ever been persisted", async () => {
-    expect(await getLastSessionEndPollAt()).toBeNull();
-  });
-
-  it("round-trips a timestamp through chrome.storage.local", async () => {
-    await setLastSessionEndPollAt(1_700_000_000_000);
-    expect(await getLastSessionEndPollAt()).toBe(1_700_000_000_000);
-  });
-
-  it("is independent of the other six cursors - setting one never affects the others", async () => {
-    await setLastFriendPollAt(1_700_000_000_000);
-    await setLastNudgePollAt(1_800_000_000_000);
-    await setLastUnlockPollAt(1_900_000_000_000);
-    await setLastDigestPollAt(2_000_000_000_000);
-    await setLastTempPasscodePollAt(2_100_000_000_000);
-    await setLastProducerTagPollAt(2_200_000_000_000);
-    await setLastSessionEndPollAt(2_300_000_000_000);
-
-    expect(await getLastFriendPollAt()).toBe(1_700_000_000_000);
-    expect(await getLastNudgePollAt()).toBe(1_800_000_000_000);
-    expect(await getLastUnlockPollAt()).toBe(1_900_000_000_000);
-    expect(await getLastDigestPollAt()).toBe(2_000_000_000_000);
-    expect(await getLastTempPasscodePollAt()).toBe(2_100_000_000_000);
-    expect(await getLastProducerTagPollAt()).toBe(2_200_000_000_000);
-    expect(await getLastSessionEndPollAt()).toBe(2_300_000_000_000);
   });
 });

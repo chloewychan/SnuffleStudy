@@ -10,27 +10,21 @@ import { DEFAULT_USER_SETTINGS } from "../domain/settings/userSettings";
 import { supabase } from "../infrastructure/backend/supabaseClient";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
-import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
-import type { UnlockRequest } from "../infrastructure/backend/unlockRequestApi";
+import * as friendRequestApi from "../infrastructure/backend/friendRequestApi";
+import type { FriendRequest } from "../domain/accountability/friendRequest";
 import * as digestApi from "../infrastructure/backend/digestApi";
 import type { FriendDigest } from "../infrastructure/backend/digestApi";
-import * as tempPasscodeApi from "../infrastructure/backend/tempPasscodeApi";
-import type { TempPasscodeRequest } from "../domain/accountability/tempPasscodeRequest";
 import * as declarativeNetRequestApi from "../infrastructure/browser/declarativeNetRequestApi";
 import * as producerTagApi from "../infrastructure/backend/producerTagApi";
 import type { IncomingProducerTag } from "../infrastructure/backend/producerTagApi";
-import * as sessionEndRequestApi from "../infrastructure/backend/sessionEndRequestApi";
-import type { SessionEndRequest } from "../domain/accountability/sessionEndRequest";
 import * as profileApi from "../infrastructure/backend/profileApi";
 import * as friendSync from "./friendSync";
 import {
   getLastFriendPollAt,
   getLastNudgePollAt,
-  getLastUnlockPollAt,
+  getLastFriendRequestPollAt,
   getLastDigestPollAt,
-  getLastTempPasscodePollAt,
   getLastProducerTagPollAt,
-  getLastSessionEndPollAt,
   getLastFriendConnectionPollAt,
 } from "../infrastructure/storage/friendPollState";
 import { classifySite } from "../domain/sites/siteRules";
@@ -241,8 +235,12 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
   // supabase.auth.getSession() call. The dedicated "nudge poll" tests further below override
   // this per-test.
   //
-  // v2 Task 8: same treatment for the third stream, unlock requests (pollUnlockRequestUpdates) -
-  // defaulted to a clean "no new/resolved requests" result for the identical reason.
+  // v3.4 Task 3: same treatment for the third stream, the consolidated friend-request poll
+  // (pollFriendRequestUpdates - replaces the three separate unlock-request/temp-passcode-request/
+  // session-end-request spies this task retires, now that all three kinds are one friend_requests
+  // table behind one pollRelevantRequests query) - defaulted to a clean "no new/resolved
+  // requests" result for the identical reason. The dedicated "friend-request polling" tests
+  // further below override this per-test.
   //
   // v2 Task 9: same treatment for the fourth stream, daily digests (pollDigestUpdates) -
   // defaulted to a clean "no new digests" result so every pre-existing test in this describe
@@ -250,21 +248,12 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
   // call. The dedicated "digest poll" tests further below override this per-test.
   beforeEach(() => {
     vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
-    vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+    vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
       ok: true,
       requests: [],
     });
     vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({ ok: true, digests: [] });
-    // v2 Task 12: same treatment for the fifth stream, temp passcode requests
-    // (pollTempPasscodeUpdates) - defaulted to a clean "no new/resolved requests" result so every
-    // pre-existing test in this describe block (which predates Task 12) never exercises
-    // tempPasscodeApi's real supabase.auth.getSession() call. The dedicated "temp passcode
-    // polling" tests further below override this per-test.
-    vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
-      ok: true,
-      requests: [],
-    });
-    // v2 Task 14: same treatment for the sixth stream, producer tags (pollProducerTagUpdates) -
+    // v2 Task 14: same treatment for the fifth stream, producer tags (pollProducerTagUpdates) -
     // defaulted to a clean "no new tags" result so every pre-existing test in this describe block
     // (which predates Task 14) never exercises producerTagApi's real supabase.auth.getSession()
     // call. The dedicated "producer tag polling" tests further below override this per-test.
@@ -272,16 +261,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       ok: true,
       sends: [],
     });
-    // v3.3 Task 12: same treatment for the seventh stream, session-end requests
-    // (pollSessionEndRequestUpdates) - defaulted to a clean "no new/resolved requests" result so
-    // every pre-existing test in this describe block (which predates Task 12) never exercises
-    // sessionEndRequestApi's real supabase.auth.getSession() call. The dedicated "session-end
-    // request polling" tests further below override this per-test.
-    vi.spyOn(sessionEndRequestApi, "pollRelevantSessionEndRequests").mockResolvedValue({
-      ok: true,
-      requests: [],
-    });
-    // v3.4 Task 2: same treatment for the eighth stream, new friend connections
+    // v3.4 Task 2: same treatment for the sixth stream, new friend connections
     // (pollFriendConnectionUpdates) - this one queries the supabase singleton directly (no
     // dedicated *Api.ts module - see alarmHandlers.ts's own comment on why), so it's stubbed via
     // supabase.from rather than vi.spyOn on an Api export, defaulted to "no new connections" so
@@ -689,25 +669,40 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     });
   });
 
-  describe("unlock-request polling (v2 Task 8 - reuses this same alarm, not a parallel one)", () => {
-    function sampleRequest(overrides: Partial<UnlockRequest> = {}): UnlockRequest {
+  // v3.4 Task 3: replaces the three separate "unlock-request polling"/"temp passcode request
+  // polling"/"session-end request polling" describe blocks (v2 Task 8/Task 12/v3.3 Task 12) with
+  // one - unlock_requests/temp_passcode_requests/session_end_requests are now one friend_requests
+  // table behind one pollFriendRequestUpdates function/one pollRelevantRequests query, exercised
+  // here with all three kind values. site_unlock's approved case auto-applies the hostname to the
+  // requester's own active session's allowedSites (mirrors the old unlock-request block's own
+  // coverage); site_temp_pass's approved case unlocks the real DNR rule (mirrors the old temp
+  // passcode block's own coverage); session_end's approved case deliberately does NOT touch the
+  // active session at all (mirrors the old session-end block's own coverage of that asymmetry -
+  // see the Global Constraints note: ending a session is disruptive, so it's never auto-applied
+  // from this background poll).
+  describe("friend-request polling (v3.4 Task 3 - reuses this same alarm, not a parallel one)", () => {
+    function sampleRequest(overrides: Partial<FriendRequest> = {}): FriendRequest {
       return {
         id: "req-1",
+        kind: "site_unlock",
         sessionId: "session-1",
         requesterUserId: "user-b",
+        friendUserId: null,
+        message: null,
         hostname: "youtube.com",
         status: "pending",
         requestedAt: Date.now(),
         resolvedAt: null,
         resolvedBy: null,
+        expiresAt: null,
         ...overrides,
       };
     }
 
-    it("dispatches to pollRelevantUnlockRequests when eligible, in the same tick as the other two streams", async () => {
+    it("dispatches to pollRelevantRequests when eligible, in the same tick as the other two streams", async () => {
       mockFriendSyncEligible();
-      const unlockPollSpy = vi
-        .spyOn(unlockRequestApi, "pollRelevantUnlockRequests")
+      const friendRequestPollSpy = vi
+        .spyOn(friendRequestApi, "pollRelevantRequests")
         .mockResolvedValue({ ok: true, requests: [] });
       const eventPollSpy = vi
         .spyOn(sessionStatusSyncApi, "pollNewEventsForFriends")
@@ -718,14 +713,14 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
 
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
 
-      expect(unlockPollSpy).toHaveBeenCalledTimes(1);
+      expect(friendRequestPollSpy).toHaveBeenCalledTimes(1);
       expect(eventPollSpy).toHaveBeenCalledTimes(1);
       expect(nudgePollSpy).toHaveBeenCalledTimes(1);
     });
 
-    it("shows a chrome.notifications toast when a friend (someone else) has a new pending request in a shared group", async () => {
+    it("shows a chrome.notifications toast when a friend (someone else) has a new pending site_unlock request", async () => {
       mockFriendSyncEligible("user-a");
-      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
         ok: true,
         requests: [sampleRequest({ requesterUserId: "user-b", status: "pending" })],
       });
@@ -734,9 +729,9 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
 
       expect(createNotificationSpy).toHaveBeenCalledWith(
-        "unlock-request-pending-req-1",
+        "friend-request-pending-req-1",
         expect.objectContaining({
-          title: "Unlock request",
+          title: "Friend request",
           message: expect.stringContaining("youtube.com"),
         })
       );
@@ -744,7 +739,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
 
     it("does NOT notify about the current user's own still-pending request (they already know they just created it)", async () => {
       mockFriendSyncEligible("user-a");
-      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
         ok: true,
         requests: [sampleRequest({ requesterUserId: "user-a", status: "pending" })],
       });
@@ -755,7 +750,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       expect(createNotificationSpy).not.toHaveBeenCalled();
     });
 
-    it("notifies with distinct copy when the current user's own request was approved, and merges the hostname into the active session's allowedSites", async () => {
+    it("site_unlock: notifies with distinct copy when the current user's own request was approved, and merges the hostname into the active session's allowedSites", async () => {
       mockFriendSyncEligible("user-a");
       const created = (await handleMessage({
         type: "SESSION_CREATE",
@@ -763,7 +758,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       })) as { session: { id: string } };
       await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
 
-      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
         ok: true,
         requests: [
           sampleRequest({
@@ -779,7 +774,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
 
       expect(createNotificationSpy).toHaveBeenCalledWith(
-        "unlock-request-req-1",
+        "friend-request-req-1",
         expect.objectContaining({
           title: "Unlock request approved",
           message: expect.stringContaining("youtube.com"),
@@ -791,18 +786,19 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       };
       expect(active.session.allowedSites).toContain("youtube.com");
 
-      // The DoD-critical assertion (per this task's brief): classifySite must now return ALLOWED
-      // for the unlocked hostname on this session - this is the actual mechanism that makes
-      // tabHandlers.ts's warning path never trigger for it (see that file's early return on
-      // anything classifySite doesn't call BLOCKED), independent of siteRestrictionOverrides
-      // (which this task deliberately does not use - see this task's report).
+      // The DoD-critical assertion (per v2 Task 8's original brief, preserved by this
+      // consolidation): classifySite must now return ALLOWED for the unlocked hostname on this
+      // session - this is the actual mechanism that makes tabHandlers.ts's warning path never
+      // trigger for it (see that file's early return on anything classifySite doesn't call
+      // BLOCKED), independent of siteRestrictionOverrides (which this task deliberately does not
+      // use).
       const activeSession = (
         (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: StudySession }
       ).session;
       expect(classifySite(activeSession, "youtube.com")).toBe("ALLOWED");
     });
 
-    it("notifies with distinct copy when the current user's own request was denied, and does NOT touch allowedSites", async () => {
+    it("site_unlock: notifies with distinct copy when the current user's own request was denied, and does NOT touch allowedSites", async () => {
       mockFriendSyncEligible("user-a");
       const created = (await handleMessage({
         type: "SESSION_CREATE",
@@ -810,7 +806,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       })) as { session: { id: string } };
       await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
 
-      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
         ok: true,
         requests: [
           sampleRequest({
@@ -826,9 +822,9 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
 
       expect(createNotificationSpy).toHaveBeenCalledWith(
-        "unlock-request-req-1",
+        "friend-request-req-1",
         expect.objectContaining({
-          title: "Unlock request denied",
+          title: "Request denied",
           message: expect.stringContaining("youtube.com"),
         })
       );
@@ -839,7 +835,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       expect(active.session.allowedSites).not.toContain("youtube.com");
     });
 
-    it("does NOT apply the allowedSites merge when the approval's sessionId no longer matches the active session (stale approval guard)", async () => {
+    it("site_unlock: does NOT apply the allowedSites merge when the approval's sessionId no longer matches the active session (stale approval guard)", async () => {
       mockFriendSyncEligible("user-a");
       const created = (await handleMessage({
         type: "SESSION_CREATE",
@@ -847,7 +843,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       })) as { session: { id: string } };
       await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
 
-      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
         ok: true,
         requests: [
           sampleRequest({
@@ -867,9 +863,9 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       expect(active.session.allowedSites).not.toContain("youtube.com");
     });
 
-    it("does NOT apply the allowedSites merge when there is no active session at all", async () => {
+    it("site_unlock: does NOT apply the allowedSites merge when there is no active session at all", async () => {
       mockFriendSyncEligible("user-a");
-      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
         ok: true,
         requests: [
           sampleRequest({
@@ -890,60 +886,228 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       expect(active.session).toBeNull();
     });
 
-    it("persists the unlock-request-poll timestamp only on a successful poll, independently of the other two cursors", async () => {
+    it("site_temp_pass: unlocks the hostname's real DNR rule when the requester's own request was approved", async () => {
+      const created = (await handleMessage({
+        type: "SESSION_CREATE",
+        payload: { ...createInput, restrictedSites: ["youtube.com"], restrictionMode: "hard" },
+      })) as { session: { id: string } };
+      await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+      const rulesBefore = await chrome.declarativeNetRequest.getDynamicRules();
+      expect(
+        rulesBefore.some((rule) => rule.condition.requestDomains?.includes("youtube.com"))
+      ).toBe(true);
+
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleRequest({
+            kind: "site_temp_pass",
+            requesterUserId: "user-a",
+            status: "approved",
+            hostname: "youtube.com",
+            expiresAt: Date.now() + 15 * 60 * 1000,
+          }),
+        ],
+      });
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      const rulesAfter = await chrome.declarativeNetRequest.getDynamicRules();
+      expect(
+        rulesAfter.some((rule) => rule.condition.requestDomains?.includes("youtube.com"))
+      ).toBe(false);
+    });
+
+    // A failure applying an approved site_temp_pass (e.g. the DNR API itself unavailable) must
+    // not prevent the notification from still firing - mirrors site_unlock's own
+    // best-effort-then-notify-anyway posture.
+    it("site_temp_pass: still sends the approval notification even if applying the unlock throws", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleRequest({
+            kind: "site_temp_pass",
+            requesterUserId: "user-a",
+            status: "approved",
+            hostname: "youtube.com",
+          }),
+        ],
+      });
+      vi.spyOn(declarativeNetRequestApi, "unlockHardBlockRuleForHostname").mockRejectedValue(
+        new Error("DNR API unavailable")
+      );
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "friend-request-req-1",
+        expect.objectContaining({ title: "Temporary passcode approved" })
+      );
+    });
+
+    it("site_temp_pass: notifies the requester when their own request was denied", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleRequest({ kind: "site_temp_pass", requesterUserId: "user-a", status: "denied" }),
+        ],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "friend-request-req-1",
+        expect.objectContaining({ title: "Request denied" })
+      );
+    });
+
+    it("site_temp_pass: notifies the assigned friend about a new pending request from someone else", async () => {
+      mockFriendSyncEligible("user-b");
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleRequest({
+            kind: "site_temp_pass",
+            requesterUserId: "user-a",
+            friendUserId: "user-b",
+            status: "pending",
+          }),
+        ],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "friend-request-pending-req-1",
+        expect.objectContaining({ title: "Friend request" })
+      );
+    });
+
+    it("session_end: notifies with distinct copy when the current user's own request was approved, and does NOT touch the active session (no auto-apply, per the Global Constraints note)", async () => {
+      mockFriendSyncEligible("user-a");
+      const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
+        session: { id: string };
+      };
+      await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
+
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleRequest({
+            kind: "session_end",
+            sessionId: created.session.id,
+            requesterUserId: "user-a",
+            hostname: null,
+            status: "approved",
+            resolvedBy: "user-b",
+          }),
+        ],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "friend-request-req-1",
+        expect.objectContaining({ title: "Temporary pass approved" })
+      );
+
+      // The DoD-critical negative-of-a-different-kind: unlike site_unlock's approved case (which
+      // DOES mutate allowedSites), this must never end, abandon, or otherwise mutate the session
+      // on its own - the session is still exactly where it was, still FOCUSING.
+      const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
+        session: { id: string; state: string };
+      };
+      expect(active.session.id).toBe(created.session.id);
+      expect(active.session.state).toBe("FOCUSING");
+    });
+
+    it("session_end: notifies with distinct copy when the current user's own request was denied", async () => {
+      mockFriendSyncEligible("user-a");
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
+        ok: true,
+        requests: [
+          sampleRequest({
+            kind: "session_end",
+            hostname: null,
+            requesterUserId: "user-a",
+            status: "denied",
+            resolvedBy: "user-b",
+          }),
+        ],
+      });
+      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
+
+      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
+
+      expect(createNotificationSpy).toHaveBeenCalledWith(
+        "friend-request-req-1",
+        expect.objectContaining({ title: "Request denied" })
+      );
+    });
+
+    it("persists the friend-request-poll timestamp only on a successful poll, independently of the other two cursors", async () => {
       mockFriendSyncEligible();
       vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
         ok: true,
         events: [],
       });
       vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
-      const unlockPollSpy = vi
-        .spyOn(unlockRequestApi, "pollRelevantUnlockRequests")
+      const friendRequestPollSpy = vi
+        .spyOn(friendRequestApi, "pollRelevantRequests")
         .mockResolvedValue({ ok: true, requests: [] });
-      expect(await getLastUnlockPollAt()).toBeNull();
+      expect(await getLastFriendRequestPollAt()).toBeNull();
 
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
 
-      const persisted = await getLastUnlockPollAt();
+      const persisted = await getLastFriendRequestPollAt();
       expect(persisted).toEqual(expect.any(Number));
 
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
 
-      expect(unlockPollSpy).toHaveBeenLastCalledWith(persisted);
+      expect(friendRequestPollSpy).toHaveBeenLastCalledWith(persisted);
     });
 
     // Mirrors Task 6 fix round 1's session-events guarantee (and Task 7's identical nudge
-    // guarantee): a failed unlock-request poll must not advance the cursor, or a pending
+    // guarantee): a failed friend-request poll must not advance the cursor, or a pending
     // request/resolution that arrived during the outage would be permanently lost once the next
     // tick starts counting from `now` instead of retrying the same window.
-    it("does NOT advance the persisted unlock-request cursor when the poll fails (ok: false), so the next tick retries the same window", async () => {
+    it("does NOT advance the persisted friend-request cursor when the poll fails (ok: false), so the next tick retries the same window", async () => {
       mockFriendSyncEligible();
       vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
         ok: true,
         events: [],
       });
       vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
-      const unlockPollSpy = vi
-        .spyOn(unlockRequestApi, "pollRelevantUnlockRequests")
+      const friendRequestPollSpy = vi
+        .spyOn(friendRequestApi, "pollRelevantRequests")
         .mockResolvedValue({ ok: false });
 
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-      expect(await getLastUnlockPollAt()).toBeNull();
+      expect(await getLastFriendRequestPollAt()).toBeNull();
 
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-      expect(await getLastUnlockPollAt()).toBeNull();
+      expect(await getLastFriendRequestPollAt()).toBeNull();
 
-      expect(unlockPollSpy).toHaveBeenCalledTimes(2);
+      expect(friendRequestPollSpy).toHaveBeenCalledTimes(2);
     });
 
-    it("does not show any unlock-request notifications when the poll fails", async () => {
+    it("does not show any friend-request notifications when the poll fails", async () => {
       mockFriendSyncEligible();
       vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
         ok: true,
         events: [],
       });
       vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
-      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({ ok: false });
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({ ok: false });
       const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
 
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
@@ -951,23 +1115,23 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       expect(createNotificationSpy).not.toHaveBeenCalled();
     });
 
-    it("skips the unlock-request fetch entirely when friend-sync is no longer enabled/signed-in (same eligibility gate as the other two polls)", async () => {
+    it("skips the friend-request fetch entirely when friend-sync is no longer enabled/signed-in (same eligibility gate as the other two polls)", async () => {
       vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue(null);
-      const unlockPollSpy = vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests");
+      const friendRequestPollSpy = vi.spyOn(friendRequestApi, "pollRelevantRequests");
 
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
 
-      expect(unlockPollSpy).not.toHaveBeenCalled();
+      expect(friendRequestPollSpy).not.toHaveBeenCalled();
     });
 
-    it("a failed session-events or nudge poll does not prevent the unlock-request cursor from advancing (the three streams are fully independent)", async () => {
+    it("a failed session-events or nudge poll does not prevent the friend-request cursor from advancing (the three streams are fully independent)", async () => {
       mockFriendSyncEligible();
       vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
         ok: false,
         events: [],
       });
       vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: false });
-      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
         ok: true,
         requests: [],
       });
@@ -976,7 +1140,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
 
       expect(await getLastFriendPollAt()).toBeNull();
       expect(await getLastNudgePollAt()).toBeNull();
-      expect(await getLastUnlockPollAt()).toEqual(expect.any(Number));
+      expect(await getLastFriendRequestPollAt()).toEqual(expect.any(Number));
     });
   });
 
@@ -1005,8 +1169,8 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       const nudgePollSpy = vi
         .spyOn(nudgeApi, "pollIncomingNudges")
         .mockResolvedValue({ ok: true, nudges: [] });
-      const unlockPollSpy = vi
-        .spyOn(unlockRequestApi, "pollRelevantUnlockRequests")
+      const friendRequestPollSpy = vi
+        .spyOn(friendRequestApi, "pollRelevantRequests")
         .mockResolvedValue({ ok: true, requests: [] });
 
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
@@ -1014,7 +1178,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       expect(digestPollSpy).toHaveBeenCalledTimes(1);
       expect(eventPollSpy).toHaveBeenCalledTimes(1);
       expect(nudgePollSpy).toHaveBeenCalledTimes(1);
-      expect(unlockPollSpy).toHaveBeenCalledTimes(1);
+      expect(friendRequestPollSpy).toHaveBeenCalledTimes(1);
     });
 
     it("shows a chrome.notifications toast, distinct from the other three streams' copy, for a friend's new digest", async () => {
@@ -1060,7 +1224,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
         events: [],
       });
       vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
-      vi.spyOn(unlockRequestApi, "pollRelevantUnlockRequests").mockResolvedValue({
+      vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
         ok: true,
         requests: [],
       });
@@ -1196,255 +1360,6 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     });
   });
 
-  describe("temp passcode request polling (v2 Task 12 - reuses this same alarm, not a parallel one)", () => {
-    function sampleTempPasscodeRequest(
-      overrides: Partial<TempPasscodeRequest> = {}
-    ): TempPasscodeRequest {
-      return {
-        id: "temp-1",
-        sessionId: "session-1",
-        hostname: "youtube.com",
-        friendUserId: "user-b",
-        requesterUserId: "user-a",
-        status: "pending",
-        expiresAt: 0,
-        message: null,
-        ...overrides,
-      };
-    }
-
-    it("dispatches to pollRelevantTempPasscodeRequests when eligible, in the same tick as the other four streams", async () => {
-      mockFriendSyncEligible();
-      const tempPasscodePollSpy = vi
-        .spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests")
-        .mockResolvedValue({ ok: true, requests: [] });
-      const eventPollSpy = vi
-        .spyOn(sessionStatusSyncApi, "pollNewEventsForFriends")
-        .mockResolvedValue({ ok: true, events: [] });
-      const nudgePollSpy = vi
-        .spyOn(nudgeApi, "pollIncomingNudges")
-        .mockResolvedValue({ ok: true, nudges: [] });
-      const unlockPollSpy = vi
-        .spyOn(unlockRequestApi, "pollRelevantUnlockRequests")
-        .mockResolvedValue({ ok: true, requests: [] });
-      const digestPollSpy = vi
-        .spyOn(digestApi, "pollNewDigests")
-        .mockResolvedValue({ ok: true, digests: [] });
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(tempPasscodePollSpy).toHaveBeenCalledTimes(1);
-      expect(eventPollSpy).toHaveBeenCalledTimes(1);
-      expect(nudgePollSpy).toHaveBeenCalledTimes(1);
-      expect(unlockPollSpy).toHaveBeenCalledTimes(1);
-      expect(digestPollSpy).toHaveBeenCalledTimes(1);
-    });
-
-    it("notifies the requester when their own request was approved, with copy that says it's already unlocked (no code to ask for)", async () => {
-      mockFriendSyncEligible("user-a");
-      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
-        ok: true,
-        requests: [
-          sampleTempPasscodeRequest({
-            requesterUserId: "user-a",
-            status: "approved",
-            hostname: "youtube.com",
-          }),
-        ],
-      });
-      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(createNotificationSpy).toHaveBeenCalledWith(
-        "temp-passcode-temp-1",
-        expect.objectContaining({
-          title: "Temporary passcode approved",
-          message: "youtube.com is now unlocked for a limited time.",
-        })
-      );
-    });
-
-    // v3.3 Task 10: an approved temp-passcode request is now applied directly from the background
-    // poll (applyApprovedTempPasscodeRequest), the same "silently extend what the user is already
-    // allowed to do" pattern applyApprovedUnlockRequest already uses - no code/redemption step
-    // in between anymore. Verified against the REAL chrome.declarativeNetRequest state (mirrors
-    // the handleTempUnlockRelockAlarm describe block's own ruleExistsFor helper/style below),
-    // not just a spy on the unlock function, so this proves the DNR rule is actually gone, not
-    // just that some function got called.
-    it("unlocks the hostname's real DNR rule when the requester's own request was approved", async () => {
-      const created = (await handleMessage({
-        type: "SESSION_CREATE",
-        payload: { ...createInput, restrictedSites: ["youtube.com"], restrictionMode: "hard" },
-      })) as { session: { id: string } };
-      await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
-      const rulesBefore = await chrome.declarativeNetRequest.getDynamicRules();
-      expect(
-        rulesBefore.some((rule) => rule.condition.requestDomains?.includes("youtube.com"))
-      ).toBe(true);
-
-      mockFriendSyncEligible("user-a");
-      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
-        ok: true,
-        requests: [
-          sampleTempPasscodeRequest({
-            requesterUserId: "user-a",
-            status: "approved",
-            hostname: "youtube.com",
-            expiresAt: Date.now() + 15 * 60 * 1000,
-          }),
-        ],
-      });
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      const rulesAfter = await chrome.declarativeNetRequest.getDynamicRules();
-      expect(
-        rulesAfter.some((rule) => rule.condition.requestDomains?.includes("youtube.com"))
-      ).toBe(false);
-    });
-
-    // A failure in applyApprovedTempPasscodeRequest (e.g. the DNR API itself unavailable) must not
-    // prevent the notification from still firing - mirrors applyApprovedUnlockRequest's own
-    // best-effort-then-notify-anyway posture (that function's errors aren't caught/asserted either
-    // - a thrown error there would bubble up through pollUnlockRequestUpdates's own outer
-    // try/catch and simply skip the notification for that poll tick, same as here).
-    it("still sends the approval notification even if applying the unlock throws", async () => {
-      mockFriendSyncEligible("user-a");
-      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
-        ok: true,
-        requests: [
-          sampleTempPasscodeRequest({
-            requesterUserId: "user-a",
-            status: "approved",
-            hostname: "youtube.com",
-          }),
-        ],
-      });
-      vi.spyOn(declarativeNetRequestApi, "unlockHardBlockRuleForHostname").mockRejectedValue(
-        new Error("DNR API unavailable")
-      );
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(createNotificationSpy).toHaveBeenCalledWith(
-        "temp-passcode-temp-1",
-        expect.objectContaining({ title: "Temporary passcode approved" })
-      );
-    });
-
-    it("notifies the requester when their own request was denied", async () => {
-      mockFriendSyncEligible("user-a");
-      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
-        ok: true,
-        requests: [sampleTempPasscodeRequest({ requesterUserId: "user-a", status: "denied" })],
-      });
-      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(createNotificationSpy).toHaveBeenCalledWith(
-        "temp-passcode-temp-1",
-        expect.objectContaining({ title: "Temporary passcode denied" })
-      );
-    });
-
-    it("notifies the requester when their own request expired", async () => {
-      mockFriendSyncEligible("user-a");
-      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
-        ok: true,
-        requests: [sampleTempPasscodeRequest({ requesterUserId: "user-a", status: "expired" })],
-      });
-      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(createNotificationSpy).toHaveBeenCalledWith(
-        "temp-passcode-temp-1",
-        expect.objectContaining({ title: "Temporary passcode expired" })
-      );
-    });
-
-    it("notifies the assigned friend about a new pending request from someone else", async () => {
-      mockFriendSyncEligible("user-b");
-      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
-        ok: true,
-        requests: [
-          sampleTempPasscodeRequest({
-            requesterUserId: "user-a",
-            friendUserId: "user-b",
-            status: "pending",
-          }),
-        ],
-      });
-      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(createNotificationSpy).toHaveBeenCalledWith(
-        "temp-passcode-pending-temp-1",
-        expect.objectContaining({ title: "Temporary passcode request" })
-      );
-    });
-
-    it("does not notify about the current user's own still-pending request", async () => {
-      mockFriendSyncEligible("user-a");
-      vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests").mockResolvedValue({
-        ok: true,
-        requests: [sampleTempPasscodeRequest({ requesterUserId: "user-a", status: "pending" })],
-      });
-      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(createNotificationSpy).not.toHaveBeenCalled();
-    });
-
-    it("persists the temp-passcode-poll timestamp only on a successful poll, independently of the other four cursors", async () => {
-      mockFriendSyncEligible();
-      const tempPasscodePollSpy = vi
-        .spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests")
-        .mockResolvedValue({ ok: true, requests: [] });
-      expect(await getLastTempPasscodePollAt()).toBeNull();
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      const persisted = await getLastTempPasscodePollAt();
-      expect(persisted).toEqual(expect.any(Number));
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(tempPasscodePollSpy).toHaveBeenLastCalledWith(persisted);
-    });
-
-    it("does NOT advance the persisted temp-passcode cursor when the poll fails (ok: false), so the next tick retries the same window", async () => {
-      mockFriendSyncEligible();
-      const tempPasscodePollSpy = vi
-        .spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests")
-        .mockResolvedValue({ ok: false });
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-      expect(await getLastTempPasscodePollAt()).toBeNull();
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-      expect(await getLastTempPasscodePollAt()).toBeNull();
-
-      expect(tempPasscodePollSpy).toHaveBeenCalledTimes(2);
-    });
-
-    it("skips the temp-passcode fetch entirely when friend-sync is no longer enabled/signed-in (same eligibility gate as the other four polls)", async () => {
-      vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue(null);
-      const tempPasscodePollSpy = vi.spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests");
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(tempPasscodePollSpy).not.toHaveBeenCalled();
-    });
-  });
-
   describe("producer tag polling (v2 Task 14 - reuses this same alarm, not a parallel one; friend-delivery side only)", () => {
     function sampleIncomingTag(overrides: Partial<IncomingProducerTag> = {}): IncomingProducerTag {
       return {
@@ -1457,7 +1372,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       };
     }
 
-    it("dispatches to pollIncomingProducerTagSends when eligible, in the same tick as the other five streams", async () => {
+    it("dispatches to pollIncomingProducerTagSends when eligible, in the same tick as the other three streams", async () => {
       mockFriendSyncEligible();
       const producerTagPollSpy = vi
         .spyOn(producerTagApi, "pollIncomingProducerTagSends")
@@ -1468,24 +1383,20 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       const nudgePollSpy = vi
         .spyOn(nudgeApi, "pollIncomingNudges")
         .mockResolvedValue({ ok: true, nudges: [] });
-      const unlockPollSpy = vi
-        .spyOn(unlockRequestApi, "pollRelevantUnlockRequests")
+      const friendRequestPollSpy = vi
+        .spyOn(friendRequestApi, "pollRelevantRequests")
         .mockResolvedValue({ ok: true, requests: [] });
       const digestPollSpy = vi
         .spyOn(digestApi, "pollNewDigests")
         .mockResolvedValue({ ok: true, digests: [] });
-      const tempPasscodePollSpy = vi
-        .spyOn(tempPasscodeApi, "pollRelevantTempPasscodeRequests")
-        .mockResolvedValue({ ok: true, requests: [] });
 
       await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
 
       expect(producerTagPollSpy).toHaveBeenCalledTimes(1);
       expect(eventPollSpy).toHaveBeenCalledTimes(1);
       expect(nudgePollSpy).toHaveBeenCalledTimes(1);
-      expect(unlockPollSpy).toHaveBeenCalledTimes(1);
+      expect(friendRequestPollSpy).toHaveBeenCalledTimes(1);
       expect(digestPollSpy).toHaveBeenCalledTimes(1);
-      expect(tempPasscodePollSpy).toHaveBeenCalledTimes(1);
     });
 
     it("shows a chrome.notifications toast for each new incoming producer tag, naming the sender", async () => {
@@ -1546,174 +1457,6 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     });
   });
 
-  // v3.3 Task 12: seventh stream on this same alarm - session-end requests. Deliberately does NOT
-  // mirror unlock-request/temp-passcode polling's "approved" case in full - there is no
-  // applyApproved*-style call anywhere in this block, on purpose (see pollSessionEndRequestUpdates's
-  // own comment in alarmHandlers.ts, and the Global Constraints note in
-  // docs/implementation_plans/V3.3_Implementation_Plan.md: ending a session is disruptive, so an
-  // approved session-end request is never auto-applied from the background poll - notification
-  // only). The "does NOT touch the active session" tests below are this describe block's version
-  // of proving that asymmetry holds, the same way the unlock-request block above proves the
-  // opposite (that an approval DOES get auto-applied there).
-  describe("session-end request polling (v3.3 Task 12 - reuses this same alarm, not a parallel one)", () => {
-    function sampleEndRequest(overrides: Partial<SessionEndRequest> = {}): SessionEndRequest {
-      return {
-        id: "end-req-1",
-        sessionId: "session-1",
-        requesterUserId: "user-b",
-        status: "pending",
-        requestedAt: Date.now(),
-        resolvedAt: null,
-        resolvedBy: null,
-        ...overrides,
-      };
-    }
-
-    it("dispatches to pollRelevantSessionEndRequests when eligible, in the same tick as the other six streams", async () => {
-      mockFriendSyncEligible();
-      const sessionEndPollSpy = vi
-        .spyOn(sessionEndRequestApi, "pollRelevantSessionEndRequests")
-        .mockResolvedValue({ ok: true, requests: [] });
-      const eventPollSpy = vi
-        .spyOn(sessionStatusSyncApi, "pollNewEventsForFriends")
-        .mockResolvedValue({ ok: true, events: [] });
-      const nudgePollSpy = vi
-        .spyOn(nudgeApi, "pollIncomingNudges")
-        .mockResolvedValue({ ok: true, nudges: [] });
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(sessionEndPollSpy).toHaveBeenCalledTimes(1);
-      expect(eventPollSpy).toHaveBeenCalledTimes(1);
-      expect(nudgePollSpy).toHaveBeenCalledTimes(1);
-    });
-
-    it("shows a chrome.notifications toast when a friend (someone else) has a new pending session-end request in a shared group", async () => {
-      mockFriendSyncEligible("user-a");
-      vi.spyOn(sessionEndRequestApi, "pollRelevantSessionEndRequests").mockResolvedValue({
-        ok: true,
-        requests: [sampleEndRequest({ requesterUserId: "user-b", status: "pending" })],
-      });
-      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(createNotificationSpy).toHaveBeenCalledWith(
-        "session-end-request-pending-end-req-1",
-        expect.objectContaining({ title: "Session-end request" })
-      );
-    });
-
-    it("does NOT notify about the current user's own still-pending request (they already know they just created it)", async () => {
-      mockFriendSyncEligible("user-a");
-      vi.spyOn(sessionEndRequestApi, "pollRelevantSessionEndRequests").mockResolvedValue({
-        ok: true,
-        requests: [sampleEndRequest({ requesterUserId: "user-a", status: "pending" })],
-      });
-      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(createNotificationSpy).not.toHaveBeenCalled();
-    });
-
-    it("notifies with distinct copy when the current user's own request was approved, and does NOT touch the active session (no auto-apply, per the Global Constraints note)", async () => {
-      mockFriendSyncEligible("user-a");
-      const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
-        session: { id: string };
-      };
-      await handleMessage({ type: "SESSION_START", payload: { sessionId: created.session.id } });
-
-      vi.spyOn(sessionEndRequestApi, "pollRelevantSessionEndRequests").mockResolvedValue({
-        ok: true,
-        requests: [
-          sampleEndRequest({
-            sessionId: created.session.id,
-            requesterUserId: "user-a",
-            status: "approved",
-            resolvedBy: "user-b",
-          }),
-        ],
-      });
-      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(createNotificationSpy).toHaveBeenCalledWith(
-        "session-end-request-end-req-1",
-        expect.objectContaining({ title: "Temporary pass approved" })
-      );
-
-      // The DoD-critical negative-of-a-different-kind: unlike pollUnlockRequestUpdates's approved
-      // case (which DOES mutate allowedSites), this poll must never end, abandon, or otherwise
-      // mutate the session on its own - the session is still exactly where it was, still FOCUSING.
-      const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
-        session: { id: string; state: string };
-      };
-      expect(active.session.id).toBe(created.session.id);
-      expect(active.session.state).toBe("FOCUSING");
-    });
-
-    it("notifies with distinct copy when the current user's own request was denied", async () => {
-      mockFriendSyncEligible("user-a");
-      vi.spyOn(sessionEndRequestApi, "pollRelevantSessionEndRequests").mockResolvedValue({
-        ok: true,
-        requests: [
-          sampleEndRequest({ requesterUserId: "user-a", status: "denied", resolvedBy: "user-b" }),
-        ],
-      });
-      const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(createNotificationSpy).toHaveBeenCalledWith(
-        "session-end-request-end-req-1",
-        expect.objectContaining({ title: "Temporary pass denied" })
-      );
-    });
-
-    it("persists the session-end-poll timestamp only on a successful poll, independently of the other six cursors", async () => {
-      mockFriendSyncEligible();
-      const sessionEndPollSpy = vi
-        .spyOn(sessionEndRequestApi, "pollRelevantSessionEndRequests")
-        .mockResolvedValue({ ok: true, requests: [] });
-      expect(await getLastSessionEndPollAt()).toBeNull();
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      const persisted = await getLastSessionEndPollAt();
-      expect(persisted).toEqual(expect.any(Number));
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(sessionEndPollSpy).toHaveBeenLastCalledWith(persisted);
-    });
-
-    it("does NOT advance the persisted session-end cursor when the poll fails (ok: false), so the next tick retries the same window", async () => {
-      mockFriendSyncEligible();
-      const sessionEndPollSpy = vi
-        .spyOn(sessionEndRequestApi, "pollRelevantSessionEndRequests")
-        .mockResolvedValue({ ok: false });
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-      expect(await getLastSessionEndPollAt()).toBeNull();
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-      expect(await getLastSessionEndPollAt()).toBeNull();
-
-      expect(sessionEndPollSpy).toHaveBeenCalledTimes(2);
-    });
-
-    it("skips the session-end fetch entirely when friend-sync is no longer enabled/signed-in (same eligibility gate as the other six polls)", async () => {
-      vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue(null);
-      const sessionEndPollSpy = vi.spyOn(sessionEndRequestApi, "pollRelevantSessionEndRequests");
-
-      await handleAlarm({ name: "snufflestudy-friend-poll" } as chrome.alarms.Alarm);
-
-      expect(sessionEndPollSpy).not.toHaveBeenCalled();
-    });
-  });
-
   describe("friend connection polling (v3.4 Task 2 - reuses this same alarm, not a parallel one)", () => {
     // Query shape mirrors alarmHandlers.ts's pollFriendConnectionUpdates: friendships rows where
     // initiated_by = the current user, created since the last poll. No dedicated *Api.ts module
@@ -1727,7 +1470,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       } as never);
     }
 
-    it("dispatches to a friendships query when eligible, in the same tick as the other seven streams", async () => {
+    it("dispatches to a friendships query when eligible, in the same tick as the other five streams", async () => {
       mockFriendSyncEligible("user-a");
       mockFriendshipsQuery([]);
       const eventPollSpy = vi

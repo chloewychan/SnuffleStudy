@@ -43,8 +43,7 @@ describe("ActiveSessionView", () => {
     render(
       <ActiveSessionView
         session={mockSession}
-        onShowUnlockPanel={vi.fn()}
-        onShowTempPasscodePanel={vi.fn()}
+        onShowFriendRequestPanel={vi.fn()}
       />
     );
 
@@ -76,8 +75,7 @@ describe("ActiveSessionView", () => {
     render(
       <ActiveSessionView
         session={mockSession}
-        onShowUnlockPanel={vi.fn()}
-        onShowTempPasscodePanel={vi.fn()}
+        onShowFriendRequestPanel={vi.fn()}
       />
     );
 
@@ -106,8 +104,7 @@ describe("ActiveSessionView", () => {
     render(
       <ActiveSessionView
         session={mockSession}
-        onShowUnlockPanel={vi.fn()}
-        onShowTempPasscodePanel={vi.fn()}
+        onShowFriendRequestPanel={vi.fn()}
       />
     );
 
@@ -124,8 +121,7 @@ describe("ActiveSessionView", () => {
     render(
       <ActiveSessionView
         session={mockSession}
-        onShowUnlockPanel={vi.fn()}
-        onShowTempPasscodePanel={vi.fn()}
+        onShowFriendRequestPanel={vi.fn()}
       />
     );
 
@@ -135,26 +131,22 @@ describe("ActiveSessionView", () => {
     expect(await screen.findByText(/nudge cooldown active/i)).toBeInTheDocument();
   });
 
-  it("calls onShowUnlockPanel/onShowTempPasscodePanel from their trigger buttons, without rendering the panels itself", async () => {
+  // v3.4 Task 3: the two separate onShowUnlockPanel/onShowTempPasscodePanel trigger buttons
+  // collapse into one onShowFriendRequestPanel button, now that unlock_requests/
+  // temp_passcode_requests/session_end_requests are one friend_requests table behind one panel.
+  it("calls onShowFriendRequestPanel from its trigger button, without rendering the panel itself", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, friendIds: [] });
-    const onShowUnlockPanel = vi.fn();
-    const onShowTempPasscodePanel = vi.fn();
+    const onShowFriendRequestPanel = vi.fn();
 
     render(
-      <ActiveSessionView
-        session={mockSession}
-        onShowUnlockPanel={onShowUnlockPanel}
-        onShowTempPasscodePanel={onShowTempPasscodePanel}
-      />
+      <ActiveSessionView session={mockSession} onShowFriendRequestPanel={onShowFriendRequestPanel} />
     );
 
-    screen.getByRole("button", { name: /unlock/i }).click();
-    screen.getByRole("button", { name: /temp passcode/i }).click();
+    screen.getByRole("button", { name: /friend requests/i }).click();
 
-    expect(onShowUnlockPanel).toHaveBeenCalledTimes(1);
-    expect(onShowTempPasscodePanel).toHaveBeenCalledTimes(1);
-    // Actual panel mounting stays SidePanelApp.tsx's job (Task 10) - this component only renders
-    // the two trigger buttons, per the brief's Interfaces:Produces note.
+    expect(onShowFriendRequestPanel).toHaveBeenCalledTimes(1);
+    // Actual panel mounting stays SidePanelApp.tsx's job - this component only renders the
+    // trigger button, per Decision 5's Interfaces:Produces note.
     expect(screen.queryByText(/request an unlock/i)).not.toBeInTheDocument();
   });
 
@@ -175,8 +167,7 @@ describe("ActiveSessionView", () => {
     render(
       <ActiveSessionView
         session={mockSession}
-        onShowUnlockPanel={vi.fn()}
-        onShowTempPasscodePanel={vi.fn()}
+        onShowFriendRequestPanel={vi.fn()}
       />
     );
 
@@ -197,8 +188,7 @@ describe("ActiveSessionView", () => {
     render(
       <ActiveSessionView
         session={sessionWithoutGroup}
-        onShowUnlockPanel={vi.fn()}
-        onShowTempPasscodePanel={vi.fn()}
+        onShowFriendRequestPanel={vi.fn()}
       />
     );
 

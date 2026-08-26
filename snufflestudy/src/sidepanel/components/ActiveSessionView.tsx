@@ -28,8 +28,12 @@ const DEFAULT_NUDGE_MESSAGE_ID = NUDGE_MESSAGES[0]?.id ?? "keep-going";
 
 interface ActiveSessionViewProps {
   session: StudySession;
-  onShowUnlockPanel: () => void;
-  onShowTempPasscodePanel: () => void;
+  // v3.4 Task 3: replaces the two separate onShowUnlockPanel/onShowTempPasscodePanel callbacks
+  // (v2 Task 8/Task 12) with one - unlock_requests/temp_passcode_requests/session_end_requests
+  // are now one friend_requests table behind one FriendRequestPanel.tsx (composed alongside the
+  // new RequestUnlockForm.tsx at SidePanelApp.tsx's active-session call site), so there's only
+  // one panel to reveal.
+  onShowFriendRequestPanel: () => void;
 }
 
 // Task 9: replaces SidePanelApp.tsx's inline active-session branch (SessionStatusCard/TimerRing/
@@ -48,8 +52,7 @@ interface ActiveSessionViewProps {
 // existing pattern rather than invent one - left as a candidate follow-up task, not stubbed here.
 export function ActiveSessionView({
   session,
-  onShowUnlockPanel,
-  onShowTempPasscodePanel,
+  onShowFriendRequestPanel,
 }: ActiveSessionViewProps) {
   const now = useNow();
   const remaining = computeRemainingSeconds(session, now);
@@ -225,11 +228,8 @@ export function ActiveSessionView({
       </section>
 
       <div className="sp-active-session__escape-hatches">
-        <button type="button" onClick={onShowUnlockPanel}>
-          Unlock requests
-        </button>
-        <button type="button" onClick={onShowTempPasscodePanel}>
-          Temp passcode requests
+        <button type="button" onClick={onShowFriendRequestPanel}>
+          Friend requests
         </button>
       </div>
     </div>

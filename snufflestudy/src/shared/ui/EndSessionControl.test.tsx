@@ -5,7 +5,7 @@ import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 import * as machine from "../../domain/session/sessionMachine";
 import type { CreateSessionInput } from "../../domain/session/sessionTypes";
 import type { ExtensionMessage } from "../../shared/messages";
-import type { SessionEndRequest } from "../../domain/accountability/sessionEndRequest";
+import type { FriendRequest } from "../../domain/accountability/friendRequest";
 
 const softInput: CreateSessionInput = {
   goal: "Finish 20 chemistry problems",
@@ -134,32 +134,54 @@ describe("EndSessionControl", () => {
 
 // v3.3 Task 12: the temporary-pass path, alongside (never instead of) the permanent-passcode
 // form above - the tests above already cover that the passcode form itself is unaffected by any
-// of this. Mirrors TempPasscodePanel.test.tsx's/LockedPage.test.tsx's routeSendMessage-by-type
-// helper convention, since this component now sends several distinct message types.
+// of this. Mirrors LockedPage.test.tsx's routeSendMessage-by-type helper convention, since this
+// component now sends several distinct message types.
+//
+// v3.4 Task 3: FRIEND_REQUEST_CREATE("session_end", ...)/FRIEND_REQUESTS_FETCH replace
+// SESSION_END_REQUEST_CREATE/SESSION_END_REQUESTS_FETCH, and this form gained a friend picker
+// (FRIENDS_LIST) that must resolve before "Request a temporary pass from a friend" becomes
+// clickable - every test below mocks FRIENDS_LIST with at least one friend and waits for the
+// button to become enabled before clicking it, mirroring LockedPage.test.tsx's own friend-picker
+// wait pattern.
 type Handler = (msg: ExtensionMessage) => unknown;
 
 function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
   return (msg: ExtensionMessage) => {
     const handler = overrides[msg.type];
-    return Promise.resolve(handler ? handler(msg) : { ok: true });
+    if (handler) return Promise.resolve(handler(msg));
+    if (msg.type === "FRIENDS_LIST") return Promise.resolve({ ok: true, friendIds: ["user-b"] });
+    return Promise.resolve({ ok: true });
   };
 }
 
-function sampleEndRequest(overrides: Partial<SessionEndRequest> = {}): SessionEndRequest {
+function sampleEndRequest(overrides: Partial<FriendRequest> = {}): FriendRequest {
   return {
     id: "end-req-1",
+    kind: "session_end",
     sessionId: "session_1",
     requesterUserId: "user-a",
+    friendUserId: "user-b",
+    message: null,
+    hostname: null,
     status: "pending",
     requestedAt: Date.now(),
     resolvedAt: null,
     resolvedBy: null,
+    expiresAt: null,
     ...overrides,
   };
 }
 
+async function requestButton() {
+  return waitFor(() => {
+    const button = screen.getByRole("button", { name: "Request a temporary pass from a friend" });
+    expect(button).not.toBeDisabled();
+    return button;
+  });
+}
+
 describe("EndSessionControl — temporary pass to end a hard-restricted session early (v3.3 Task 12)", () => {
-  it("shows a 'Request a temporary pass from a friend' button alongside the unchanged passcode form", () => {
+  it("shows a 'Request a temporary pass from a friend' button alongside the unchanged passcode form, enabled once a friend loads", async () => {
     const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}) as never);
 
@@ -167,34 +189,32 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
     fireEvent.click(screen.getByRole("button", { name: "End session" }));
 
     expect(screen.getByPlaceholderText("Passcode")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Request a temporary pass from a friend" })
-    ).toBeInTheDocument();
+    expect(await requestButton()).toBeInTheDocument();
   });
 
-  it("requests a temporary pass, shows Pending status, then Check status refreshes it", async () => {
+  it("requests a temporary pass for the picked friend, shows Pending status, then Check status refreshes it", async () => {
     const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
     const pending = sampleEndRequest({ status: "pending" });
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
-        SESSION_END_REQUEST_CREATE: (msg) => {
-          expect((msg as { payload: { sessionId: string } }).payload).toEqual({
-            sessionId: "session_1",
-          });
+        FRIEND_REQUEST_CREATE: (msg) => {
+          expect(
+            (msg as { payload: { kind: string; sessionId: string; friendUserId: string } }).payload
+          ).toEqual({ kind: "session_end", sessionId: "session_1", friendUserId: "user-b" });
           return { ok: true, request: pending };
         },
-        SESSION_END_REQUESTS_FETCH: () => ({ ok: true, requests: [{ ...pending, status: "approved" }] }),
+        FRIEND_REQUESTS_FETCH: () => ({ ok: true, requests: [{ ...pending, status: "approved" }] }),
       }) as never
     );
 
     render(<EndSessionControl session={session} />);
     fireEvent.click(screen.getByRole("button", { name: "End session" }));
-    fireEvent.click(screen.getByRole("button", { name: "Request a temporary pass from a friend" }));
+    fireEvent.click(await requestButton());
 
     await waitFor(() => expect(screen.getByText("Pending")).toBeInTheDocument());
     expect(sendMessageSpy).toHaveBeenCalledWith({
-      type: "SESSION_END_REQUEST_CREATE",
-      payload: { sessionId: "session_1" },
+      type: "FRIEND_REQUEST_CREATE",
+      payload: { kind: "session_end", sessionId: "session_1", friendUserId: "user-b" },
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Check status" }));
@@ -208,7 +228,7 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
     const approved = sampleEndRequest({ status: "approved" });
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
-        SESSION_END_REQUEST_CREATE: () => ({ ok: true, request: approved }),
+        FRIEND_REQUEST_CREATE: () => ({ ok: true, request: approved }),
         SESSION_END: (msg) => {
           expect((msg as { payload: { endRequestId?: string; passcode?: string } }).payload).toEqual({
             sessionId: "session_1",
@@ -221,7 +241,7 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
 
     render(<EndSessionControl session={session} />);
     fireEvent.click(screen.getByRole("button", { name: "End session" }));
-    fireEvent.click(screen.getByRole("button", { name: "Request a temporary pass from a friend" }));
+    fireEvent.click(await requestButton());
 
     await waitFor(() => expect(screen.getByRole("button", { name: "End session now" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "End session now" }));
@@ -239,13 +259,13 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
     const denied = sampleEndRequest({ status: "denied" });
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
-        SESSION_END_REQUEST_CREATE: () => ({ ok: true, request: denied }),
+        FRIEND_REQUEST_CREATE: () => ({ ok: true, request: denied }),
       }) as never
     );
 
     render(<EndSessionControl session={session} />);
     fireEvent.click(screen.getByRole("button", { name: "End session" }));
-    fireEvent.click(screen.getByRole("button", { name: "Request a temporary pass from a friend" }));
+    fireEvent.click(await requestButton());
 
     await waitFor(() => expect(screen.getByText("Denied")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Ask again" })).toBeInTheDocument();
@@ -253,22 +273,20 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
     expect(screen.getByPlaceholderText("Passcode")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Ask again" }));
-    expect(
-      screen.getByRole("button", { name: "Request a temporary pass from a friend" })
-    ).toBeInTheDocument();
+    expect(await requestButton()).toBeInTheDocument();
   });
 
   it("surfaces an inline error, not an unhandled rejection, when creating the request fails", async () => {
     const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
-        SESSION_END_REQUEST_CREATE: () => ({ ok: false, error: "No friends available to ask." }),
+        FRIEND_REQUEST_CREATE: () => ({ ok: false, error: "No friends available to ask." }),
       }) as never
     );
 
     render(<EndSessionControl session={session} />);
     fireEvent.click(screen.getByRole("button", { name: "End session" }));
-    fireEvent.click(screen.getByRole("button", { name: "Request a temporary pass from a friend" }));
+    fireEvent.click(await requestButton());
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No friends available to ask.");
   });
@@ -278,7 +296,7 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
     const approved = sampleEndRequest({ status: "approved" });
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
-        SESSION_END_REQUEST_CREATE: () => ({ ok: true, request: approved }),
+        FRIEND_REQUEST_CREATE: () => ({ ok: true, request: approved }),
         SESSION_END: () => ({
           ok: false,
           error: "That temporary pass isn't valid for this session, or hasn't been approved yet.",
@@ -288,12 +306,28 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
 
     render(<EndSessionControl session={session} />);
     fireEvent.click(screen.getByRole("button", { name: "End session" }));
-    fireEvent.click(screen.getByRole("button", { name: "Request a temporary pass from a friend" }));
+    fireEvent.click(await requestButton());
     await waitFor(() => expect(screen.getByRole("button", { name: "End session now" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "End session now" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/isn't valid for this session/);
     // Still on the prompt view - the session was NOT ended.
     expect(screen.getByRole("button", { name: "End session now" })).toBeInTheDocument();
+  });
+
+  it("does not enable the request button, and shows a message, when there are no friends to ask", async () => {
+    const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
+    vi.spyOn(messenger, "sendMessage").mockImplementation(((msg: ExtensionMessage) => {
+      if (msg.type === "FRIENDS_LIST") return Promise.resolve({ ok: true, friendIds: [] });
+      return Promise.resolve({ ok: true });
+    }) as never);
+
+    render(<EndSessionControl session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+
+    expect(await screen.findByText("No friends available to ask yet - add a friend first.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Request a temporary pass from a friend" })
+    ).toBeDisabled();
   });
 });

@@ -39,25 +39,24 @@ export async function setLastNudgePollAt(timestamp: number): Promise<void> {
   await chrome.storage.local.set({ [LAST_NUDGE_POLL_KEY]: timestamp });
 }
 
-// v2 Task 8: a third, independent cursor for the unlock-request stream polled by the same alarm
-// tick (handleFriendPollAlarm in alarmHandlers.ts) - reuses Task 6's alarm per this task's brief
-// ("Tasks 7, 8, 9, and 14 all reuse this exact poll/notification path"), not a new alarm. Same
-// get/set shape and the same "only advance on confirmed success" discipline as
-// getLastFriendPollAt/getLastNudgePollAt above, for the identical reason: session-status events,
-// nudges, and unlock requests are three logically separate streams delivered by the same
-// chrome.alarms entry, so each needs its own "last checked" bookmark that advances independently
-// of the others' success/failure on any given tick.
-const LAST_UNLOCK_POLL_KEY = "snufflestudy.friendPollLastUnlockCheckedAt";
+// v3.4 Task 3: a third, independent cursor for the consolidated friend-request stream
+// (pollFriendRequestUpdates in alarmHandlers.ts) polled by the same alarm tick
+// (handleFriendPollAlarm) - replaces the three separate cursors this task retires
+// (getLastUnlockPollAt/getLastTempPasscodePollAt/getLastSessionEndPollAt), since
+// unlock_requests/temp_passcode_requests/session_end_requests are now one friend_requests table
+// behind one poll query. Same get/set shape and the same "only advance on confirmed success"
+// discipline every cursor in this file already follows.
+const LAST_FRIEND_REQUEST_POLL_KEY = "snufflestudy.friendPollLastFriendRequestCheckedAt";
 
-export async function getLastUnlockPollAt(): Promise<number | null> {
-  const result = await chrome.storage.local.get<Record<typeof LAST_UNLOCK_POLL_KEY, number>>(
-    LAST_UNLOCK_POLL_KEY
+export async function getLastFriendRequestPollAt(): Promise<number | null> {
+  const result = await chrome.storage.local.get<Record<typeof LAST_FRIEND_REQUEST_POLL_KEY, number>>(
+    LAST_FRIEND_REQUEST_POLL_KEY
   );
-  return result[LAST_UNLOCK_POLL_KEY] ?? null;
+  return result[LAST_FRIEND_REQUEST_POLL_KEY] ?? null;
 }
 
-export async function setLastUnlockPollAt(timestamp: number): Promise<void> {
-  await chrome.storage.local.set({ [LAST_UNLOCK_POLL_KEY]: timestamp });
+export async function setLastFriendRequestPollAt(timestamp: number): Promise<void> {
+  await chrome.storage.local.set({ [LAST_FRIEND_REQUEST_POLL_KEY]: timestamp });
 }
 
 // v2 Task 9: a fourth, independent cursor for the daily-digest stream polled by the same alarm
@@ -86,34 +85,16 @@ export async function setLastDigestPollAt(timestamp: number): Promise<void> {
   await chrome.storage.local.set({ [LAST_DIGEST_POLL_KEY]: timestamp });
 }
 
-// v2 Task 12: a fifth, independent cursor for the temp-passcode-request stream polled by the same
-// alarm tick (handleFriendPollAlarm in alarmHandlers.ts) - reuses Task 6's alarm per this task's
-// brief ("extend Task 6's shared poll... add a fifth: pollTempPasscodeUpdates"), not a new one.
-// Same get/set shape and the same "only advance on confirmed success" discipline as the four
-// cursors above, for the identical reason: this is a fifth logically separate stream delivered by
-// the same chrome.alarms entry, so it needs its own "last checked" bookmark that advances
-// independently of the other four's success/failure on any given tick.
-const LAST_TEMP_PASSCODE_POLL_KEY = "snufflestudy.friendPollLastTempPasscodeCheckedAt";
-
-export async function getLastTempPasscodePollAt(): Promise<number | null> {
-  const result = await chrome.storage.local.get<Record<typeof LAST_TEMP_PASSCODE_POLL_KEY, number>>(
-    LAST_TEMP_PASSCODE_POLL_KEY
-  );
-  return result[LAST_TEMP_PASSCODE_POLL_KEY] ?? null;
-}
-
-export async function setLastTempPasscodePollAt(timestamp: number): Promise<void> {
-  await chrome.storage.local.set({ [LAST_TEMP_PASSCODE_POLL_KEY]: timestamp });
-}
-
-// v2 Task 14: a sixth, independent cursor for the producer-tag (friend-delivery side only - see
+// v2 Task 14: a fifth, independent cursor for the producer-tag (friend-delivery side only - see
 // producerTagApi.ts's queryIncomingSince) stream polled by the same alarm tick
 // (handleFriendPollAlarm in alarmHandlers.ts) - reuses Task 6's alarm per this task's brief ("Do
 // NOT add a new alarm"). Same get/set shape and the same "only advance on confirmed success"
-// discipline as the five cursors above, for the identical reason: this is a sixth logically
-// separate stream delivered by the same chrome.alarms entry, so it needs its own "last checked"
-// bookmark that advances independently of the other five's success/failure on any given tick. Room
-// delivery has no cursor at all - it's delivered live via Supabase Realtime (Part D), not polled.
+// discipline as the cursors above, for the identical reason: this is a logically separate stream
+// delivered by the same chrome.alarms entry, so it needs its own "last checked" bookmark that
+// advances independently of the others' success/failure on any given tick. Room delivery has no
+// cursor at all - it's delivered live via Supabase Realtime (Part D), not polled.
+// (v3.4 Task 3: renumbered from "sixth" to "fifth" - unlock/temp-passcode/session-end's three
+// cursors collapsed into one friend-request cursor above, net -2 overall.)
 const LAST_PRODUCER_TAG_POLL_KEY = "snufflestudy.friendPollLastProducerTagCheckedAt";
 
 export async function getLastProducerTagPollAt(): Promise<number | null> {
@@ -127,33 +108,13 @@ export async function setLastProducerTagPollAt(timestamp: number): Promise<void>
   await chrome.storage.local.set({ [LAST_PRODUCER_TAG_POLL_KEY]: timestamp });
 }
 
-// v3.3 Task 12: a seventh, independent cursor for the session-end-request stream polled by the
-// same alarm tick (handleFriendPollAlarm in alarmHandlers.ts) - reuses Task 6's alarm, not a new
-// one, same as every other stream on this file. Same get/set shape and the same "only advance on
-// confirmed success" discipline as the six cursors above, for the identical reason: this is a
-// seventh logically separate stream delivered by the same chrome.alarms entry, so it needs its own
-// "last checked" bookmark that advances independently of the other six's success/failure on any
-// given tick.
-const LAST_SESSION_END_POLL_KEY = "snufflestudy.friendPollLastSessionEndCheckedAt";
-
-export async function getLastSessionEndPollAt(): Promise<number | null> {
-  const result = await chrome.storage.local.get<Record<typeof LAST_SESSION_END_POLL_KEY, number>>(
-    LAST_SESSION_END_POLL_KEY
-  );
-  return result[LAST_SESSION_END_POLL_KEY] ?? null;
-}
-
-export async function setLastSessionEndPollAt(timestamp: number): Promise<void> {
-  await chrome.storage.local.set({ [LAST_SESSION_END_POLL_KEY]: timestamp });
-}
-
-// v3.4 Task 2: an eighth, independent cursor for the new friend-connection stream
+// v3.4 Task 2: a sixth, independent cursor for the new friend-connection stream
 // (pollFriendConnectionUpdates in alarmHandlers.ts) - reuses Task 6's alarm, not a new one, same
 // as every other stream on this file. Same get/set shape and the same "only advance on confirmed
-// success" discipline as the seven cursors above, for the identical reason: this is an eighth
-// logically separate stream delivered by the same chrome.alarms entry, so it needs its own "last
-// checked" bookmark that advances independently of the other seven's success/failure on any given
-// tick.
+// success" discipline as the cursors above, for the identical reason: this is a logically separate
+// stream delivered by the same chrome.alarms entry, so it needs its own "last checked" bookmark
+// that advances independently of the others' success/failure on any given tick. (v3.4 Task 3:
+// renumbered from "eighth" - see the friend-request cursor's own comment above for why.)
 const LAST_FRIEND_CONNECTION_POLL_KEY = "snufflestudy.friendPollLastConnectionCheckedAt";
 
 export async function getLastFriendConnectionPollAt(): Promise<number | null> {

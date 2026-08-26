@@ -13,8 +13,8 @@ import * as friendshipApi from "../infrastructure/backend/friendshipApi";
 import type { Friendship, InviteCode } from "../infrastructure/backend/friendshipApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
 import type { FriendNudge } from "../infrastructure/backend/nudgeApi";
-import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
-import type { UnlockRequest } from "../infrastructure/backend/unlockRequestApi";
+import * as friendRequestApi from "../infrastructure/backend/friendRequestApi";
+import type { FriendRequest } from "../domain/accountability/friendRequest";
 import * as digestApi from "../infrastructure/backend/digestApi";
 import type { DigestSummary } from "../infrastructure/backend/digestApi";
 import * as accountApi from "../infrastructure/backend/accountApi";
@@ -342,46 +342,58 @@ describe("messageRouter — NUDGE_*", () => {
   });
 });
 
-describe("messageRouter — UNLOCK_REQUEST_*", () => {
-  const sampleRequest: UnlockRequest = {
+// v3.4 Task 3: was "messageRouter — UNLOCK_REQUEST_*" (unlockRequestApi.ts) - retargeted to the
+// consolidated friendRequestApi.ts/FRIEND_REQUEST_* messages, exercised here with
+// kind: "site_unlock" (site_temp_pass/session_end coverage lives in
+// messageRouterTempPasscode.test.ts/messageRouterSessionEnd.test.ts, retargeted the same way).
+describe("messageRouter — FRIEND_REQUEST_* (site_unlock)", () => {
+  const sampleRequest: FriendRequest = {
     id: "req-1",
+    kind: "site_unlock",
     sessionId: "session-1",
     requesterUserId: "user-a",
+    friendUserId: null,
+    message: null,
     hostname: "youtube.com",
     status: "pending",
     requestedAt: Date.now(),
     resolvedAt: null,
     resolvedBy: null,
+    expiresAt: null,
   };
 
-  it("UNLOCK_REQUEST_CREATE calls unlockRequestApi.createRequest with the given sessionId/hostname", async () => {
-    const spy = vi.spyOn(unlockRequestApi, "createRequest").mockResolvedValue(sampleRequest);
+  it("FRIEND_REQUEST_CREATE calls friendRequestApi.createRequest with the given kind/sessionId/hostname", async () => {
+    const spy = vi.spyOn(friendRequestApi, "createRequest").mockResolvedValue(sampleRequest);
 
     const result = (await handleMessage({
-      type: "UNLOCK_REQUEST_CREATE",
-      payload: { sessionId: "session-1", hostname: "youtube.com" },
-    })) as { ok: boolean; request: UnlockRequest };
+      type: "FRIEND_REQUEST_CREATE",
+      payload: { kind: "site_unlock", sessionId: "session-1", hostname: "youtube.com" },
+    })) as { ok: boolean; request: FriendRequest };
 
-    expect(spy).toHaveBeenCalledWith("session-1", "youtube.com");
+    expect(spy).toHaveBeenCalledWith("site_unlock", {
+      kind: "site_unlock",
+      sessionId: "session-1",
+      hostname: "youtube.com",
+    });
     expect(result).toEqual({ ok: true, request: sampleRequest });
   });
 
-  it("UNLOCK_REQUEST_CREATE propagates a thrown error as ok:false (outer handleMessage catch)", async () => {
-    vi.spyOn(unlockRequestApi, "createRequest").mockRejectedValue(new Error("Not signed in."));
+  it("FRIEND_REQUEST_CREATE propagates a thrown error as ok:false (outer handleMessage catch)", async () => {
+    vi.spyOn(friendRequestApi, "createRequest").mockRejectedValue(new Error("Not signed in."));
 
     const result = (await handleMessage({
-      type: "UNLOCK_REQUEST_CREATE",
-      payload: { sessionId: "session-1", hostname: "youtube.com" },
+      type: "FRIEND_REQUEST_CREATE",
+      payload: { kind: "site_unlock", sessionId: "session-1", hostname: "youtube.com" },
     })) as { ok: boolean; error?: string };
 
     expect(result).toEqual({ ok: false, error: "Not signed in." });
   });
 
-  it("UNLOCK_REQUEST_RESOLVE calls unlockRequestApi.resolveRequest with the given requestId/decision", async () => {
-    const spy = vi.spyOn(unlockRequestApi, "resolveRequest").mockResolvedValue(undefined);
+  it("FRIEND_REQUEST_RESOLVE calls friendRequestApi.resolveRequest with the given requestId/decision", async () => {
+    const spy = vi.spyOn(friendRequestApi, "resolveRequest").mockResolvedValue(undefined);
 
     const result = (await handleMessage({
-      type: "UNLOCK_REQUEST_RESOLVE",
+      type: "FRIEND_REQUEST_RESOLVE",
       payload: { requestId: "req-1", decision: "approved" },
     })) as { ok: boolean };
 
@@ -389,13 +401,13 @@ describe("messageRouter — UNLOCK_REQUEST_*", () => {
     expect(result).toEqual({ ok: true });
   });
 
-  it("UNLOCK_REQUEST_RESOLVE propagates a thrown error as ok:false (e.g. first-responder-wins denial)", async () => {
-    vi.spyOn(unlockRequestApi, "resolveRequest").mockRejectedValue(
+  it("FRIEND_REQUEST_RESOLVE propagates a thrown error as ok:false (e.g. first-responder-wins denial)", async () => {
+    vi.spyOn(friendRequestApi, "resolveRequest").mockRejectedValue(
       new Error("Could not resolve this request — it may already have been resolved.")
     );
 
     const result = (await handleMessage({
-      type: "UNLOCK_REQUEST_RESOLVE",
+      type: "FRIEND_REQUEST_RESOLVE",
       payload: { requestId: "req-1", decision: "approved" },
     })) as { ok: boolean; error?: string };
 
@@ -403,15 +415,15 @@ describe("messageRouter — UNLOCK_REQUEST_*", () => {
     expect(result.error).toContain("already have been resolved");
   });
 
-  it("UNLOCK_REQUESTS_FETCH calls unlockRequestApi.fetchRelevantUnlockRequests with the given sinceTimestamp", async () => {
+  it("FRIEND_REQUESTS_FETCH calls friendRequestApi.fetchRelevantRequests with the given sinceTimestamp", async () => {
     const spy = vi
-      .spyOn(unlockRequestApi, "fetchRelevantUnlockRequests")
+      .spyOn(friendRequestApi, "fetchRelevantRequests")
       .mockResolvedValue([sampleRequest]);
 
     const result = (await handleMessage({
-      type: "UNLOCK_REQUESTS_FETCH",
+      type: "FRIEND_REQUESTS_FETCH",
       payload: { sinceTimestamp: 12345 },
-    })) as { ok: boolean; requests: UnlockRequest[] };
+    })) as { ok: boolean; requests: FriendRequest[] };
 
     expect(spy).toHaveBeenCalledWith(12345);
     expect(result).toEqual({ ok: true, requests: [sampleRequest] });

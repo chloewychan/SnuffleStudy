@@ -11,13 +11,13 @@
 // "don't block createRequest's resolution on email delivery succeeding").
 //
 // Per Decision 4 (docs/V2_Implementation_Plan.md) - "one flow, two delivery paths": the in-app
-// leg needs NO separate write from this function at all. The temp_passcode_requests row already
-// exists and is already visible to friend_user_id the instant it's inserted, via that table's
-// pre-existing "requester or assigned friend can read temp passcode requests" RLS policy
-// (supabase/migrations/20260815000002_v2_rls_policies.sql) - alarmHandlers.ts's friend-poll alarm
-// (pollTempPasscodeUpdates, reusing Task 6's alarm, not a new one) is what turns that visibility
-// into an actual chrome.notifications toast on the friend's device. This function's entire job is
-// the OTHER delivery path: the email.
+// leg needs NO separate write from this function at all. The friend_requests row (v3.4 Task 3:
+// was temp_passcode_requests) already exists and is already visible to friend_user_id the
+// instant it's inserted, via that table's "requester assigned friend or pending-friend can read
+// friend requests" RLS policy (supabase/migrations/20260815000041_v3.4_friend_requests.sql) -
+// alarmHandlers.ts's friend-poll alarm (pollFriendRequestUpdates, reusing Task 6's alarm, not a
+// new one) is what turns that visibility into an actual chrome.notifications toast on the
+// friend's device. This function's entire job is the OTHER delivery path: the email.
 //
 // Reads RESEND_API_KEY via Deno.env.get(...) only - never logged, never echoed in a response.
 // Uses SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY, auto-injected into every
@@ -113,10 +113,12 @@ Deno.serve(async (req: Request) => {
 
     // Re-derived server-side via the service-role client, never trusted from the request body -
     // same discipline approve-temp-passcode/redeem-temp-passcode use for their own row lookups.
+    // v3.4 Task 3: temp_passcode_requests -> friend_requests (kind = 'site_temp_pass').
     const { data: row, error: rowError } = await adminClient
-      .from("temp_passcode_requests")
+      .from("friend_requests")
       .select("id, hostname, requester_user_id, friend_user_id")
       .eq("id", body.requestId)
+      .eq("kind", "site_temp_pass")
       .single();
     if (rowError || !row) {
       return json({ error: "Request not found" }, 404);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
-import type { TempPasscodeRequest } from "../../domain/accountability/tempPasscodeRequest";
+import type { FriendRequest } from "../../domain/accountability/friendRequest";
 import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 
 // Minimal shape of what AUTH_GET_SESSION's response carries that this page actually needs -
@@ -12,11 +12,16 @@ interface AuthSession {
   user: AuthUser;
 }
 
-const STATUS_LABEL: Record<TempPasscodeRequest["status"], string> = {
+// v3.4 Task 3: friend_requests' status column is 'pending' | 'approved' | 'denied' only - no
+// 'expired' (temp_passcode_requests' check constraint allowed it, but nothing in this codebase
+// ever actually set it server-side; claimApproval/friendRequestApi.ts's claimApproval already
+// just returned { ok: false } for a genuinely-expired-but-still-'approved' row instead of
+// transitioning its status - the "expired" branch below was dead in practice, not a real state
+// this UI could reach, and is removed along with the type it depended on).
+const STATUS_LABEL: Record<FriendRequest["status"], string> = {
   pending: "Waiting for your friend to respond…",
   approved: "Approved — unlocking…",
   denied: "Denied.",
-  expired: "This request has expired.",
 };
 
 export function LockedPage() {
@@ -31,10 +36,10 @@ export function LockedPage() {
   const [submitting, setSubmitting] = useState(false);
 
   // v2 Task 12: "request a temporary passcode" action, alongside the existing permanent-passcode
-  // entry above. sessionId is needed for TEMP_PASSCODE_CREATE but this page never otherwise
-  // fetches the active session (HARD_BLOCK_VERIFY_PASSCODE above needs no sessionId at all), so
-  // it's fetched once on mount, best-effort - a failure here only disables the temp-passcode
-  // action, never the existing permanent-passcode flow above.
+  // entry above. sessionId is needed for FRIEND_REQUEST_CREATE("site_temp_pass", ...) but this
+  // page never otherwise fetches the active session (HARD_BLOCK_VERIFY_PASSCODE above needs no
+  // sessionId at all), so it's fetched once on mount, best-effort - a failure here only disables
+  // the temp-passcode action, never the existing permanent-passcode flow above.
   const [sessionId, setSessionId] = useState<string | null>(null);
 
   // v3.4 Task 2: friend picker - one FRIENDS_LIST call, replacing the old GROUP_LIST_MINE ->
@@ -58,14 +63,14 @@ export function LockedPage() {
   // before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
   const displayName = useDisplayNames(friendIds ?? []);
 
-  const [tempRequest, setTempRequest] = useState<TempPasscodeRequest | null>(null);
+  const [tempRequest, setTempRequest] = useState<FriendRequest | null>(null);
   const [tempBusy, setTempBusy] = useState(false);
   const [tempError, setTempError] = useState<string | null>(null);
 
   // v3.3 Task 10: no code to enter anymore - once tempRequest.status is "approved", an effect
-  // below auto-claims it (TEMP_PASSCODE_CLAIM_APPROVAL) and navigates on success. claimAttemptedRef
-  // makes that claim idempotent per request id (a Set, not a single boolean, since a denied/expired
-  // request can be re-asked, producing a new request id to track independently).
+  // below auto-claims it (v3.4 Task 3: FRIEND_REQUEST_CLAIM_TEMP_PASS) and navigates on success.
+  // claimAttemptedRef makes that claim idempotent per request id (a Set, not a single boolean,
+  // since a denied request can be re-asked, producing a new request id to track independently).
   const claimAttemptedRef = useRef<Set<string>>(new Set());
   const [claimError, setClaimError] = useState<string | null>(null);
 
@@ -164,11 +169,12 @@ export function LockedPage() {
     setTempError(null);
     // v3.3 Task 11: trimmed, and omitted entirely when empty - an all-whitespace or untouched
     // input must not send a stray `message: ""`/`message: "   "` through to createRequest, which
-    // reads any truthy `message` (see tempPasscodeApi.ts) as "the requester provided one."
+    // reads any truthy `message` (see friendRequestApi.ts) as "the requester provided one."
     const trimmedMessage = requestMessage.trim();
-    sendMessage<{ ok: boolean; request?: TempPasscodeRequest; error?: string }>({
-      type: "TEMP_PASSCODE_CREATE",
+    sendMessage<{ ok: boolean; request?: FriendRequest; error?: string }>({
+      type: "FRIEND_REQUEST_CREATE",
       payload: {
+        kind: "site_temp_pass",
         sessionId,
         hostname: site,
         friendUserId: effectiveFriendId,
@@ -193,8 +199,8 @@ export function LockedPage() {
     if (!tempRequest) return;
     setTempBusy(true);
     setTempError(null);
-    sendMessage<{ ok: boolean; requests?: TempPasscodeRequest[]; error?: string }>({
-      type: "TEMP_PASSCODE_REQUESTS_FETCH",
+    sendMessage<{ ok: boolean; requests?: FriendRequest[]; error?: string }>({
+      type: "FRIEND_REQUESTS_FETCH",
       payload: { sinceTimestamp: 0 },
     })
       .then((res) => {
@@ -213,13 +219,13 @@ export function LockedPage() {
   }
 
   // v3.3 Task 10: no code to enter anymore - once a friend approves, this auto-claims the request
-  // (TEMP_PASSCODE_CLAIM_APPROVAL) instead of waiting for the user to type anything. Runs whenever
-  // tempRequest's status is (or becomes) "approved", guarded by claimAttemptedRef so it fires at
-  // most once per request id - both handleRefreshTempRequestStatus's poll above and the background
-  // poll's own notification (alarmHandlers.ts) can independently lead here, and re-renders must
-  // not refire an already-in-flight-or-done claim. On success, navigates exactly like the
-  // permanent-passcode flow above; on failure, this leaves claimError set for the inline
-  // error/retry UI below.
+  // (v3.4 Task 3: FRIEND_REQUEST_CLAIM_TEMP_PASS) instead of waiting for the user to type
+  // anything. Runs whenever tempRequest's status is (or becomes) "approved", guarded by
+  // claimAttemptedRef so it fires at most once per request id - both
+  // handleRefreshTempRequestStatus's poll above and the background poll's own notification
+  // (alarmHandlers.ts) can independently lead here, and re-renders must not refire an
+  // already-in-flight-or-done claim. On success, navigates exactly like the permanent-passcode
+  // flow above; on failure, this leaves claimError set for the inline error/retry UI below.
   useEffect(() => {
     if (!tempRequest || tempRequest.status !== "approved") return;
     if (claimAttemptedRef.current.has(tempRequest.id)) return;
@@ -227,7 +233,7 @@ export function LockedPage() {
     setClaimError(null);
 
     sendMessage<{ ok: boolean }>({
-      type: "TEMP_PASSCODE_CLAIM_APPROVAL",
+      type: "FRIEND_REQUEST_CLAIM_TEMP_PASS",
       payload: { requestId: tempRequest.id },
     })
       .then((res) => {
@@ -336,7 +342,7 @@ export function LockedPage() {
               </div>
             )}
 
-            {(tempRequest.status === "denied" || tempRequest.status === "expired") && (
+            {tempRequest.status === "denied" && (
               <button
                 type="button"
                 onClick={() => {

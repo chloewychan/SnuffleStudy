@@ -2,6 +2,7 @@ import type { CreateSessionInput, HistoryQuery, SessionState } from "../domain/s
 import type { UserSettings } from "../domain/settings/userSettings";
 import type { Task } from "../domain/tasks/taskTypes";
 import type { FriendshipSettingsPatch } from "../infrastructure/backend/friendshipSettingsApi";
+import type { FriendRequestKind } from "../domain/accountability/friendRequest";
 
 export type ExtensionMessage =
   // taskBreakdownItemId lives here (not on CreateSessionInput itself - see sessionTypes.ts's
@@ -16,8 +17,10 @@ export type ExtensionMessage =
   | { type: "SESSION_END_BREAK"; payload: { sessionId: string } }
   // v3.3 Task 12: `endRequestId` is an alternative to `passcode` on a hard-restricted session -
   // when present, messageRouter.ts's SESSION_END handler calls
-  // sessionEndRequestApi.isApprovedForSelf(endRequestId, sessionId) instead of checking a
-  // passcode; when absent, today's passcode check runs completely unchanged. The two are mutually
+  // friendRequestApi.isApprovedForSelf(endRequestId, "session_end", sessionId) instead of
+  // checking a passcode (v3.4 Task 3: isApprovedForSelf gained a `kind` param when
+  // sessionEndRequestApi.ts's version merged into friendRequestApi.ts); when absent, today's
+  // passcode check runs completely unchanged. The two are mutually
   // exclusive in practice (EndSessionControl.tsx's passcode `<form>` never sets endRequestId, and
   // its "End session now" button never sets passcode), but nothing here enforces that at the type
   // level - the handler's own branch order (endRequestId checked first) is what decides.
@@ -101,28 +104,60 @@ export type ExtensionMessage =
   // rather than through this message, mirroring FRIEND_EVENTS_FETCH/pollNewEventsForFriends's
   // split.
   | { type: "NUDGES_FETCH"; payload: { sinceTimestamp: number } }
-  // v2 Task 8: routes to unlockRequestApi.createRequest - UnlockRequestPanel.tsx's requester
-  // side. sessionId is the currently active session the requested hostname should be unlocked
-  // for; unlockRequestApi.createRequest throws on failure (not signed in, insert error), which
-  // messageRouter.ts's outer handleMessage try/catch turns into ok:false, same convention as
+  // v3.4 Task 3: routes to friendRequestApi.createRequest - the shared creation call for all
+  // three kinds (site_unlock: RequestUnlockForm.tsx's requester side; site_temp_pass:
+  // LockedPage.tsx's requester side; session_end: EndSessionControl.tsx's requester side).
+  // Replaces UNLOCK_REQUEST_CREATE/TEMP_PASSCODE_CREATE/SESSION_END_REQUEST_CREATE (11 messages
+  // this task removes in total, replaced by the 5 FRIEND_REQUEST_*/FRIEND_REQUESTS_FETCH messages
+  // below - see friend_requests' own migration, supabase/migrations/
+  // 20260815000041_v3.4_friend_requests.sql). friendUserId is omitted (undefined, not null) for
+  // site_unlock's group-wide/any-friend-can-resolve shape; hostname is omitted for session_end,
+  // which isn't about any particular site. createRequest throws on failure (not signed in, insert
+  // error) - the outer handleMessage try/catch turns that into ok:false, same convention as
   // FRIEND_INVITE_GENERATE_CODE/FRIEND_REDEEM_CODE.
-  | { type: "UNLOCK_REQUEST_CREATE"; payload: { sessionId: string; hostname: string } }
-  // v2 Task 8: routes to unlockRequestApi.resolveRequest - UnlockRequestPanel.tsx's friend
-  // (approve/deny) side. "First responder wins" is enforced server-side (RLS - see
-  // supabase/migrations/20260815000008_v2_unlock_request_group_visibility.sql), not by this
-  // message or unlockRequestApi.ts pre-checking anything client-side - a second friend's resolve
-  // attempt on an already-resolved request throws, surfaced the same ok:false way.
-  | { type: "UNLOCK_REQUEST_RESOLVE"; payload: { requestId: string; decision: "approved" | "denied" } }
-  // v2 Task 8: routes to unlockRequestApi.fetchRelevantUnlockRequests - the on-demand
-  // counterpart to the background's alarm-driven poll (alarmHandlers.ts calls
-  // unlockRequestApi.pollRelevantUnlockRequests directly, mirroring
-  // FRIEND_EVENTS_FETCH/NUDGES_FETCH's identical split). A single query covers both this panel's
-  // needs: the requester's own requests (any status) and pending requests from anyone sharing a
-  // group with the current user - see unlockRequestApi.ts's queryRelevantSince comment.
-  | { type: "UNLOCK_REQUESTS_FETCH"; payload: { sinceTimestamp: number } }
+  | {
+      type: "FRIEND_REQUEST_CREATE";
+      payload: {
+        kind: FriendRequestKind;
+        sessionId: string;
+        friendUserId?: string;
+        message?: string;
+        hostname?: string;
+      };
+    }
+  // v3.4 Task 3: routes to friendRequestApi.resolveRequest - FriendRequestPanel.tsx's friend
+  // (approve/deny) side, for denying any kind or approving site_unlock/session_end. Approving
+  // site_temp_pass must use FRIEND_REQUEST_APPROVE_TEMP_PASS instead - RLS's WITH CHECK clause
+  // enforces this server-side regardless of what this message is sent for (Decision 3,
+  // docs/implementation_plans/V3.4_Implementation_Plan.md - see the migration's own comment and
+  // this task's security-critical negative-case test). "First responder wins" is enforced
+  // server-side (RLS), not by this message or friendRequestApi.ts pre-checking anything
+  // client-side - a second friend's resolve attempt on an already-resolved request throws,
+  // surfaced the same ok:false way.
+  | { type: "FRIEND_REQUEST_RESOLVE"; payload: { requestId: string; decision: "approved" | "denied" } }
+  // v3.4 Task 3: routes to friendRequestApi.approveTempPass - the ONE friend_requests mutation
+  // that does not go through the shared FRIEND_REQUEST_RESOLVE path (Decision 3). Invokes the
+  // approve-temp-passcode Edge Function (service_role, generates expires_at's TTL server-side),
+  // unchanged behavior from today's TEMP_PASSCODE_APPROVE.
+  | { type: "FRIEND_REQUEST_APPROVE_TEMP_PASS"; payload: { requestId: string } }
+  // v3.4 Task 3: routes to friendRequestApi.claimApproval - replaces TEMP_PASSCODE_CLAIM_APPROVAL.
+  // LockedPage.tsx's requester-side auto-claim, fired once the request's status is 'approved'. On
+  // {ok:true}, claimApproval itself also performs the actual unlock
+  // (unlockHardBlockRuleForHostname + scheduleTempUnlockRelockAlarm), after a fresh RLS-gated
+  // re-read of the row server-side (never trusts a client-supplied hostname/expiry).
+  | { type: "FRIEND_REQUEST_CLAIM_TEMP_PASS"; payload: { requestId: string } }
+  // v3.4 Task 3: routes to friendRequestApi.fetchRelevantRequests - the on-demand counterpart to
+  // the background's alarm-driven poll (alarmHandlers.ts calls friendRequestApi.pollRelevantRequests
+  // directly, mirroring FRIEND_EVENTS_FETCH/NUDGES_FETCH's identical split). A single query covers
+  // every caller's needs (FriendRequestPanel.tsx listing pending requests to review;
+  // RequestUnlockForm.tsx/LockedPage.tsx/EndSessionControl.tsx checking their own request's
+  // status): the requester's own requests (any status), requests assigned to the caller (any
+  // status), and pending requests from anyone the caller is friends with when friend_user_id is
+  // null - see friendRequestApi.ts's queryRelevantSince comment.
+  | { type: "FRIEND_REQUESTS_FETCH"; payload: { sinceTimestamp: number } }
   // v2 Task 9: routes to digestApi.fetchDigestForDate - the on-demand counterpart to the
   // background's alarm-driven poll (alarmHandlers.ts calls digestApi.pollNewDigests directly,
-  // mirroring FRIEND_EVENTS_FETCH/NUDGES_FETCH/UNLOCK_REQUESTS_FETCH's identical split). `date`
+  // mirroring FRIEND_EVENTS_FETCH/NUDGES_FETCH/FRIEND_REQUESTS_FETCH's identical split). `date`
   // is a YYYY-MM-DD calendar date (daily_digests.digest_date's type); FriendGroupPanel.tsx picks
   // which date to request (see that file's own comment on why it defaults to yesterday).
   | { type: "DIGEST_FETCH"; payload: { date: string } }
@@ -135,48 +170,11 @@ export type ExtensionMessage =
   // field (or several) at a time, keyed by which friend the change applies to. Throws on failure
   // (e.g. no row exists yet because the two users don't actually share a group), which
   // messageRouter.ts's outer handleMessage try/catch turns into ok:false, same convention as
-  // FRIEND_INVITE_GENERATE_CODE/FRIEND_REDEEM_CODE/UNLOCK_REQUEST_CREATE.
+  // FRIEND_INVITE_GENERATE_CODE/FRIEND_REDEEM_CODE/FRIEND_REQUEST_CREATE.
   | {
       type: "FRIENDSHIP_SETTINGS_UPDATE";
       payload: { friendUserId: string; patch: FriendshipSettingsPatch };
     }
-  // v2 Task 12: routes to tempPasscodeApi.createRequest - LockedPage.tsx's requester-side
-  // "request a temporary passcode" action. sessionId/hostname mirror UNLOCK_REQUEST_CREATE's
-  // shape; friendUserId is the picked designated friend (from FRIENDS_LIST,
-  // same friend-picker pattern FriendGroupPanel.tsx/UnlockRequestPanel.tsx already use).
-  // createRequest throws on failure (not signed in, insert error) - the outer handleMessage
-  // try/catch turns that into ok:false, same convention as UNLOCK_REQUEST_CREATE.
-  // v3.3 Task 11: optional `message` - the requester's free-text explanation, shown to the
-  // approving friend in TempPasscodePanel.tsx alongside the requester/hostname line.
-  | {
-      type: "TEMP_PASSCODE_CREATE";
-      payload: { sessionId: string; hostname: string; friendUserId: string; message?: string };
-    }
-  // v2 Task 12: routes to tempPasscodeApi.approveRequest - the assigned friend's approve action
-  // (TempPasscodePanel.tsx). v3.3 Task 10: no code is generated or returned anymore - approval
-  // alone is the security boundary. Throws on failure (not the assigned friend, already resolved,
-  // Edge Function error) - same outer-catch convention as above.
-  | { type: "TEMP_PASSCODE_APPROVE"; payload: { requestId: string } }
-  // v2 Task 12: routes to tempPasscodeApi.denyRequest - the assigned friend's deny action
-  // (TempPasscodePanel.tsx), the plan's UI brief calls for "an approve/deny action" though only
-  // approveRequest appears in the plan's literal Interfaces line - deny needs no server-side
-  // logic, so it's a direct client-side table update, unlike TEMP_PASSCODE_APPROVE. Throws on
-  // failure (already resolved / not the assigned friend) - same outer-catch convention as above.
-  | { type: "TEMP_PASSCODE_DENY"; payload: { requestId: string } }
-  // v3.3 Task 10: replaces TEMP_PASSCODE_REDEEM - routes to tempPasscodeApi.claimApproval.
-  // LockedPage.tsx's requester-side auto-claim, fired once the request's status is 'approved' (no
-  // code to enter anymore). On {ok:true}, claimApproval itself also performs the actual unlock
-  // (unlockHardBlockRuleForHostname + scheduleTempUnlockRelockAlarm), after a fresh RLS-gated
-  // re-read of the row server-side (Decision 3 - never trusts a client-supplied hostname/expiry).
-  | { type: "TEMP_PASSCODE_CLAIM_APPROVAL"; payload: { requestId: string } }
-  // v2 Task 12: routes to tempPasscodeApi.fetchRelevantTempPasscodeRequests - the on-demand
-  // counterpart to the background's alarm-driven poll (alarmHandlers.ts calls
-  // tempPasscodeApi.pollRelevantTempPasscodeRequests directly, mirroring
-  // UNLOCK_REQUESTS_FETCH/pollRelevantUnlockRequests's identical split). Not named in the plan's
-  // literal Interfaces line, but necessary - without an on-demand fetch, neither LockedPage.tsx
-  // (checking its own request's status) nor TempPasscodePanel.tsx (listing pending requests to
-  // review) has anything to render from.
-  | { type: "TEMP_PASSCODE_REQUESTS_FETCH"; payload: { sinceTimestamp: number } }
   // v2 Task 13, fix round 1 (Important, code review): routes to studyRoomApi.createRoom -
   // StudyRoomPanel.tsx's create-room action. Plain one-shot DB write with no live-callback or
   // DOM/media coupling, so - unlike joinRoom/subscribeToPresence (see studyRoomApi.ts's own
@@ -252,7 +250,7 @@ export type ExtensionMessage =
   // v2 Task 14: routes to producerTagApi.fetchIncomingProducerTagSends - the on-demand counterpart
   // to the background's alarm-driven poll (alarmHandlers.ts calls
   // producerTagApi.pollIncomingProducerTagSends directly, mirroring NUDGES_FETCH/
-  // UNLOCK_REQUESTS_FETCH's identical split). Friend-delivery only, per this task's Part D - a
+  // FRIEND_REQUESTS_FETCH's identical split). Friend-delivery only, per this task's Part D - a
   // room send is never returned by this (see producerTagApi.ts's queryIncomingSince comment).
   | { type: "PRODUCER_TAG_SENDS_FETCH"; payload: { sinceTimestamp: number } }
   // v2 Task 14: routes to producerTagApi.fetchProducerTagById - StudyRoomPanel.tsx's lookup once a
@@ -277,32 +275,13 @@ export type ExtensionMessage =
   | { type: "PROFILE_SAVE_MINE"; payload: { humanName?: string; bunnyName?: string } }
   // v3.3 Task 8: routes to profileApi.fetchProfilesByIds() - shared/ui/useDisplayNames.ts's one
   // fetch, reused at every raw-userId display site this task's plan names (NudgeSendForm's friend
-  // picker, StudyRoomPanel's participant list, TempPasscodePanel's/UnlockRequestPanel's requester
-  // lines, LockedPage.tsx's friend picker, AccountPage.tsx's friend list). Never throws (see
+  // picker, StudyRoomPanel's participant list, FriendRequestPanel's requester lines,
+  // LockedPage.tsx's friend picker, AccountPage.tsx's friend list). Never throws (see
   // profileApi.ts) - RLS (not this message, not client-side filtering) is what actually restricts
   // which of the requested userIds come back: only the caller's own profile, or a group-mate's. An
   // id with no matching profile (or no human_name set) is simply omitted from the result, which
   // useDisplayNames.ts's resolver falls back to rendering as the raw id for.
   | { type: "PROFILES_FETCH_BY_IDS"; payload: { userIds: string[] } }
-  // v3.3 Task 12: routes to sessionEndRequestApi.createRequest - EndSessionControl.tsx's
-  // requester-side "Request a temporary pass from a friend" action, on the hard-restricted
-  // end-session prompt. Mirrors UNLOCK_REQUEST_CREATE's shape/outer-catch convention exactly,
-  // minus a hostname field - a session-end request isn't about any particular site.
-  | { type: "SESSION_END_REQUEST_CREATE"; payload: { sessionId: string } }
-  // v3.3 Task 12: routes to sessionEndRequestApi.resolveRequest - SessionEndRequestPanel.tsx's
-  // friend (approve/deny) side. "First responder wins" is enforced server-side (RLS - see
-  // supabase/migrations/20260815000038_v3.3_session_end_requests.sql), not by this message or
-  // sessionEndRequestApi.ts pre-checking anything client-side - same convention as
-  // UNLOCK_REQUEST_RESOLVE.
-  | { type: "SESSION_END_REQUEST_RESOLVE"; payload: { requestId: string; decision: "approved" | "denied" } }
-  // v3.3 Task 12: routes to sessionEndRequestApi.fetchRelevantSessionEndRequests - the on-demand
-  // counterpart to the background's alarm-driven poll (alarmHandlers.ts calls
-  // sessionEndRequestApi.pollRelevantSessionEndRequests directly, mirroring
-  // UNLOCK_REQUESTS_FETCH/pollRelevantUnlockRequests's identical split). Used by both
-  // SessionEndRequestPanel.tsx (listing pending requests to review) and EndSessionControl.tsx
-  // (checking its own request's status, mirroring LockedPage.tsx's temp-request "Check status"
-  // pattern).
-  | { type: "SESSION_END_REQUESTS_FETCH"; payload: { sinceTimestamp: number } }
   // v3.2 Task 8: routes to accountApi.deleteAccount() - AccountPage.tsx's "Delete account"
   // action, gated behind its own confirm() prompt (same irreversible-action convention as
   // FRIEND_REMOVE's confirm in AccountPage.tsx) before this message is ever sent. No payload - the

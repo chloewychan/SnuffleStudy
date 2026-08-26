@@ -6,6 +6,16 @@
 // out-of-band, so the response carries only what the requester's client needs to know the request
 // is now approved: hostname and expiresAt.
 //
+// v3.4 Task 3: temp_passcode_requests -> friend_requests (kind = 'site_temp_pass'). Only the
+// queried/updated table and the added kind filter change - the JWT auth check, the
+// caller-must-be-the-assigned-friend check, the pending-status check, and the TTL_MS=15min
+// generation are all byte-identical to the pre-v3.4 version. This is the ONE friend_requests
+// mutation that does NOT go through the shared plain-client resolveRequest() path (Decision 3,
+// docs/implementation_plans/V3.4_Implementation_Plan.md) - friend_requests' UPDATE policy's WITH
+// CHECK clause explicitly excludes a plain client from setting status='approved' when
+// kind='site_temp_pass', so this service-role Edge Function remains the only way that transition
+// can happen at all.
+//
 // Same structural template as generate-coaching-message/index.ts: CORS headers, json() helper,
 // module-scoped anon/admin clients, Authorization-header JWT auth via anonClient.auth.getUser(jwt).
 //
@@ -90,9 +100,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const { data: row, error: rowError } = await adminClient
-      .from("temp_passcode_requests")
+      .from("friend_requests")
       .select("id, hostname, friend_user_id, status")
       .eq("id", body.requestId)
+      .eq("kind", "site_temp_pass")
       .single();
     if (rowError || !row) {
       return json({ error: "Request not found" }, 404);
@@ -108,13 +119,14 @@ Deno.serve(async (req: Request) => {
     const expiresAt = now + TTL_MS;
 
     const { error: updateError } = await adminClient
-      .from("temp_passcode_requests")
+      .from("friend_requests")
       .update({
         status: "approved",
         expires_at: new Date(expiresAt).toISOString(),
         resolved_at: new Date(now).toISOString(),
       })
       .eq("id", row.id)
+      .eq("kind", "site_temp_pass")
       .eq("status", "pending"); // First-responder-wins guard, mirrors unlock_requests' pattern.
     if (updateError) {
       console.error("Failed to persist approved temp passcode request", updateError);

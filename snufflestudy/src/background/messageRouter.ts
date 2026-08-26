@@ -23,11 +23,9 @@ import { supabase } from "../infrastructure/backend/supabaseClient";
 import * as friendshipApi from "../infrastructure/backend/friendshipApi";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
-import * as unlockRequestApi from "../infrastructure/backend/unlockRequestApi";
-import * as sessionEndRequestApi from "../infrastructure/backend/sessionEndRequestApi";
+import * as friendRequestApi from "../infrastructure/backend/friendRequestApi";
 import * as digestApi from "../infrastructure/backend/digestApi";
 import * as friendshipSettingsApi from "../infrastructure/backend/friendshipSettingsApi";
-import * as tempPasscodeApi from "../infrastructure/backend/tempPasscodeApi";
 import * as studyRoomApi from "../infrastructure/backend/studyRoomApi";
 import * as producerTagApi from "../infrastructure/backend/producerTagApi";
 import * as accountApi from "../infrastructure/backend/accountApi";
@@ -197,7 +195,15 @@ async function routeMessage(
         // THEIR pass to use).
         const endRequestId = message.payload.endRequestId;
         if (endRequestId) {
-          const approved = await sessionEndRequestApi.isApprovedForSelf(endRequestId, session.id);
+          // v3.4 Task 3: isApprovedForSelf now lives on friendRequestApi.ts (generalized from
+          // sessionEndRequestApi.ts's identical function) and takes an explicit `kind` param -
+          // everything else about this check (its own fresh server-side read, its explicit
+          // requester_user_id comparison against the caller's own verified identity) is unchanged.
+          const approved = await friendRequestApi.isApprovedForSelf(
+            endRequestId,
+            "session_end",
+            session.id
+          );
           if (!approved) {
             return {
               ok: false,
@@ -585,64 +591,55 @@ async function routeMessage(
       return { ok: true, nudges };
     }
 
-    case "UNLOCK_REQUEST_CREATE": {
+    case "FRIEND_REQUEST_CREATE": {
       // createRequest throws (not signed in, insert error) rather than returning ok:false - the
       // outer handleMessage try/catch (top of this file) turns that into { ok: false, error },
-      // same convention as GROUP_CREATE/GROUP_JOIN above.
-      const request = await unlockRequestApi.createRequest(
-        message.payload.sessionId,
-        message.payload.hostname
-      );
+      // same convention as GROUP_CREATE/GROUP_JOIN above. One shared call for all three kinds -
+      // replaces UNLOCK_REQUEST_CREATE/TEMP_PASSCODE_CREATE/SESSION_END_REQUEST_CREATE.
+      const request = await friendRequestApi.createRequest(message.payload.kind, message.payload);
       return { ok: true, request };
     }
 
-    case "UNLOCK_REQUEST_RESOLVE": {
+    case "FRIEND_REQUEST_RESOLVE": {
       // resolveRequest throws on a denied/failed resolve (including the "first responder wins"
-      // race - see unlockRequestApi.ts's own comment) - same outer-catch convention as above.
-      // Applying the approved hostname to the requester's own active session does NOT happen
-      // here: this message runs on the RESOLVING FRIEND's device, which has no access to the
-      // requester's local session state - that side effect only happens on the requester's own
-      // device, via alarmHandlers.ts's friend-poll alarm noticing their own request resolved
-      // (see that file's pollUnlockRequestUpdates/applyApprovedUnlockRequest).
-      await unlockRequestApi.resolveRequest(message.payload.requestId, message.payload.decision);
+      // race, and Decision 3's RLS-enforced exclusion of plain-client site_temp_pass approval -
+      // see friendRequestApi.ts's own comment) - same outer-catch convention as above.
+      // Applying an approved site_unlock/site_temp_pass to the requester's own active
+      // session/hard-block rules does NOT happen here: this message runs on the RESOLVING
+      // FRIEND's device, which has no access to the requester's local state - that side effect
+      // only happens on the requester's own device, via alarmHandlers.ts's friend-poll alarm
+      // noticing their own request resolved (pollFriendRequestUpdates).
+      await friendRequestApi.resolveRequest(message.payload.requestId, message.payload.decision);
       return { ok: true };
     }
 
-    case "UNLOCK_REQUESTS_FETCH": {
-      // fetchRelevantUnlockRequests already degrades to [] (never throws) when signed out or on
-      // a transient failure - see unlockRequestApi.ts - so UnlockRequestPanel.tsx always gets an
-      // ok:true response, even with nothing to show.
-      const requests = await unlockRequestApi.fetchRelevantUnlockRequests(
-        message.payload.sinceTimestamp
-      );
-      return { ok: true, requests };
+    case "FRIEND_REQUEST_APPROVE_TEMP_PASS": {
+      // approveTempPass throws on failure (not the assigned friend, already resolved, Edge
+      // Function error) - same outer-catch convention as above. Decision 3: the only
+      // friend_requests approval path for kind = 'site_temp_pass' - RLS's WITH CHECK excludes
+      // this transition from FRIEND_REQUEST_RESOLVE's plain client UPDATE entirely.
+      const result = await friendRequestApi.approveTempPass(message.payload.requestId);
+      return { ok: true, ...result };
     }
 
-    case "SESSION_END_REQUEST_CREATE": {
-      // createRequest throws (not signed in, insert error) rather than returning ok:false - the
-      // outer handleMessage try/catch (top of this file) turns that into { ok: false, error },
-      // same convention as UNLOCK_REQUEST_CREATE above.
-      const request = await sessionEndRequestApi.createRequest(message.payload.sessionId);
-      return { ok: true, request };
+    case "FRIEND_REQUEST_CLAIM_TEMP_PASS": {
+      // v3.3 Task 10: replaces TEMP_PASSCODE_REDEEM - there is no code to submit anymore.
+      // claimApproval never throws (see friendRequestApi.ts) - it resolves to { ok: false } for
+      // every failure path (RLS-denied/missing row, expired, network/invoke error), and on
+      // success has already performed the actual local unlock
+      // (unlockHardBlockRuleForHostname + scheduleTempUnlockRelockAlarm) itself. This case is a
+      // thin pass-through, same convention as HARD_BLOCK_VERIFY_PASSCODE.
+      const result = await friendRequestApi.claimApproval(message.payload.requestId);
+      return result;
     }
 
-    case "SESSION_END_REQUEST_RESOLVE": {
-      // resolveRequest throws on a denied/failed resolve (including the "first responder wins"
-      // race - see sessionEndRequestApi.ts's own comment) - same outer-catch convention as above.
-      // Unlike UNLOCK_REQUEST_RESOLVE's approved case, there is no local side effect to apply
-      // here at all (not even on the requester's own device) - per the Global Constraints note
-      // (a background poll never auto-applies a disruptive action), approval alone never ends
-      // the session; the requester must click "End session now" themselves, which sends a
-      // separate SESSION_END with this request's id.
-      await sessionEndRequestApi.resolveRequest(message.payload.requestId, message.payload.decision);
-      return { ok: true };
-    }
-
-    case "SESSION_END_REQUESTS_FETCH": {
-      // fetchRelevantSessionEndRequests already degrades to [] (never throws) when signed out or
-      // on a transient failure - see sessionEndRequestApi.ts - so SessionEndRequestPanel.tsx/
-      // EndSessionControl.tsx always get an ok:true response, even with nothing to show.
-      const requests = await sessionEndRequestApi.fetchRelevantSessionEndRequests(
+    case "FRIEND_REQUESTS_FETCH": {
+      // fetchRelevantRequests already degrades to [] (never throws) when signed out or on a
+      // transient failure - see friendRequestApi.ts - so FriendRequestPanel.tsx/
+      // RequestUnlockForm.tsx/LockedPage.tsx/EndSessionControl.tsx always get an ok:true
+      // response, even with nothing to show. Replaces UNLOCK_REQUESTS_FETCH/
+      // TEMP_PASSCODE_REQUESTS_FETCH/SESSION_END_REQUESTS_FETCH.
+      const requests = await friendRequestApi.fetchRelevantRequests(
         message.payload.sinceTimestamp
       );
       return { ok: true, requests };
@@ -659,7 +656,7 @@ async function routeMessage(
     case "FRIENDSHIP_SETTINGS_LIST": {
       // listMyFriendshipSettings throws (not signed in, query error) rather than returning
       // ok:false - the outer handleMessage try/catch turns that into { ok: false, error }, same
-      // convention as GROUP_CREATE/GROUP_JOIN/UNLOCK_REQUEST_CREATE above.
+      // convention as GROUP_CREATE/GROUP_JOIN/FRIEND_REQUEST_CREATE above.
       const settings = await friendshipSettingsApi.listMyFriendshipSettings();
       return { ok: true, settings };
     }
@@ -672,56 +669,6 @@ async function routeMessage(
         message.payload.patch
       );
       return { ok: true, settings };
-    }
-
-    case "TEMP_PASSCODE_CREATE": {
-      // createRequest throws (not signed in, insert error) rather than returning ok:false - the
-      // outer handleMessage try/catch (top of this file) turns that into { ok: false, error },
-      // same convention as UNLOCK_REQUEST_CREATE above.
-      // v3.3 Task 11: optional `message` forwarded through unchanged.
-      const request = await tempPasscodeApi.createRequest(
-        message.payload.sessionId,
-        message.payload.hostname,
-        message.payload.friendUserId,
-        message.payload.message
-      );
-      return { ok: true, request };
-    }
-
-    case "TEMP_PASSCODE_APPROVE": {
-      // approveRequest throws on failure (not the assigned friend, already resolved, Edge
-      // Function error) - same outer-catch convention as above. v3.3 Task 10: no code is
-      // generated/returned anymore - approval alone is the security boundary.
-      await tempPasscodeApi.approveRequest(message.payload.requestId);
-      return { ok: true };
-    }
-
-    case "TEMP_PASSCODE_DENY": {
-      // denyRequest throws on failure (already resolved / not the assigned friend) - same
-      // outer-catch convention as above.
-      await tempPasscodeApi.denyRequest(message.payload.requestId);
-      return { ok: true };
-    }
-
-    case "TEMP_PASSCODE_CLAIM_APPROVAL": {
-      // v3.3 Task 10: replaces TEMP_PASSCODE_REDEEM - there is no code to submit anymore.
-      // claimApproval never throws (see tempPasscodeApi.ts) - it resolves to { ok: false } for
-      // every failure path (RLS-denied/missing row, expired, network/invoke error), and on
-      // success has already performed the actual local unlock (unlockHardBlockRuleForHostname +
-      // scheduleTempUnlockRelockAlarm) itself. This case is a thin pass-through, same convention
-      // as HARD_BLOCK_VERIFY_PASSCODE.
-      const result = await tempPasscodeApi.claimApproval(message.payload.requestId);
-      return result;
-    }
-
-    case "TEMP_PASSCODE_REQUESTS_FETCH": {
-      // fetchRelevantTempPasscodeRequests already degrades to [] (never throws) when signed out
-      // or on a transient failure - see tempPasscodeApi.ts - so LockedPage.tsx/
-      // TempPasscodePanel.tsx always get an ok:true response, even with nothing to show.
-      const requests = await tempPasscodeApi.fetchRelevantTempPasscodeRequests(
-        message.payload.sinceTimestamp
-      );
-      return { ok: true, requests };
     }
 
     case "STUDY_ROOM_CREATE": {

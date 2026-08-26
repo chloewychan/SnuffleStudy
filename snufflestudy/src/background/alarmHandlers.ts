@@ -18,14 +18,9 @@ import {
 } from "../infrastructure/browser/declarativeNetRequestApi";
 import { pollNewEventsForFriends } from "../infrastructure/backend/sessionStatusSyncApi";
 import { pollIncomingNudges } from "../infrastructure/backend/nudgeApi";
-import {
-  pollRelevantUnlockRequests,
-  type UnlockRequest,
-} from "../infrastructure/backend/unlockRequestApi";
-import { pollRelevantSessionEndRequests } from "../infrastructure/backend/sessionEndRequestApi";
+import { pollRelevantRequests } from "../infrastructure/backend/friendRequestApi";
+import type { FriendRequest } from "../domain/accountability/friendRequest";
 import { pollNewDigests } from "../infrastructure/backend/digestApi";
-import { pollRelevantTempPasscodeRequests } from "../infrastructure/backend/tempPasscodeApi";
-import type { TempPasscodeRequest } from "../domain/accountability/tempPasscodeRequest";
 import { pollIncomingProducerTagSends } from "../infrastructure/backend/producerTagApi";
 import * as profileApi from "../infrastructure/backend/profileApi";
 import { supabase } from "../infrastructure/backend/supabaseClient";
@@ -36,16 +31,12 @@ import {
   setLastFriendPollAt,
   getLastNudgePollAt,
   setLastNudgePollAt,
-  getLastUnlockPollAt,
-  setLastUnlockPollAt,
+  getLastFriendRequestPollAt,
+  setLastFriendRequestPollAt,
   getLastDigestPollAt,
   setLastDigestPollAt,
-  getLastTempPasscodePollAt,
-  setLastTempPasscodePollAt,
   getLastProducerTagPollAt,
   setLastProducerTagPollAt,
-  getLastSessionEndPollAt,
-  setLastSessionEndPollAt,
   getLastFriendConnectionPollAt,
   setLastFriendConnectionPollAt,
 } from "../infrastructure/storage/friendPollState";
@@ -108,7 +99,7 @@ async function pollSessionEventUpdates(): Promise<void> {
 // v2 Task 10, Part C: `liveNudgesNotificationsEnabled`/quietHours gate ONLY whether a toast is
 // shown - the fetch/cursor-advancement above (and below) runs exactly as before, unaffected,
 // consistent with how this alarm's other streams already separate "did the fetch succeed" from
-// "should the user be shown something" (see pollUnlockRequestUpdates' pending-vs-own-request
+// "should the user be shown something" (see pollFriendRequestUpdates' pending-vs-own-request
 // branching for the same kind of separation). Computed once per tick from the current settings
 // snapshot - deliberately NOT a per-nudge check, since quiet-hours status can't meaningfully
 // change within the few milliseconds it takes to loop over one poll's results.
@@ -141,21 +132,17 @@ async function pollNudgeUpdates(): Promise<void> {
   }
 }
 
-// v2 Task 8, Part B of this task's brief: applies an approved unlock request to the affected
-// LOCAL session. This can only run on the *requester's* device (the resolving friend's device
-// has no access to, and no business mutating, the requester's chrome.storage.local session
-// state) - which is exactly why this is only ever called from pollUnlockRequestUpdates below,
-// gated on `req.requesterUserId === userId` (the current device's own signed-in user).
+// v3.4 Task 3: applies an approved site_unlock friend request to the affected LOCAL session -
+// renamed from applyApprovedUnlockRequest, same body verbatim (only the request's type changed,
+// from UnlockRequest to FriendRequest). This can only run on the *requester's* device (the
+// resolving friend's device has no access to, and no business mutating, the requester's
+// chrome.storage.local session state) - which is exactly why this is only ever called from
+// pollFriendRequestUpdates below, gated on `req.requesterUserId === userId` (the current device's
+// own signed-in user).
 //
-// The plan's literal wording ("reuse the siteRestrictionOverrides mechanism from v1's
-// StudySession") is NOT what this does - see this task's report for the full trace, but in
-// short: siteRestrictionOverrides only ever changes a BLOCKED site's severity (soft vs. hard),
-// it is never consulted by classifySite() at all, and tabHandlers.ts's warning path already
-// returns early for anything classifySite() doesn't call BLOCKED - so a hostname could never
-// stop being blocked, or stop warning, via that mechanism. allowedSites IS what classifySite()
-// checks first (src/domain/sites/siteRules.ts) and returns ALLOWED immediately on a match - the
-// same mechanism MARK_SITE_STUDY_RELATED already uses in messageRouter.ts - so this reuses that
-// existing, already-proven path instead.
+// allowedSites IS what classifySite() checks first (src/domain/sites/siteRules.ts) and returns
+// ALLOWED immediately on a match - the same mechanism MARK_SITE_STUDY_RELATED already uses in
+// messageRouter.ts.
 //
 // Guards against a stale/mismatched approval: the request's session_id must match the CURRENTLY
 // active session's id (the user could have ended that session and started a new one, or ended
@@ -165,9 +152,9 @@ async function pollNudgeUpdates(): Promise<void> {
 // already in allowedSites (e.g. a re-poll after a service-worker restart re-delivers the same
 // approval, or the user separately used MARK_SITE_STUDY_RELATED for it), this is a no-op rather
 // than writing a duplicate entry.
-async function applyApprovedUnlockRequest(req: UnlockRequest): Promise<void> {
+async function applyApprovedFriendRequest(req: FriendRequest): Promise<void> {
   const session = await settingsRepo.getActiveSession();
-  if (!session || session.id !== req.sessionId) return;
+  if (!session || !req.hostname || session.id !== req.sessionId) return;
   if (session.state === "COMPLETED" || session.state === "ABANDONED") return;
   if (session.allowedSites.includes(req.hostname)) return;
 
@@ -175,27 +162,63 @@ async function applyApprovedUnlockRequest(req: UnlockRequest): Promise<void> {
   await settingsRepo.saveActiveSession(updated);
 }
 
-// Polls unlock_requests for two distinct things relevant to the current user (v2 Task 8, reusing
-// Task 6's alarm/notification path per this task's brief), both delivered by the same
-// pollRelevantUnlockRequests query (see unlockRequestApi.ts's comment on why one query covers
-// both):
-//   (a) the requester's OWN request just got resolved (approved/denied) - apply the
-//       allowedSites change on approval, then notify either way, with copy distinct from both
-//       pollSessionEventUpdates's and pollNudgeUpdates's;
-//   (b) a NEW pending request from someone else sharing a group with the current user - notify
-//       so the friend knows to open the panel and review it.
+// v3.4 Task 3: applies an approved site_temp_pass friend request - renamed from
+// applyApprovedTempPasscodeRequest, same body verbatim. "Silently extend what the user is already
+// allowed to do", safe to run unattended from this background poll (Global Constraints: a
+// background poll never triggers a disruptive UI action on its own; unlocking a single
+// already-approved hostname is exactly the kind of non-disruptive extension that's fine here,
+// unlike ending a session). Works through the DNR rule/relock-alarm mechanism
+// (unlockHardBlockRuleForHostname + scheduleTempUnlockRelockAlarm), same as
+// friendRequestApi.ts's claimApproval does when the user is looking at LockedPage.tsx directly -
+// this means the unlock can happen from the background poll alone, without the user ever
+// reopening LockedPage.tsx after their friend approves.
+async function applyApprovedTempPass(req: FriendRequest): Promise<void> {
+  if (!req.hostname) return;
+  try {
+    await unlockHardBlockRuleForHostname(req.hostname);
+    if (req.expiresAt) {
+      scheduleTempUnlockRelockAlarm(req.hostname, req.expiresAt);
+    }
+  } catch (err) {
+    console.error("Failed to apply an approved temp passcode request", err);
+  }
+}
+
+// v3.4 Task 3: replaces pollUnlockRequestUpdates/pollTempPasscodeUpdates/
+// pollSessionEndRequestUpdates - one stream backing all three kinds now that they're one
+// friend_requests table behind one pollRelevantRequests query (see friendRequestApi.ts's
+// queryRelevantSince comment on why one query covers both directions below). Reuses Task 6's
+// alarm/notification path, not a new one, same as every other stream on this file.
+//
+//   (a) the requester's OWN request just got resolved (approved/denied) - apply the local side
+//       effect on approval (site_unlock's allowedSites mutation; site_temp_pass's DNR-unlock +
+//       relock-alarm; session_end has deliberately NO auto-apply - see below), then notify
+//       either way, with copy distinct per kind;
+//   (b) a NEW pending request from someone else the current user is friends with (or assigned to
+//       specifically) - notify so the friend knows to open the panel and review it.
+//
 // A row that's the current user's own STILL-pending request (they just created it themselves) is
 // intentionally skipped - they already know, no notification needed. Same "only advance the
-// cursor on confirmed success" discipline as the two poll functions above, using its own
-// independent cursor (getLastUnlockPollAt/setLastUnlockPollAt) so a failure here never affects,
-// and is never affected by, the session-events or nudge cursors.
-async function pollUnlockRequestUpdates(userId: string): Promise<void> {
+// cursor on confirmed success" discipline as every other stream, using its own independent
+// cursor (getLastFriendRequestPollAt/setLastFriendRequestPollAt).
+//
+// session_end's branch deliberately does NOT call any apply-side-effect function at all, on
+// purpose - preserved verbatim from pollSessionEndRequestUpdates's own asymmetry. Per the Global
+// Constraints note: unlocking a hostname (site_unlock) or a site (site_temp_pass) is "silently
+// extend what the user is already allowed to do" - safe to run unattended. Ending a session is
+// disruptive - it stops what the user is doing - so an approved session-end request is NEVER
+// auto-applied from this background poll. This function only ever produces a notification for
+// that kind; the actual SESSION_END call still requires the user to return to
+// EndSessionControl.tsx and click "End session now" themselves. Do not "fix" this into
+// auto-ending a session without re-deciding that on purpose, in writing, the way this codebase's
+// plan history already did once (docs/implementation_plans/V3.3_Implementation_Plan.md).
+async function pollFriendRequestUpdates(userId: string): Promise<void> {
   try {
     const now = Date.now();
-    const since = (await getLastUnlockPollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
-    const result = await pollRelevantUnlockRequests(since);
+    const since = (await getLastFriendRequestPollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
+    const result = await pollRelevantRequests(since);
     if (!result.ok) {
-      // Same rationale as the other two poll functions' identical branch: leave the persisted
+      // Same rationale as every other poll function's identical branch: leave the persisted
       // cursor untouched on a failed fetch so the next tick retries this exact window instead of
       // silently losing whatever pending requests/resolutions arrived during the outage.
       return;
@@ -203,32 +226,61 @@ async function pollUnlockRequestUpdates(userId: string): Promise<void> {
     for (const req of result.requests) {
       if (req.requesterUserId === userId) {
         if (req.status === "approved") {
-          await applyApprovedUnlockRequest(req);
-          showNotification(
-            `unlock-request-${req.id}`,
-            "Unlock request approved",
-            `${req.hostname} is now allowed for the rest of this session.`
-          );
+          if (req.kind === "site_unlock") {
+            await applyApprovedFriendRequest(req);
+            showNotification(
+              `friend-request-${req.id}`,
+              "Unlock request approved",
+              `${req.hostname} is now allowed for the rest of this session.`
+            );
+          } else if (req.kind === "site_temp_pass") {
+            await applyApprovedTempPass(req);
+            showNotification(
+              `friend-request-${req.id}`,
+              "Temporary passcode approved",
+              `${req.hostname} is now unlocked for a limited time.`
+            );
+          } else {
+            // session_end: notification only, deliberately no auto-apply - see this function's
+            // own header comment and the Global Constraints note.
+            showNotification(
+              `friend-request-${req.id}`,
+              "Temporary pass approved",
+              "A friend approved your request to end this session early — return to the app to end it."
+            );
+          }
         } else if (req.status === "denied") {
+          const label =
+            req.kind === "session_end"
+              ? "end this session early"
+              : req.kind === "site_temp_pass"
+                ? `a temporary passcode for ${req.hostname}`
+                : `unlock ${req.hostname}`;
           showNotification(
-            `unlock-request-${req.id}`,
-            "Unlock request denied",
-            `Your request to unlock ${req.hostname} was denied.`
+            `friend-request-${req.id}`,
+            "Request denied",
+            `Your request to ${label} was denied.`
           );
         }
         // status === "pending" here means it's the requester's own still-unanswered request -
         // nothing to do, they already know they just created it.
       } else if (req.status === "pending") {
+        const label =
+          req.kind === "session_end"
+            ? "end their session early"
+            : req.kind === "site_temp_pass"
+              ? `a temporary passcode for ${req.hostname}`
+              : `unlock ${req.hostname}`;
         showNotification(
-          `unlock-request-pending-${req.id}`,
-          "Unlock request",
-          `A friend wants to unlock ${req.hostname} — open the panel to review.`
+          `friend-request-pending-${req.id}`,
+          "Friend request",
+          `A friend wants to ${label} — open the panel to review.`
         );
       }
     }
-    await setLastUnlockPollAt(now);
+    await setLastFriendRequestPollAt(now);
   } catch (err) {
-    console.error("Failed to poll unlock requests", err);
+    console.error("Failed to poll friend requests", err);
   }
 }
 
@@ -254,8 +306,8 @@ async function pollUnlockRequestUpdates(userId: string): Promise<void> {
 // v2 Task 10, Part C: same "gate only the toast, never the fetch/cursor" discipline as
 // pollNudgeUpdates above, using `digestNotificationsEnabled`/quietHours instead of
 // `liveNudgesNotificationsEnabled`. Deliberately does NOT gate pollSessionEventUpdates or
-// pollUnlockRequestUpdates - the brief's Part C is explicit that only "live nudges" and "digest"
-// get a global toggle (plus quiet hours layered on both); friend-activity and unlock-request
+// pollFriendRequestUpdates - the brief's Part C is explicit that only "live nudges" and "digest"
+// get a global toggle (plus quiet hours layered on both); friend-activity and friend-request
 // toasts are unaffected by this task, a deliberate scope boundary, not an oversight.
 async function pollDigestUpdates(userId: string): Promise<void> {
   try {
@@ -291,100 +343,15 @@ async function pollDigestUpdates(userId: string): Promise<void> {
   }
 }
 
-// v3.3 Task 10: applies an approved temp-passcode request the same way
-// applyApprovedUnlockRequest (above) applies an approved unlock request - "silently extend what
-// the user is already allowed to do", safe to run unattended from this background poll (Global
-// Constraints: a background poll never triggers a disruptive UI action on its own; unlocking a
-// single already-approved hostname is exactly the kind of non-disruptive extension that's fine
-// here, unlike ending a session). Unlike applyApprovedUnlockRequest, this doesn't mutate
-// allowedSites on a StudySession - hard-mode temp passcodes work through the DNR rule/relock-alarm
-// mechanism (unlockHardBlockRuleForHostname + scheduleTempUnlockRelockAlarm), same as
-// tempPasscodeApi.ts's claimApproval does when the user is looking at LockedPage.tsx directly.
-// This means the unlock can happen from the background poll alone, without the user ever
-// reopening LockedPage.tsx after their friend approves.
-async function applyApprovedTempPasscodeRequest(req: TempPasscodeRequest): Promise<void> {
-  try {
-    await unlockHardBlockRuleForHostname(req.hostname);
-    if (req.expiresAt) {
-      scheduleTempUnlockRelockAlarm(req.hostname, req.expiresAt);
-    }
-  } catch (err) {
-    console.error("Failed to apply an approved temp passcode request", err);
-  }
-}
-
-// v2 Task 12: fifth stream on this same alarm - temp passcode requests. Reuses Task 6's
-// alarm/notification path per this task's brief ("extend Task 6's shared poll... add a fifth"),
-// not a new one. Same "only advance the cursor on confirmed success" discipline as the four
-// streams above, using its own independent cursor (getLastTempPasscodePollAt/
-// setLastTempPasscodePollAt) so a failure here never affects, and is never affected by, the other
-// four cursors.
-//
-// v3.3 Task 10: an approved request's status branch now calls applyApprovedTempPasscodeRequest
-// (above) before notifying - mirrors pollUnlockRequestUpdates's approved case exactly, replacing
-// the old "the actual unlock only happens when the requester redeems a code" design (there is no
-// code anymore; approval alone is the security boundary). Notification copy also changes to match
-// - the requester doesn't need to do anything further, so the toast says the site is already
-// unlocked rather than telling them to go get a code from their friend. The other direction is
-// unchanged: telling the friend about a new pending request directed at them, so they know to
-// open the panel and review it.
-async function pollTempPasscodeUpdates(userId: string): Promise<void> {
-  try {
-    const now = Date.now();
-    const since = (await getLastTempPasscodePollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
-    const result = await pollRelevantTempPasscodeRequests(since);
-    if (!result.ok) {
-      // Same rationale as the other four poll functions' identical branch: leave the persisted
-      // cursor untouched on a failed fetch so the next tick retries this exact window instead of
-      // silently losing whatever pending requests/resolutions arrived during the outage.
-      return;
-    }
-    for (const req of result.requests) {
-      if (req.requesterUserId === userId) {
-        if (req.status === "approved") {
-          await applyApprovedTempPasscodeRequest(req);
-          showNotification(
-            `temp-passcode-${req.id}`,
-            "Temporary passcode approved",
-            `${req.hostname} is now unlocked for a limited time.`
-          );
-        } else if (req.status === "denied") {
-          showNotification(
-            `temp-passcode-${req.id}`,
-            "Temporary passcode denied",
-            `Your request to unlock ${req.hostname} was denied.`
-          );
-        } else if (req.status === "expired") {
-          showNotification(
-            `temp-passcode-${req.id}`,
-            "Temporary passcode expired",
-            `Your unlock window for ${req.hostname} has expired.`
-          );
-        }
-        // status === "pending" here means it's the requester's own still-unanswered request -
-        // nothing to do, they already know they just created it.
-      } else if (req.status === "pending") {
-        showNotification(
-          `temp-passcode-pending-${req.id}`,
-          "Temporary passcode request",
-          `A friend wants a temporary passcode for ${req.hostname} — open the panel to review.`
-        );
-      }
-    }
-    await setLastTempPasscodePollAt(now);
-  } catch (err) {
-    console.error("Failed to poll temp passcode requests", err);
-  }
-}
-
-// v2 Task 14: sixth stream on this same alarm - producer tags sent to the current user by a
+// v2 Task 14: third stream on this same alarm - producer tags sent to the current user by a
 // friend (room deliveries are excluded entirely - see producerTagApi.ts's queryIncomingSince -
 // and are instead delivered live via Supabase Realtime broadcast, Part D of this task, which has
 // no cursor/alarm involvement at all). Reuses Task 6's alarm/notification path per this task's
 // brief ("Do NOT add a new alarm"), not a new one. Same "only advance the cursor on confirmed
-// success" discipline as the five streams above, using its own independent cursor
+// success" discipline as the streams above, using its own independent cursor
 // (getLastProducerTagPollAt/setLastProducerTagPollAt) so a failure here never affects, and is
-// never affected by, the other five cursors.
+// never affected by, the other cursors. (v3.4 Task 3: renumbered from "sixth" - see
+// pollFriendRequestUpdates' own comment for why.)
 //
 // Notification id is synthesized from tagId+sentAt (`producer_tag_sends` has no id/primary key
 // column at all - see the schema migration's own comment on why) rather than a real row
@@ -414,70 +381,12 @@ async function pollProducerTagUpdates(): Promise<void> {
   }
 }
 
-// v3.3 Task 12: seventh stream on this same alarm - session-end requests. Reuses Task 6's
-// alarm/notification path, not a new one, same as every other stream above. Same "only advance the
-// cursor on confirmed success" discipline as the six streams above, using its own independent
-// cursor (getLastSessionEndPollAt/setLastSessionEndPollAt) so a failure here never affects, and is
-// never affected by, the other six cursors.
-//
-// Deliberately NOT mirroring pollUnlockRequestUpdates's/pollTempPasscodeUpdates's "approved" case
-// in full - there is no applyApproved*-style call here at all, on purpose. Per the Global
-// Constraints note (docs/implementation_plans/V3.3_Implementation_Plan.md): unlocking a hostname
-// (unlock requests) or a site (temp passcodes) is "silently extend what the user is already
-// allowed to do" - safe to run unattended. Ending a session is disruptive - it stops what the user
-// is doing - so an approved session-end request is NEVER auto-applied from this background poll.
-// This function only ever produces a notification; the actual SESSION_END call still requires the
-// user to return to EndSessionControl.tsx and click "End session now" themselves. This is a
-// deliberate asymmetry from the other two poll streams, not an oversight - do not "fix" this into
-// auto-ending a session without re-deciding that on purpose, in writing, the way this task's plan
-// already did once.
-async function pollSessionEndRequestUpdates(userId: string): Promise<void> {
-  try {
-    const now = Date.now();
-    const since = (await getLastSessionEndPollAt()) ?? now - FIRST_POLL_LOOKBACK_MS;
-    const result = await pollRelevantSessionEndRequests(since);
-    if (!result.ok) {
-      // Same rationale as the other six poll functions' identical branch: leave the persisted
-      // cursor untouched on a failed fetch so the next tick retries this exact window instead of
-      // silently losing whatever pending requests/resolutions arrived during the outage.
-      return;
-    }
-    for (const req of result.requests) {
-      if (req.requesterUserId === userId) {
-        if (req.status === "approved") {
-          showNotification(
-            `session-end-request-${req.id}`,
-            "Temporary pass approved",
-            "A friend approved your request to end this session early — return to the app to end it."
-          );
-        } else if (req.status === "denied") {
-          showNotification(
-            `session-end-request-${req.id}`,
-            "Temporary pass denied",
-            "Your request to end this session early was denied."
-          );
-        }
-        // status === "pending" here means it's the requester's own still-unanswered request -
-        // nothing to do, they already know they just created it.
-      } else if (req.status === "pending") {
-        showNotification(
-          `session-end-request-pending-${req.id}`,
-          "Session-end request",
-          "A friend wants to end their session early — open the panel to review."
-        );
-      }
-    }
-    await setLastSessionEndPollAt(now);
-  } catch (err) {
-    console.error("Failed to poll session-end requests", err);
-  }
-}
-
-// v3.4 Task 2: eighth stream on this same alarm - new friend connections. Reuses Task 6's
+// v3.4 Task 2: fourth stream on this same alarm - new friend connections. Reuses Task 6's
 // alarm/notification path, not a new one, same as every other stream above. Same "only advance
-// the cursor on confirmed success" discipline as the seven streams above, using its own
-// independent cursor (getLastFriendConnectionPollAt/setLastFriendConnectionPollAt) so a failure
-// here never affects, and is never affected by, the other seven cursors.
+// the cursor on confirmed success" discipline as the streams above, using its own independent
+// cursor (getLastFriendConnectionPollAt/setLastFriendConnectionPollAt) so a failure here never
+// affects, and is never affected by, the other cursors. (v3.4 Task 3: renumbered from "eighth" -
+// see pollFriendRequestUpdates' own comment for why.)
 //
 // Finds friendships rows THIS user's invite code generated (initiated_by = userId) created since
 // the last poll, and shows one toast per new connection. Uses the same human-name-with-raw-id-
@@ -519,13 +428,14 @@ async function pollFriendConnectionUpdates(userId: string): Promise<void> {
   }
 }
 
-// Runs all eight poll streams (session-status events, nudges, unlock requests, daily digests,
-// temp passcode requests, producer tags, session-end requests, friend connections) on every
-// friend-poll alarm tick. Best-effort throughout: none of pollSessionEventUpdates/
-// pollNudgeUpdates/pollUnlockRequestUpdates/pollDigestUpdates/pollTempPasscodeUpdates/
-// pollProducerTagUpdates/pollSessionEndRequestUpdates/pollFriendConnectionUpdates ever throws
-// (each wraps its own body), but this outer try/catch stays as a last-resort safety net so
-// nothing here can take down the alarm listener.
+// Runs all six poll streams (session-status events, nudges, daily digests, producer tags, friend
+// connections, friend requests) on every friend-poll alarm tick. Best-effort throughout: none of
+// pollSessionEventUpdates/pollNudgeUpdates/pollDigestUpdates/pollProducerTagUpdates/
+// pollFriendConnectionUpdates/pollFriendRequestUpdates ever throws (each wraps its own body), but
+// this outer try/catch stays as a last-resort safety net so nothing here can take down the alarm
+// listener. (v3.4 Task 3: was eight streams - unlock_requests/temp_passcode_requests/
+// session_end_requests' three separate poll functions collapsed into one pollFriendRequestUpdates
+// now that they're one friend_requests table, net -2 overall.)
 async function handleFriendPollAlarm(): Promise<void> {
   try {
     // Re-check eligibility on every tick (fix round 1), not just once at alarm-start time
@@ -544,11 +454,9 @@ async function handleFriendPollAlarm(): Promise<void> {
 
     await pollSessionEventUpdates();
     await pollNudgeUpdates();
-    await pollUnlockRequestUpdates(userId);
+    await pollFriendRequestUpdates(userId);
     await pollDigestUpdates(userId);
-    await pollTempPasscodeUpdates(userId);
     await pollProducerTagUpdates();
-    await pollSessionEndRequestUpdates(userId);
     await pollFriendConnectionUpdates(userId);
   } catch (err) {
     console.error("Failed to poll friend events", err);
