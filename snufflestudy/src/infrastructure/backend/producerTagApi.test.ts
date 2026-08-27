@@ -192,14 +192,18 @@ describe("producerTagApi.sendToFriend", () => {
     });
   });
 
-  it("throws with the Postgres error message when the send is denied", async () => {
+  // QA-discovered bug (v3.4 QA pass): the raw Postgres RLS message used to pass straight through
+  // to the user - harmless before Task 8's cooldown gate, but a real experience gap once "sent
+  // too many audio nudges too fast" became a common way to hit this exact denial. Mirrors
+  // nudgeApi.test.ts's identical assertion for sendNudge()'s own friendly-message translation.
+  it("throws a friendly cooldown/toggle message, not the raw Postgres RLS error, when the send is denied", async () => {
     mockGetUser("user-a");
     vi.spyOn(supabase, "from").mockReturnValue(
       makeBuilder({ data: null, error: { message: "new row violates row-level security policy" } }) as never
     );
 
     await expect(sendToFriend("tag-1", "user-b")).rejects.toThrow(
-      "new row violates row-level security policy"
+      "Couldn't send that audio nudge — this friend may have nudges turned off, or you're on cooldown."
     );
   });
 });

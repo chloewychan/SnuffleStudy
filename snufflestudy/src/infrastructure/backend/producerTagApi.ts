@@ -183,13 +183,15 @@ export async function uploadTag(blob: Blob, durationMs: number): Promise<Produce
   return toProducerTag(data as ProducerTagRow);
 }
 
-// Sends an already-uploaded tag to a specific friend. The group-membership floor (the recipient
-// must actually share a group with the sender) and the tag-ownership floor (the sender must
-// actually own tagId) are both enforced entirely server-side by producer_tag_sends' INSERT policy
-// (supabase/migrations/20260815000021_...sql) - this function never pre-checks either
-// client-side, consistent with nudgeApi.ts's sendNudge() not pre-checking its own server-side
-// gates (a malicious client could always bypass a client-side check with a raw REST call; only the
-// server-side gate is load-bearing).
+// Sends an already-uploaded tag to a specific friend. The friendship floor and the tag-ownership
+// floor are both enforced entirely server-side by producer_tag_sends' INSERT policy - this
+// function never pre-checks either client-side, consistent with nudgeApi.ts's sendNudge() not
+// pre-checking its own server-side gates (a malicious client could always bypass a client-side
+// check with a raw REST call; only the server-side gate is load-bearing). As of v3.4 Task 8
+// (supabase/migrations/20260815000044_v3.4_nudge_cooldowns_and_producer_tag_rate_limit.sql), the
+// DM branch of that policy also routes through can_send_producer_tag_dm() - the same
+// toggle/cooldown gate can_send_nudge() already enforces for written nudges, extended to audio for
+// the first time.
 export async function sendToFriend(tagId: string, friendUserId: string): Promise<void> {
   const userId = await requireUserId();
   const { error } = await supabase.from("producer_tag_sends").insert({
@@ -199,7 +201,20 @@ export async function sendToFriend(tagId: string, friendUserId: string): Promise
     recipient_room_id: null,
   });
   if (error) {
-    throw new Error(error.message ?? "Failed to send this tag.");
+    // QA-discovered bug (v3.4 QA pass): this used to pass the raw Postgres "new row violates row
+    // level security policy for table producer_tag_sends" error straight through to the user -
+    // harmless before Task 8 (the DM branch could realistically only fail here if the client lied
+    // about who its friends are, an edge case a user would never organically hit), but Task 8's
+    // new cooldown gate means a genuinely common case - a user sending audio nudges too quickly -
+    // now hits this exact same generic RLS denial. Mirrors sendNudge()'s own comment/handling
+    // above verbatim: it's inherently a binary allow/deny (are_friends() failing, either toggle
+    // being off, or the cooldown being active all produce the identical error), so this names
+    // every possibility rather than guessing which one - can_send_producer_tag_dm() itself
+    // doesn't surface which check failed either.
+    console.error("Failed to send producer tag to friend", error);
+    throw new Error(
+      "Couldn't send that audio nudge — this friend may have nudges turned off, or you're on cooldown."
+    );
   }
 }
 
