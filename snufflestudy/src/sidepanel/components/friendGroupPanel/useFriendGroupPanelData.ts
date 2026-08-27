@@ -4,6 +4,10 @@ import type { FriendEvent } from "../../../infrastructure/backend/sessionStatusS
 import type { FriendNudge } from "../../../infrastructure/backend/nudgeApi";
 import type { DigestSummary } from "../../../infrastructure/backend/digestApi";
 import type { IncomingProducerTag } from "../../../infrastructure/backend/producerTagApi";
+import {
+  getLastDismissedNudgeSentAt,
+  setLastDismissedNudgeSentAt,
+} from "../../../infrastructure/storage/nudgeDismissalState";
 
 // Default lookback window for this panel's fetch/refresh - a point-in-time view of recent
 // activity, not itself the delivery mechanism (that's alarmHandlers.ts's friend-poll alarm,
@@ -58,7 +62,14 @@ export function useFriendGroupPanelData() {
 
   const [incomingNudges, setIncomingNudges] = useState<FriendNudge[] | null>(null);
   const [nudgesError, setNudgesError] = useState<string | null>(null);
-  const [dismissedNudgeIds, setDismissedNudgeIds] = useState<Set<string>>(new Set());
+  // QA-discovered bug (v3.4 QA pass): persisted via nudgeDismissalState.ts (chrome.storage.local),
+  // not just component state - see that module's own comment for why a plain useState reset to
+  // empty on every FriendGroupPanel remount, making a dismissed nudge reappear every time the user
+  // left and returned to the Friends tab. `null` here specifically means "not loaded yet from
+  // storage" (distinct from 0, a real timestamp) - visibleNudge stays hidden until this resolves,
+  // so a previously-dismissed nudge can't flash on screen before we know it was dismissed.
+  const [dismissedThroughSentAt, setDismissedThroughSentAt] = useState<number | null>(null);
+  const [dismissedCursorLoaded, setDismissedCursorLoaded] = useState(false);
 
   const [digests, setDigests] = useState<DigestSummary[] | null>(null);
   const [digestsError, setDigestsError] = useState<string | null>(null);
@@ -198,6 +209,17 @@ export function useFriendGroupPanelData() {
     loadDigests();
     loadProducerTags();
 
+    // QA-discovered bug (v3.4 QA pass): loads the persisted dismissal cursor once per mount - see
+    // nudgeDismissalState.ts and dismissedThroughSentAt's own comment above.
+    getLastDismissedNudgeSentAt()
+      .then((sentAt) => setDismissedThroughSentAt(sentAt))
+      .catch((err) => {
+        // Best-effort: worst case, a previously-dismissed nudge briefly reappears once - not
+        // worth surfacing as a user-facing error on top of the panel's other four fetches.
+        console.error("Failed to load the last-dismissed-nudge cursor", err);
+      })
+      .finally(() => setDismissedCursorLoaded(true));
+
     // QA-discovered bug (v3.3 QA pass): none of the five load* fetches above ever ran again while
     // this panel stayed mounted - only a fresh mount or a manual Refresh click (handleRefresh in
     // FriendGroupPanel.tsx) re-fetched anything. The background friend-poll alarm
@@ -221,11 +243,32 @@ export function useFriendGroupPanelData() {
     return () => clearInterval(intervalId);
   }, []);
 
+  // QA-discovered bug (v3.4 QA pass): advances the persisted cursor, not just local state - a
+  // dismissal that only updated React state disappeared the moment FriendGroupPanel unmounted.
+  // Looks the nudge up by id (rather than requiring the caller to pass its sentAt directly) so
+  // this function's own call sites - just IncomingNudgeCard.tsx's onDismiss={() =>
+  // dismissNudge(visibleNudge.id)} - don't need to change.
   function dismissNudge(nudgeId: string) {
-    setDismissedNudgeIds((prev) => new Set(prev).add(nudgeId));
+    const nudge = incomingNudges?.find((n) => n.id === nudgeId);
+    if (!nudge) return;
+    setDismissedThroughSentAt(nudge.sentAt);
+    setLastDismissedNudgeSentAt(nudge.sentAt).catch((err) => {
+      // Standing convention in this codebase: never leave an async call triggered from a UI
+      // handler unhandled. Best-effort - the in-memory setDismissedThroughSentAt call above
+      // already updated what's shown this session; a failure here only risks the nudge
+      // reappearing on the NEXT mount, not right now.
+      console.error("Failed to persist the dismissed-nudge cursor", err);
+    });
   }
 
-  const visibleNudge = incomingNudges?.find((n) => !dismissedNudgeIds.has(n.id)) ?? null;
+  // Hidden entirely until the persisted cursor has loaded (dismissedCursorLoaded), so a
+  // previously-dismissed nudge can't flash on screen for one render before we know it was already
+  // dismissed - see dismissedThroughSentAt's own comment.
+  const visibleNudge = dismissedCursorLoaded
+    ? (incomingNudges?.find(
+        (n) => dismissedThroughSentAt === null || n.sentAt > dismissedThroughSentAt
+      ) ?? null)
+    : null;
 
   // digestApi.fetchDigestForDate deliberately does NOT filter out the caller's own row (see that
   // file's own comment) - this panel is specifically the "friend activity" view, so it filters

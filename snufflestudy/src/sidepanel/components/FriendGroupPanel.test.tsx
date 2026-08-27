@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { fakeBrowser } from "wxt/testing/fake-browser";
 import { FriendGroupPanel } from "./FriendGroupPanel";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 import type { FriendEvent } from "../../infrastructure/backend/sessionStatusSyncApi";
@@ -30,6 +31,9 @@ vi.mock("../../infrastructure/backend/producerTagApi", () => ({
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  // Isolates the dismissed-nudge cursor (nudgeDismissalState.ts, chrome.storage.local) between
+  // tests - otherwise a dismissal persisted in one test would leak into the next.
+  fakeBrowser.reset();
   vi.mocked(audioRecorder.startRecording).mockReset();
   vi.mocked(audioRecorder.stopRecording).mockReset();
   vi.mocked(audioRecorder.getLastRecordingDurationMs).mockReset().mockReturnValue(4200);
@@ -391,6 +395,34 @@ describe("FriendGroupPanel — incoming nudges (v2 Task 7)", () => {
 
     await waitFor(() => expect(screen.getByText("You've got this.")).toBeInTheDocument());
     expect(screen.queryByText("Thinking of you — keep going!")).not.toBeInTheDocument();
+  });
+
+  // QA-discovered bug (v3.4 QA pass): dismissing a nudge, then leaving and returning to the
+  // Friends tab (which unmounts and remounts FriendGroupPanel - see FriendsTab.tsx), used to bring
+  // the dismissed nudge right back, since dismissal only ever lived in component state. Simulates
+  // "leave and return" directly via unmount()+render() rather than anything more elaborate, since
+  // that's the exact mechanism SidePanelApp.tsx's tab-switching conditional rendering uses.
+  it("keeps a dismissed nudge dismissed after the panel unmounts and remounts (leaving and returning to the Friends tab)", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ NUDGES_FETCH: () => ({ ok: true, nudges: [sampleNudge] }) })
+    );
+
+    const { unmount } = render(<FriendGroupPanel onClose={() => {}} />);
+    await waitFor(() => expect(screen.getByText("Thinking of you — keep going!")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Thinking of you — keep going!")).not.toBeInTheDocument()
+    );
+
+    unmount();
+    render(<FriendGroupPanel onClose={() => {}} />);
+
+    // Give the remounted panel's own NUDGES_FETCH + dismissal-cursor loads a chance to resolve,
+    // then confirm the same nudge does NOT reappear - the actual regression being fixed.
+    await waitFor(() => screen.getByText("No recent friend activity."));
+    expect(screen.queryByText("Thinking of you — keep going!")).not.toBeInTheDocument();
+    expect(document.querySelector(".snuffles-overlay")).not.toBeInTheDocument();
   });
 
   it("shows nothing extra when there are no incoming nudges", async () => {
