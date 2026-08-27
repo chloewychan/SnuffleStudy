@@ -21,11 +21,13 @@ import * as accountApi from "../infrastructure/backend/accountApi";
 import * as profileApi from "../infrastructure/backend/profileApi";
 import type { Profile } from "../infrastructure/backend/profileApi";
 import { IndexedDbTaskRepository } from "../infrastructure/storage/taskRepository";
+import { IndexedDbSessionRepository } from "../infrastructure/storage/indexedDbRepository";
 
 beforeEach(() => {
   fakeBrowser.reset();
   vi.restoreAllMocks();
   indexedDB.deleteDatabase("snufflestudy-tasks");
+  indexedDB.deleteDatabase("snufflestudy");
 });
 
 function stubSession(userId: string | null) {
@@ -711,6 +713,63 @@ describe("messageRouter — AUTH_DELETE_ACCOUNT clears that account's local task
 
     vi.spyOn(accountApi, "deleteAccount").mockResolvedValue(undefined);
     vi.spyOn(IndexedDbTaskRepository.prototype, "deleteAllForUser").mockRejectedValue(
+      new Error("IndexedDB unavailable")
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = (await handleMessage({ type: "AUTH_DELETE_ACCOUNT" })) as { ok: boolean };
+    expect(result.ok).toBe(true);
+  });
+
+  // QA-discovered bug (v3.4): deleting an account, then creating a fresh account on the same
+  // device (even a different auth.users id, e.g. via the same email after a real deletion),
+  // showed the OLD account's session history - StudySession/SessionEvent carry no userId at
+  // all (unlike Task), so this store was never scoped by account to begin with and
+  // AUTH_DELETE_ACCOUNT's local cleanup never touched it. Deliberately device-wide (clearAll,
+  // not "for this account") since there's no per-account concept to scope by here - see
+  // indexedDbRepository.ts's clearAll() comment.
+  it("also clears local session history and events on account deletion", async () => {
+    const historyRepo = new IndexedDbSessionRepository();
+    await historyRepo.archive({
+      id: "session_1",
+      goal: "Read chapter 6",
+      state: "COMPLETED",
+      interventionLevel: "none",
+      activityState: "active",
+      createdAt: 1000,
+      focusDurationSeconds: 1500,
+      breakDurationSeconds: 300,
+      pressureProfileId: "strict-coach",
+      allowedSites: [],
+      restrictedSites: [],
+      restrictionMode: "soft",
+      accountabilityUserIds: [],
+      distractionAttempts: 0,
+      recoveries: 0,
+      friendNudges: 0,
+    });
+    await historyRepo.recordEvent({
+      id: "event_1",
+      sessionId: "session_1",
+      type: "SESSION_COMPLETED",
+      occurredAt: 1200,
+    });
+
+    stubSession("user-a");
+    vi.spyOn(accountApi, "deleteAccount").mockResolvedValue(undefined);
+
+    const result = (await handleMessage({ type: "AUTH_DELETE_ACCOUNT" })) as { ok: boolean };
+    expect(result.ok).toBe(true);
+
+    // Verified directly at the storage layer, same discipline as the tasks test above.
+    expect(await historyRepo.listHistory()).toEqual([]);
+    expect(await historyRepo.listEvents("session_1")).toEqual([]);
+  });
+
+  it("still reports ok:true even if the local history cleanup itself fails (the account is already gone server-side)", async () => {
+    stubSession("user-a");
+    vi.spyOn(accountApi, "deleteAccount").mockResolvedValue(undefined);
+    vi.spyOn(IndexedDbSessionRepository.prototype, "clearAll").mockRejectedValue(
       new Error("IndexedDB unavailable")
     );
     vi.spyOn(console, "error").mockImplementation(() => {});

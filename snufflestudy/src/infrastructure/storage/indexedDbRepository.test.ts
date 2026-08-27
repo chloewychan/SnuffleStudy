@@ -110,4 +110,24 @@ describe("IndexedDbSessionRepository", () => {
     expect(events).toHaveLength(1);
     expect(events[0]!.id).toBe("event_1");
   });
+
+  it("clearAll wipes every session and every event, regardless of which session they belong to", async () => {
+    const repo = new IndexedDbSessionRepository();
+    await repo.archive(buildSession("session_1", 1000, "COMPLETED"));
+    await repo.archive(buildSession("session_2", 2000, "ABANDONED"));
+    await repo.recordEvent({
+      id: "event_1",
+      sessionId: "session_1",
+      type: "DISTRACTION_ATTEMPT",
+      occurredAt: 1500,
+      hostname: "youtube.com",
+    });
+
+    await repo.clearAll();
+
+    expect(await repo.listHistory()).toEqual([]);
+    expect(await repo.countByState("COMPLETED")).toBe(0);
+    expect(await repo.countByState("ABANDONED")).toBe(0);
+    expect(await repo.listEvents("session_1")).toEqual([]);
+  });
 });

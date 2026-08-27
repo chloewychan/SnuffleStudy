@@ -17,6 +17,15 @@ export interface SessionRepository {
   countByState(state: SessionState): Promise<number>;
   recordEvent(event: SessionEvent): Promise<void>;
   listEvents(sessionId: string): Promise<SessionEvent[]>;
+  // QA-discovered bug (v3.4): unlike Task (which has a userId field, scoped by
+  // taskRepository.ts's by-userId index), StudySession/SessionEvent carry no account
+  // identity at all - this store has always been genuinely device-wide, not per-account.
+  // AUTH_DELETE_ACCOUNT's local cleanup (messageRouter.ts) already clears local tasks for
+  // the departing account specifically; history has no equivalent "for this account" concept
+  // to scope by, so clearAll() wipes both stores outright. This is the same class of gap the
+  // v3.2 QA pass already found and fixed for tasks, just never extended to history at the
+  // time - deliberately blunt (whole-device, not per-account) rather than a no-op.
+  clearAll(): Promise<void>;
 }
 
 async function getDb(): Promise<IDBPDatabase> {
@@ -93,6 +102,16 @@ export class IndexedDbSessionRepository implements SessionRepository {
     const db = await getDb();
     try {
       return await db.getAllFromIndex(EVENTS_STORE, "by-sessionId", sessionId);
+    } finally {
+      db.close();
+    }
+  }
+
+  async clearAll(): Promise<void> {
+    const db = await getDb();
+    try {
+      await db.clear(SESSIONS_STORE);
+      await db.clear(EVENTS_STORE);
     } finally {
       db.close();
     }

@@ -803,6 +803,17 @@ async function routeMessage(
           console.error("Failed to clear local tasks after account deletion", err);
         }
       }
+      // QA-discovered bug (v3.4): session history/events carry no account identity at all
+      // (unlike Task, StudySession/SessionEvent have no userId field - see
+      // indexedDbRepository.ts's clearAll() comment), so there's no "for this account" cleanup
+      // to scope by the way taskRepo.deleteAllForUser(userId) above does. Wiped outright
+      // instead - same best-effort convention (already-deleted-server-side, a local cleanup
+      // failure here must not surface as if the whole account deletion failed).
+      try {
+        await historyRepo.clearAll();
+      } catch (err) {
+        console.error("Failed to clear local session history after account deletion", err);
+      }
       return { ok: true };
     }
 
