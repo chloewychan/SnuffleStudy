@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { Profile } from "../../infrastructure/backend/profileApi";
+import ButtonBoolIcon from "../ui/ButtonBoolIcon";
+import styles from "../styles/frontend-backup/components/bunny/AboutTheBun.module.css";
+import inputStyles from "../styles/frontend-backup/components/inputs/InputBunnyName.module.css";
 
 // v3.3 Task 8: bunnyName/humanName used to be pure local stub state (no persistence, no backend -
 // confirmed directly against the pre-Task-8 repo). Now backed by the real `profiles` table via
@@ -111,56 +114,88 @@ export function BunnyTab() {
   }
 
   return (
-    <div className="sp-tab-content sp-bunny-tab">
-      <section className="sp-card sp-bunny-tab__about">
-        <h2 className="sp-card__title">About the Bun</h2>
-        {loadError && <p role="alert">Couldn't load your saved names: {loadError}.</p>}
-        <div className="sp-field">
-          <label htmlFor="bunny-name">Bunny Name:</label>
-          <input
-            id="bunny-name"
-            value={bunnyName}
-            onChange={(e) => {
-              setBunnyName(e.target.value);
-              setBunnyNameSaved(false);
-            }}
-          />
-        </div>
-        <button
-          type="button"
-          onClick={handleSaveBunnyName}
-          disabled={savingBunnyName || !loaded}
-        >
-          {savingBunnyName ? "Saving…" : "Save bunny name"}
-        </button>
-        {bunnyNameSaveError && (
-          <p role="alert">Couldn't save your bunny name: {bunnyNameSaveError}.</p>
-        )}
-        {bunnyNameSaved && !bunnyNameSaveError && <p>Saved.</p>}
+    <section className={styles.aboutTheBunSection}>
+      <h2 className={styles.aboutTheBun}>About the Bun</h2>
+      {loadError && <p role="alert">Couldn't load your saved names: {loadError}.</p>}
+      <div className={styles.contentDisplay}>
+        <img
+          className={styles.bunnyIcon}
+          loading="lazy"
+          alt=""
+          src={chrome.runtime.getURL("sidepanel/assets/Bunny@2x.png")}
+        />
+        <div className={styles.detailForm}>
+          <div className={inputStyles.inputBunnyName}>
+            <label className={inputStyles.bunnyName} htmlFor="bunny-name">
+              Bunny Name:
+            </label>
+            <div className={inputStyles.inputWrappers}>
+              <div className={inputStyles.input}>
+                <input
+                  id="bunny-name"
+                  className={inputStyles.entryField}
+                  type="text"
+                  value={bunnyName}
+                  onChange={(e) => {
+                    setBunnyName(e.target.value);
+                    setBunnyNameSaved(false);
+                  }}
+                />
+              </div>
+              {/* v4.2 Task 3: frontend-backup's ButtonBoolIcon is a static checkmark <img> with
+                  no button semantics at all (see ButtonBoolIcon.tsx) - wrapping it in a real
+                  <button> here is what turns it into the actual "Save bunny name" action, wired
+                  to the exact same handler/disabled logic the pre-v4.2 text button used. */}
+              <button
+                type="button"
+                className={inputStyles.saveButtonReset}
+                onClick={handleSaveBunnyName}
+                disabled={savingBunnyName || !loaded}
+                aria-label={savingBunnyName ? "Saving…" : "Save bunny name"}
+              >
+                <ButtonBoolIcon property1="check" property2="default" />
+              </button>
+            </div>
+            {bunnyNameSaveError && (
+              <p role="alert">Couldn't save your bunny name: {bunnyNameSaveError}.</p>
+            )}
+            {bunnyNameSaved && !bunnyNameSaveError && <p>Saved.</p>}
+          </div>
 
-        <div className="sp-field">
-          <label htmlFor="human-name">Human Name:</label>
-          <input
-            id="human-name"
-            value={humanName}
-            onChange={(e) => {
-              setHumanName(e.target.value);
-              setHumanNameSaved(false);
-            }}
-          />
+          <div className={inputStyles.inputBunnyName}>
+            <label className={inputStyles.bunnyName} htmlFor="human-name">
+              Human Name:
+            </label>
+            <div className={inputStyles.inputWrappers}>
+              <div className={inputStyles.input}>
+                <input
+                  id="human-name"
+                  className={inputStyles.entryField}
+                  type="text"
+                  value={humanName}
+                  onChange={(e) => {
+                    setHumanName(e.target.value);
+                    setHumanNameSaved(false);
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                className={inputStyles.saveButtonReset}
+                onClick={handleSaveHumanName}
+                disabled={savingHumanName || !loaded}
+                aria-label={savingHumanName ? "Saving…" : "Save human name"}
+              >
+                <ButtonBoolIcon property1="check" property2="default" />
+              </button>
+            </div>
+            {humanNameSaveError && (
+              <p role="alert">Couldn't save your human name: {humanNameSaveError}.</p>
+            )}
+            {humanNameSaved && !humanNameSaveError && <p>Saved.</p>}
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={handleSaveHumanName}
-          disabled={savingHumanName || !loaded}
-        >
-          {savingHumanName ? "Saving…" : "Save human name"}
-        </button>
-        {humanNameSaveError && (
-          <p role="alert">Couldn't save your human name: {humanNameSaveError}.</p>
-        )}
-        {humanNameSaved && !humanNameSaveError && <p>Saved.</p>}
-      </section>
-    </div>
+      </div>
+    </section>
   );
 }

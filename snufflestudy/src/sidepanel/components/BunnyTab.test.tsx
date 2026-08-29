@@ -31,6 +31,15 @@ function mockMessages(overrides: Partial<Record<ExtensionMessage["type"], Handle
   return vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage(overrides) as never);
 }
 
+// v4.2 Task 3: every getByLabelText(/bunny name/i|/human name/i) call below now passes
+// `{ selector: "input" }`. The re-skinned markup's Save buttons carry an aria-label of
+// "Save bunny name"/"Save human name" (so they still have an accessible name matching the
+// pre-v4.2 button text - see the "Save ... name"/"Saving…" role queries further down), but
+// Testing Library's getByLabelText also matches elements labelled via a direct aria-label, so an
+// unscoped query for /bunny name/i now resolves to both the actual <input> and the Save button -
+// a real ambiguity introduced by the re-skin's markup, not a loosened assertion. Restricting to
+// `selector: "input"` keeps these queries pointed at exactly the same text field they always were.
+
 describe("BunnyTab", () => {
   it("renders editable name fields with the stub defaults when no profile row exists yet", async () => {
     mockMessages();
@@ -38,8 +47,8 @@ describe("BunnyTab", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Save bunny name" })).not.toBeDisabled()
     );
-    expect(screen.getByLabelText(/bunny name/i)).toHaveValue("Snuffles");
-    expect(screen.getByLabelText(/human name/i)).toHaveValue("Hooman");
+    expect(screen.getByLabelText(/bunny name/i, { selector: "input" })).toHaveValue("Snuffles");
+    expect(screen.getByLabelText(/human name/i, { selector: "input" })).toHaveValue("Hooman");
   });
 
   it("updates name fields when typed", async () => {
@@ -48,8 +57,8 @@ describe("BunnyTab", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Save bunny name" })).not.toBeDisabled()
     );
-    const bunnyInput = screen.getByLabelText(/bunny name/i);
-    const humanInput = screen.getByLabelText(/human name/i);
+    const bunnyInput = screen.getByLabelText(/bunny name/i, { selector: "input" });
+    const humanInput = screen.getByLabelText(/human name/i, { selector: "input" });
 
     fireEvent.change(bunnyInput, { target: { value: "Fluffball" } });
     fireEvent.change(humanInput, { target: { value: "Alice" } });
@@ -84,8 +93,8 @@ describe("BunnyTab", () => {
     mockMessages({ PROFILE_GET_MINE: () => ({ ok: true, profile: savedProfile }) });
     render(<BunnyTab />);
 
-    await waitFor(() => expect(screen.getByLabelText(/bunny name/i)).toHaveValue("Fluffball"));
-    expect(screen.getByLabelText(/human name/i)).toHaveValue("Alice");
+    await waitFor(() => expect(screen.getByLabelText(/bunny name/i, { selector: "input" })).toHaveValue("Fluffball"));
+    expect(screen.getByLabelText(/human name/i, { selector: "input" })).toHaveValue("Alice");
   });
 
   it("saves the current field values via PROFILE_SAVE_MINE when Save bunny name is clicked", async () => {
@@ -95,8 +104,8 @@ describe("BunnyTab", () => {
       expect(screen.getByRole("button", { name: "Save bunny name" })).not.toBeDisabled()
     );
 
-    fireEvent.change(screen.getByLabelText(/bunny name/i), { target: { value: "Fluffball" } });
-    fireEvent.change(screen.getByLabelText(/human name/i), { target: { value: "Alice" } });
+    fireEvent.change(screen.getByLabelText(/bunny name/i, { selector: "input" }), { target: { value: "Fluffball" } });
+    fireEvent.change(screen.getByLabelText(/human name/i, { selector: "input" }), { target: { value: "Alice" } });
     fireEvent.click(screen.getByRole("button", { name: "Save bunny name" }));
 
     await waitFor(() =>
@@ -115,8 +124,8 @@ describe("BunnyTab", () => {
       expect(screen.getByRole("button", { name: "Save human name" })).not.toBeDisabled()
     );
 
-    fireEvent.change(screen.getByLabelText(/bunny name/i), { target: { value: "Fluffball" } });
-    fireEvent.change(screen.getByLabelText(/human name/i), { target: { value: "Alice" } });
+    fireEvent.change(screen.getByLabelText(/bunny name/i, { selector: "input" }), { target: { value: "Fluffball" } });
+    fireEvent.change(screen.getByLabelText(/human name/i, { selector: "input" }), { target: { value: "Alice" } });
     fireEvent.click(screen.getByRole("button", { name: "Save human name" }));
 
     await waitFor(() =>

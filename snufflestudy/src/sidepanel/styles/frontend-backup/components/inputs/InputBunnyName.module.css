@@ -46,6 +46,31 @@
   color: var(--color-dimgray);
   text-align: left;
 }
+/* v4.2 Task 3 addition (not in frontend-backup's original file): this component's own
+   ButtonBoolIcon is now a real, clickable "Save bunny/human name" action (previously a static
+   checkmark image with no button semantics at all - frontend-backup is 100% static). Wrapping it
+   in a <button> picks up global.css's bare `button {...}` chrome (background/border/padding)
+   unless reset here - matches the .buttonIconReset/.tabLink pattern Task 2 added to
+   HeaderBar.module.css/NavigationBar.module.css for the same reason. ButtonBoolIcon's own
+   .buttonBoolIcon class (its 36x36 sizing) is unaffected and still applies to the icon <img>
+   inside. */
+.saveButtonReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.saveButtonReset:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
+}
 @media screen and (max-width: 450px) {
   .bunnyName {
     font-size: var(--fs-16);
