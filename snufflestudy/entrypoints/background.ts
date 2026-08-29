@@ -5,24 +5,21 @@ import { registerTabHandlers } from "../src/background/tabHandlers";
 import { registerIdleHandlers } from "../src/background/idleHandlers";
 import { registerActivityTrackingHandlers } from "../src/background/activityTrackingHandlers";
 
-// v4.1 Task 4: with the popup entrypoint removed, the manifest has no action.default_popup, so
-// Chrome's default toolbar-icon behavior is to fire chrome.action.onClick instead of opening a
-// popup. This mirrors the old PopupApp's own openSidePanel() exactly (now deleted): get the
-// current window, then open the side panel for it, guarding the case where the window has no id.
-async function openSidePanel() {
-  const win = await chrome.windows.getCurrent();
-  if (win.id !== undefined) {
-    await chrome.sidePanel?.open({ windowId: win.id });
-  }
-}
-
 export default defineBackground(() => {
   onMessage(handleMessage);
   registerAlarmHandlers();
   registerTabHandlers();
   registerIdleHandlers();
   registerActivityTrackingHandlers();
-  chrome.action.onClicked.addListener(() => {
-    openSidePanel().catch(console.error);
+  // v4.1 Task 4 QA fix: chrome.sidePanel.open() must be called synchronously, in direct response
+  // to the user gesture that triggered onClicked - Chrome only associates a gesture with an API
+  // call made before any `await` yields control back to the event loop. The original version
+  // (mirrored from the old, now-deleted PopupApp's own openSidePanel()) awaited
+  // chrome.windows.getCurrent() first, which inserts exactly that async gap and produced "Error:
+  // sidePanel.open() may only be called in response to a user gesture." onClicked's own `tab`
+  // parameter already carries windowId synchronously (always present - chrome.tabs.Tab.windowId
+  // is non-optional), so no lookup, and no await before the call, is needed at all.
+  chrome.action.onClicked.addListener((tab) => {
+    chrome.sidePanel.open({ windowId: tab.windowId }).catch(console.error);
   });
 });
