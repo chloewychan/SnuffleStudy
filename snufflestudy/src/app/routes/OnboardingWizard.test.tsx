@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { OnboardingWizard } from "./OnboardingWizard";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
-import * as permissionsApi from "../../infrastructure/browser/permissionsApi";
-import * as contentScriptRegistration from "../../background/contentScriptRegistration";
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -13,13 +11,9 @@ function dismissWelcome() {
   fireEvent.click(screen.getByRole("button", { name: "Get started" }));
 }
 
-// The account (sign-in) step is the first step after Welcome as of v3.1; tests that exercise
-// steps further down the flow skip it the same way a signed-out user would.
+// The account (sign-in) step is the first (and, as of v4.1 Task 3, only) step after Welcome;
+// tests that don't care about sign-in itself skip it the same way a signed-out user would.
 function skipAccountStep() {
-  fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
-}
-
-function skipPasscodeStep() {
   fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
 }
 
@@ -39,109 +33,82 @@ describe("OnboardingWizard", () => {
     ).toBeInTheDocument();
   });
 
-  it("walks through all steps and saves settings on completion", async () => {
+  // v4.1 Task 3: onboarding no longer collects pressure style/duration/tracking tier/restricted
+  // sites/passcode - "Skip for now" on the account step now finishes onboarding directly with
+  // fixed defaults instead of advancing to another step.
+  it("finishes onboarding with fixed defaults after 'Skip for now'", async () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
     const onComplete = vi.fn();
 
     render(<OnboardingWizard onComplete={onComplete} />);
 
     dismissWelcome();
-    skipAccountStep(); // account -> name
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // name -> pressure
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // pressure -> duration
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // duration -> tracking
-
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // tracking (activity-only default) -> passcode
-    skipPasscodeStep(); // passcode -> review
-    fireEvent.click(screen.getByRole("button", { name: "Start using SnuffleStudy" }));
+    skipAccountStep();
 
     await waitFor(() =>
-      expect(sendMessageSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: "SETTINGS_SAVE",
-          payload: expect.objectContaining({ onboardingCompleted: true, trackingTier: "activity-only" }),
-        })
-      )
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "SETTINGS_SAVE",
+        payload: {
+          pressureProfileId: "gentle-encouragement",
+          trackingTier: "activity-only",
+          activityTrackingEnabled: true,
+          defaultFocusDurationSeconds: 1500,
+          defaultBreakDurationSeconds: 300,
+          defaultAllowedSites: [],
+          defaultRestrictedSites: [],
+          defaultRestrictionMode: "soft",
+          onboardingCompleted: true,
+          friendSyncEnabled: false,
+          liveNudgesNotificationsEnabled: true,
+          digestNotificationsEnabled: true,
+          quietHours: null,
+        },
+      })
     );
     expect(onComplete).toHaveBeenCalled();
-    // Skipping the passcode step must not send a HARD_BLOCK_SET_PASSCODE message.
+    // No passcode step exists anymore - skipping must not send a HARD_BLOCK_SET_PASSCODE message.
     expect(sendMessageSpy).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "HARD_BLOCK_SET_PASSCODE" })
     );
   });
 
-  it("requests detailed tracking permission and shows the site-list step when chosen", async () => {
-    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
-    vi.spyOn(permissionsApi, "requestDetailedTrackingPermission").mockResolvedValue(true);
-
-    render(<OnboardingWizard onComplete={vi.fn()} />);
-
-    dismissWelcome();
-    skipAccountStep(); // account -> name
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-
-    fireEvent.click(screen.getByLabelText(/Detailed site tracking/));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-
-    expect(screen.getByText("Restricted sites")).toBeInTheDocument();
-  });
-
-  it("inserts the passcode step after the site-list step when detailed tracking was chosen", async () => {
-    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
-    vi.spyOn(permissionsApi, "requestDetailedTrackingPermission").mockResolvedValue(true);
-
-    render(<OnboardingWizard onComplete={vi.fn()} />);
-
-    dismissWelcome();
-    skipAccountStep(); // account -> name
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-
-    fireEvent.click(screen.getByLabelText(/Detailed site tracking/));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // tracking -> sites
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // sites -> passcode
-
-    expect(screen.getByText("Set a hard-block passcode (optional)")).toBeInTheDocument();
-  });
-
-  it("registers the overlay content script after granting detailed tracking permission and finishing", async () => {
-    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
-    vi.spyOn(permissionsApi, "requestDetailedTrackingPermission").mockResolvedValue(true);
-    const registerSpy = vi
-      .spyOn(contentScriptRegistration, "registerOverlayContentScript")
-      .mockResolvedValue(undefined);
+  // v4.1 Task 3 DoD: "TASK_LIST shows one task titled 'Study with Snuffles'."
+  it("finishing onboarding creates the default 'Study with Snuffles' task", async () => {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
     const onComplete = vi.fn();
 
     render(<OnboardingWizard onComplete={onComplete} />);
 
     dismissWelcome();
-    skipAccountStep(); // account -> name
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // name -> pressure
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // pressure -> duration
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // duration -> tracking
+    skipAccountStep();
 
-    fireEvent.click(screen.getByLabelText(/Detailed site tracking/));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // tracking -> sites
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // sites -> passcode
-    skipPasscodeStep(); // passcode -> review
-
-    fireEvent.click(screen.getByRole("button", { name: "Start using SnuffleStudy" }));
-
-    await waitFor(() => expect(registerSpy).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(sendMessageSpy).toHaveBeenCalledWith({
+        type: "TASK_CREATE",
+        payload: { title: "Study with Snuffles" },
+      })
+    );
+    // The default task is seeded after settings are saved, and onComplete still fires.
+    const settingsSaveIndex = sendMessageSpy.mock.calls.findIndex(
+      ([message]) => message.type === "SETTINGS_SAVE"
+    );
+    const taskCreateIndex = sendMessageSpy.mock.calls.findIndex(
+      ([message]) => message.type === "TASK_CREATE"
+    );
+    expect(settingsSaveIndex).toBeGreaterThanOrEqual(0);
+    expect(taskCreateIndex).toBeGreaterThan(settingsSaveIndex);
     await waitFor(() => expect(onComplete).toHaveBeenCalled());
   });
 
-  it("still completes onboarding even if registering the overlay content script fails", async () => {
-    // registerOverlayContentScript (chrome.scripting.registerContentScripts) failing is a
-    // best-effort/non-critical failure — it must not block onboarding completion, which is
-    // the part the user actually asked for and already granted the permission dialog for.
-    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
-    vi.spyOn(permissionsApi, "requestDetailedTrackingPermission").mockResolvedValue(true);
-    vi.spyOn(contentScriptRegistration, "registerOverlayContentScript").mockRejectedValue(
-      new Error("scripting.registerContentScripts not implemented")
+  // A failure seeding the default task is best-effort - logged, but must not block completion.
+  it("still completes onboarding if seeding the default task fails", async () => {
+    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+      async (message: any) => {
+        if (message.type === "TASK_CREATE") {
+          throw new Error("Could not establish connection. Receiving end does not exist.");
+        }
+        return { ok: true };
+      }
     );
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const onComplete = vi.fn();
@@ -149,25 +116,12 @@ describe("OnboardingWizard", () => {
     render(<OnboardingWizard onComplete={onComplete} />);
 
     dismissWelcome();
-    skipAccountStep(); // account -> name
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    skipAccountStep();
 
-    fireEvent.click(screen.getByLabelText(/Detailed site tracking/));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // tracking -> sites
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // sites -> passcode
-    skipPasscodeStep(); // passcode -> review
-
-    fireEvent.click(screen.getByRole("button", { name: "Start using SnuffleStudy" }));
-
+    await waitFor(() => expect(sendMessageSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "TASK_CREATE" })
+    ));
     await waitFor(() => expect(onComplete).toHaveBeenCalled());
-    expect(sendMessageSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "SETTINGS_SAVE",
-        payload: expect.objectContaining({ trackingTier: "detailed" }),
-      })
-    );
     expect(consoleErrorSpy).toHaveBeenCalled();
   });
 
@@ -181,14 +135,7 @@ describe("OnboardingWizard", () => {
     render(<OnboardingWizard onComplete={onComplete} />);
 
     dismissWelcome();
-    skipAccountStep(); // account -> name
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // name -> pressure
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // pressure -> duration
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // duration -> tracking
-    fireEvent.click(screen.getByRole("button", { name: "Continue" })); // tracking -> passcode
-    skipPasscodeStep(); // passcode -> review
-
-    fireEvent.click(screen.getByRole("button", { name: "Start using SnuffleStudy" }));
+    skipAccountStep();
 
     await waitFor(() => expect(sendMessageSpy).toHaveBeenCalled());
 
@@ -220,15 +167,16 @@ describe("OnboardingWizard", () => {
       ).toBeInTheDocument();
     });
 
-    it('advances to "name" via "Skip for now" without calling any AUTH_* message', () => {
+    it('finishes onboarding via "Skip for now" without calling any AUTH_* message', async () => {
       const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
+      const onComplete = vi.fn();
 
-      render(<OnboardingWizard onComplete={vi.fn()} />);
+      render(<OnboardingWizard onComplete={onComplete} />);
       dismissWelcome();
 
       skipAccountStep();
 
-      expect(screen.getByText("Meet Snuffles")).toBeInTheDocument();
+      await waitFor(() => expect(onComplete).toHaveBeenCalled());
       expect(
         sendMessageSpy.mock.calls.some(
           ([message]) => typeof message?.type === "string" && message.type.startsWith("AUTH_")
@@ -242,7 +190,7 @@ describe("OnboardingWizard", () => {
     // closest analog to what they covered before the split. SignInForm.test.tsx and
     // AccountPage.test.tsx's "creating a new account" block cover the create-account branch's
     // mandatory password step directly.
-    it('advances to "name" after a successful AUTH_REQUEST_OTP -> AUTH_VERIFY_OTP round trip via "Email me a code"', async () => {
+    it('finishes onboarding after a successful AUTH_REQUEST_OTP -> AUTH_VERIFY_OTP round trip via "Email me a code"', async () => {
       const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
         async (message: any) => {
           if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
@@ -252,8 +200,9 @@ describe("OnboardingWizard", () => {
           return { ok: true };
         }
       );
+      const onComplete = vi.fn();
 
-      render(<OnboardingWizard onComplete={vi.fn()} />);
+      render(<OnboardingWizard onComplete={onComplete} />);
       dismissWelcome();
 
       fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
@@ -266,7 +215,7 @@ describe("OnboardingWizard", () => {
       fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
       fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
 
-      expect(await screen.findByText("Meet Snuffles")).toBeInTheDocument();
+      await waitFor(() => expect(onComplete).toHaveBeenCalled());
       expect(sendMessageSpy).toHaveBeenCalledWith({
         type: "AUTH_REQUEST_OTP",
         payload: { email: "a@example.com" },
@@ -275,6 +224,9 @@ describe("OnboardingWizard", () => {
         type: "AUTH_VERIFY_OTP",
         payload: { email: "a@example.com", token: "12345678" },
       });
+      expect(sendMessageSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "SETTINGS_SAVE" })
+      );
     });
 
     it("shows the error and stays on the account step when AUTH_VERIFY_OTP fails", async () => {
@@ -300,7 +252,6 @@ describe("OnboardingWizard", () => {
       fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(/token has expired or is invalid/i);
-      expect(screen.queryByText("Meet Snuffles")).not.toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
     });
 
@@ -330,8 +281,9 @@ describe("OnboardingWizard", () => {
           return { ok: true };
         }
       );
+      const onComplete = vi.fn();
 
-      render(<OnboardingWizard onComplete={vi.fn()} />);
+      render(<OnboardingWizard onComplete={onComplete} />);
       dismissWelcome();
 
       fireEvent.click(screen.getByRole("button", { name: "Create account" }));
@@ -357,105 +309,7 @@ describe("OnboardingWizard", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
 
-      expect(screen.getByText("Meet Snuffles")).toBeInTheDocument();
-    });
-  });
-
-  describe("optional passcode step", () => {
-    async function reachPasscodeStep() {
-      render(<OnboardingWizard onComplete={vi.fn()} />);
-      dismissWelcome();
-      skipAccountStep(); // account -> name
-      fireEvent.click(screen.getByRole("button", { name: "Continue" })); // name -> pressure
-      fireEvent.click(screen.getByRole("button", { name: "Continue" })); // pressure -> duration
-      fireEvent.click(screen.getByRole("button", { name: "Continue" })); // duration -> tracking
-      fireEvent.click(screen.getByRole("button", { name: "Continue" })); // tracking -> passcode
-    }
-
-    it("disables the Set passcode button until the passcode has at least 4 characters", async () => {
-      vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
-      await reachPasscodeStep();
-
-      const setButton = screen.getByRole("button", { name: "Set passcode" });
-      expect(setButton).toBeDisabled();
-
-      fireEvent.change(screen.getByTestId("onboarding-passcode-input"), {
-        target: { value: "123" },
-      });
-      expect(setButton).toBeDisabled();
-
-      fireEvent.change(screen.getByTestId("onboarding-passcode-input"), {
-        target: { value: "1234" },
-      });
-      expect(setButton).not.toBeDisabled();
-    });
-
-    it("sets a passcode via HARD_BLOCK_SET_PASSCODE and advances to review", async () => {
-      const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
-      await reachPasscodeStep();
-
-      fireEvent.change(screen.getByTestId("onboarding-passcode-input"), {
-        target: { value: "1234" },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "Set passcode" }));
-
-      await waitFor(() =>
-        expect(sendMessageSpy).toHaveBeenCalledWith({
-          type: "HARD_BLOCK_SET_PASSCODE",
-          payload: { passcode: "1234" },
-        })
-      );
-      expect(await screen.findByText("Ready to go")).toBeInTheDocument();
-    });
-
-    it("skips the passcode step without sending HARD_BLOCK_SET_PASSCODE and does not block completion", async () => {
-      const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
-      await reachPasscodeStep();
-
-      skipPasscodeStep();
-
-      expect(screen.getByText("Ready to go")).toBeInTheDocument();
-      expect(sendMessageSpy).not.toHaveBeenCalledWith(
-        expect.objectContaining({ type: "HARD_BLOCK_SET_PASSCODE" })
-      );
-    });
-
-    it("surfaces an error and stays on the passcode step when saving the passcode fails", async () => {
-      vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
-        if (message.type === "HARD_BLOCK_SET_PASSCODE") {
-          return { ok: false, error: "Incorrect current passcode." };
-        }
-        return { ok: true };
-      });
-      await reachPasscodeStep();
-
-      fireEvent.change(screen.getByTestId("onboarding-passcode-input"), {
-        target: { value: "1234" },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "Set passcode" }));
-
-      expect(await screen.findByRole("alert")).toHaveTextContent(/Incorrect current passcode/);
-      expect(screen.queryByText("Ready to go")).not.toBeInTheDocument();
-    });
-
-    it("surfaces an error via console/alert and does not crash when the passcode save rejects", async () => {
-      vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
-        if (message.type === "HARD_BLOCK_SET_PASSCODE") {
-          throw new Error("Could not establish connection. Receiving end does not exist.");
-        }
-        return { ok: true };
-      });
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      await reachPasscodeStep();
-
-      fireEvent.change(screen.getByTestId("onboarding-passcode-input"), {
-        target: { value: "1234" },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "Set passcode" }));
-
-      expect(await screen.findByRole("alert")).toHaveTextContent(/Could not establish connection/);
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(screen.queryByText("Ready to go")).not.toBeInTheDocument();
+      await waitFor(() => expect(onComplete).toHaveBeenCalled());
     });
   });
 });

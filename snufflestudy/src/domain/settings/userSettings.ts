@@ -65,7 +65,7 @@ export interface UserSettings {
 }
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
-  pressureProfileId: "strict-coach",
+  pressureProfileId: "gentle-encouragement",
   trackingTier: "activity-only",
   activityTrackingEnabled: true,
   defaultFocusDurationSeconds: 1500,
