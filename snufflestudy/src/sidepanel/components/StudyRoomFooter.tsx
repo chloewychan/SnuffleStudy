@@ -35,7 +35,11 @@ function StudyRoomVideoTile({
   tile: Tile;
   label: string;
   selected: boolean;
-  onToggle: () => void;
+  // null for the local ("You") tile - nudging yourself isn't a real send target
+  // (can_send_nudge()/can_send_producer_tag_dm() would reject it, since you can't be your own
+  // friend), so it's made genuinely non-interactive rather than merely visually discouraged: no
+  // role/tabIndex/click-or-keyboard handler at all, not just a no-op onClick.
+  onToggle: (() => void) | null;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -59,23 +63,29 @@ function StudyRoomVideoTile({
     };
   }, [tile.audioElement]);
 
+  const classNames = ["study-room-panel__tile"];
+  if (selected) classNames.push("study-room-panel__tile--selected");
+  if (!onToggle) classNames.push("study-room-panel__tile--unselectable");
+
   return (
     <div
       ref={containerRef}
-      className={
-        selected ? "study-room-panel__tile study-room-panel__tile--selected" : "study-room-panel__tile"
-      }
+      className={classNames.join(" ")}
       data-participant={tile.participantIdentity}
-      role="button"
-      tabIndex={0}
-      aria-pressed={selected}
-      onClick={onToggle}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onToggle();
-        }
-      }}
+      {...(onToggle
+        ? {
+            role: "button" as const,
+            tabIndex: 0,
+            "aria-pressed": selected,
+            onClick: onToggle,
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onToggle();
+              }
+            },
+          }
+        : {})}
     >
       <span className="study-room-panel__tile-label">{label}</span>
     </div>
@@ -183,7 +193,9 @@ export function StudyRoomFooter() {
             tile={tile}
             label={tile.isLocal ? "You" : displayName(tile.participantIdentity)}
             selected={selectedParticipantIds.has(tile.participantIdentity)}
-            onToggle={() => toggleParticipantSelected(tile.participantIdentity)}
+            onToggle={
+              tile.isLocal ? null : () => toggleParticipantSelected(tile.participantIdentity)
+            }
           />
         ))}
       </div>

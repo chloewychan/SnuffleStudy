@@ -156,6 +156,36 @@ describe("StudyRoomFooter", () => {
     expect(tile).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("does not let the local (\"You\") tile be selected as a nudge target", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
+
+    let capturedListener: ((event: videoCallClient.VideoCallEvent) => void) | null = null;
+    vi.mocked(videoCallClient.onVideoCallEvent).mockImplementation((listener) => {
+      capturedListener = listener;
+      return () => {};
+    });
+    vi.mocked(videoCallClient.joinCall).mockImplementation(async () => {
+      capturedListener?.({
+        type: "track-added",
+        participantIdentity: "user-self",
+        isLocal: true,
+        element: document.createElement("video"),
+      });
+    });
+
+    renderFooter();
+    await joinSampleRoom();
+
+    const localTile = screen.getByText("You").closest('[data-participant="user-self"]') as HTMLElement;
+    expect(localTile).not.toHaveAttribute("role");
+    expect(localTile).not.toHaveAttribute("aria-pressed");
+    expect(localTile).not.toHaveAttribute("tabindex");
+
+    fireEvent.click(localTile);
+    expect(localTile).not.toHaveAttribute("aria-pressed");
+    expect(screen.getByRole("button", { name: /^nudge \(0 selected\)$/i })).toBeInTheDocument();
+  });
+
   it("mirrors the local video element but not a remote participant's element", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
 
