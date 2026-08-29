@@ -223,20 +223,57 @@ export function AccountPage() {
 
       {session && (
         <>
+          {/* v4.1 Task 10: Sign out and Delete account merged into one row under the single
+              "Account" heading above (scope doc's Settings section) - previously two separate
+              sections, one with its own "Delete account" h3. The deleteConfirming
+              confirm-then-delete flow itself (below) is unchanged, just relocated here. */}
           <section>
             <p>Signed in as {session.user.email ?? session.user.id}.</p>
-            <button type="button" onClick={() => void handleSignOut()} disabled={authBusy}>
-              {authBusy ? "Signing out…" : "Sign out"}
-            </button>
+            <div>
+              <button type="button" onClick={() => void handleSignOut()} disabled={authBusy}>
+                {authBusy ? "Signing out…" : "Sign out"}
+              </button>
+              {!deleteConfirming && (
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirming(true)}
+                  disabled={deleteBusy}
+                >
+                  Delete account
+                </button>
+              )}
+            </div>
             {authError && <p role="alert">Couldn't sign out: {authError}. Please try again.</p>}
+            {deleteConfirming && (
+              <div role="alertdialog" aria-label="Confirm account deletion">
+                <p>
+                  <strong>Are you sure?</strong> This removes your friend connections (or hands
+                  them off to another friend), study room history, audio nudges, digests, and
+                  every other record tied to your account, everywhere. This cannot be undone.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteAccount()}
+                  disabled={deleteBusy}
+                >
+                  {deleteBusy ? "Deleting…" : "Yes, permanently delete my account"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirming(false)}
+                  disabled={deleteBusy}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+            {deleteError && (
+              <p role="alert">Couldn't delete your account: {deleteError}. Please try again.</p>
+            )}
           </section>
 
           <section>
             <h3>Password</h3>
-            <p>
-              Set or change the password used by "Sign in with a password." If your account
-              predates this feature, it may not have one yet - setting one here also fixes that.
-            </p>
             <form onSubmit={(e) => void handleSetPassword(e)}>
               {passwordSetAt !== null && (
                 <label>
@@ -283,46 +320,6 @@ export function AccountPage() {
               <p role="alert">Couldn't set your password: {passwordError}. Please try again.</p>
             )}
             {passwordSetAt !== null && !passwordError && <p>Password updated.</p>}
-          </section>
-
-          <section>
-            <h3>Delete account</h3>
-            <p>
-              Permanently deletes your account and every record tied to it across SnuffleStudy's
-              servers - friend connections, study rooms, audio nudges, digests, nudges, and
-              everything else. This cannot be undone. See the Privacy page for the full list of
-              what's stored and where.
-            </p>
-            {!deleteConfirming ? (
-              <button type="button" onClick={() => setDeleteConfirming(true)} disabled={deleteBusy}>
-                Delete account
-              </button>
-            ) : (
-              <div role="alertdialog" aria-label="Confirm account deletion">
-                <p>
-                  <strong>Are you sure?</strong> This removes your friend connections (or hands
-                  them off to another friend), study room history, audio nudges, digests, and
-                  every other record tied to your account, everywhere. This cannot be undone.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteAccount()}
-                  disabled={deleteBusy}
-                >
-                  {deleteBusy ? "Deleting…" : "Yes, permanently delete my account"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteConfirming(false)}
-                  disabled={deleteBusy}
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-            {deleteError && (
-              <p role="alert">Couldn't delete your account: {deleteError}. Please try again.</p>
-            )}
           </section>
         </>
       )}

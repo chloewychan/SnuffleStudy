@@ -159,7 +159,10 @@ describe("OptionsApp", () => {
     // now ambiguously match both - wait on the specific testid instead.
     await waitFor(() => screen.getByTestId("passcode-input"));
 
+    // v4.1 Task 10: "Save passcode" is now also disabled until the new "Confirm new passcode"
+    // field matches - fill it in alongside the passcode itself.
     fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "1234" } });
+    fireEvent.change(screen.getByTestId("confirm-passcode-input"), { target: { value: "1234" } });
     fireEvent.click(screen.getByRole("button", { name: "Save passcode" }));
 
     await waitFor(() =>
@@ -179,6 +182,7 @@ describe("OptionsApp", () => {
 
     fireEvent.change(screen.getByTestId("old-passcode-input"), { target: { value: "1234" } });
     fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "5678" } });
+    fireEvent.change(screen.getByTestId("confirm-passcode-input"), { target: { value: "5678" } });
     fireEvent.click(screen.getByRole("button", { name: "Save passcode" }));
 
     await waitFor(() =>
@@ -187,6 +191,25 @@ describe("OptionsApp", () => {
         payload: { passcode: "5678", oldPasscode: "1234" },
       })
     );
+  });
+
+  it("disables Save passcode while the confirmation field doesn't match, and enables it once it does", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
+
+    render(<OptionsApp />);
+    await waitFor(() => screen.getByTestId("passcode-input"));
+
+    const saveButton = screen.getByRole("button", { name: "Save passcode" });
+    expect(saveButton).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "1234" } });
+    expect(saveButton).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("confirm-passcode-input"), { target: { value: "0000" } });
+    expect(saveButton).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("confirm-passcode-input"), { target: { value: "1234" } });
+    expect(saveButton).not.toBeDisabled();
   });
 
   it("surfaces a rejection (e.g. wrong current passcode) from HARD_BLOCK_SET_PASSCODE via passcodeError", async () => {
@@ -206,6 +229,7 @@ describe("OptionsApp", () => {
 
     fireEvent.change(screen.getByTestId("old-passcode-input"), { target: { value: "0000" } });
     fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "5678" } });
+    fireEvent.change(screen.getByTestId("confirm-passcode-input"), { target: { value: "5678" } });
     fireEvent.click(screen.getByRole("button", { name: "Save passcode" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/incorrect current passcode/i);
@@ -268,13 +292,49 @@ describe("OptionsApp", () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     render(<OptionsApp />);
-    const textarea = await waitFor(() => screen.getByLabelText(/Default restricted sites/i));
+    const input = await waitFor(() => screen.getByLabelText("New restricted site"));
 
-    fireEvent.change(textarea, { target: { value: "example.com" } });
+    fireEvent.change(input, { target: { value: "example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/Could not establish connection/);
-    expect(textarea).toHaveValue(DEFAULT_USER_SETTINGS.defaultRestrictedSites.join("\n"));
+    // The optimistic add is rolled back to what's actually persisted - "example.com" doesn't stay
+    // in the rendered list once the save is confirmed to have failed.
+    expect(screen.queryByText("example.com")).not.toBeInTheDocument();
     expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  it("adds and deletes a default restricted site", async () => {
+    let currentSites = [...DEFAULT_USER_SETTINGS.defaultRestrictedSites];
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "SETTINGS_GET") {
+        return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, defaultRestrictedSites: currentSites } };
+      }
+      if (message.type === "SETTINGS_SAVE") {
+        currentSites = message.payload.defaultRestrictedSites;
+        return { ok: true };
+      }
+      return { ok: true };
+    });
+
+    render(<OptionsApp />);
+    const input = await waitFor(() => screen.getByLabelText("New restricted site"));
+
+    const addButton = screen.getByRole("button", { name: "Add" });
+    expect(addButton).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: "  example.com  " } });
+    expect(addButton).not.toBeDisabled();
+    fireEvent.click(addButton);
+
+    expect(await screen.findByText("example.com")).toBeInTheDocument();
+    // Trimmed before being saved.
+    expect(currentSites).toEqual(["example.com"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => expect(screen.queryByText("example.com")).not.toBeInTheDocument());
+    expect(currentSites).toEqual([]);
   });
 
   it("surfaces an error and does not crash when saving the passcode fails", async () => {
@@ -291,14 +351,17 @@ describe("OptionsApp", () => {
     await waitFor(() => screen.getByTestId("passcode-input"));
 
     fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "1234" } });
+    fireEvent.change(screen.getByTestId("confirm-passcode-input"), { target: { value: "1234" } });
     fireEvent.click(screen.getByRole("button", { name: "Save passcode" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/Could not establish connection/);
     expect(consoleErrorSpy).toHaveBeenCalled();
 
-    // The passcode was never actually saved, so the input must not be silently cleared as if
-    // it succeeded — the user's typed value stays visible.
+    // The passcode was never actually saved, so the inputs must not be silently cleared as if
+    // it succeeded — the user's typed values stay visible, and Save passcode stays enabled since
+    // they still match.
     expect(screen.getByTestId("passcode-input")).toHaveValue("1234");
+    expect(screen.getByTestId("confirm-passcode-input")).toHaveValue("1234");
     expect(screen.getByRole("button", { name: "Save passcode" })).not.toBeDisabled();
   });
 

@@ -261,7 +261,7 @@ export function FriendsPage({ onSignInClick }: FriendsPageProps) {
       )}
 
       {selfUserId && friendIds && friendIds.length === 0 && !error && (
-        <p>No friends yet — add a friend on the Account page first.</p>
+        <p>No friends yet — add a friend from the sidebar's Friends tab first.</p>
       )}
 
       {selfUserId &&

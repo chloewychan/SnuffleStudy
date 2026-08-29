@@ -165,9 +165,10 @@ describe("SidePanelApp", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     await waitFor(() => expect(screen.getByRole("heading", { name: /tracking/i })).toBeInTheDocument());
 
-    fireEvent.change(screen.getByLabelText("Default restricted sites"), {
+    fireEvent.change(screen.getByLabelText("New restricted site"), {
       target: { value: "youtube.com" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() =>
       expect(messenger.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({

@@ -19,8 +19,9 @@ import {
 // all (a documented platform limitation - see OptionsApp.tsx's own mediaGrantStatus header
 // comment), so that section is a full-tab-only affordance. This component is composed by both
 // OptionsApp.tsx (full tab, followed by the still-inline camera/microphone section) and the
-// sidepanel's SettingsTab.tsx (Task 7's new Settings/Account/Friends/History sub-nav) - one shared
-// source for the Tracking/Friends/Notifications/Default-restricted-sites/Hard-block-passcode UI.
+// sidepanel's SettingsTab.tsx (v4.1 Task 10: one scrolling view of stacked boxes, no sub-nav) -
+// one shared source for the Tracking/Friends/Notifications/Default-restricted-sites/Hard-block-
+// passcode UI.
 //
 // QA-discovered bug (v3.3 QA pass): this component owns its OWN settings state, fetched
 // independently of SidePanelApp.tsx's own top-level `settings` (passed down to StudyTab ->
@@ -40,10 +41,17 @@ export function SettingsPage({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [trackingChanging, setTrackingChanging] = useState(false);
   const [passcode, setPasscode] = useState("");
+  const [confirmPasscode, setConfirmPasscode] = useState("");
   const [oldPasscode, setOldPasscode] = useState("");
   const [passcodeSaved, setPasscodeSaved] = useState(false);
   const [passcodeError, setPasscodeError] = useState<string | null>(null);
   const [passcodeSaving, setPasscodeSaving] = useState(false);
+
+  // v4.1 Task 10: appends one trimmed, non-empty entry to `settings.defaultRestrictedSites` via
+  // the existing `updateSettings` optimistic-save helper below - same convention as every other
+  // field in this file, replacing the old free-text textarea (one line per site) with a text
+  // input + Add button + a deletable list, matching the scope doc's Settings section.
+  const [newRestrictedSite, setNewRestrictedSite] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -102,6 +110,19 @@ export function SettingsPage({
     }
   }
 
+  function handleAddRestrictedSite() {
+    const trimmed = newRestrictedSite.trim();
+    if (!trimmed) return;
+    updateSettings({ defaultRestrictedSites: [...settings!.defaultRestrictedSites, trimmed] });
+    setNewRestrictedSite("");
+  }
+
+  function handleDeleteRestrictedSite(site: string) {
+    updateSettings({
+      defaultRestrictedSites: settings!.defaultRestrictedSites.filter((s) => s !== site),
+    });
+  }
+
   async function handleTrackingTierChange(tier: TrackingTier) {
     setTrackingChanging(true);
     setSaveError(null);
@@ -158,6 +179,7 @@ export function SettingsPage({
         return;
       }
       setPasscode("");
+      setConfirmPasscode("");
       setOldPasscode("");
       setPasscodeSaved(true);
     } catch (err) {
@@ -215,20 +237,10 @@ export function SettingsPage({
           />
           Share session activity with my friends
         </label>
-        <p>
-          When on, generic session events (started, paused, distracted, completed, etc — never
-          a site name or your goal text) sync to your friends, and the extension polls
-          for their activity while a session is active. Off by default.
-        </p>
       </section>
 
       <section>
         <h2>Notifications</h2>
-        <p>
-          These only control whether THIS device shows a notification toast for friend
-          activity it has already received — they don't change what any friend can see. For
-          per-friend visibility controls, see the Friends page.
-        </p>
         <label>
           <input
             type="checkbox"
@@ -298,13 +310,38 @@ export function SettingsPage({
 
       <section>
         <h2>Default restricted sites</h2>
-        <textarea
-          aria-label="Default restricted sites"
-          value={settings.defaultRestrictedSites.join("\n")}
-          onChange={(e) =>
-            updateSettings({ defaultRestrictedSites: e.target.value.split("\n").filter(Boolean) })
-          }
-        />
+        <label>
+          New restricted site
+          <input
+            type="text"
+            value={newRestrictedSite}
+            onChange={(e) => setNewRestrictedSite(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAddRestrictedSite();
+              }
+            }}
+            placeholder="e.g. youtube.com"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={handleAddRestrictedSite}
+          disabled={!newRestrictedSite.trim()}
+        >
+          Add
+        </button>
+        <ul>
+          {settings.defaultRestrictedSites.map((site) => (
+            <li key={site}>
+              <span>{site}</span>
+              <button type="button" onClick={() => handleDeleteRestrictedSite(site)}>
+                Delete
+              </button>
+            </li>
+          ))}
+        </ul>
       </section>
 
       {saveError && (
@@ -313,7 +350,6 @@ export function SettingsPage({
 
       <section>
         <h2>Hard-block passcode</h2>
-        <p>Share this with a friend, not with yourself. Setting a new passcode replaces the old one.</p>
         <input
           data-testid="old-passcode-input"
           type="password"
@@ -328,7 +364,17 @@ export function SettingsPage({
           value={passcode}
           onChange={(e) => setPasscode(e.target.value)}
         />
-        <button onClick={handleSavePasscode} disabled={passcode.length < 4 || passcodeSaving}>
+        <input
+          data-testid="confirm-passcode-input"
+          type="password"
+          placeholder="Confirm new passcode"
+          value={confirmPasscode}
+          onChange={(e) => setConfirmPasscode(e.target.value)}
+        />
+        <button
+          onClick={handleSavePasscode}
+          disabled={passcode.length < 4 || passcode !== confirmPasscode || passcodeSaving}
+        >
           {passcodeSaving ? "Saving…" : "Save passcode"}
         </button>
         {passcodeError && (
