@@ -6,10 +6,10 @@ import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 
 // v4.1 Task 2: Header now reads useRefreshAll(), which throws outside a
 // RefreshRegistryProvider - every render() below needs one as an ancestor.
-function renderHeader() {
+function renderHeader(onSignInClick: () => void = () => {}) {
   return render(
     <RefreshRegistryProvider>
-      <Header />
+      <Header onSignInClick={onSignInClick} />
     </RefreshRegistryProvider>
   );
 }
@@ -20,7 +20,6 @@ describe("Header", () => {
     vi.stubGlobal("chrome", {
       runtime: {
         getURL: vi.fn((path: string) => `/chrome-extension://fake/${path}`),
-        openOptionsPage: vi.fn(),
       },
     });
   });
@@ -42,12 +41,13 @@ describe("Header", () => {
     );
   });
 
-  it("opens the extension options page when Log-In is clicked", async () => {
+  it("calls onSignInClick (navigating within the side panel) when Log-In is clicked", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, session: null });
-    renderHeader();
+    const onSignInClick = vi.fn();
+    renderHeader(onSignInClick);
     const button = await screen.findByRole("button", { name: /log-in/i });
     button.click();
-    expect(chrome.runtime.openOptionsPage).toHaveBeenCalledOnce();
+    expect(onSignInClick).toHaveBeenCalledOnce();
   });
 
   it("renders exactly one Refresh button", async () => {

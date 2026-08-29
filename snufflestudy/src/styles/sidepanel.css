@@ -1,4 +1,36 @@
 /* src/styles/sidepanel.css */
+
+/* Sticky-header/sticky-footer shell: SidePanelApp.tsx's four content branches (no-session tab
+   view, active-session view, COMPLETED, ABANDONED) each wrap their content in this class. A flex
+   column pinned to the panel's exact height means the header group and footer are permanently
+   pinned at the top/bottom - only .sp-scroll-area (the middle flex child) scrolls when its content
+   overflows, never the whole panel. position: sticky on the header/footer below is extra
+   insurance for the same visible result (harmless no-op in this exact layout, since flex already
+   keeps them out of any scrolling ancestor - but it's what actually matters if this shell is ever
+   nested inside something that scrolls instead). */
+.sidepanel-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sp-sticky-header {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-bg);
+}
+
+.sp-scroll-area {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  /* Breathing room so content never sits flush against the sticky header/footer's own edge. */
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
 .sp-header {
   display: flex;
   align-items: center;
@@ -322,4 +354,10 @@
   gap: var(--space-3);
   padding: var(--space-4);
   border-top: 2px solid rgb(from var(--color-accent) r g b / 0.5);
+  /* Pinned to the bottom of .sidepanel-app's flex column - see that class's own comment. */
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background: var(--color-bg);
 }

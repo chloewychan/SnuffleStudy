@@ -94,29 +94,35 @@ function SidePanelAppInner() {
 
   if (!session) {
     return (
-      <>
-        <Header />
-        <TabBar active={activeTab} onSelect={setActiveTab} />
-        {/* Fix 5 (final-review fix wave): TabBar.tsx's tab buttons already had role="tab"/
-            aria-selected but nothing tied them to their content - each tab button's
-            aria-controls="sp-tabpanel" now points at this single shared panel id (only one tab's
-            content is ever mounted at a time, so one id covers all four), and aria-labelledby
-            here points back at whichever tab is currently active. */}
-        <div role="tabpanel" id="sp-tabpanel" aria-labelledby={`sp-tab-${activeTab}`}>
-          {activeTab === "bunny" && <BunnyTab />}
-          {activeTab === "study" && <StudyTab settings={settings} />}
-          {activeTab === "friends" && <FriendsTab />}
-          {activeTab === "settings" && <SettingsTab onSettingsChange={setSettings} />}
+      <div className="sidepanel-app">
+        <div className="sp-sticky-header">
+          <Header onSignInClick={() => setActiveTab("settings")} />
+          <TabBar active={activeTab} onSelect={setActiveTab} />
+        </div>
+        <div className="sp-scroll-area">
+          {/* Fix 5 (final-review fix wave): TabBar.tsx's tab buttons already had role="tab"/
+              aria-selected but nothing tied them to their content - each tab button's
+              aria-controls="sp-tabpanel" now points at this single shared panel id (only one tab's
+              content is ever mounted at a time, so one id covers all four), and aria-labelledby
+              here points back at whichever tab is currently active. */}
+          <div role="tabpanel" id="sp-tabpanel" aria-labelledby={`sp-tab-${activeTab}`}>
+            {activeTab === "bunny" && <BunnyTab />}
+            {activeTab === "study" && <StudyTab settings={settings} />}
+            {activeTab === "friends" && <FriendsTab />}
+            {activeTab === "settings" && <SettingsTab onSettingsChange={setSettings} />}
+          </div>
         </div>
         <AppFooter />
-      </>
+      </div>
     );
   }
 
   if (session.state === "COMPLETED") {
     return (
       <div className="sidepanel-app">
-        <CompletionScreen session={session} />
+        <div className="sp-scroll-area">
+          <CompletionScreen session={session} />
+        </div>
         <AppFooter />
       </div>
     );
@@ -125,7 +131,9 @@ function SidePanelAppInner() {
   if (session.state === "ABANDONED") {
     return (
       <div className="sidepanel-app">
-        <AbandonedScreen session={session} />
+        <div className="sp-scroll-area">
+          <AbandonedScreen session={session} />
+        </div>
         <AppFooter />
       </div>
     );
@@ -142,11 +150,23 @@ function SidePanelAppInner() {
   // RequestUnlockForm is session-scoped and unaffected by this task - it renders directly
   // alongside ActiveSessionView now, instead of behind that toggle.
   return (
-    <>
-      <Header />
-      <ActiveSessionView session={session} />
-      <RequestUnlockForm session={session} />
+    <div className="sidepanel-app">
+      <div className="sp-sticky-header">
+        <Header
+          onSignInClick={() => {
+            // No TabBar exists during an active session (this view doesn't offer tab
+            // navigation), so there's nowhere to switch to right now - queue "settings" as the
+            // active tab for whenever the tab view is next shown (session completed/abandoned or
+            // ended), same activeTab state TabBar itself switches.
+            setActiveTab("settings");
+          }}
+        />
+      </div>
+      <div className="sp-scroll-area">
+        <ActiveSessionView session={session} />
+        <RequestUnlockForm session={session} />
+      </div>
       <AppFooter />
-    </>
+    </div>
   );
 }
