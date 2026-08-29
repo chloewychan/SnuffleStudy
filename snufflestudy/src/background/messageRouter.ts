@@ -658,7 +658,7 @@ async function routeMessage(
 
     case "FRIEND_REQUESTS_FETCH": {
       // fetchRelevantRequests already degrades to [] (never throws) when signed out or on a
-      // transient failure - see friendRequestApi.ts - so FriendRequestPanel.tsx/
+      // transient failure - see friendRequestApi.ts - so useIncomingActivity.ts (v4.1 Task 8)/
       // RequestUnlockForm.tsx/LockedPage.tsx/EndSessionControl.tsx always get an ok:true
       // response, even with nothing to show. Replaces UNLOCK_REQUESTS_FETCH/
       // TEMP_PASSCODE_REQUESTS_FETCH/SESSION_END_REQUESTS_FETCH.

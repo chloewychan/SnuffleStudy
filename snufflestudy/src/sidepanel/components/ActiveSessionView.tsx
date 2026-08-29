@@ -8,12 +8,6 @@ import type { StudySession } from "../../domain/session/sessionTypes";
 
 interface ActiveSessionViewProps {
   session: StudySession;
-  // v3.4 Task 3: replaces the two separate onShowUnlockPanel/onShowTempPasscodePanel callbacks
-  // (v2 Task 8/Task 12) with one - unlock_requests/temp_passcode_requests/session_end_requests
-  // are now one friend_requests table behind one FriendRequestPanel.tsx (composed alongside the
-  // new RequestUnlockForm.tsx at SidePanelApp.tsx's active-session call site), so there's only
-  // one panel to reveal.
-  onShowFriendRequestPanel: () => void;
 }
 
 // Task 9: replaces SidePanelApp.tsx's inline active-session branch (SessionStatusCard/TimerRing/
@@ -30,12 +24,15 @@ interface ActiveSessionViewProps {
 // rather than left in place, dead, alongside the new persistent Study Room footer
 // (StudyRoomFooter.tsx via AppFooter.tsx) - keeping two different "Study Room during a session"
 // implementations in one file, one of them permanently unreachable, would only confuse a future
-// reader. The "Friend requests" escape-hatch button below is untouched (Task 8 changes what it
-// does, not this task).
-export function ActiveSessionView({
-  session,
-  onShowFriendRequestPanel,
-}: ActiveSessionViewProps) {
+// reader.
+//
+// v4.1 Task 8: the "Friend requests" escape-hatch button (and the reveal-callback prop it used to
+// take) is removed too - the standalone approver-side panel it used to reveal is now always
+// visible in the new persistent Nudges & Unlock Requests footer, not something to reveal on
+// demand from here. RequestUnlockForm (session-scoped, unaffected by this task) now renders
+// directly alongside this component at SidePanelApp.tsx's active-session call site, instead of
+// behind this button's toggle.
+export function ActiveSessionView({ session }: ActiveSessionViewProps) {
   const now = useNow();
   const remaining = computeRemainingSeconds(session, now);
   // Preserves the original inline branch's BREAK-aware denominator (SidePanelApp.tsx: `session
@@ -77,12 +74,6 @@ export function ActiveSessionView({
           </ul>
         )}
       </section>
-
-      <div className="sp-active-session__escape-hatches">
-        <button type="button" onClick={onShowFriendRequestPanel}>
-          Friend requests
-        </button>
-      </div>
     </div>
   );
 }

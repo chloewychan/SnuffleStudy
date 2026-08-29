@@ -20,7 +20,15 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.stubGlobal("chrome", {
     ...globalThis.chrome,
-    storage: { onChanged: { addListener: vi.fn(), removeListener: vi.fn() } },
+    storage: {
+      onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+      // v4.1 Task 8: AppFooter now mounts useIncomingActivity() on every render branch below
+      // (via NudgesAndRequestsFooter's dismissed-item set, nudgeDismissalState.ts) - a minimal
+      // chrome.storage.local stub keeps that read a clean, empty-set no-op instead of throwing
+      // on `.local` being undefined (this file already replaces the rest of `chrome.storage`
+      // wholesale, above, for useActiveSession's onChanged listener).
+      local: { get: vi.fn().mockResolvedValue({}), set: vi.fn().mockResolvedValue(undefined) },
+    },
   });
 });
 
@@ -195,57 +203,49 @@ describe("SidePanelApp", () => {
     expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument();
   });
 
-  // v3.4 Task 3: replaces the two separate "replaces ActiveSessionView with UnlockRequestPanel"/
-  // "...with TempPasscodePanel" regression guards (Fix 12) with one - showUnlockPanel/
-  // showTempPasscodePanel collapsed into one showFriendRequestPanel boolean, and the panel-shown
-  // branch now composes RequestUnlockForm.tsx (session-aware requester form) alongside
-  // FriendRequestPanel.tsx (approver-only) side by side, per Decision 5.
-  it("replaces ActiveSessionView with RequestUnlockForm+FriendRequestPanel (not an overlay) when 'Friend requests' is triggered, and restores it on close", async () => {
-    // Regression guard for a panel-stacking bug introduced mid-Task-10 and reverted in a
-    // follow-up fix (see SidePanelApp.tsx's showFriendRequestPanel branch comment): opening this
-    // panel must fully replace ActiveSessionView's contents, the same "swap in a different
-    // screen entirely" pattern the COMPLETED/ABANDONED branches use - not render alongside it.
+  // v4.1 Task 8: replaces the old "replaces ActiveSessionView with RequestUnlockForm+<approver
+  // panel> (not an overlay) when 'Friend requests' is triggered, and restores it on close"
+  // regression guard - that toggle (and the standalone approver-side panel it used to reveal) is
+  // gone. RequestUnlockForm (session-scoped requester form) now renders directly alongside
+  // ActiveSessionView, unconditionally, every time there's an active session - not behind any
+  // button, and not swapping ActiveSessionView's own content away.
+  it("renders RequestUnlockForm directly alongside ActiveSessionView during an active session, with no toggle to reveal it", async () => {
     const session = machine.startSession(machine.createSession(input, "session_1", 0), 0);
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "SETTINGS_GET") {
         return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
       }
       if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session };
-      // RequestUnlockForm's/FriendRequestPanel's own fetches on mount (AUTH_GET_SESSION/
-      // FRIEND_REQUESTS_FETCH/SESSION_LIST_EVENTS) - given healthy, empty-but-ok responses so
-      // both render cleanly.
+      // RequestUnlockForm's own fetches on mount (AUTH_GET_SESSION/SESSION_LIST_EVENTS), and
+      // useIncomingActivity.ts's own fetches (AUTH_GET_SESSION/NUDGES_FETCH/
+      // PRODUCER_TAG_SENDS_FETCH/FRIEND_REQUESTS_FETCH) - given healthy, empty-but-ok responses so
+      // everything renders cleanly with nothing pending (so AppFooter's own incoming-activity half
+      // stays absent, keeping this test focused on SidePanelApp's own composition).
       if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
       if (message.type === "FRIEND_REQUESTS_FETCH") return { ok: true, requests: [] };
+      if (message.type === "NUDGES_FETCH") return { ok: true, nudges: [] };
+      if (message.type === "PRODUCER_TAG_SENDS_FETCH") return { ok: true, sends: [] };
       if (message.type === "SESSION_LIST_EVENTS") return { ok: true, events: [] };
       return { ok: true };
     });
 
     render(<SidePanelApp />);
+
+    // ActiveSessionView's own content and RequestUnlockForm's are both present at once - not one
+    // swapped in place of the other.
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument()
     );
-
-    // ActiveSessionView's own trigger button (distinct from FriendRequestPanel's own <h2>
-    // heading below - only one of the two exists in the DOM at a time).
-    fireEvent.click(screen.getByRole("button", { name: "Friend requests" }));
-
+    expect(screen.getByRole("timer")).toBeInTheDocument();
     await waitFor(() =>
-      expect(screen.getByRole("heading", { name: "Friend requests" })).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: "Request an unlock" })).toBeInTheDocument()
     );
-    // Both the requester-side form and the approver-side panel are present together.
-    expect(screen.getByRole("heading", { name: "Request an unlock" })).toBeInTheDocument();
-    // ActiveSessionView's content is gone entirely, not merely covered - this is the crux of the
-    // regression this test guards against.
-    expect(screen.queryByRole("timer")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "End session" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument()
-    );
-    expect(screen.queryByRole("heading", { name: "Friend requests" })).not.toBeInTheDocument();
+    // No trigger button left to toggle anything - the old approver-side panel this used to reveal
+    // is gone, folded into the always-visible footer instead.
+    expect(
+      screen.queryByRole("button", { name: /friend requests/i })
+    ).not.toBeInTheDocument();
   });
 
   it("shows a Pause control while FOCUSING, and a Resume control while PAUSED", async () => {

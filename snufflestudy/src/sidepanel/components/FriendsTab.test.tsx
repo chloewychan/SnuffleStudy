@@ -9,9 +9,11 @@ beforeEach(() => {
 
 describe("FriendsTab", () => {
   // v4.1 Task 7: StudyRoomPanel is no longer mounted here at all (moved to StudyTab.tsx as
-  // StudyRoomsBox, with its joined-room view now a persistent app-shell footer) - only two
-  // sections remain, down from three.
-  it("renders FriendGroupPanel and FriendRequestPanel, in that order", async () => {
+  // StudyRoomsBox, with its joined-room view now a persistent app-shell footer).
+  // v4.1 Task 8: the old standalone "Friend requests" panel is no longer mounted here at all
+  // either (its approver-side content is now always visible in the new Nudges & Unlock Requests
+  // footer instead) - only one section remains, down from two.
+  it("renders FriendGroupPanel", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({
       ok: true,
       members: [],
@@ -20,63 +22,39 @@ describe("FriendsTab", () => {
 
     render(<FriendsTab />);
 
-    // Structural check: two top-level sections directly under .sp-friends-tab.
+    // Structural check: one top-level section directly under .sp-friends-tab.
     const sections = document.querySelectorAll(".sp-friends-tab > section");
-    expect(sections.length).toBe(2);
+    expect(sections.length).toBe(1);
 
-    // Substantive check (beyond a bare mount-without-throwing smoke test): each section actually
-    // renders its own panel's real heading text (read from source - FriendGroupPanel.tsx's
-    // <h2>Friend activity</h2>, FriendRequestPanel.tsx's <h2>Friend requests</h2> - not guessed).
+    // Substantive check (beyond a bare mount-without-throwing smoke test): the section actually
+    // renders FriendGroupPanel.tsx's real heading text (read from source - <h2>Friend
+    // activity</h2> - not guessed).
     const friendActivityHeading = within(sections[0] as HTMLElement).getByRole("heading", {
       name: /^friend activity$/i,
     });
-    const friendRequestsHeading = within(sections[1] as HTMLElement).getByRole("heading", {
-      name: /^friend requests$/i,
-    });
     expect(friendActivityHeading).toBeInTheDocument();
-    expect(friendRequestsHeading).toBeInTheDocument();
 
-    // FriendRequestPanel.tsx has no `session` prop anymore (Decision 5 - it's approver-only by
-    // design now, not gated on session=null the way UnlockRequestPanel used to be) - only the
-    // "Requests from friends" approver section should render.
-    expect(
-      within(sections[1] as HTMLElement).queryByRole("heading", { name: /request an unlock/i })
-    ).not.toBeInTheDocument();
-    expect(
-      within(sections[1] as HTMLElement).getByRole("heading", { name: /requests from friends/i })
-    ).toBeInTheDocument();
-
-    // No Close button anywhere - v3.4 Task 4: FriendGroupPanel's onClose is now optional
-    // (rendered only when a real handler is passed), and this component no longer passes a no-op.
-    // FriendRequestPanel.tsx (Task 3) never had one to begin with - "no dead button in the first
-    // place" design.
+    // No Close button - v3.4 Task 4: FriendGroupPanel's onClose is now optional (rendered only
+    // when a real handler is passed), and this component no longer passes a no-op.
     expect(
       within(sections[0] as HTMLElement).queryByRole("button", { name: /close/i })
     ).not.toBeInTheDocument();
-    expect(
-      within(sections[1] as HTMLElement).queryByRole("button", { name: /close/i })
-    ).not.toBeInTheDocument();
 
-    // Both composed panels fire their own real on-mount fetches rather than being stubbed out -
-    // confirms this is a genuine composition, not components that happen to render static markup.
-    // Waiting for these also lets the panels' async state updates settle before the test ends,
-    // avoiding act() warnings from updates that land after the assertions above.
+    // The composed panel fires its own real on-mount fetch rather than being stubbed out -
+    // confirms this is a genuine composition, not a component that happens to render static
+    // markup. Waiting for this also lets the panel's async state updates settle before the test
+    // ends, avoiding act() warnings from updates that land after the assertions above.
     await waitFor(() =>
       expect(messenger.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({ type: "FRIEND_EVENTS_FETCH" })
       )
     );
-    await waitFor(() =>
-      expect(messenger.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "FRIEND_REQUESTS_FETCH" })
-      )
-    );
   });
 
-  it("does not crash when the friends/requests fetches fail", async () => {
-    // Every panel independently handles its own fetch failures (their own test suites cover the
-    // exact error copy) - this only confirms composing them doesn't introduce a new failure mode,
-    // e.g. an unhandled rejection or a thrown error, when every underlying call rejects.
+  it("does not crash when the friend-activity fetches fail", async () => {
+    // FriendGroupPanel independently handles its own fetch failures (its own test suite covers
+    // the exact error copy) - this only confirms composing it doesn't introduce a new failure
+    // mode, e.g. an unhandled rejection or a thrown error, when every underlying call rejects.
     vi.spyOn(messenger, "sendMessage").mockRejectedValue(new Error("network down"));
     vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -84,9 +62,6 @@ describe("FriendsTab", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/couldn't load friend activity/i)).toBeInTheDocument();
-      expect(
-        screen.getByText(/couldn't load friend requests: network down/i)
-      ).toBeInTheDocument();
     });
   });
 });

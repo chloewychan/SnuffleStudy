@@ -7,7 +7,7 @@ interface RequestUnlockFormProps {
   // Non-null, unlike UnlockRequestPanel.tsx's old `session: StudySession | null` - this
   // component is only ever rendered when a session exists (Decision 5,
   // docs/implementation_plans/V3.4_Implementation_Plan.md): SidePanelApp.tsx's active-session
-  // view composes this alongside FriendRequestPanel.tsx; there is no other mount point (the old
+  // view composes this alongside ActiveSessionView; there is no other mount point (the old
   // `session={null}` usage - suppressing this section entirely when no session exists - is
   // simply not applicable anymore, since this component no longer has an approver-side section
   // to fall back to rendering).
@@ -45,13 +45,18 @@ function distinctBlockedHostnames(events: SessionEvent[]): string[] {
 
 // v3.4 Task 3, Decision 5: the mid-session "Request an unlock" requester form, relocated here
 // from UnlockRequestPanel.tsx's top half (that component - and TempPasscodePanel.tsx/
-// SessionEndRequestPanel.tsx - are deleted this task, replaced by this component +
-// FriendRequestPanel.tsx). Carries UnlockRequestPanel.tsx's exact requester-side behavior
-// (blocked-hostname suggestion buttons, a hostname text field, "my requests for this session"
-// status list) - only the create call changes, from UNLOCK_REQUEST_CREATE to
+// SessionEndRequestPanel.tsx - are deleted this task, replaced by this component + what was then
+// a standalone approver-side panel). Carries UnlockRequestPanel.tsx's exact requester-side
+// behavior (blocked-hostname suggestion buttons, a hostname text field, "my requests for this
+// session" status list) - only the create call changes, from UNLOCK_REQUEST_CREATE to
 // FRIEND_REQUEST_CREATE("site_unlock", { sessionId, hostname }). SidePanelApp.tsx's
-// active-session view composes this (session-aware) alongside FriendRequestPanel.tsx
-// (approver-only, no session prop) side by side.
+// active-session view composes this (session-aware) alongside ActiveSessionView.
+//
+// v4.1 Task 8: the approver-side panel this used to sit beside (behind a toggle) is gone - its
+// content is now always visible in the new, persistent Nudges & Unlock Requests footer instead,
+// so this form now renders directly in the active-session view, unconditionally, rather than
+// behind that toggle. This component itself is otherwise unaffected (Task 8's own Deliverables:
+// "session-scoped, unaffected").
 export function RequestUnlockForm({ session }: RequestUnlockFormProps) {
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
 

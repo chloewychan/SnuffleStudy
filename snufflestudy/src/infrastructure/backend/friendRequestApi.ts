@@ -213,7 +213,7 @@ async function queryRelevantSince(
   }
 }
 
-// On-demand fetch for FriendRequestPanel.tsx/RequestUnlockForm.tsx/LockedPage.tsx/
+// On-demand fetch for useIncomingActivity.ts (v4.1 Task 8)/RequestUnlockForm.tsx/LockedPage.tsx/
 // EndSessionControl.tsx (via messageRouter.ts's FRIEND_REQUESTS_FETCH) - collapses the
 // ok/requests distinction into a plain array, mirroring every prior fetchRelevant*'s identical
 // contract.

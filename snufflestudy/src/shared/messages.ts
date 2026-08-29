@@ -132,8 +132,9 @@ export type ExtensionMessage =
         hostname?: string;
       };
     }
-  // v3.4 Task 3: routes to friendRequestApi.resolveRequest - FriendRequestPanel.tsx's friend
-  // (approve/deny) side, for denying any kind or approving site_unlock/session_end. Approving
+  // v3.4 Task 3: routes to friendRequestApi.resolveRequest - the friend (approve/deny) side (v4.1
+  // Task 8: now the persistent Nudges & Unlock Requests footer's approve/deny buttons, via
+  // useIncomingActivity.ts), for denying any kind or approving site_unlock/session_end. Approving
   // site_temp_pass must use FRIEND_REQUEST_APPROVE_TEMP_PASS instead - RLS's WITH CHECK clause
   // enforces this server-side regardless of what this message is sent for (Decision 3,
   // docs/implementation_plans/V3.4_Implementation_Plan.md - see the migration's own comment and
@@ -156,8 +157,8 @@ export type ExtensionMessage =
   // v3.4 Task 3: routes to friendRequestApi.fetchRelevantRequests - the on-demand counterpart to
   // the background's alarm-driven poll (alarmHandlers.ts calls friendRequestApi.pollRelevantRequests
   // directly, mirroring FRIEND_EVENTS_FETCH/NUDGES_FETCH's identical split). A single query covers
-  // every caller's needs (FriendRequestPanel.tsx listing pending requests to review;
-  // RequestUnlockForm.tsx/LockedPage.tsx/EndSessionControl.tsx checking their own request's
+  // every caller's needs (useIncomingActivity.ts, v4.1 Task 8, listing pending requests to
+  // review; RequestUnlockForm.tsx/LockedPage.tsx/EndSessionControl.tsx checking their own request's
   // status): the requester's own requests (any status), requests assigned to the caller (any
   // status), and pending requests from anyone the caller is friends with when friend_user_id is
   // null - see friendRequestApi.ts's queryRelevantSince comment.
@@ -305,7 +306,7 @@ export type ExtensionMessage =
   | { type: "PROFILE_SAVE_MINE"; payload: { humanName?: string; bunnyName?: string } }
   // v3.3 Task 8: routes to profileApi.fetchProfilesByIds() - shared/ui/useDisplayNames.ts's one
   // fetch, reused at every raw-userId display site this task's plan names (NudgeSendForm's friend
-  // picker, StudyRoomPanel's participant list, FriendRequestPanel's requester lines,
+  // picker, the Study Room footer's participant tiles, incoming-request requester lines,
   // LockedPage.tsx's friend picker, AccountPage.tsx's friend list). Never throws (see
   // profileApi.ts) - RLS (not this message, not client-side filtering) is what actually restricts
   // which of the requested userIds come back: only the caller's own profile, or a group-mate's. An

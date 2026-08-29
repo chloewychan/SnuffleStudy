@@ -10,7 +10,6 @@ import { FriendsTab } from "./components/FriendsTab";
 import { SettingsTab } from "./components/SettingsTab";
 import { ActiveSessionView } from "./components/ActiveSessionView";
 import { RequestUnlockForm } from "./components/RequestUnlockForm";
-import { FriendRequestPanel } from "./components/FriendRequestPanel";
 import { CompletionScreen } from "../shared/ui/CompletionScreen";
 import { AbandonedScreen } from "../shared/ui/AbandonedScreen";
 import { useActiveSession } from "../shared/hooks/useActiveSession";
@@ -41,21 +40,6 @@ function SidePanelAppInner() {
   const { session, loading } = useActiveSession();
 
   const [activeTab, setActiveTab] = useState<SidePanelTab>("bunny");
-  // v3.4 Task 3: replaces the two separate showUnlockPanel/showTempPasscodePanel booleans
-  // (v2 Task 8/Task 12) with one - unlock_requests/temp_passcode_requests/session_end_requests
-  // are now one friend_requests table behind one FriendRequestPanel.tsx, so there's only one
-  // panel to show/hide. Separate from `activeTab` above - `activeTab` only governs the
-  // no-active-session branch's tab routing (bunny/study/friends/settings), while a running
-  // session has its own dedicated render branch further below that doesn't go through
-  // `activeTab` at all.
-  const [showFriendRequestPanel, setShowFriendRequestPanel] = useState(false);
-
-  // A fresh session should never inherit a panel left open from a previous one.
-  useEffect(() => {
-    if (session) {
-      setShowFriendRequestPanel(false);
-    }
-  }, [session]);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,31 +132,20 @@ function SidePanelAppInner() {
   }
 
   // v3.4 Task 3 (Decision 5): the requester-side "request an unlock" UI (RequestUnlockForm.tsx,
-  // session-aware) and the approver-side "review friend requests" UI (FriendRequestPanel.tsx, no
-  // session prop) are composed side by side here - reachable during an active session too, not
-  // just the no-session tab routing above, since a friend might be mid-session themselves when
-  // asked to approve/deny a request. Replaces this view's normal contents rather than overlaying
-  // them, same pattern as the COMPLETED/ABANDONED branches above swapping in a different screen
-  // entirely (unchanged from the pre-Task-3 showUnlockPanel/showTempPasscodePanel branches this
-  // one collapses into).
-  if (showFriendRequestPanel) {
-    return (
-      <>
-        <Header />
-        <RequestUnlockForm session={session} />
-        <FriendRequestPanel onClose={() => setShowFriendRequestPanel(false)} />
-        <AppFooter />
-      </>
-    );
-  }
-
+  // session-aware) used to be composed alongside a standalone approver-side "review friend
+  // requests" panel (no session prop) only behind a toggle, reachable during an active session
+  // since a friend might be mid-session themselves when asked to approve/deny a request.
+  //
+  // v4.1 Task 8: that toggle (and the standalone approver-side panel it used to reveal) is
+  // removed - its content is now always visible in the new, persistent Nudges & Unlock Requests
+  // footer (NudgesAndRequestsFooter.tsx, via AppFooter.tsx), not something to reveal here.
+  // RequestUnlockForm is session-scoped and unaffected by this task - it renders directly
+  // alongside ActiveSessionView now, instead of behind that toggle.
   return (
     <>
       <Header />
-      <ActiveSessionView
-        session={session}
-        onShowFriendRequestPanel={() => setShowFriendRequestPanel(true)}
-      />
+      <ActiveSessionView session={session} />
+      <RequestUnlockForm session={session} />
       <AppFooter />
     </>
   );

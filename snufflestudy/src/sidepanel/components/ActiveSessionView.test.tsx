@@ -34,13 +34,18 @@ beforeEach(() => {
 // rendered), and duplicated what the new, real, persistent Study Room footer
 // (StudyRoomFooter.tsx/AppFooter.tsx) now provides. Every test that exercised that section
 // (members fetch, per-member nudge, the self-filter, the "no accountabilityGroupId" guard) is
-// removed along with it, not left failing - only the goal/timer/controls/restricted-sites/
-// escape-hatch coverage below remains, since that's all this component still owns.
+// removed along with it, not left failing.
+//
+// v4.1 Task 8: the "Friend requests" escape-hatch button (and the reveal-callback prop it used to
+// take) is removed too - the standalone approver-side panel it used to reveal is now always
+// visible in the new persistent Nudges & Unlock Requests footer instead of behind this button's
+// toggle (see
+// SidePanelApp.test.tsx for the replacement coverage of RequestUnlockForm rendering directly in
+// the active-session view). Only the goal/timer/controls/restricted-sites coverage below remains,
+// since that's all this component still owns.
 describe("ActiveSessionView", () => {
   it("renders the goal, timer, pause/end controls, and restricted sites", async () => {
-    render(
-      <ActiveSessionView session={mockSession} onShowFriendRequestPanel={vi.fn()} />
-    );
+    render(<ActiveSessionView session={mockSession} />);
 
     // Goal is shown twice by design: once as this screen's own headline (Figma node 60:783,
     // positioned above the "Study Session in Progress" card) and once inside the reused,
@@ -55,23 +60,11 @@ describe("ActiveSessionView", () => {
     // restricted-sites list preserved from the original inline SidePanelApp.tsx active-session
     // branch (lift-and-adapt, not part of the Figma mock's trimmed metadata).
     expect(screen.getByText("distracting.example")).toBeInTheDocument();
-  });
 
-  // v3.4 Task 3: the two separate onShowUnlockPanel/onShowTempPasscodePanel trigger buttons
-  // collapse into one onShowFriendRequestPanel button, now that unlock_requests/
-  // temp_passcode_requests/session_end_requests are one friend_requests table behind one panel.
-  it("calls onShowFriendRequestPanel from its trigger button, without rendering the panel itself", async () => {
-    const onShowFriendRequestPanel = vi.fn();
-
-    render(
-      <ActiveSessionView session={mockSession} onShowFriendRequestPanel={onShowFriendRequestPanel} />
-    );
-
-    screen.getByRole("button", { name: /friend requests/i }).click();
-
-    expect(onShowFriendRequestPanel).toHaveBeenCalledTimes(1);
-    // Actual panel mounting stays SidePanelApp.tsx's job - this component only renders the
-    // trigger button, per Decision 5's Interfaces:Produces note.
-    expect(screen.queryByText(/request an unlock/i)).not.toBeInTheDocument();
+    // No "Friend requests" escape hatch remains (Task 8) - the approver-side content it used to
+    // reveal is now always visible in the persistent footer instead.
+    expect(
+      screen.queryByRole("button", { name: /friend requests/i })
+    ).not.toBeInTheDocument();
   });
 });

@@ -251,12 +251,6 @@
   align-items: center;
 }
 
-.sp-active-session__escape-hatches {
-  display: flex;
-  gap: var(--space-2);
-  justify-content: center;
-}
-
 /* v3.3 Task 3: study-room video tiles had no sizing rules at all before this - every tile
    rendered at its own native/intrinsic size, so a local camera preview (full native capture
    resolution) looked larger than a remote peer's tile (subject to LiveKit's adaptiveStream
