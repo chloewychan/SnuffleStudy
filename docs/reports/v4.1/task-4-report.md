@@ -82,9 +82,15 @@
 
 **Fix:** added an explicit empty `action: {}` block to `wxt.config.ts`'s `manifest` config. This restores a toolbar button (using the manifest's existing top-level `icons`) with no popup — which is what actually makes `onClicked` reachable. Rebuilt and confirmed `.output/chrome-mv3/manifest.json` now includes `"action":{}` with still no `default_popup`. `tsc --noEmit` clean, full `vitest` suite 891/891 passing.
 
+## Second correction, found during live testing after the first fix
+
+Once the toolbar icon existed and `onClicked` could actually fire (previous fix), live testing hit a second, different error: **`Error: sidePanel.open() may only be called in response to a user gesture.`** The handler awaited `chrome.windows.getCurrent()` before calling `chrome.sidePanel.open()` (mirrored from the old, deleted `PopupApp.tsx`'s own `openSidePanel()`) — that `await` inserts an async gap between the click and the API call, and Chrome only associates a user gesture with an API call made before control yields back to the event loop.
+
+**Fix:** removed the `chrome.windows.getCurrent()` lookup entirely and read `windowId` directly off the `onClicked` callback's own `tab` parameter (`chrome.tabs.Tab.windowId` is always present, non-optional), calling `chrome.sidePanel.open({ windowId: tab.windowId })` as the first synchronous statement in the handler. `tsc --noEmit` clean, full `vitest` suite 891/891 passing, rebuilt and confirmed the `chrome.windows.getCurrent` call no longer appears in the built `background.js`.
+
 ## What's still open
 
-All Definition-of-Done items are now met, including the corrected one above:
+All Definition-of-Done items are now met, including both corrections above:
 - Toolbar icon exists (via the `action: {}` fix) and its click handler opens the side panel via `chrome.action.onClicked` (logic verified by direct code comparison against the original `openSidePanel()`; an actual manual click-through in a loaded browser is still left to the plan's Task 11 manual QA pass / `docs/qa/V4.1_Two_Account_QA_Script.md` item 2, consistent with every other automatable-only check in this task).
 - Zero remaining `src/popup`/`entrypoints/popup` references anywhere in `snufflestudy/`.
 - `useActiveSession`/`useNow` work correctly from their new shared location at both existing call sites, confirmed by a clean `tsc --noEmit` and a fully passing test suite.
