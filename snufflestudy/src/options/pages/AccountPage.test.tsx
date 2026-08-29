@@ -184,18 +184,16 @@ describe("AccountPage — signed out", () => {
 });
 
 describe("AccountPage — signed in", () => {
-  // v3.4 Task 2: AccountPage now loads the flat "Your friends" list via one FRIENDS_LIST call as
-  // soon as `session` is set - defaults to an empty list so every pre-existing test (which
-  // doesn't care about the friends list) gets a clean, error-free baseline.
+  // v4.1 Task 9: "Invite a friend"/"Add a friend"/"Your friends" (and the FRIENDS_LIST fetch that
+  // backed the last of those) have moved out of this page entirely, into the sidepanel's new
+  // FriendsBox.tsx (scope doc's Friends Tab section) - this page no longer sends FRIENDS_LIST at
+  // all, so the override map below only ever needs AUTH_GET_SESSION's default.
   function mockSignedIn(overrides: Record<string, (message: any) => Promise<any>> = {}) {
     return vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       const override = overrides[message.type];
       if (override) return override(message);
       if (message.type === "AUTH_GET_SESSION") {
         return { ok: true, session: { user: { id: "user-a", email: "a@example.com" } } };
-      }
-      if (message.type === "FRIENDS_LIST") {
-        return { ok: true, friendIds: [] };
       }
       return { ok: true };
     });
@@ -404,127 +402,6 @@ describe("AccountPage — signed in", () => {
     expect(messenger.sendMessage).toHaveBeenCalledWith({
       type: "AUTH_SET_PASSWORD",
       payload: { password: "fresh-pw" },
-    });
-  });
-
-  // v3.4 Task 2: "Invite a friend" is now a single step (Decision 2) - one click sends
-  // FRIEND_INVITE_GENERATE_CODE directly, no group to create first, and only the resulting
-  // invite code renders.
-  it("invites a friend: one click generates an invite code, with no group created first", async () => {
-    mockSignedIn({
-      FRIEND_INVITE_GENERATE_CODE: async () => ({
-        ok: true,
-        inviteCode: {
-          code: "ABCD1234",
-          createdBy: "user-a",
-          expiresAt: new Date("2026-01-08T00:00:00Z").getTime(),
-          usedBy: null,
-        },
-      }),
-    });
-
-    render(<AccountPage />);
-    await waitFor(() => screen.getByRole("button", { name: "Invite a friend" }));
-
-    fireEvent.click(screen.getByRole("button", { name: "Invite a friend" }));
-
-    expect(await screen.findByText("ABCD1234")).toBeInTheDocument();
-    expect(messenger.sendMessage).toHaveBeenCalledWith({
-      type: "FRIEND_INVITE_GENERATE_CODE",
-    });
-    // Decision 2: no group is created any more - GROUP_CREATE no longer exists as a message
-    // type, and this call site never sends it.
-    expect(messenger.sendMessage).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "GROUP_CREATE" })
-    );
-  });
-
-  it("adds a friend by invite code, then reloads the flat friends list", async () => {
-    let friendsListCallCount = 0;
-    mockSignedIn({
-      FRIEND_REDEEM_CODE: async () => ({ ok: true, friendship: {} }),
-      FRIENDS_LIST: async () => {
-        friendsListCallCount += 1;
-        return { ok: true, friendIds: friendsListCallCount === 1 ? [] : ["user-friend"] };
-      },
-    });
-
-    render(<AccountPage />);
-    await waitFor(() => screen.getByLabelText("Invite code"));
-
-    fireEvent.change(screen.getByLabelText("Invite code"), { target: { value: "code1234" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add friend" }));
-
-    await waitFor(() =>
-      expect(messenger.sendMessage).toHaveBeenCalledWith({
-        type: "FRIEND_REDEEM_CODE",
-        payload: { code: "CODE1234" },
-      })
-    );
-    // Reloads the flat friends list on success - the newly-added friend shows up without a
-    // manual refresh.
-    expect(await screen.findByText("user-friend")).toBeInTheDocument();
-  });
-
-  it("lists your flat friends list via FRIENDS_LIST on mount", async () => {
-    mockSignedIn({
-      FRIENDS_LIST: async () => ({ ok: true, friendIds: ["user-friend"] }),
-    });
-
-    render(<AccountPage />);
-
-    expect(await screen.findByText("user-friend")).toBeInTheDocument();
-  });
-
-  it("shows a 'no friends yet' message when the friends list is empty", async () => {
-    mockSignedIn({ FRIENDS_LIST: async () => ({ ok: true, friendIds: [] }) });
-
-    render(<AccountPage />);
-
-    expect(await screen.findByText(/no friends yet/i)).toBeInTheDocument();
-  });
-
-  // v3.4 Task 2: flat per-friend "Remove friend" action, replacing group-scoped "Leave". Either
-  // party can unilaterally remove a friendship - no confirmation step (unlike the old group-leave
-  // UI, which gated behind a two-click inline confirmation) since this is a single, easily
-  // reversible relationship, not "leaving" a shared list that others also depend on.
-  describe("removing a friend", () => {
-    it("removes a friend via FRIEND_REMOVE and drops them from the rendered list", async () => {
-      const removeSpy = vi.fn(async () => ({ ok: true }));
-      mockSignedIn({
-        FRIENDS_LIST: async () => ({ ok: true, friendIds: ["user-friend"] }),
-        FRIEND_REMOVE: removeSpy,
-      });
-
-      render(<AccountPage />);
-      await screen.findByText("user-friend");
-
-      fireEvent.click(screen.getByRole("button", { name: "Remove friend" }));
-
-      await waitFor(() =>
-        expect(removeSpy).toHaveBeenCalledWith({
-          type: "FRIEND_REMOVE",
-          payload: { friendUserId: "user-friend" },
-        })
-      );
-      await waitFor(() => expect(screen.queryByText("user-friend")).not.toBeInTheDocument());
-    });
-
-    it("surfaces a server-side denial (e.g. not actually friends any more) as an error, without removing the row", async () => {
-      mockSignedIn({
-        FRIENDS_LIST: async () => ({ ok: true, friendIds: ["user-friend"] }),
-        FRIEND_REMOVE: async () => ({ ok: false, error: "You aren't friends with this user." }),
-      });
-
-      render(<AccountPage />);
-      await screen.findByText("user-friend");
-
-      fireEvent.click(screen.getByRole("button", { name: "Remove friend" }));
-
-      expect(await screen.findByRole("alert")).toHaveTextContent(
-        /you aren't friends with this user/i
-      );
-      expect(screen.getByText("user-friend")).toBeInTheDocument();
     });
   });
 

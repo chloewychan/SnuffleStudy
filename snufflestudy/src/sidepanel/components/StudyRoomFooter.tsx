@@ -4,8 +4,7 @@ import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 import { openMediaPermissionTab } from "../../infrastructure/media/mediaPermissions";
 import { useRegisterRefresh } from "../refresh/RefreshRegistryContext";
 import { useStudyRoomSession, type Tile } from "../studyRoom/StudyRoomSessionContext";
-import type { NudgeVaultText } from "../../infrastructure/backend/nudgeVaultApi";
-import type { ProducerTag } from "../../domain/rooms/producerTag";
+import { useNudgeVaultItems } from "../nudgeVault/useNudgeVaultItems";
 
 // v4.1 Task 7: the persistent, joined-room half of the old StudyRoomPanel.tsx, now reading
 // everything from the shared study-room session (useStudyRoomSession()) instead of local state -
@@ -83,14 +82,6 @@ function StudyRoomVideoTile({
   );
 }
 
-// v4.1 Task 9 note (per the plan): the merge-and-sort below is deliberately inlined here rather
-// than factored into a shared hook - Task 9 introduces `useNudgeVaultItems()` (consumed by
-// FriendsBox.tsx/NudgeVaultBox.tsx too) and refactors this file to use it once that hook exists.
-// Not built here to avoid this task reaching into a file Task 9 owns.
-type VaultNudgeItem =
-  | { kind: "written"; id: string; body: string; createdAt: number }
-  | { kind: "audio"; id: string; durationMs: number; createdAt: number };
-
 export function StudyRoomFooter() {
   const {
     joinedRoom,
@@ -114,61 +105,19 @@ export function StudyRoomFooter() {
   // briefly lag/differ), same as the pre-split component.
   const displayName = useDisplayNames([...participants.keys()]);
 
-  const [vaultItems, setVaultItems] = useState<VaultNudgeItem[] | null>(null);
-  const [vaultError, setVaultError] = useState<string | null>(null);
+  // v4.1 Task 9: the merge-and-sort this footer used to inline is now the shared
+  // useNudgeVaultItems() hook (also consumed by FriendsBox.tsx/NudgeVaultBox.tsx) - see that
+  // hook's own header comment.
+  const { items: vaultItems, loading: vaultLoading, error: vaultError, refresh: refreshVaultItems } =
+    useNudgeVaultItems();
   const [selectedVaultKey, setSelectedVaultKey] = useState("");
   const [nudging, setNudging] = useState(false);
   const [nudgeError, setNudgeError] = useState<string | null>(null);
 
-  // Every "pick a nudge to send" list is sourced from the same two backend reads (the written
-  // Nudge Vault + the user's own saved audio tags) - see nudgeVaultApi.ts's/producerTagApi.ts's own
-  // "never imported directly by a sidepanel component" convention, so both go through
-  // sendMessage()/messageRouter.ts (NUDGE_VAULT_TEXT_LIST/PRODUCER_TAG_LIST_MINE), not a direct
-  // backend-module call.
-  function loadVaultItems() {
-    setVaultError(null);
-    Promise.all([
-      sendMessage<{ ok: boolean; texts?: NudgeVaultText[]; error?: string }>({
-        type: "NUDGE_VAULT_TEXT_LIST",
-      }),
-      sendMessage<{ ok: boolean; tags?: ProducerTag[]; error?: string }>({
-        type: "PRODUCER_TAG_LIST_MINE",
-      }),
-    ])
-      .then(([textsRes, tagsRes]) => {
-        if (!textsRes.ok || !tagsRes.ok) {
-          setVaultError(textsRes.error ?? tagsRes.error ?? "Could not load your Nudge Vault.");
-          return;
-        }
-        const written: VaultNudgeItem[] = (textsRes.texts ?? []).map((t) => ({
-          kind: "written",
-          id: t.id,
-          body: t.body,
-          createdAt: t.createdAt,
-        }));
-        const audio: VaultNudgeItem[] = (tagsRes.tags ?? []).map((t) => ({
-          kind: "audio",
-          id: t.id,
-          durationMs: t.durationMs,
-          createdAt: new Date(t.createdAt).getTime(),
-        }));
-        setVaultItems([...written, ...audio].sort((a, b) => b.createdAt - a.createdAt));
-      })
-      .catch((err) => {
-        console.error("Failed to load Nudge Vault items", err);
-        setVaultError(err instanceof Error ? err.message : String(err));
-      });
-  }
-
-  useEffect(() => {
-    loadVaultItems();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // v4.1 Task 2: replaces this footer's own Refresh button (it never had one of its own before
-  // this task, but the Nudge Vault picker it now owns needs one) - the Header's one Refresh button
+  // Task 7, but the Nudge Vault picker it owns needs one) - the Header's one Refresh button
   // re-runs this fetch among every other currently-mounted panel's own.
-  useRegisterRefresh(loadVaultItems);
+  useRegisterRefresh(refreshVaultItems);
 
   // Decision 8: targets selected participant tiles individually (NUDGE_SEND/
   // PRODUCER_TAG_SEND_TO_FRIEND per selected participant's userId), not the room-wide
@@ -265,11 +214,11 @@ export function StudyRoomFooter() {
       <section className="study-room-panel__nudge">
         <h3>Nudge</h3>
         {vaultError && <p role="alert">Couldn't load your Nudge Vault: {vaultError}.</p>}
-        {vaultItems === null && !vaultError && <p>Loading…</p>}
-        {vaultItems !== null && vaultItems.length === 0 && (
+        {vaultLoading && vaultItems.length === 0 && !vaultError && <p>Loading…</p>}
+        {!vaultLoading && vaultItems.length === 0 && !vaultError && (
           <p>No saved nudges yet — add one from the Nudge Vault on the Friends tab.</p>
         )}
-        {vaultItems !== null && vaultItems.length > 0 && (
+        {vaultItems.length > 0 && (
           <label>
             Nudge Vault item
             <select value={selectedVaultKey} onChange={(e) => setSelectedVaultKey(e.target.value)}>

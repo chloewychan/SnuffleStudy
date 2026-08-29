@@ -1,32 +1,32 @@
-import { FriendGroupPanel } from "./FriendGroupPanel";
+import { FriendsBox } from "./FriendsBox";
+import { NudgeVaultBox } from "./NudgeVaultBox";
 
-// Task 7: composes an already-tested, previously-routed panel, following the same "always
-// visible, no navigation" pattern StudyTab.tsx (Task 6) established for
-// SessionSetupForm/TaskVaultPage.
+// v4.1 Task 9: FriendGroupPanel.tsx (and its NudgeSendSection/DigestSection/FriendEventFeed/
+// IncomingNudgeCard children) is deleted - this tab now mounts exactly two boxes, matching every
+// other tab's stacked-card layout (StudyTab.tsx's SessionSetupForm/TaskVaultPage/StudyRoomsBox
+// precedent):
+// - FriendsBox: the multi-select friend checklist, bulk Nudge/Add-to-room actions, per-friend
+//   Options popover, and Add/Invite-a-friend (moved in from AccountPage.tsx - see that file's own
+//   comment on the stub removal).
+// - NudgeVaultBox: the user's own saved audio/written nudges, replacing the old "Friend activity"
+//   panel entirely (its event feed and daily digest are dropped, not relocated - scope doc's
+//   Friends Tab section).
 //
-// v4.1 Task 7: StudyRoomPanel is no longer mounted here at all - it's been split into
-// StudyRoomsBox.tsx (moved to StudyTab.tsx) and the persistent StudyRoomFooter.tsx (mounted via
-// AppFooter.tsx at the app-shell level), per the scope doc's "Move the Study Rooms box in from the
-// Friends tab" / "Remove the Study Rooms box from this tab (now on Study)".
+// v4.1 Task 7: StudyRoomPanel is no longer mounted here at all - split into StudyRoomsBox.tsx
+// (moved to StudyTab.tsx) and the persistent StudyRoomFooter.tsx (mounted via AppFooter.tsx at
+// the app-shell level).
 //
-// v4.1 Task 8: the old standalone "Friend requests" panel that used to be mounted here is deleted
-// - its approver-side content is now always visible in the new, persistent Nudges & Unlock
-// Requests footer (NudgesAndRequestsFooter.tsx, mounted via AppFooter.tsx), not something to
-// reveal on this tab. No replacement mount here - see
-// docs/scope_summaries/V4.1_Scope_Summary.md's "Remove the standalone Friend requests box" and
-// this task's own report for the full relocation.
-//
-// v3.4 Task 4: FriendGroupPanel's onClose is not passed - this was originally a routed page with a
-// back button, now permanently embedded here with nowhere to "close" to. Rather than a no-op
-// onClose={() => {}} (which rendered a visible "Close" button that did nothing when clicked),
-// FriendGroupPanel treats onClose as optional and only renders its Close button when a real
-// handler is passed - so simply omitting it here removes the dead button entirely instead of
-// leaving a fake one in place.
+// v4.1 Task 8: the old standalone "Friend requests" panel that used to be mounted here was
+// already deleted - its approver-side content is always visible in the persistent Nudges &
+// Unlock Requests footer instead.
 export function FriendsTab() {
   return (
     <div className="sp-tab-content sp-friends-tab">
       <section className="sp-card">
-        <FriendGroupPanel />
+        <FriendsBox />
+      </section>
+      <section className="sp-card">
+        <NudgeVaultBox />
       </section>
     </div>
   );

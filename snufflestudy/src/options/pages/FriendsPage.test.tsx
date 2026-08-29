@@ -44,16 +44,21 @@ const sampleSettings: FriendshipSettings = {
 };
 
 describe("FriendsPage", () => {
-  it("lists a friend (discovered via FRIENDS_LIST) with their settings row's checkboxes", async () => {
+  it("lists a friend (discovered via FRIENDS_LIST) with their settings row's seven checkboxes (no daily-digest checkbox)", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
 
     render(<FriendsPage />);
 
     expect(await screen.findByText("user-friend")).toBeInTheDocument();
-    // Three pre-existing (Task 5/7) toggles.
+    // Two pre-existing (Task 5/7) nudge toggles.
     expect(screen.getByLabelText("I may send this friend a live nudge")).toBeChecked();
     expect(screen.getByLabelText("This friend may send me a live nudge")).toBeChecked();
-    expect(screen.getByLabelText("Receive a daily digest about this friend")).toBeChecked();
+    // v4.1 Task 9: the daily-digest checkbox is dropped along with the rest of the digest
+    // feature - no longer rendered here, even though FriendshipSettings.receiveDailyDigest
+    // still exists server-side (the digest backend itself is out of scope for this release).
+    expect(
+      screen.queryByLabelText("Receive a daily digest about this friend")
+    ).not.toBeInTheDocument();
     // Five new (Task 10) toggles, all off by default per the migration's "most-private-by-
     // default" column defaults.
     expect(screen.getByLabelText("Share my distraction attempts with this friend")).not.toBeChecked();
@@ -61,6 +66,54 @@ describe("FriendsPage", () => {
     expect(screen.getByLabelText("Share my session goal text with this friend")).not.toBeChecked();
     expect(screen.getByLabelText("Share my intervention count with this friend")).not.toBeChecked();
     expect(screen.getByLabelText("Share my full session history with this friend")).not.toBeChecked();
+    // v4.1 Task 9: FriendSettingsFields also always renders a "Remove friend" button now, even
+    // on this standalone full-page caller (previously only AccountPage.tsx's "Your friends" had
+    // one).
+    expect(screen.getByRole("button", { name: "Remove friend" })).toBeInTheDocument();
+  });
+
+  // v4.1 Task 9: "Remove friend" moved here (via the newly-extracted FriendSettingsFields +
+  // this page's own new handleRemove) since removal now needs to be triggerable from wherever a
+  // friend's settings render, not just AccountPage.tsx (whose "Your friends" section is gone -
+  // see FriendsBox.tsx, the new sidepanel home for bulk friend management).
+  describe("removing a friend", () => {
+    it("removes a friend via FRIEND_REMOVE and drops them from the rendered list", async () => {
+      const removeSpy = vi.fn(async () => ({ ok: true }));
+      vi.spyOn(messenger, "sendMessage").mockImplementation(
+        routeSendMessage({ FRIEND_REMOVE: removeSpy })
+      );
+
+      render(<FriendsPage />);
+      await screen.findByText("user-friend");
+
+      fireEvent.click(screen.getByRole("button", { name: "Remove friend" }));
+
+      await waitFor(() =>
+        expect(removeSpy).toHaveBeenCalledWith({
+          type: "FRIEND_REMOVE",
+          payload: { friendUserId: "user-friend" },
+        })
+      );
+      await waitFor(() => expect(screen.queryByText("user-friend")).not.toBeInTheDocument());
+    });
+
+    it("surfaces a server-side denial as an error, without removing the row", async () => {
+      vi.spyOn(messenger, "sendMessage").mockImplementation(
+        routeSendMessage({
+          FRIEND_REMOVE: async () => ({ ok: false, error: "You aren't friends with this user." }),
+        })
+      );
+
+      render(<FriendsPage />);
+      await screen.findByText("user-friend");
+
+      fireEvent.click(screen.getByRole("button", { name: "Remove friend" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /you aren't friends with this user/i
+      );
+      expect(screen.getByText("user-friend")).toBeInTheDocument();
+    });
   });
 
   it("sends FRIENDSHIP_SETTINGS_UPDATE with only the toggled field when a checkbox is flipped", async () => {

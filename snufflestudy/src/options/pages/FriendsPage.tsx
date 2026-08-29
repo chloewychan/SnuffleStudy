@@ -19,20 +19,74 @@ interface AuthSession {
   user: AuthUser;
 }
 
-// Every toggleable field, in the order rendered - deliberately groups the three pre-existing
-// nudge/digest-axis columns first (familiar from Task 7), then the five new Task 10 fields, so a
+// v4.1 Task 9: seven fields, in the order rendered - the daily-digest checkbox (receiveDailyDigest)
+// is dropped here, along with the rest of the digest feature (scope doc's Friends Tab section) -
+// no longer eight fields as it was through v3.4. Deliberately groups the two remaining
+// pre-existing nudge-axis columns first (familiar from Task 7), then the five Task 10 fields, so a
 // user already familiar with the nudge toggles sees the new ones as a clearly-separate, additional
 // group rather than interleaved.
 const TOGGLE_FIELDS: { key: keyof FriendshipSettingsPatch; label: string }[] = [
   { key: "sendLiveNudges", label: "I may send this friend a live nudge" },
   { key: "receiveLiveNudges", label: "This friend may send me a live nudge" },
-  { key: "receiveDailyDigest", label: "Receive a daily digest about this friend" },
   { key: "shareDistractionAttempts", label: "Share my distraction attempts with this friend" },
   { key: "shareCurrentDomain", label: "Share my current site with this friend" },
   { key: "shareGoalText", label: "Share my session goal text with this friend" },
   { key: "shareInterventionCount", label: "Share my intervention count with this friend" },
   { key: "shareFullHistory", label: "Share my full session history with this friend" },
 ];
+
+// v4.1 Task 9: extracted so FriendsBox.tsx (the new sidepanel Friends-tab box) can reuse the exact
+// same seven-checkbox render loop + Remove friend button inside its own per-friend Options
+// popover, rather than duplicating this markup - see that file's own comment for how it wires
+// friendId/settings/savingKey/onToggle/onRemove/removing from its own state, mirroring this page's
+// own handleToggle/handleRemove shape exactly (same optimistic-update convention, same
+// per-(friendId,field) savingKey scoping).
+export interface FriendSettingsFieldsProps {
+  friendId: string;
+  settings: FriendshipSettings | undefined;
+  savingKey: string | null;
+  onToggle: (friendId: string, field: keyof FriendshipSettingsPatch, checked: boolean) => void;
+  onRemove: (friendId: string) => void;
+  removing: boolean;
+}
+
+export function FriendSettingsFields({
+  friendId,
+  settings,
+  savingKey,
+  onToggle,
+  onRemove,
+  removing,
+}: FriendSettingsFieldsProps) {
+  return (
+    <>
+      {!settings && (
+        <p>
+          No settings row yet for this friend — you may not have added each other as friends yet,
+          or they joined before this feature existed.
+        </p>
+      )}
+      {settings &&
+        TOGGLE_FIELDS.map(({ key, label }) => {
+          const fieldKey = `${friendId}:${key}`;
+          return (
+            <label key={fieldKey}>
+              <input
+                type="checkbox"
+                checked={Boolean(settings[key])}
+                disabled={savingKey === fieldKey}
+                onChange={(e) => onToggle(friendId, key, e.target.checked)}
+              />
+              {label}
+            </label>
+          );
+        })}
+      <button type="button" onClick={() => onRemove(friendId)} disabled={removing}>
+        {removing ? "Removing…" : "Remove friend"}
+      </button>
+    </>
+  );
+}
 
 interface FriendsPageProps {
   onSignInClick?: () => void;
@@ -49,6 +103,13 @@ export function FriendsPage({ onSignInClick }: FriendsPageProps) {
   // convention (AccountPage.tsx's inviteBusy/joinBusy/membersBusy, each scoped to one action).
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // v4.1 Task 9: "Remove friend" is now triggerable from wherever a friend's settings render, not
+  // just AccountPage.tsx (whose own "Your friends" section this task's sibling deliverable,
+  // FriendsBox.tsx, replaces) - added here so FriendSettingsFields' onRemove has a real handler on
+  // both callers. Same busy/error state shape as AccountPage.tsx's own handleRemoveFriend.
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   // v3.4 Task 2: discovers who this page can show settings for - every friend of the current
   // user, via one FRIENDS_LIST call, replacing the old AUTH_GET_SESSION -> GROUP_LIST_MINE ->
@@ -143,6 +204,30 @@ export function FriendsPage({ onSignInClick }: FriendsPageProps) {
       .finally(() => setSavingKey(null));
   }
 
+  // v4.1 Task 9: mirrors AccountPage.tsx's own handleRemoveFriend exactly (either party can
+  // unilaterally end the friendship) - optimistic-on-confirmed-success removal from local
+  // `friendIds` state rather than a full reload.
+  function handleRemove(friendId: string) {
+    setRemovingId(friendId);
+    setRemoveError(null);
+    sendMessage<{ ok: boolean; error?: string }>({
+      type: "FRIEND_REMOVE",
+      payload: { friendUserId: friendId },
+    })
+      .then((res) => {
+        if (!res.ok) {
+          setRemoveError(res.error ?? "Could not remove this friend.");
+          return;
+        }
+        setFriendIds((prev) => (prev ? prev.filter((id) => id !== friendId) : prev));
+      })
+      .catch((err) => {
+        console.error("Failed to remove a friend", err);
+        setRemoveError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => setRemovingId(null));
+  }
+
   if (loading && friendIds === null) {
     return (
       <div className="friends-page">
@@ -162,6 +247,9 @@ export function FriendsPage({ onSignInClick }: FriendsPageProps) {
 
       {error && <p role="alert">Couldn't load friend settings: {error}. Please try again.</p>}
       {saveError && <p role="alert">Couldn't save: {saveError}. Please try again.</p>}
+      {removeError && (
+        <p role="alert">Couldn't remove this friend: {removeError}. Please try again.</p>
+      )}
 
       {!selfUserId && !error && (
         <p>
@@ -183,27 +271,14 @@ export function FriendsPage({ onSignInClick }: FriendsPageProps) {
           return (
             <section key={friendId} className="friends-page__friend">
               <h3>{friendId}</h3>
-              {!settings && (
-                <p>
-                  No settings row yet for this friend — you may not have added each other as
-                  friends yet, or they joined before this feature existed.
-                </p>
-              )}
-              {settings &&
-                TOGGLE_FIELDS.map(({ key, label }) => {
-                  const fieldKey = `${friendId}:${key}`;
-                  return (
-                    <label key={fieldKey}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(settings[key])}
-                        disabled={savingKey === fieldKey}
-                        onChange={(e) => handleToggle(friendId, key, e.target.checked)}
-                      />
-                      {label}
-                    </label>
-                  );
-                })}
+              <FriendSettingsFields
+                friendId={friendId}
+                settings={settings}
+                savingKey={savingKey}
+                onToggle={handleToggle}
+                onRemove={handleRemove}
+                removing={removingId === friendId}
+              />
             </section>
           );
         })}

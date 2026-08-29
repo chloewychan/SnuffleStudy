@@ -81,18 +81,23 @@ describe("SidePanelApp", () => {
 
     // One real, source-verified heading per tab's actual content (not guessed): BunnyTab.tsx's
     // <h2>About the Bun</h2>, TaskVaultPage.tsx's <h2>Task Vault</h2> (inside StudyTab),
-    // FriendGroupPanel.tsx's <h2>Friend activity</h2> (inside FriendsTab), and (v3.3 Task 7)
+    // NudgeVaultBox.tsx's <h2>Nudge Vault</h2> (inside FriendsTab), and (v3.3 Task 7)
     // SettingsPage.tsx's <h2>Tracking</h2> - the first section of the sidepanel Settings tab's now
     // real (no longer empty-placeholder) default "settings" sub-view. This is the single most
     // transposition-prone spot in SidePanelApp.tsx's four-way conditional - would ship green even
     // with two tabs swapped without a check like this covering all four.
     //
     // v4.1 Task 7: the Friends tab's distinguishing heading changed from StudyRoomPanel.tsx's
-    // <h2>Study Rooms</h2> to FriendGroupPanel.tsx's <h2>Friend activity</h2> - StudyRoomPanel is
-    // gone, split into StudyRoomsBox.tsx (now mounted on the Study tab, alongside TaskVaultPage's
-    // own "Task Vault" heading) and the persistent StudyRoomFooter.tsx. "Study Rooms" is
-    // deliberately NOT used as any tab's distinguishing heading here anymore, since it can now
-    // legitimately appear on the Study tab too.
+    // <h2>Study Rooms</h2> - StudyRoomPanel is gone, split into StudyRoomsBox.tsx (now mounted on
+    // the Study tab, alongside TaskVaultPage's own "Task Vault" heading) and the persistent
+    // StudyRoomFooter.tsx. "Study Rooms" is deliberately NOT used as any tab's distinguishing
+    // heading here anymore, since it can now legitimately appear on the Study tab too.
+    //
+    // v4.1 Task 9: FriendGroupPanel.tsx (and its <h2>Friend activity</h2>) is gone too, replaced
+    // by FriendsBox.tsx + NudgeVaultBox.tsx. NudgeVaultBox's <h2>Nudge Vault</h2> is used as the
+    // distinguishing heading here rather than FriendsBox's own <h2>Friends</h2> - the latter would
+    // collide with the "Friends" tab button's own accessible name in the "every other tab's
+    // distinguishing heading must be absent" loop below.
     //
     // v3.3 Task 1 moved TempPasscodePanel.tsx's <h2>Temporary passcode requests</h2> and
     // UnlockRequestPanel.tsx's <h2>Unlock requests</h2> from SettingsTab.tsx into FriendsTab.tsx,
@@ -104,7 +109,7 @@ describe("SidePanelApp", () => {
     const tabs = [
       { tabName: "Bunny", heading: /^about the bun$/i },
       { tabName: "Study", heading: /^task vault$/i },
-      { tabName: "Friends", heading: /^friend activity$/i },
+      { tabName: "Friends", heading: /^nudge vault$/i },
       { tabName: "Settings", heading: /^tracking$/i },
     ];
 

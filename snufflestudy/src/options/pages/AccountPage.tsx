@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
-import type { InviteCode } from "../../infrastructure/backend/friendshipApi";
 import type { Profile } from "../../infrastructure/backend/profileApi";
 import { SignInForm, type SignInFormSession } from "../../shared/ui/SignInForm";
-import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 
 // v3.2 Task 1: the OTP email/code sign-in state and AUTH_REQUEST_OTP/AUTH_VERIFY_OTP round trip
 // this page used to own inline now live in the shared SignInForm - this page just holds the
@@ -18,28 +16,8 @@ export function AccountPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
 
-  const [inviteCode, setInviteCode] = useState<InviteCode | null>(null);
-  const [inviteError, setInviteError] = useState<string | null>(null);
-  const [inviteBusy, setInviteBusy] = useState(false);
-
-  const [joinCode, setJoinCode] = useState("");
-  const [joinError, setJoinError] = useState<string | null>(null);
-  const [joinBusy, setJoinBusy] = useState(false);
-
-  // v3.4 Task 2: flat "Your friends" list, replacing the group-scoped membersGroupId/"List
-  // members"/"Leave" UI entirely - loaded via one FRIENDS_LIST call instead of a manually-entered
-  // group id.
-  const [friends, setFriends] = useState<string[] | null>(null);
-  const [friendsError, setFriendsError] = useState<string | null>(null);
-  const [removingId, setRemovingId] = useState<string | null>(null);
-  const [removeError, setRemoveError] = useState<string | null>(null);
-
-  // v3.3 Task 8: resolves each friend's userId to their human_name (falling back to the raw id,
-  // same as before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
-  const displayName = useDisplayNames(friends ?? []);
-
   // v3.2 Task 8: account/data deletion. Same busy/error state shape as every other destructive
-  // action on this page (handleSignOut, handleRemoveFriend).
+  // action on this page (handleSignOut).
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteConfirming, setDeleteConfirming] = useState(false);
@@ -92,32 +70,9 @@ export function AccountPage() {
     };
   }, []);
 
-  // v3.4 Task 2: loads the flat "Your friends" list via one FRIENDS_LIST call once signed in -
-  // replaces the old manually-entered "Friend list ID"/"List members" form entirely.
-  function loadFriends() {
-    setFriendsError(null);
-    sendMessage<{ ok: boolean; friendIds?: string[]; error?: string }>({ type: "FRIENDS_LIST" })
-      .then((res) => {
-        if (!res.ok) {
-          setFriendsError(res.error ?? "Could not load friends.");
-          return;
-        }
-        setFriends(res.friendIds ?? []);
-      })
-      .catch((err) => {
-        console.error("Failed to load friends", err);
-        setFriendsError(err instanceof Error ? err.message : String(err));
-      });
-  }
-
-  useEffect(() => {
-    if (session) loadFriends();
-  }, [session]);
-
   // v3.4 Task 6: loads `passwordSetAt` from the signed-in user's profile once signed in - the
   // password section below (rendered further down, once `session` is set) needs this resolved
-  // before it can decide whether to show/require the "Current password" field, same "fetch once
-  // signed in" shape as loadFriends() above.
+  // before it can decide whether to show/require the "Current password" field.
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
@@ -154,8 +109,6 @@ export function AccountPage() {
         return;
       }
       setSession(null);
-      setInviteCode(null);
-      setFriends(null);
       setNewPassword("");
       setConfirmNewPassword("");
       setCurrentPassword("");
@@ -230,8 +183,6 @@ export function AccountPage() {
       // account-scoped state so it renders back to the signed-out SignInForm, same as
       // handleSignOut.
       setSession(null);
-      setInviteCode(null);
-      setFriends(null);
       setNewPassword("");
       setConfirmNewPassword("");
       setCurrentPassword("");
@@ -241,78 +192,6 @@ export function AccountPage() {
       setDeleteError(err instanceof Error ? err.message : String(err));
     } finally {
       setDeleteBusy(false);
-    }
-  }
-
-  // v3.4 Task 2: "Invite a friend" is now a single step (Decision 2) - generate a code directly,
-  // no group to create first. Redemption connects the two users instantly (Decision 1: no
-  // accept/decline step).
-  async function handleInviteAFriend() {
-    setInviteBusy(true);
-    setInviteError(null);
-    try {
-      const inviteRes = await sendMessage<{ ok: boolean; inviteCode?: InviteCode; error?: string }>({
-        type: "FRIEND_INVITE_GENERATE_CODE",
-      });
-      if (!inviteRes.ok || !inviteRes.inviteCode) {
-        setInviteError(inviteRes.error ?? "Could not generate an invite code.");
-        return;
-      }
-      setInviteCode(inviteRes.inviteCode);
-    } catch (err) {
-      console.error("Failed to invite a friend", err);
-      setInviteError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setInviteBusy(false);
-    }
-  }
-
-  // v3.4 Task 2: "Add a friend" swaps GROUP_JOIN for FRIEND_REDEEM_CODE, and on success reloads
-  // the flat friends list instead of remembering a single groupId.
-  async function handleAddFriend(e: React.FormEvent) {
-    e.preventDefault();
-    setJoinBusy(true);
-    setJoinError(null);
-    try {
-      const res = await sendMessage<{ ok: boolean; error?: string }>({
-        type: "FRIEND_REDEEM_CODE",
-        payload: { code: joinCode },
-      });
-      if (!res.ok) {
-        setJoinError(res.error ?? "Could not add your friend with that code.");
-        return;
-      }
-      setJoinCode("");
-      loadFriends();
-    } catch (err) {
-      console.error("Failed to redeem an invite code", err);
-      setJoinError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setJoinBusy(false);
-    }
-  }
-
-  // v3.4 Task 2: "Remove friend" - either party can unilaterally end the friendship. On success,
-  // filters the removed id out of local `friends` state (optimistic-on-confirmed-success, same
-  // convention handleArchiveRoom in StudyRoomPanel.tsx already uses) rather than a full reload.
-  async function handleRemoveFriend(friendId: string) {
-    setRemovingId(friendId);
-    setRemoveError(null);
-    try {
-      const res = await sendMessage<{ ok: boolean; error?: string }>({
-        type: "FRIEND_REMOVE",
-        payload: { friendUserId: friendId },
-      });
-      if (!res.ok) {
-        setRemoveError(res.error ?? "Could not remove this friend.");
-        return;
-      }
-      setFriends((prev) => (prev ? prev.filter((id) => id !== friendId) : prev));
-    } catch (err) {
-      console.error("Failed to remove a friend", err);
-      setRemoveError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setRemovingId(null);
     }
   }
 
@@ -443,72 +322,6 @@ export function AccountPage() {
             )}
             {deleteError && (
               <p role="alert">Couldn't delete your account: {deleteError}. Please try again.</p>
-            )}
-          </section>
-
-          <section>
-            <h3>Invite a friend</h3>
-            <p>Generates a one-time invite code you can share with a friend to connect.</p>
-            <button type="button" onClick={() => void handleInviteAFriend()} disabled={inviteBusy}>
-              {inviteBusy ? "Setting up your invite…" : "Invite a friend"}
-            </button>
-            {inviteError && (
-              <p role="alert">
-                Couldn't generate an invite code: {inviteError}. Please try again.
-              </p>
-            )}
-            {inviteCode && (
-              <p>
-                Invite code: <strong>{inviteCode.code}</strong> (expires{" "}
-                {new Date(inviteCode.expiresAt).toLocaleString()})
-              </p>
-            )}
-          </section>
-
-          <section>
-            <h3>Add a friend</h3>
-            <form onSubmit={(e) => void handleAddFriend(e)}>
-              <label>
-                Invite code
-                <input
-                  type="text"
-                  required
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                />
-              </label>
-              <button type="submit" disabled={joinBusy || !joinCode}>
-                {joinBusy ? "Adding…" : "Add friend"}
-              </button>
-            </form>
-            {joinError && (
-              <p role="alert">Couldn't add your friend: {joinError}. Please try again.</p>
-            )}
-          </section>
-
-          <section>
-            <h3>Your friends</h3>
-            {friendsError && <p role="alert">Couldn't load friends: {friendsError}. Please try again.</p>}
-            {friends === null && !friendsError && <p>Loading…</p>}
-            {friends !== null && friends.length === 0 && <p>No friends yet — invite one above.</p>}
-            {friends !== null && friends.length > 0 && (
-              <ul>
-                {friends.map((friendId) => (
-                  <li key={friendId}>
-                    {displayName(friendId)}
-                    <button
-                      type="button"
-                      onClick={() => void handleRemoveFriend(friendId)}
-                      disabled={removingId === friendId}
-                    >
-                      {removingId === friendId ? "Removing…" : "Remove friend"}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {removeError && (
-              <p role="alert">Couldn't remove this friend: {removeError}. Please try again.</p>
             )}
           </section>
         </>
