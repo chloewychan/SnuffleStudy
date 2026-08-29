@@ -25,7 +25,7 @@ describe("SessionSetupForm", () => {
     fireEvent.change(await screen.findByLabelText(/goal/i), {
       target: { value: "Read chapter 3" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Study Session" }));
 
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith(
@@ -49,7 +49,7 @@ describe("SessionSetupForm", () => {
     });
 
     render(<SessionSetupForm settings={DEFAULT_USER_SETTINGS} />);
-    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Study Session" }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Goal cannot be empty."));
   });
@@ -68,7 +68,7 @@ describe("SessionSetupForm", () => {
     });
 
     render(<SessionSetupForm settings={DEFAULT_USER_SETTINGS} />);
-    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Study Session" }));
 
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith(expect.objectContaining({ type: "SESSION_CREATE" }))
@@ -80,7 +80,7 @@ describe("SessionSetupForm", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/Could not establish connection/);
 
     // (c) the button is still present and usable — the form survived the rejection.
-    expect(screen.getByRole("button", { name: "Start session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start Study Session" })).toBeInTheDocument();
   });
 
   it("requests hard-block host permission before creating a hard-mode session, and proceeds when granted", async () => {
@@ -100,7 +100,7 @@ describe("SessionSetupForm", () => {
     };
     render(<SessionSetupForm settings={settings} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Study Session" }));
 
     await waitFor(() => expect(permissionSpy).toHaveBeenCalledWith(["youtube.com", "reddit.com"]));
     await waitFor(() =>
@@ -125,7 +125,7 @@ describe("SessionSetupForm", () => {
     };
     render(<SessionSetupForm settings={settings} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Study Session" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /Hard-mode blocking needs permission/
@@ -152,9 +152,9 @@ describe("SessionSetupForm", () => {
     };
     render(<SessionSetupForm settings={settings} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Study Session" }));
 
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Start session" })).toBeEnabled());
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Start Study Session" })).toBeEnabled());
     expect(permissionSpy).not.toHaveBeenCalled();
   });
 
@@ -173,9 +173,9 @@ describe("SessionSetupForm", () => {
     };
     render(<SessionSetupForm settings={settings} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Study Session" }));
 
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Start session" })).toBeEnabled());
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Start Study Session" })).toBeEnabled());
     expect(permissionSpy).not.toHaveBeenCalled();
   });
 
@@ -229,7 +229,7 @@ describe("SessionSetupForm", () => {
 
     fireEvent.change(screen.getByLabelText(/hours/i), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText(/minutes/i), { target: { value: "30" } });
-    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Study Session" }));
 
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith(

@@ -64,7 +64,7 @@ describe("SidePanelApp", () => {
     // Goal is a <select> populated from the Task Vault (Task 5), not a free-text input with a
     // placeholder - assert on the labeled control that actually exists now.
     await waitFor(() => expect(screen.getByLabelText(/goal/i)).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Start session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start Study Session" })).toBeInTheDocument();
   });
 
   it("routes each of the four tabs to its own distinct content (Fix 12: only Study was previously tested)", async () => {
@@ -180,10 +180,10 @@ describe("SidePanelApp", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Study" }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Start session" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Start Study Session" })).toBeInTheDocument()
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Study Session" }));
 
     await waitFor(() => expect(sessionCreatePayloads.length).toBeGreaterThan(0));
     expect(sessionCreatePayloads[0]).toMatchObject({ restrictedSites: ["youtube.com"] });

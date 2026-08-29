@@ -29,12 +29,10 @@ describe("StudyTab", () => {
 
     renderStudyTab();
 
-    // SessionSetupForm's real submit button copy (Task 5, already committed) is "Start session" -
-    // the Figma design (nodeId 58:450, confirmed via get_design_context) shows "Start Study
-    // Session", but changing SessionSetupForm's button text is out of this task's scope (composing
-    // existing components only), so this test targets what's actually rendered rather than the
-    // design-intent copy. Flagged in the task report as a known follow-up.
-    expect(screen.getByRole("button", { name: /^start session$/i })).toBeInTheDocument();
+    // v4.2 Task 4: SessionSetupForm is now re-skinned as StudySessionSetupPanel's design, whose
+    // own copy is "Start Study Session" (previously "Start session" - see the stale comment this
+    // replaces, which flagged the copy mismatch as a known future follow-up; this is that task).
+    expect(screen.getByRole("button", { name: /^start study session$/i })).toBeInTheDocument();
     // getByText(/task vault/i) is ambiguous here: it also matches the Goal select's
     // "Choose a task from the Task Vault" placeholder option. The heading is the actual
     // Task Vault card title (TaskVaultPage.tsx renders it as an <h2>).
@@ -85,7 +83,7 @@ describe("StudyTab", () => {
     await waitFor(() => expect(screen.getByText("No tasks yet.")).toBeInTheDocument());
     expect(screen.queryByRole("option", { name: "New task" })).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText("STAT231"), { target: { value: "New task" } });
+    fireEvent.change(screen.getByLabelText(/new task/i), { target: { value: "New task" } });
     fireEvent.click(screen.getByRole("button", { name: "Add task" }));
 
     // The newly created task is immediately an option in SessionSetupForm's Goal select, in the

@@ -5,6 +5,7 @@ import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import { requestHardBlockHostPermission } from "../../infrastructure/browser/permissionsApi";
 import type { Task } from "../../domain/tasks/taskTypes";
 import { sortTasksForDisplay } from "../../domain/tasks/sortTasks";
+import styles from "../styles/frontend-backup/components/study/StudySessionSetupPanel.module.css";
 
 interface SessionSetupFormProps {
   settings: UserSettings;
@@ -122,74 +123,124 @@ export function SessionSetupForm({ settings, tasks: tasksProp }: SessionSetupFor
   }
 
   return (
-    <form className="session-setup-form" onSubmit={handleSubmit}>
-      <label className="sp-field" htmlFor="session-goal">
-        Goal
-        <select id="session-goal" value={goal} onChange={(e) => setGoal(e.target.value)}>
-          <option value="" disabled>
-            Choose a task from the Task Vault
-          </option>
-          {/* A freely-typed goal won't generally match any tasks[].title exactly - render it as
-              its own option so the select can display/hold it without forcing it into the Task
-              Vault list, while still letting the user pick a different task afterward. */}
-          {goal && !sortedTasks.some((task) => task.title === goal) && <option value={goal}>{goal}</option>}
-          {sortedTasks.map((task) => (
-            <option key={task.id} value={task.title}>
-              {task.title}
-            </option>
-          ))}
-        </select>
-      </label>
-      <fieldset className="sp-field">
-        <legend>Focus Duration</legend>
-        <label htmlFor="session-focus-hours">
-          Hours
-          <input
-            id="session-focus-hours"
-            type="number"
-            min={0}
-            max={3}
-            value={focusHours}
-            onChange={(e) => setFocusHours(Math.min(3, Math.max(0, Number(e.target.value) || 0)))}
-          />
-        </label>
-        <label htmlFor="session-focus-minutes">
-          Minutes
-          <input
-            id="session-focus-minutes"
-            type="number"
-            min={0}
-            max={59}
-            value={focusMinutes}
-            onChange={(e) => setFocusMinutes(Math.min(59, Math.max(0, Number(e.target.value) || 0)))}
-          />
-        </label>
-      </fieldset>
-      <label className="sp-field">
-        Pressure style
-        <select value={pressureProfileId} onChange={(e) => setPressureProfileId(e.target.value)}>
-          {PRESSURE_PROFILES.map((profile) => (
-            <option key={profile.id} value={profile.id}>
-              {profile.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="sp-field" htmlFor="session-restriction-mode">
-        Restriction Mode
-        <select
-          id="session-restriction-mode"
-          value={restrictionMode}
-          onChange={(e) => setRestrictionMode(e.target.value as "soft" | "hard")}
-        >
-          <option value="soft">Soft</option>
-          <option value="hard">Hard</option>
-        </select>
-      </label>
-      {error && <p role="alert">{error}</p>}
-      <button type="submit" disabled={submitting}>
-        {submitting ? "Starting…" : "Start session"}
-      </button>
-    </form>
+    <section className={styles.studySessionPanel}>
+      <h2 className={styles.studySession}>Study Session</h2>
+      <form className={styles.inputForm} onSubmit={handleSubmit}>
+        <div className={styles.inputGoal}>
+          <label className={styles.goal} htmlFor="session-goal">
+            Goal
+          </label>
+          <div className={styles.input}>
+            <select
+              id="session-goal"
+              className={styles.dropdown}
+              value={goal}
+              onChange={(e) => setGoal(e.target.value)}
+            >
+              <option value="" disabled>
+                Choose a task from the Task Vault
+              </option>
+              {/* A freely-typed goal won't generally match any tasks[].title exactly - render it
+                  as its own option so the select can display/hold it without forcing it into the
+                  Task Vault list, while still letting the user pick a different task afterward. */}
+              {goal && !sortedTasks.some((task) => task.title === goal) && (
+                <option value={goal}>{goal}</option>
+              )}
+              {sortedTasks.map((task) => (
+                <option key={task.id} value={task.title}>
+                  {task.title}
+                </option>
+              ))}
+            </select>
+            <img
+              className={styles.vectorIcon3}
+              alt=""
+              src={chrome.runtime.getURL("sidepanel/assets/icon-chevron-down.svg")}
+            />
+          </div>
+        </div>
+
+        <div className={styles.inputFocusDuration}>
+          <h3 className={styles.goal}>Focus Duration</h3>
+          <div className={styles.input2}>
+            <input
+              id="session-focus-hours"
+              className={styles.textbox}
+              aria-label="Hours"
+              type="number"
+              min={0}
+              max={3}
+              value={focusHours}
+              onChange={(e) => setFocusHours(Math.min(3, Math.max(0, Number(e.target.value) || 0)))}
+            />
+          </div>
+          <div className={styles.input2}>
+            <input
+              id="session-focus-minutes"
+              className={styles.textbox}
+              aria-label="Minutes"
+              type="number"
+              min={0}
+              max={59}
+              value={focusMinutes}
+              onChange={(e) => setFocusMinutes(Math.min(59, Math.max(0, Number(e.target.value) || 0)))}
+            />
+          </div>
+        </div>
+
+        <div className={styles.inputGoal}>
+          <label className={styles.goal} htmlFor="session-pressure-profile">
+            Pressure Style
+          </label>
+          <div className={styles.input}>
+            <select
+              id="session-pressure-profile"
+              className={styles.dropdown}
+              value={pressureProfileId}
+              onChange={(e) => setPressureProfileId(e.target.value)}
+            >
+              {PRESSURE_PROFILES.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.name}
+                </option>
+              ))}
+            </select>
+            <img
+              className={styles.vectorIcon3}
+              alt=""
+              src={chrome.runtime.getURL("sidepanel/assets/icon-chevron-down.svg")}
+            />
+          </div>
+        </div>
+
+        <div className={styles.inputRestrictionMode}>
+          <label className={styles.goal} htmlFor="session-restriction-mode">
+            Restriction Mode
+          </label>
+          <div className={styles.input}>
+            <select
+              id="session-restriction-mode"
+              className={styles.dropdown}
+              value={restrictionMode}
+              onChange={(e) => setRestrictionMode(e.target.value as "soft" | "hard")}
+            >
+              <option value="soft">Soft</option>
+              <option value="hard">Hard</option>
+            </select>
+            <img
+              className={styles.vectorIcon3}
+              alt=""
+              src={chrome.runtime.getURL("sidepanel/assets/icon-chevron-down.svg")}
+            />
+          </div>
+        </div>
+
+        {error && <p role="alert">{error}</p>}
+
+        <button type="submit" className={styles.buttonLarge} disabled={submitting}>
+          <div className={styles.button6}>{submitting ? "Starting…" : "Start Study Session"}</div>
+        </button>
+      </form>
+    </section>
   );
 }

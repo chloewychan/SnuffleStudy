@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { Task } from "../../domain/tasks/taskTypes";
 import { sortTasksForDisplay } from "../../domain/tasks/sortTasks";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
+import styles from "../../sidepanel/styles/frontend-backup/components/study/TaskVaultPanel.module.css";
 
 interface TaskVaultPageProps {
   // v3.4 Task 4: optional - this used to be a routed page with somewhere real to close to;
@@ -112,55 +113,72 @@ export function TaskVaultPage({ onClose, onTasksChanged }: TaskVaultPageProps) {
   }
 
   return (
-    <div className="task-vault-page">
-      <div className="task-vault-page__header">
-        <h2>Task Vault</h2>
-        {onClose && (
-          <button type="button" onClick={onClose}>
-            Back
-          </button>
-        )}
-      </div>
-
-      <form className="task-vault-page__new-task" onSubmit={handleCreateTask}>
-        <label>
-          New task
-          <input
-            value={newTaskTitle}
-            onChange={(e) => setNewTaskTitle(e.target.value)}
-            placeholder="STAT231"
-          />
-        </label>
-        <button type="submit" disabled={creating || !newTaskTitle.trim()}>
-          {creating ? "Adding…" : "Add task"}
+    <section className={styles.taskVaultPanel}>
+      <h2 className={styles.studySession}>Task Vault</h2>
+      {/* No design equivalent (frontend-backup's TaskVaultPanel has nowhere to navigate "back"
+          to) - StudyTab.tsx (the only production mount point) doesn't pass onClose at all, so
+          this never renders there today. Kept, unstyled, purely so the optional prop/behavior
+          this component has always supported keeps working for any other caller. */}
+      {onClose && (
+        <button type="button" onClick={onClose}>
+          Back
         </button>
-      </form>
-      {createError && <p role="alert">Couldn't create task: {createError}. Please try again.</p>}
+      )}
 
-      {loadError && <p role="alert">Couldn't load tasks: {loadError}. Please try again.</p>}
-      {actionError && <p role="alert">{actionError}</p>}
+      <div className={styles.frameNewTask}>
+        <form className={styles.inputNewTask} onSubmit={handleCreateTask}>
+          <label className={styles.goal} htmlFor="new-task-title">
+            New Task
+          </label>
+          <div className={styles.input6}>
+            <input
+              id="new-task-title"
+              className={styles.textbox}
+              placeholder="Textbox"
+              type="text"
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+            />
+          </div>
+          <button
+            type="submit"
+            className={styles.buttonIconReset}
+            disabled={creating || !newTaskTitle.trim()}
+            aria-label={creating ? "Adding…" : "Add task"}
+          >
+            <img
+              className={styles.buttonIcon}
+              alt=""
+              src={chrome.runtime.getURL("sidepanel/assets/button-check.svg")}
+            />
+          </button>
+        </form>
+        {createError && <p role="alert">Couldn't create task: {createError}. Please try again.</p>}
 
-      {!loadError && tasks === null && <p>Loading…</p>}
-      {!loadError && tasks !== null && tasks.length === 0 && <p>No tasks yet.</p>}
+        {loadError && <p role="alert">Couldn't load tasks: {loadError}. Please try again.</p>}
+        {actionError && <p role="alert">{actionError}</p>}
 
-      {!loadError && tasks !== null && tasks.length > 0 && (
-        <ul className="task-vault-page__tasks">
-          {sortTasksForDisplay(tasks).map((task) => (
-            <li key={task.id} className="task-vault-page__task">
-              <div className="task-vault-page__task-header">
-                <label>
+        {!loadError && tasks === null && <p>Loading…</p>}
+        {!loadError && tasks !== null && tasks.length === 0 && <p>No tasks yet.</p>}
+
+        {!loadError && tasks !== null && tasks.length > 0 && (
+          <ul className={styles.exampleList}>
+            {sortTasksForDisplay(tasks).map((task) => (
+              <li key={task.id}>
+                <label className={styles.exampleListItem3}>
                   <input
                     type="checkbox"
+                    className={styles.buttonList}
                     checked={task.completedAt != null}
                     onChange={(e) => void handleToggleTaskCompleted(task, e.target.checked)}
                   />
-                  <span className="task-vault-page__task-title">{task.title}</span>
+                  <h3 className={styles.egTaskOne}>{task.title}</h3>
                 </label>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }

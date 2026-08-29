@@ -62,7 +62,7 @@ describe("TaskVaultPage", () => {
     render(<TaskVaultPage onClose={vi.fn()} />);
     await screen.findByText("No tasks yet.");
 
-    fireEvent.change(screen.getByPlaceholderText("STAT231"), { target: { value: "New task" } });
+    fireEvent.change(screen.getByLabelText(/new task/i), { target: { value: "New task" } });
     fireEvent.click(screen.getByRole("button", { name: "Add task" }));
 
     expect(await screen.findByText("New task")).toBeInTheDocument();
@@ -127,9 +127,12 @@ describe("TaskVaultPage", () => {
     render(<TaskVaultPage onClose={vi.fn()} />);
     await screen.findByText("Done task");
 
-    const titles = screen
-      .getAllByText(/task$/, { selector: ".task-vault-page__task-title" })
-      .map((el) => el.textContent);
+    // v4.2 Task 4: the old `.task-vault-page__task-title` classname was deleted as part of the
+    // re-skin (Global Constraint - no old-frontend classnames survive). Task titles now render
+    // inside the design's own <h3 className={styles.egTaskOne}> wrapper (a CSS Module, so its
+    // real class name isn't a stable string to select on) - text content in DOM order still
+    // reflects sortTasksForDisplay's uncompleted-first ordering, which is what this test verifies.
+    const titles = screen.getAllByText(/task$/).map((el) => el.textContent);
     expect(titles).toEqual(["Not done task", "Done task"]);
   });
 

@@ -75,6 +75,28 @@
   width: var(--width-36);
   position: relative;
 }
+/* v4.2 Task 4 addition (not in frontend-backup's original file): frontend-backup's own "New Task"
+   check icon is a static <img> with no button semantics at all - wrapping it in a real <button>
+   (the actual "Add task" action) picks up global.css's bare `button {...}` chrome unless reset
+   here, matching the .buttonIconReset/.saveButtonReset pattern Tasks 2-3 added for the same
+   reason. */
+.buttonIconReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.buttonIconReset:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
+}
 .exampleList {
   align-self: stretch;
   display: flex;
@@ -83,6 +105,12 @@
   gap: var(--gap-15);
   font-size: var(--fs-24);
   color: var(--color-dimgray);
+  /* v4.2 Task 4 addition: `.exampleList` now styles a real <ul> (previously frontend-backup's own
+     plain <div>) - carrying forward this app's existing list semantics (Global Constraint) needs
+     the browser's default list marker/indent reset so the visual is unaffected by the tag swap. */
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 .exampleListItem3 {
   align-self: stretch;
@@ -96,10 +124,28 @@
   height: var(--height-18);
   width: var(--width-18);
   position: relative;
-  background-image: url(/bullet-dot.svg);
+  /* v4.2 Task 4: normalized to the sidepanel/assets/ convention (Task 1's asset-porting note
+     flagged this file's original /bullet-dot.svg reference as working-but-unnormalized via a
+     root-level public/ duplicate; normalizing here since this task is the one that first wires
+     this file up to a real, functional control). */
+  background-image: url(/sidepanel/assets/bullet-dot.svg);
   background-size: cover;
   background-repeat: no-repeat;
   background-position: top;
+  /* v4.2 Task 4 addition: this is now a real, functional <input type="checkbox"> (previously a
+     static, ungrouped <input type="radio"> with no `appearance: none` - see Decision 6). Without
+     resetting the native control's own appearance, the browser's default checkbox widget would
+     render on top of/instead of this bullet-dot background-image look. */
+  appearance: none;
+  -webkit-appearance: none;
+}
+/* v4.2 Task 4 addition: ButtonBoolIcon's property1/property2 variants have no backing CSS
+   anywhere in frontend-backup (confirmed in Task 3), and this checkbox isn't ButtonBoolIcon-based
+   at all - it needs its own checked-state visual, same rationale. bullet-dot-filled.svg is an
+   asset frontend-backup ships (Task 1 ported it) but never references anywhere in its own static
+   markup, since nothing there is ever actually checked. */
+.buttonList:checked {
+  background-image: url(/sidepanel/assets/bullet-dot-filled.svg);
 }
 .egTaskOne {
   margin: 0;

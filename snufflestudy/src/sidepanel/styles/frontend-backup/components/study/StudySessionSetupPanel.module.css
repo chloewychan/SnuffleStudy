@@ -72,6 +72,24 @@
   height: 9.4px;
   width: var(--width-16);
 }
+/* v4.2 Task 4 addition (not in frontend-backup's original file): `.dropdown` was a plain,
+   unstyled-by-itself <div>Dropdown</div> in the static design - all of its visible box/border/
+   background comes from the parent `.input` wrapper. Applying it to a real <select> (Goal,
+   Pressure Style, Restriction Mode) needs a chrome reset so the browser's native select
+   appearance doesn't render on top of/instead of that wrapper's intended look, matching the
+   .buttonIconReset/.saveButtonReset pattern Tasks 2-3 added for the same reason on other promoted
+   elements. */
+.dropdown {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  cursor: pointer;
+}
 .input2,
 .inputFocusDuration {
   display: flex;
@@ -103,6 +121,17 @@
   color: var(--color-dimgray);
   text-align: left;
   display: inline-block;
+}
+/* v4.2 Task 4 addition: `.textbox` is now applied to real number inputs (Focus Duration
+   hours/minutes) - hide the native up/down spinner so it reads as a bare textbox, matching the
+   design's plain "Textbox" mockup. */
+.textbox[type="number"]::-webkit-inner-spin-button,
+.textbox[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.textbox[type="number"] {
+  -moz-appearance: textfield;
 }
 .inputRestrictionMode {
   align-self: stretch;
