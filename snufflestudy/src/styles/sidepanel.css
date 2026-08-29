@@ -33,6 +33,21 @@
   cursor: pointer;
 }
 
+/* v4.1 Task 2: one Header refresh button replaces every panel's own. Always rendered
+   (unlike the login button, which is conditional), so it - not the login button - is what
+   claims the row's trailing margin-left: auto when both are absent/present together. */
+.sp-header__refresh-button {
+  margin-left: auto;
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
 .sp-tabbar {
   display: flex;
   flex-wrap: wrap;

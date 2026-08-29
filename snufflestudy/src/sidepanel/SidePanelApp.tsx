@@ -16,8 +16,20 @@ import { AbandonedScreen } from "../shared/ui/AbandonedScreen";
 import { useActiveSession } from "../popup/hooks/useActiveSession";
 import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
 import type { UserSettings } from "../domain/settings/userSettings";
+import { RefreshRegistryProvider } from "./refresh/RefreshRegistryContext";
 
+// v4.1 Task 2: RefreshRegistryProvider wraps the whole render tree here, above every
+// tab/session branch below, so it never remounts on a tab switch or session-state change -
+// any panel mounted in any branch can register its own refresh with the same provider instance.
 export function SidePanelApp() {
+  return (
+    <RefreshRegistryProvider>
+      <SidePanelAppInner />
+    </RefreshRegistryProvider>
+  );
+}
+
+function SidePanelAppInner() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const { session, loading } = useActiveSession();
