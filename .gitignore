@@ -12,3 +12,5 @@ dist/
 # the v2 tasks' standing convention of always passing --project-ref explicitly rather than
 # relying on ambient linked-project state (see task-11-report.md for why this line was added).
 supabase/.temp/
+# standalone backup of pre-v4.1 frontend work, not part of the extension source
+frontend-backup/
