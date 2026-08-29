@@ -72,24 +72,65 @@ describe("TaskVaultPage", () => {
     });
   });
 
-  it("deletes a task via TASK_DELETE and removes it from the list", async () => {
+  it("renders a checkbox instead of a Delete button, unchecked for an uncompleted task", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, tasks: [buildTask()] });
+
+    render(<TaskVaultPage onClose={vi.fn()} />);
+    await screen.findByText("STAT231");
+
+    expect(screen.getByRole("checkbox")).not.toBeChecked();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("marks a task done via TASK_UPDATE when its checkbox is checked", async () => {
     const task = buildTask();
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "TASK_LIST") return { ok: true, tasks: [task] };
-      if (message.type === "TASK_DELETE") return { ok: true };
+      if (message.type === "TASK_UPDATE") return { ok: true, task: message.payload };
       throw new Error(`unexpected message ${message.type}`);
     });
 
     render(<TaskVaultPage onClose={vi.fn()} />);
     await screen.findByText("STAT231");
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(screen.getByRole("checkbox"));
 
-    await waitFor(() => expect(screen.queryByText("STAT231")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("checkbox")).toBeChecked());
     expect(messenger.sendMessage).toHaveBeenCalledWith({
-      type: "TASK_DELETE",
-      payload: { taskId: "task_1" },
+      type: "TASK_UPDATE",
+      payload: expect.objectContaining({ id: "task_1", completedAt: expect.any(Number) }),
     });
+  });
+
+  it("rolls back the checkbox when TASK_UPDATE fails", async () => {
+    const task = buildTask();
+    vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
+      if (message.type === "TASK_LIST") return { ok: true, tasks: [task] };
+      if (message.type === "TASK_UPDATE") return { ok: false, error: "Could not update task." };
+      throw new Error(`unexpected message ${message.type}`);
+    });
+
+    render(<TaskVaultPage onClose={vi.fn()} />);
+    await screen.findByText("STAT231");
+
+    fireEvent.click(screen.getByRole("checkbox"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not update task.");
+    expect(screen.getByRole("checkbox")).not.toBeChecked();
+  });
+
+  it("sorts completed tasks below uncompleted ones", async () => {
+    const done = buildTask({ id: "task_done", title: "Done task", completedAt: 500 });
+    const notDone = buildTask({ id: "task_not_done", title: "Not done task" });
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, tasks: [done, notDone] });
+
+    render(<TaskVaultPage onClose={vi.fn()} />);
+    await screen.findByText("Done task");
+
+    const titles = screen
+      .getAllByText(/task$/, { selector: ".task-vault-page__task-title" })
+      .map((el) => el.textContent);
+    expect(titles).toEqual(["Not done task", "Done task"]);
   });
 
   it("calls onClose when Back is clicked", async () => {

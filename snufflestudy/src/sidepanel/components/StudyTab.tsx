@@ -3,6 +3,7 @@ import { SessionSetupForm } from "./SessionSetupForm";
 import { TaskVaultPage } from "../../app/routes/TaskVaultPage";
 import type { UserSettings } from "../../domain/settings/userSettings";
 import type { Task } from "../../domain/tasks/taskTypes";
+import { sortTasksForDisplay } from "../../domain/tasks/sortTasks";
 
 interface StudyTabProps {
   settings: UserSettings;
@@ -21,7 +22,11 @@ export function StudyTab({ settings }: StudyTabProps) {
   return (
     <div className="sp-tab-content sp-study-tab">
       <section className="sp-card">
-        <SessionSetupForm settings={settings} tasks={tasks} />
+        {/* v4.1 Task 6: sort here too (SessionSetupForm also sorts internally from whatever
+            `tasks` prop it's given, so this is belt-and-suspenders) so the Goal default and its
+            option order stay consistent with the Task Vault's own completed-sinks-to-bottom
+            ordering regardless of which layer's sort runs first. */}
+        <SessionSetupForm settings={settings} tasks={sortTasksForDisplay(tasks)} />
       </section>
       <section className="sp-card">
         <TaskVaultPage onTasksChanged={setTasks} />

@@ -4,6 +4,7 @@ import { PRESSURE_PROFILES } from "../../domain/pressure/pressureProfiles";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import { requestHardBlockHostPermission } from "../../infrastructure/browser/permissionsApi";
 import type { Task } from "../../domain/tasks/taskTypes";
+import { sortTasksForDisplay } from "../../domain/tasks/sortTasks";
 
 interface SessionSetupFormProps {
   settings: UserSettings;
@@ -18,8 +19,12 @@ interface SessionSetupFormProps {
 }
 
 export function SessionSetupForm({ settings, tasks: tasksProp }: SessionSetupFormProps) {
-  const [goal, setGoal] = useState("");
   const [fetchedTasks, setFetchedTasks] = useState<Task[]>([]);
+  // v4.1 Task 6: completed tasks sink to the bottom (sortTasksForDisplay), so the first entry
+  // here is the first uncompleted task - the Goal select's default.
+  const tasks = tasksProp ?? fetchedTasks;
+  const sortedTasks = sortTasksForDisplay(tasks);
+  const [goal, setGoal] = useState(sortedTasks[0]?.title ?? "");
   const [focusHours, setFocusHours] = useState(Math.floor(settings.defaultFocusDurationSeconds / 3600));
   const [focusMinutes, setFocusMinutes] = useState(
     Math.round((settings.defaultFocusDurationSeconds % 3600) / 60)
@@ -52,7 +57,17 @@ export function SessionSetupForm({ settings, tasks: tasksProp }: SessionSetupFor
     };
   }, [tasksProp]);
 
-  const tasks = tasksProp ?? fetchedTasks;
+  useEffect(() => {
+    // The `goal` useState initializer above only runs once, at first mount - if the task list
+    // (whether the `tasks` prop, mirrored asynchronously by StudyTab.tsx from TaskVaultPage's own
+    // TASK_LIST fetch, or this component's own fallback fetch above) is still empty at that
+    // moment, the default is missed. Fill it in once real tasks arrive, but never override a goal
+    // the user has already typed or picked themselves.
+    if (goal !== "") return;
+    const firstUncompleted = sortedTasks[0];
+    if (firstUncompleted) setGoal(firstUncompleted.title);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -117,8 +132,8 @@ export function SessionSetupForm({ settings, tasks: tasksProp }: SessionSetupFor
           {/* A freely-typed goal won't generally match any tasks[].title exactly - render it as
               its own option so the select can display/hold it without forcing it into the Task
               Vault list, while still letting the user pick a different task afterward. */}
-          {goal && !tasks.some((task) => task.title === goal) && <option value={goal}>{goal}</option>}
-          {tasks.map((task) => (
+          {goal && !sortedTasks.some((task) => task.title === goal) && <option value={goal}>{goal}</option>}
+          {sortedTasks.map((task) => (
             <option key={task.id} value={task.title}>
               {task.title}
             </option>
@@ -167,7 +182,7 @@ export function SessionSetupForm({ settings, tasks: tasksProp }: SessionSetupFor
           value={restrictionMode}
           onChange={(e) => setRestrictionMode(e.target.value as "soft" | "hard")}
         >
-          <option value="soft">Soft - nudge &amp; escalate</option>
+          <option value="soft">Soft</option>
           <option value="hard">Hard</option>
         </select>
       </label>

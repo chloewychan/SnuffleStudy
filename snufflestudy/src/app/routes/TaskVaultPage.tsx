@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { Task } from "../../domain/tasks/taskTypes";
+import { sortTasksForDisplay } from "../../domain/tasks/sortTasks";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 
 interface TaskVaultPageProps {
@@ -88,22 +89,23 @@ export function TaskVaultPage({ onClose, onTasksChanged }: TaskVaultPageProps) {
     }
   }
 
-  async function handleDeleteTask(taskId: string) {
+  async function handleToggleTaskCompleted(task: Task, checked: boolean) {
     const previous = tasks;
-    setTasks((prev) => prev?.filter((t) => t.id !== taskId) ?? prev);
+    const updated: Task = { ...task, completedAt: checked ? Date.now() : undefined };
+    setTasks((prev) => prev?.map((t) => (t.id === task.id ? updated : t)) ?? prev);
     setActionError(null);
 
     try {
       const res = await sendMessage<{ ok: boolean; error?: string }>({
-        type: "TASK_DELETE",
-        payload: { taskId },
+        type: "TASK_UPDATE",
+        payload: updated,
       });
       if (!res.ok) {
         setTasks(previous);
-        setActionError(res.error ?? "Could not delete task.");
+        setActionError(res.error ?? "Could not update task.");
       }
     } catch (err) {
-      console.error("Failed to delete task", err);
+      console.error("Failed to update task", err);
       setTasks(previous);
       setActionError(err instanceof Error ? err.message : String(err));
     }
@@ -143,13 +145,17 @@ export function TaskVaultPage({ onClose, onTasksChanged }: TaskVaultPageProps) {
 
       {!loadError && tasks !== null && tasks.length > 0 && (
         <ul className="task-vault-page__tasks">
-          {tasks.map((task) => (
+          {sortTasksForDisplay(tasks).map((task) => (
             <li key={task.id} className="task-vault-page__task">
               <div className="task-vault-page__task-header">
-                <span className="task-vault-page__task-title">{task.title}</span>
-                <button type="button" onClick={() => void handleDeleteTask(task.id)}>
-                  Delete
-                </button>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={task.completedAt != null}
+                    onChange={(e) => void handleToggleTaskCompleted(task, e.target.checked)}
+                  />
+                  <span className="task-vault-page__task-title">{task.title}</span>
+                </label>
               </div>
             </li>
           ))}
