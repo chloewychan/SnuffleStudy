@@ -24,28 +24,32 @@ describe("Header", () => {
     });
   });
 
-  it("shows a Log-In button when signed out", async () => {
+  // v4.2 Task 2: re-skinned as HeaderBar.tsx's design, whose own copy reads "Log In" (no
+  // hyphen) rather than the pre-v4.2 "Log-In" - the name query below is updated to match the
+  // new markup's actual text, not the exact old wording (still verifying the same behavior:
+  // onSignInClick fires, shown only when loaded && !session).
+  it("shows a Log In button when signed out", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, session: null });
     renderHeader();
-    expect(await screen.findByRole("button", { name: /log-in/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /log in/i })).toBeInTheDocument();
   });
 
-  it("hides the Log-In button when signed in", async () => {
+  it("hides the Log In button when signed in", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({
       ok: true,
       session: { user: { id: "user-1" } },
     });
     renderHeader();
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: /log-in/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: /log in/i })).not.toBeInTheDocument()
     );
   });
 
-  it("calls onSignInClick (navigating within the side panel) when Log-In is clicked", async () => {
+  it("calls onSignInClick (navigating within the side panel) when Log In is clicked", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, session: null });
     const onSignInClick = vi.fn();
     renderHeader(onSignInClick);
-    const button = await screen.findByRole("button", { name: /log-in/i });
+    const button = await screen.findByRole("button", { name: /log in/i });
     button.click();
     expect(onSignInClick).toHaveBeenCalledOnce();
   });
@@ -53,7 +57,7 @@ describe("Header", () => {
   it("renders exactly one Refresh button", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, session: null });
     renderHeader();
-    await screen.findByRole("button", { name: /log-in/i });
+    await screen.findByRole("button", { name: /log in/i });
     expect(screen.getAllByRole("button", { name: "Refresh" })).toHaveLength(1);
   });
 

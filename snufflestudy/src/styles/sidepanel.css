@@ -31,79 +31,6 @@
   padding-bottom: var(--space-3);
 }
 
-.sp-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-bg);
-  font-family: var(--font-body);
-}
-
-.sp-header__title {
-  font-family: var(--font-display);
-  font-size: var(--font-size-lg);
-  color: var(--color-text);
-  margin: 0;
-}
-
-.sp-header__mascot {
-  width: var(--size-icon-md);
-  height: var(--size-icon-md);
-  object-fit: contain;
-}
-
-.sp-header__login-button {
-  margin-left: auto;
-  font-family: var(--font-body);
-  font-size: var(--font-size-md);
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  padding: var(--space-1) var(--space-3);
-  cursor: pointer;
-}
-
-/* v4.1 Task 2: one Header refresh button replaces every panel's own. Always rendered
-   (unlike the login button, which is conditional), so it - not the login button - is what
-   claims the row's trailing margin-left: auto when both are absent/present together. */
-.sp-header__refresh-button {
-  margin-left: auto;
-  font-family: var(--font-body);
-  font-size: var(--font-size-md);
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  padding: var(--space-1) var(--space-3);
-  cursor: pointer;
-}
-
-.sp-tabbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  padding: 0 var(--space-4) var(--space-3);
-  border-bottom: 1px solid var(--color-accent);
-}
-
-.sp-tabbar__tab {
-  font-family: var(--font-body);
-  font-size: var(--font-size-md);
-  color: var(--color-text-muted);
-  background: transparent;
-  border: none;
-  padding: var(--space-2) var(--space-3);
-  cursor: pointer;
-}
-
-.sp-tabbar__tab--active {
-  color: var(--color-text);
-  font-weight: 600;
-  border-bottom: 2px solid var(--color-primary);
-}
-
 .sp-tab-content {
   padding: var(--space-4);
   display: flex;
@@ -304,8 +231,8 @@
 }
 
 /* v4.1 Task 7: tiles are now click-to-select (Nudge target picking) - a functional indicator of
-   selection, not new visual design, matching the outline weight .sp-tabbar__tab--active already
-   uses for its own "currently active" state. */
+   selection, not new visual design, matching the outline weight this app already uses elsewhere
+   for its own "currently active" states. */
 .study-room-panel__tile--selected {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;

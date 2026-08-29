@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import { useRefreshAll } from "../refresh/RefreshRegistryContext";
+import styles from "../styles/frontend-backup/components/layout/HeaderBar.module.css";
 
 // Minimal shape of AUTH_GET_SESSION's response this component needs - mirrors the same
 // minimal AuthUser/AuthSession shape duplicated in AccountPage.tsx and FriendGroupPanel.tsx.
@@ -44,21 +45,50 @@ export function Header({ onSignInClick }: HeaderProps) {
   }, []);
 
   return (
-    <header className="sp-header">
+    <section className={styles.headerBar}>
+      <div className={styles.headerControls}>
+        <div className={styles.frame}>
+          {/* HeaderBar.tsx's "close" icon has no current equivalent action anywhere in this
+              app (v4.2 Task 2, Header + TabBar) - left non-interactive rather than inventing
+              one, per the plan's explicit instruction. */}
+          <div className={styles.buttonIcon}>
+            <div className={styles.iconShape} />
+            <img
+              className={styles.vectorIcon}
+              alt=""
+              src={chrome.runtime.getURL("sidepanel/assets/icon-close.svg")}
+            />
+          </div>
+          {/* Re-skinned Refresh button (still the same v4.1 Task 2 button): re-runs every
+              currently-mounted panel's own fetch via the app-shell-level
+              RefreshRegistryProvider. */}
+          <button
+            type="button"
+            className={`${styles.buttonIcon} ${styles.buttonIconReset}`}
+            onClick={refreshAll}
+            aria-label="Refresh"
+          >
+            <div className={styles.iconShape} />
+            <img
+              className={styles.vectorIcon2}
+              alt=""
+              src={chrome.runtime.getURL("sidepanel/assets/icon-refresh.svg")}
+            />
+          </button>
+          {loaded && !session && (
+            <button type="button" className={styles.buttonLarge} onClick={onSignInClick}>
+              <h3 className={styles.button}>Log In</h3>
+            </button>
+          )}
+        </div>
+        <h1 className={styles.snufflestudy}>SnuffleStudy</h1>
+      </div>
       <img
-        className="sp-header__mascot"
-        src={chrome.runtime.getURL("sidepanel/bunny-and-book.png")}
+        className={styles.bunnyAndBook}
+        loading="lazy"
         alt=""
+        src={chrome.runtime.getURL("sidepanel/assets/Bunny-and-Book@2x.png")}
       />
-      <h1 className="sp-header__title">SnuffleStudy</h1>
-      <button type="button" className="sp-header__refresh-button" onClick={refreshAll}>
-        Refresh
-      </button>
-      {loaded && !session && (
-        <button type="button" className="sp-header__login-button" onClick={onSignInClick}>
-          Log-In
-        </button>
-      )}
-    </header>
+    </section>
   );
 }

@@ -27,6 +27,22 @@
   width: var(--width-36);
   position: relative;
 }
+/* v4.2 Task 2 addition (not in frontend-backup's original file): HeaderBar.tsx's own markup
+   renders both icon slots as plain <div>s (the static design has no real interactivity at all -
+   see the plan's own framing of frontend-backup as 100% static). The refresh icon needs to be a
+   real, clickable, accessible <button> here, which means resetting the UA button chrome
+   (border/background/padding) that a <div> never had in the first place - .buttonIcon's own
+   sizing/position rules above are unchanged and still apply to both the interactive (button) and
+   non-interactive (div) icon slot. */
+.buttonIconReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
 .iconShape {
   position: absolute;
   height: 100%;

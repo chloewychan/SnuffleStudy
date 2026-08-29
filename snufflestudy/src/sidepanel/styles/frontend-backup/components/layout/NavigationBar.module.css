@@ -10,7 +10,21 @@
   color: var(--color-darkgray);
   font-family: var(--font-pangolin);
 }
+/* v4.2 Task 2 addition (not in frontend-backup's original file): NavigationBar.tsx's own markup
+   wraps each ButtonTab in a react-router <Link> (frontend-backup has no other kind of
+   interactivity). This app has no routing, so TabBar.tsx wraps ButtonTab in a real <button>
+   instead (onClick={() => onSelect(id)}) - the two rules below now reset that <button>'s UA
+   chrome (border/background/padding/font), which a <Link> never had in the first place, on top
+   of this class's original text-decoration/color reset. */
 .tabLink {
   text-decoration: none;
   color: inherit;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
 }
