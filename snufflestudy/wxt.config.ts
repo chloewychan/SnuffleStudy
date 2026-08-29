@@ -28,6 +28,14 @@ export default defineConfig({
     side_panel: {
       default_path: "sidepanel.html",
     },
+    // v4.1 Task 4 QA fix: WXT only auto-generates manifest.action from entrypoints/popup/'s
+    // existence (see the deleted popup's own comment on this). With that entrypoint gone, WXT
+    // emitted NO "action" key at all - not just no default_popup - and Chrome MV3 gives an
+    // extension with no "action" key no toolbar button at all, so entrypoints/background.ts's
+    // chrome.action.onClicked listener had nothing to ever fire from. An explicit empty action
+    // block restores the toolbar icon (using the manifest's own top-level "icons") with no popup,
+    // which is what actually makes onClicked reachable.
+    action: {},
     // QA-discovered (v3.2 Task 9): options.html needs open_in_tab: true (Chrome's embedded
     // chrome://extensions/?options=<id> view silently blocks window.confirm()/alert()/prompt()
     // and getUserMedia() - see AccountPage.tsx's/mediaPermissions.ts's own comments). WXT

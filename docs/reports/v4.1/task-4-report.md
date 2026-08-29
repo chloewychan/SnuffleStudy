@@ -76,9 +76,15 @@
 
 `useActiveSession`/`useNow` were exercised transitively by the full test suite (many tests render `SidePanelApp`/`ActiveSessionView` trees) — no separate manual smoke test was needed beyond the vitest run and the successful build/compile.
 
+## Correction, found during Task 11 QA (post-report)
+
+**The "no `action` key at all" finding above (Verification step 1) was a real bug, not a stronger-than-expected pass.** In Chrome MV3, an extension with no `action` key in its manifest gets **no toolbar button at all** — not just no popup. `chrome.action.onClicked` (registered in `entrypoints/background.ts`) had nothing to ever fire from, since there was no icon to click. This wasn't caught at the time because the verification checked "no `default_popup`" (true, and the intended behavior) without checking whether the toolbar icon still existed and worked at all (it didn't).
+
+**Fix:** added an explicit empty `action: {}` block to `wxt.config.ts`'s `manifest` config. This restores a toolbar button (using the manifest's existing top-level `icons`) with no popup — which is what actually makes `onClicked` reachable. Rebuilt and confirmed `.output/chrome-mv3/manifest.json` now includes `"action":{}` with still no `default_popup`. `tsc --noEmit` clean, full `vitest` suite 891/891 passing.
+
 ## What's still open
 
-Nothing outstanding for this task. All Definition-of-Done items are met:
-- No popup in the built extension; toolbar-icon click opens the side panel via the new `chrome.action.onClicked` listener (logic verified by direct code comparison against the original `openSidePanel()`, not by manually clicking a loaded extension in a browser — that manual smoke test is left to the plan's Task 11 manual QA pass, consistent with every other automatable-only check in this task).
+All Definition-of-Done items are now met, including the corrected one above:
+- Toolbar icon exists (via the `action: {}` fix) and its click handler opens the side panel via `chrome.action.onClicked` (logic verified by direct code comparison against the original `openSidePanel()`; an actual manual click-through in a loaded browser is still left to the plan's Task 11 manual QA pass / `docs/qa/V4.1_Two_Account_QA_Script.md` item 2, consistent with every other automatable-only check in this task).
 - Zero remaining `src/popup`/`entrypoints/popup` references anywhere in `snufflestudy/`.
 - `useActiveSession`/`useNow` work correctly from their new shared location at both existing call sites, confirmed by a clean `tsc --noEmit` and a fully passing test suite.
