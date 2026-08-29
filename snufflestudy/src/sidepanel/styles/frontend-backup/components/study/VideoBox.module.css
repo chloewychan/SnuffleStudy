@@ -1,0 +1,16 @@
+.videoBox {
+  height: var(--height-150);
+  width: var(--width-200);
+  border-radius: var(--br-30);
+  background-color: var(--color-seashell);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: var(--padding-15);
+  box-sizing: border-box;
+  text-align: left;
+  font-size: var(--fs-20);
+  color: var(--color-dimgray);
+  font-family: var(--font-shantell-sans);
+}

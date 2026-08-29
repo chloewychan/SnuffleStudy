@@ -1,0 +1,184 @@
+.nudgeVaultPanel {
+  align-self: stretch;
+  border-radius: var(--br-30);
+  background-color: var(--color-seashell);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-40) var(--padding-60);
+  gap: var(--gap-40);
+  text-align: left;
+  font-size: var(--fs-30);
+  color: var(--color-dimgray);
+  font-family: var(--font-pangolin);
+}
+.nudgeVault {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.buttonRecordNewAudioNudge,
+.frameAudioNudges {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.frameAudioNudges {
+  gap: var(--gap-20);
+  text-align: left;
+  font-size: var(--fs-20);
+  color: var(--color-darkgray);
+  font-family: var(--font-shantell-sans);
+}
+.buttonRecordNewAudioNudge {
+  gap: var(--gap-10);
+}
+.audioNudges10s {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.exampleListItems {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-15);
+  font-size: var(--fs-24);
+  color: var(--color-dimgray);
+}
+.exampleListItem {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-0);
+  row-gap: var(--gap-20);
+}
+.nudgeItemDetails {
+  height: var(--height-32);
+  display: flex;
+  align-items: center;
+  gap: var(--gap-20);
+}
+.buttonListIcon {
+  height: var(--height-18);
+  width: var(--width-18);
+  position: relative;
+}
+.egNudgeOne {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.nudgeItemControls {
+  height: var(--height-36);
+  display: flex;
+  align-items: center;
+  gap: var(--gap-10);
+}
+.buttonIcon,
+.playbackShape {
+  cursor: pointer;
+  padding: var(--padding-01);
+}
+.buttonIcon {
+  border: 0;
+  background-color: transparent;
+  height: var(--height-36);
+  width: var(--width-36);
+  position: relative;
+}
+.playbackShape {
+  border: var(--border-1);
+  background-color: var(--color-seashell);
+  position: absolute;
+  height: 100%;
+  width: 100%;
+  top: 2.78%;
+  right: -2.78%;
+  bottom: -2.78%;
+  left: 2.78%;
+  border-radius: var(--br-15);
+  box-sizing: border-box;
+}
+.playbackGraphicIcon {
+  position: absolute;
+  top: calc(50% - 6px);
+  left: calc(50% - 8px);
+  width: var(--width-16);
+  height: var(--height-12);
+}
+.newNudgeEditor {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: var(--gap-10) var(--gap-20);
+}
+.buttonBoolIcon {
+  height: var(--height-36);
+  width: var(--width-36);
+  position: relative;
+}
+.rectangle4 {
+  position: absolute;
+  height: 100%;
+  width: 100%;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: var(--br-15);
+  background-color: var(--color-seashell);
+  border: var(--border-1);
+  box-sizing: border-box;
+}
+.vectorIcon4 {
+  position: absolute;
+  width: 50%;
+  top: calc(50% - 10px);
+  right: 25%;
+  left: 25%;
+  max-width: 100%;
+  overflow: hidden;
+  height: var(--height-20);
+}
+@media screen and (max-width: 750px) {
+  .nudgeVaultPanel {
+    gap: var(--gap-20);
+    padding: var(--padding-26) var(--padding-30);
+    box-sizing: border-box;
+  }
+  .nudgeVault {
+    font-size: var(--fs-24);
+  }
+}
+@media screen and (max-width: 450px) {
+  .nudgeVaultPanel {
+    padding-top: var(--padding-20);
+    padding-bottom: var(--padding-20);
+    box-sizing: border-box;
+  }
+  .nudgeVault {
+    font-size: var(--fs-18);
+  }
+  .audioNudges10s {
+    font-size: var(--fs-16);
+  }
+  .exampleListItem {
+    flex-wrap: wrap;
+  }
+  .egNudgeOne {
+    font-size: var(--fs-19);
+  }
+}

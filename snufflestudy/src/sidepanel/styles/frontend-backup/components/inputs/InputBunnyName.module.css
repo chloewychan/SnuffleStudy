@@ -1,0 +1,56 @@
+.inputBunnyName {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-5);
+  text-align: left;
+  font-size: var(--fs-20);
+  color: var(--color-darkgray);
+  font-family: var(--font-shantell-sans);
+}
+.bunnyName {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.input,
+.inputWrappers {
+  display: flex;
+  align-items: center;
+}
+.inputWrappers {
+  align-self: stretch;
+  gap: var(--gap-15);
+}
+.input {
+  height: var(--height-36);
+  width: var(--width-270);
+  border-radius: var(--br-15);
+  background-color: var(--color-snow-200);
+  border: var(--border-3);
+  box-sizing: border-box;
+  justify-content: space-between;
+  padding: var(--padding-0) var(--padding-10);
+  flex-shrink: 0;
+}
+.entryField {
+  border: 0;
+  outline: 0;
+  font-family: var(--font-shantell-sans);
+  font-size: var(--fs-24);
+  background-color: transparent;
+  position: relative;
+  color: var(--color-dimgray);
+  text-align: left;
+}
+@media screen and (max-width: 450px) {
+  .bunnyName {
+    font-size: var(--fs-16);
+  }
+  .inputWrappers {
+    flex-wrap: wrap;
+  }
+}

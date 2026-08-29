@@ -1,0 +1,6 @@
+.buttonBoolIcon {
+  height: var(--height-36);
+  width: var(--width-36);
+  position: relative;
+  flex-shrink: 0;
+}

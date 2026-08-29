@@ -1,0 +1,56 @@
+.restrictedSitesList {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--padding-0) var(--padding-0) var(--padding-0) var(--padding-20);
+  gap: var(--gap-5);
+  text-align: left;
+  font-size: var(--fs-20);
+  color: var(--color-dimgray);
+  font-family: var(--font-nunito);
+}
+.inputListItem {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: var(--gap-10) var(--gap-20);
+  color: var(--color-darkgray);
+  font-family: var(--font-shantell-sans);
+}
+.addSite {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.buttonBoolIcon {
+  height: var(--height-36);
+  width: var(--width-36);
+  position: relative;
+}
+.exampleListItem,
+.exampleListItem2 {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-0);
+  row-gap: var(--gap-20);
+}
+@media screen and (max-width: 450px) {
+  .addSite {
+    font-size: var(--fs-16);
+  }
+  .exampleListItem {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .exampleListItem2 {
+    flex-wrap: wrap;
+  }
+}

@@ -1,0 +1,101 @@
+.friendDetails,
+.friendDetailsPopup {
+  display: flex;
+  flex-direction: column;
+}
+.friendDetailsPopup {
+  width: 560px;
+  max-width: 100%;
+  overflow: hidden;
+  align-items: flex-start;
+  line-height: var(--lh-normal);
+  letter-spacing: var(--ls-normal);
+}
+.friendDetails {
+  align-self: stretch;
+  border-radius: var(--br-30);
+  background-color: var(--color-snow-300);
+  border: 3px solid var(--color-snow-100);
+  align-items: center;
+  padding: var(--padding-40);
+  gap: var(--gap-20);
+  text-align: left;
+  font-size: var(--fs-40);
+  color: var(--color-dimgray);
+  font-family: var(--font-pangolin);
+}
+.egFriend {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.trackingOptions {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-5);
+  font-size: var(--fs-20);
+  color: var(--color-black);
+  font-family: var(--font-nunito);
+}
+.tracking {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: var(--font-shantell-sans);
+  color: var(--color-darkgray);
+}
+.listItem {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-20);
+}
+.buttonListIcon {
+  height: var(--height-18);
+  width: var(--width-18);
+  position: relative;
+  opacity: 0.75;
+}
+.listItem4 {
+  align-self: stretch;
+  padding: var(--padding-0) var(--padding-26) var(--padding-0) var(--padding-0);
+  gap: var(--gap-20);
+}
+.buttonLarge,
+.listItem4,
+.listItem8 {
+  display: flex;
+  align-items: center;
+}
+.listItem8 {
+  align-self: stretch;
+  padding: var(--padding-0) 37px var(--padding-0) var(--padding-0);
+  gap: var(--gap-20);
+}
+.buttonLarge {
+  cursor: pointer;
+  border: var(--border-1);
+  padding: var(--padding-5) var(--padding-15);
+  background-color: var(--color-linen);
+  border-radius: var(--br-15);
+  justify-content: center;
+}
+.button {
+  position: relative;
+  font-size: var(--fs-24);
+  font-family: var(--font-shantell-sans);
+  color: var(--color-dimgray);
+  text-align: left;
+}
+@media screen and (max-width: 501px) {
+  .friendDetails {
+    padding-top: var(--padding-26);
+    padding-bottom: var(--padding-26);
+    box-sizing: border-box;
+  }
+}

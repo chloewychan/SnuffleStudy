@@ -1,0 +1,27 @@
+.input,
+.siteElements {
+  width: 100%;
+  position: relative;
+}
+.input {
+  height: var(--height-36);
+  flex: 1;
+  border-radius: var(--br-15);
+  background-color: var(--color-snow-200);
+  border: var(--border-3);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--padding-0) var(--padding-10);
+}
+.siteElements {
+  border: 0;
+  outline: 0;
+  font-family: var(--font-shantell-sans);
+  font-size: var(--fs-24);
+  background-color: transparent;
+  color: var(--color-dimgray);
+  text-align: left;
+  display: inline-block;
+}

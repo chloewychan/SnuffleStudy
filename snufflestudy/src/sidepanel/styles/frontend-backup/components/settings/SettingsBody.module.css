@@ -1,0 +1,113 @@
+.settingsBody {
+  align-self: stretch;
+  border-radius: var(--br-30);
+  background-color: var(--color-seashell);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-40) var(--padding-60);
+  box-sizing: border-box;
+  gap: var(--gap-40);
+  max-width: 100%;
+  text-align: left;
+  font-size: var(--fs-20);
+  color: var(--color-dimgray);
+  font-family: var(--font-nunito);
+}
+.general {
+  margin: 0;
+  position: relative;
+  font-size: var(--fs-30);
+  font-weight: 400;
+  font-family: var(--font-pangolin);
+}
+.frameFriends {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-5);
+  color: var(--color-darkgray);
+  font-family: var(--font-shantell-sans);
+}
+.friends {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.listItem {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-20);
+  color: var(--color-dimgray);
+  font-family: var(--font-nunito);
+}
+.buttonList {
+  margin: 0;
+  height: var(--height-18);
+  width: var(--width-18);
+  position: relative;
+  opacity: 0.75;
+}
+.frameRestrictedSites {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-5);
+  text-align: left;
+  font-size: var(--fs-20);
+  color: var(--color-darkgray);
+  font-family: var(--font-shantell-sans);
+}
+.listItems {
+  flex-direction: column;
+  padding: var(--padding-0) var(--padding-0) var(--padding-0) var(--padding-20);
+  gap: var(--gap-10);
+}
+.buttonGrantCameraAndMicrop,
+.inputOldPasscode,
+.listItems {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+.inputOldPasscode {
+  justify-content: center;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: var(--gap-10) var(--gap-20);
+}
+.buttonGrantCameraAndMicrop {
+  flex-direction: column;
+}
+@media screen and (max-width: 750px) {
+  .settingsBody {
+    gap: var(--gap-20);
+    padding-left: var(--padding-30);
+    padding-right: var(--padding-30);
+    box-sizing: border-box;
+  }
+  .general {
+    font-size: var(--fs-24);
+  }
+}
+@media screen and (max-width: 675px) {
+  .settingsBody {
+    padding-top: var(--padding-20);
+    padding-bottom: var(--padding-20);
+    box-sizing: border-box;
+  }
+}
+@media screen and (max-width: 450px) {
+  .general {
+    font-size: var(--fs-18);
+  }
+  .friends {
+    font-size: var(--fs-16);
+  }
+}

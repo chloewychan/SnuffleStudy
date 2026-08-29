@@ -14,3 +14,11 @@ dist/
 supabase/.temp/
 # standalone backup of pre-v4.1 frontend work, not part of the extension source
 frontend-backup/
+# v4.2 Task 1: the bare "frontend-backup/" pattern above (no leading slash) matches a directory
+# named "frontend-backup" at ANY depth, not just the repo-root backup folder it was written for -
+# it was silently also matching snufflestudy/src/sidepanel/styles/frontend-backup/, the real,
+# intentionally-committed directory of ported CSS Modules the V4.2 Implementation Plan's File
+# Structure section names explicitly. Re-included here rather than renaming that directory, since
+# every later v4.2 task's brief refers to it by this exact path.
+!/snufflestudy/src/sidepanel/styles/frontend-backup/
+!/snufflestudy/src/sidepanel/styles/frontend-backup/**

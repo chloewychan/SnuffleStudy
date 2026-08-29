@@ -1,0 +1,81 @@
+.trackingSettings {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-5);
+  text-align: left;
+  font-size: var(--fs-20);
+  color: var(--color-dimgray);
+  font-family: var(--font-nunito);
+}
+.tracking {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: var(--font-shantell-sans);
+  color: var(--color-darkgray);
+}
+.listItem {
+  width: 153px;
+  height: var(--height-27);
+  display: flex;
+  align-items: center;
+  gap: var(--gap-20);
+}
+.buttonList {
+  cursor: pointer;
+  margin: 0;
+  height: var(--height-18);
+  width: var(--width-18);
+  position: relative;
+  background-image: url(/bullet-dot.svg);
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: top;
+}
+.activityOnly {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.listItem2 {
+  width: 228px;
+  height: var(--height-27);
+  display: flex;
+  align-items: center;
+  gap: var(--gap-20);
+}
+.buttonList2 {
+  cursor: pointer;
+  margin: 0;
+  height: var(--height-18);
+  width: var(--width-18);
+  position: relative;
+  background-image: url(/bullet-dot.svg);
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: top;
+}
+.listItem3 {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-20);
+}
+.buttonList3 {
+  margin: 0;
+  height: var(--height-18);
+  width: var(--width-18);
+  position: relative;
+  opacity: 0.75;
+}
+@media screen and (max-width: 450px) {
+  .activityOnly,
+  .tracking {
+    font-size: var(--fs-16);
+  }
+}

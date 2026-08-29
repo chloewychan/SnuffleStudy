@@ -1,0 +1,101 @@
+.callOptions,
+.studyRoomCallPanel {
+  display: flex;
+  align-items: center;
+}
+.studyRoomCallPanel {
+  width: 100%;
+  flex-direction: column;
+  gap: var(--gap-10);
+  max-width: 620.2px;
+  text-align: left;
+  font-size: var(--fs-20);
+  color: var(--color-dimgray);
+  font-family: var(--font-shantell-sans);
+}
+.callOptions {
+  align-self: stretch;
+  justify-content: center;
+  gap: var(--gap-20);
+}
+.buttonLargeIcon {
+  width: var(--width-64);
+  position: relative;
+  max-height: 100%;
+  object-fit: cover;
+  opacity: 0.75;
+}
+.buttonLarge {
+  cursor: pointer;
+  border: var(--border-1);
+  padding: var(--padding-5) var(--padding-15);
+  background-color: var(--color-linen);
+  border-radius: var(--br-15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.button {
+  margin: 0;
+  position: relative;
+  font-size: var(--fs-24);
+  font-weight: 400;
+  font-family: var(--font-shantell-sans);
+  color: var(--color-dimgray);
+  text-align: left;
+}
+.exampleListItems {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-10);
+}
+.buttonNudge,
+.input {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-20);
+}
+.buttonNudge {
+  align-self: stretch;
+  justify-content: center;
+  max-width: 100%;
+  font-size: var(--fs-24);
+}
+.input {
+  height: var(--height-36);
+  width: 370px;
+  border-radius: var(--br-15);
+  background-color: var(--color-snow-200);
+  border: 3px solid var(--color-snow-100);
+  box-sizing: border-box;
+  justify-content: space-between;
+  padding: var(--padding-0) var(--padding-10);
+}
+.dropdown,
+.vectorIcon {
+  position: relative;
+}
+.vectorIcon {
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+  background-color: transparent;
+  height: 9.4px;
+  width: var(--width-16);
+}
+@media screen and (max-width: 750px) {
+  .exampleListItems {
+    flex-wrap: wrap;
+  }
+}
+@media screen and (max-width: 675px) {
+  .studyRoomCallPanel {
+    max-width: 100%;
+  }
+  .buttonNudge,
+  .callOptions {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}

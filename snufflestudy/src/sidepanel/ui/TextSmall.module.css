@@ -1,0 +1,18 @@
+.textSmall {
+  border-radius: var(--br-15);
+  background-color: var(--color-snow-200);
+  display: flex;
+  align-items: center;
+  padding: var(--padding-0) var(--padding-10);
+  text-align: left;
+  font-size: var(--fs-20);
+  color: var(--color-dimgray);
+  font-family: var(--font-shantell-sans);
+}
+.textbox {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}

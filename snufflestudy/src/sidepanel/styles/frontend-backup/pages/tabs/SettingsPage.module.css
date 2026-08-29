@@ -1,0 +1,19 @@
+.settingsPage {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gap-40);
+  background-color: var(--color-snow-100);
+  max-width: 100%;
+  overflow: hidden;
+  padding: 100px var(--padding-40) var(--padding-40);
+  box-sizing: border-box;
+  line-height: normal;
+  letter-spacing: normal;
+}
+@media screen and (max-width: 450px) {
+  .settingsPage {
+    gap: var(--gap-20);
+  }
+}

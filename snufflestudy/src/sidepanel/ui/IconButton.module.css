@@ -1,0 +1,28 @@
+.iconButton {
+  height: var(--height-36);
+  width: var(--width-36);
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  background: none;
+}
+.badge {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--br-15);
+  background-color: var(--color-seashell);
+  border: var(--border-1);
+  box-sizing: border-box;
+  opacity: var(--opacity-0_5);
+}
+.icon {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}

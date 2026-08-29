@@ -1,0 +1,82 @@
+.notificationSettings {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-5);
+  max-width: 100%;
+  text-align: left;
+  font-size: var(--fs-20);
+  color: var(--color-dimgray);
+  font-family: var(--font-nunito);
+}
+.notifications {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: var(--font-shantell-sans);
+  color: var(--color-darkgray);
+}
+.listItem {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-20);
+}
+.buttonListIcon {
+  height: var(--height-18);
+  width: var(--width-18);
+  position: relative;
+  opacity: 0.75;
+}
+.showANotification {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.listItem2 {
+  width: 279px;
+  height: var(--height-27);
+  gap: var(--gap-20);
+}
+.listItem2,
+.listItem3,
+.timePeriodPicker {
+  display: flex;
+  align-items: center;
+}
+.listItem3 {
+  align-self: stretch;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: var(--gap-20);
+  max-width: 100%;
+}
+.timePeriodPicker {
+  flex: 1;
+  gap: var(--gap-15);
+  opacity: var(--opacity-0_5);
+  min-width: 145px;
+  max-width: 362px;
+  color: var(--color-darkgray);
+  font-family: var(--font-shantell-sans);
+}
+.buttonBoolIcon {
+  height: var(--height-36);
+  width: var(--width-36);
+  position: relative;
+}
+@media screen and (max-width: 675px) {
+  .timePeriodPicker {
+    flex-wrap: wrap;
+  }
+}
+@media screen and (max-width: 450px) {
+  .notifications,
+  .showANotification {
+    font-size: var(--fs-16);
+  }
+}

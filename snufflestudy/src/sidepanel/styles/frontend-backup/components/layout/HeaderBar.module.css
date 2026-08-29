@@ -1,0 +1,100 @@
+.headerBar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-40);
+  text-align: left;
+  font-size: 70px;
+  color: var(--color-dimgray);
+  font-family: var(--font-pangolin);
+}
+.frame,
+.headerControls {
+  display: flex;
+  gap: var(--gap-20);
+}
+.headerControls {
+  width: 381px;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.frame {
+  align-items: center;
+  justify-content: center;
+}
+.buttonIcon {
+  height: var(--height-36);
+  width: var(--width-36);
+  position: relative;
+}
+.iconShape {
+  position: absolute;
+  height: 100%;
+  width: 100%;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: var(--br-15);
+  background-color: var(--color-seashell);
+  border: var(--border-1);
+  box-sizing: border-box;
+  opacity: var(--opacity-0_5);
+}
+.vectorIcon,
+.vectorIcon2 {
+  position: absolute;
+  max-width: 100%;
+  overflow: hidden;
+  max-height: 100%;
+}
+.vectorIcon {
+  height: 38.89%;
+  width: 38.89%;
+  top: 30.56%;
+  right: 30.56%;
+  bottom: 30.56%;
+  left: 30.56%;
+  border-radius: var(--br-1);
+}
+.vectorIcon2 {
+  height: 47.78%;
+  width: 42.78%;
+  top: 25.28%;
+  right: 28.06%;
+  bottom: 26.94%;
+  left: 29.17%;
+}
+.buttonLarge {
+  cursor: pointer;
+  border: var(--border-2);
+  padding: var(--padding-5) var(--padding-15);
+  background-color: var(--color-linen-200);
+  border-radius: var(--br-15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.button,
+.snufflestudy {
+  margin: 0;
+  position: relative;
+  font-weight: 400;
+}
+.button {
+  font-size: var(--fs-24);
+  font-family: var(--font-shantell-sans);
+  color: var(--color-dimgray);
+  text-align: left;
+}
+.snufflestudy {
+  align-self: stretch;
+  font-size: inherit;
+  font-family: inherit;
+}
+.bunnyAndBook {
+  width: 150px;
+  position: relative;
+  max-height: 100%;
+  object-fit: contain;
+}

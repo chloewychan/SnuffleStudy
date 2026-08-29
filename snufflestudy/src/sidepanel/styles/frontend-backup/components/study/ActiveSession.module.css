@@ -1,0 +1,162 @@
+.activeSession {
+  width: 100%;
+  border-radius: var(--br-30);
+  background-color: var(--color-seashell);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-40) var(--padding-20);
+  box-sizing: border-box;
+  gap: var(--gap-40);
+  max-width: 700px;
+  text-align: left;
+  font-size: var(--fs-30);
+  color: var(--color-dimgray);
+  font-family: var(--font-pangolin);
+}
+.studySessionIn {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+  display: inline-block;
+  max-width: 100%;
+}
+.sessionControl,
+.timer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sessionControl {
+  align-self: stretch;
+  gap: var(--gap-40);
+  text-align: center;
+  font-size: var(--fs-40);
+}
+.timer {
+  height: 170px;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: top;
+  min-width: 170px;
+}
+.timeValue {
+  margin: 0;
+  flex: 1;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.buttonOptions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--padding-20) 0;
+  gap: var(--gap-20);
+}
+.buttonLarge {
+  cursor: pointer;
+  border: var(--border-1);
+  padding: var(--padding-5) var(--padding-15);
+  background-color: var(--color-linen);
+  border-radius: var(--br-15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.button {
+  margin: 0;
+  position: relative;
+  font-size: var(--fs-24);
+  font-weight: 400;
+  font-family: var(--font-shantell-sans);
+  color: var(--color-dimgray);
+  text-align: left;
+}
+.buttonLarge2 {
+  cursor: pointer;
+  border: var(--border-1);
+  padding: var(--padding-5) var(--padding-15);
+  background-color: var(--color-linen);
+  align-self: stretch;
+  border-radius: var(--br-15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.statuses {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-10);
+  max-width: 349.2px;
+  font-size: var(--fs-24);
+  font-family: var(--font-shantell-sans);
+}
+.activityStatus {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-15);
+}
+.buttonList {
+  cursor: pointer;
+  margin: 0;
+  height: var(--height-18);
+  width: var(--width-18);
+  position: relative;
+  background-image: url(/bullet-dot.svg);
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: top;
+}
+.activityStatusEg {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+@media screen and (max-width: 750px) {
+  .activeSession {
+    gap: var(--gap-20);
+    max-width: 100%;
+  }
+  .studySessionIn {
+    font-size: var(--fs-24);
+  }
+  .timeValue {
+    font-size: var(--fs-32);
+  }
+}
+@media screen and (max-width: 450px) {
+  .activeSession {
+    padding-top: var(--padding-26);
+    padding-bottom: var(--padding-26);
+    box-sizing: border-box;
+  }
+  .studySessionIn {
+    font-size: var(--fs-18);
+  }
+  .sessionControl {
+    gap: var(--gap-20);
+    flex-wrap: wrap;
+  }
+  .timer {
+    flex: 1;
+  }
+  .timeValue {
+    font-size: var(--fs-24);
+  }
+  .buttonOptions {
+    flex: 1;
+  }
+  .activityStatusEg {
+    font-size: var(--fs-19);
+  }
+}

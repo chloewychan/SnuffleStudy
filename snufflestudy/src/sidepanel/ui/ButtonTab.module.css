@@ -1,0 +1,23 @@
+.root {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: left;
+  font-size: var(--fs-40);
+  color: var(--color-darkgray);
+  font-family: var(--font-pangolin);
+}
+.root[data-property1="selected"] {
+  justify-content: unset;
+  border-radius: var(--br-30);
+  background-color: var(--color-mistyrose-200);
+  padding: var(--padding-10) var(--padding-20);
+}
+.root[data-property1="selected"] .button {
+  color: var(--color-dimgray);
+}
+.button,
+.root {
+  position: relative;
+}

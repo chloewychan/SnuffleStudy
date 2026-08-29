@@ -1,0 +1,129 @@
+.defaultFooter,
+.nudgesContainer {
+  display: flex;
+  flex-direction: column;
+}
+.defaultFooter {
+  width: 800px;
+  background-color: var(--color-snow-100);
+  max-width: 100%;
+  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-40) var(--padding-30);
+  box-sizing: border-box;
+  gap: var(--gap-40);
+  line-height: var(--lh-normal);
+  letter-spacing: var(--ls-normal);
+}
+.nudgesContainer {
+  width: 100%;
+  align-items: flex-start;
+  gap: var(--gap-10);
+  max-width: 600px;
+  text-align: left;
+  font-size: var(--fs-24);
+  color: var(--color-dimgray);
+  font-family: var(--font-shantell-sans);
+}
+.nudgesSentTo {
+  margin: 0;
+  position: relative;
+  font-size: var(--fs-20);
+  font-weight: 400;
+  font-family: inherit;
+  color: var(--color-darkgray);
+}
+.exampleListItem,
+.itemContent {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+}
+.exampleListItem {
+  align-self: stretch;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: var(--gap-0);
+  row-gap: var(--gap-20);
+}
+.itemContent {
+  flex: 1;
+  gap: var(--gap-40);
+  min-width: 332px;
+}
+.egUsername {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.buttonBoolIcon {
+  height: var(--height-36);
+  width: var(--width-36);
+  position: relative;
+}
+.nudgeContent {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-40);
+  min-width: 367px;
+  max-width: 100%;
+}
+.exampleListItem3 {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-0);
+  row-gap: var(--gap-20);
+}
+.buttonBoolParent,
+.egUsernameParent {
+  height: var(--height-32);
+  display: flex;
+  align-items: center;
+  gap: var(--gap-40);
+}
+.buttonBoolParent {
+  height: var(--height-36);
+  gap: var(--gap-5);
+}
+@media screen and (max-width: 675px) {
+  .defaultFooter {
+    gap: var(--gap-20);
+  }
+}
+@media screen and (max-width: 625px) {
+  .nudgesContainer {
+    max-width: 100%;
+  }
+  .nudgeContent {
+    min-width: 100%;
+  }
+}
+@media screen and (max-width: 450px) {
+  .nudgesSentTo {
+    font-size: var(--fs-16);
+  }
+  .itemContent {
+    gap: var(--gap-20);
+    flex-wrap: wrap;
+  }
+  .egUsername {
+    font-size: var(--fs-19);
+  }
+  .nudgeContent {
+    gap: var(--gap-20);
+  }
+  .exampleListItem3,
+  .nudgeContent {
+    flex-wrap: wrap;
+  }
+  .egUsernameParent {
+    gap: var(--gap-20);
+  }
+}

@@ -1,0 +1,109 @@
+.accountSettingsPanel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gap-40);
+  align-self: stretch;
+  border-radius: var(--br-30);
+  background-color: var(--color-seashell);
+  justify-content: center;
+  padding: var(--padding-40) var(--padding-60);
+  text-align: left;
+  font-size: var(--fs-20);
+  color: var(--color-darkgray);
+  font-family: var(--font-shantell-sans);
+}
+.account {
+  margin: 0;
+  position: relative;
+  font-size: var(--fs-30);
+  font-weight: 400;
+  font-family: var(--font-pangolin);
+  color: var(--color-dimgray);
+}
+.accountOptions {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-5);
+  text-align: center;
+}
+.signedInAs {
+  margin: 0;
+  align-self: stretch;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.buttonSignOutDeleteAccount,
+.frameAccountPassword {
+  align-self: stretch;
+  display: flex;
+  align-items: flex-start;
+}
+.buttonSignOutDeleteAccount {
+  justify-content: center;
+  padding: var(--padding-0) var(--padding-0) var(--padding-0) var(--padding-20);
+  gap: var(--gap-15);
+}
+.frameAccountPassword {
+  flex-direction: column;
+  gap: var(--gap-5);
+}
+.accountPassword {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.inputOldPassword,
+.listItems {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+.listItems {
+  flex-direction: column;
+  padding: var(--padding-0) var(--padding-0) var(--padding-0) var(--padding-20);
+  gap: var(--gap-10);
+}
+.inputOldPassword {
+  justify-content: center;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: var(--gap-10) var(--gap-20);
+}
+@media screen and (max-width: 750px) {
+  .accountSettingsPanel {
+    gap: var(--gap-20);
+    padding-left: var(--padding-30);
+    padding-right: var(--padding-30);
+    box-sizing: border-box;
+  }
+  .account {
+    font-size: var(--fs-24);
+  }
+}
+@media screen and (max-width: 675px) {
+  .accountSettingsPanel {
+    padding-top: var(--padding-26);
+    padding-bottom: var(--padding-26);
+    box-sizing: border-box;
+  }
+  .buttonSignOutDeleteAccount {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+@media screen and (max-width: 450px) {
+  .account {
+    font-size: var(--fs-18);
+  }
+  .accountPassword,
+  .signedInAs {
+    font-size: var(--fs-16);
+  }
+}

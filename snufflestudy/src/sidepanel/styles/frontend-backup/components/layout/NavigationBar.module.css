@@ -1,0 +1,16 @@
+.navigationBar {
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-40);
+  text-align: left;
+  font-size: var(--fs-40);
+  color: var(--color-darkgray);
+  font-family: var(--font-pangolin);
+}
+.tabLink {
+  text-decoration: none;
+  color: inherit;
+}

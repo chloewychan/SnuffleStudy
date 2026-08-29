@@ -1,0 +1,21 @@
+.buttonSmall {
+  cursor: pointer;
+  border: 3px solid var(--color-mistyrose);
+  padding: var(--padding-0) var(--padding-15);
+  background-color: var(--color-linen);
+  height: var(--height-36);
+  border-radius: var(--br-15);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.button {
+  margin: 0;
+  position: relative;
+  font-size: var(--fs-24);
+  font-weight: 400;
+  font-family: var(--font-shantell-sans);
+  color: var(--color-dimgray);
+  text-align: left;
+}

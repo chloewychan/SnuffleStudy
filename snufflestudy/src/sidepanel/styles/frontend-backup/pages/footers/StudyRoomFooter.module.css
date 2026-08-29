@@ -1,0 +1,40 @@
+.studyRoomFooter {
+  width: 100%;
+  position: relative;
+  background-color: var(--color-snow-100);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-40);
+  box-sizing: border-box;
+  gap: var(--gap-40);
+  line-height: var(--lh-normal);
+  letter-spacing: var(--ls-normal);
+  text-align: center;
+  font-size: var(--fs-40);
+  color: var(--color-dimgray);
+  font-family: var(--font-pangolin);
+}
+.egStudyRoom {
+  margin: 0;
+  align-self: stretch;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+@media screen and (max-width: 750px) {
+  .egStudyRoom {
+    font-size: var(--fs-32);
+  }
+}
+@media screen and (max-width: 450px) {
+  .studyRoomFooter {
+    gap: var(--gap-20);
+  }
+  .egStudyRoom {
+    font-size: var(--fs-24);
+  }
+}

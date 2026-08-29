@@ -1,0 +1,19 @@
+.friendsPage {
+  width: 100%;
+  position: relative;
+  background-color: var(--color-snow-100);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--padding-100) var(--padding-40) var(--padding-40);
+  box-sizing: border-box;
+  gap: var(--gap-40);
+  line-height: normal;
+  letter-spacing: normal;
+}
+@media screen and (max-width: 450px) {
+  .friendsPage {
+    gap: var(--gap-20);
+  }
+}

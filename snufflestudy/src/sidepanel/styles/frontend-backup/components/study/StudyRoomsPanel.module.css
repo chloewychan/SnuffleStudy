@@ -1,0 +1,122 @@
+.studyRoomPanel {
+  border-radius: var(--br-30);
+  background-color: var(--color-seashell);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  padding: var(--padding-40) var(--padding-60);
+  gap: var(--gap-40);
+  text-align: left;
+  font-size: var(--fs-30);
+  font-family: var(--font-pangolin);
+  color: var(--color-dimgray);
+}
+.studySession {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.roomList {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-10);
+  font-size: var(--fs-20);
+  color: var(--color-darkgray);
+  font-family: var(--font-shantell-sans);
+}
+.goal {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.exampleListItem {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: var(--gap-10) var(--gap-20);
+}
+.buttonSmall {
+  cursor: pointer;
+  border: var(--border-3);
+  padding: var(--padding-0) var(--padding-15);
+  background-color: var(--color-snow-200);
+  height: var(--height-36);
+  border-radius: var(--br-15);
+  box-sizing: border-box;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  opacity: 0.4;
+}
+.button6 {
+  position: relative;
+  font-size: var(--fs-24);
+  font-family: var(--font-shantell-sans);
+  color: var(--color-dimgray);
+  text-align: left;
+}
+.buttonIcon {
+  height: var(--height-36);
+  width: var(--width-36);
+  position: relative;
+}
+.callOptionPanel {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gap-20);
+}
+.buttonLargeIcon {
+  width: var(--width-64);
+  position: relative;
+  max-height: 100%;
+  object-fit: cover;
+  opacity: 0.75;
+}
+.buttonLarge3 {
+  cursor: pointer;
+  border: 3px solid var(--color-pink-100);
+  padding: var(--padding-5) var(--padding-15);
+  background-color: var(--color-linen-100);
+  border-radius: var(--br-15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.4;
+}
+.button {
+  position: relative;
+  font-size: var(--fs-24);
+  font-family: var(--font-shantell-sans);
+  color: var(--color-dimgray);
+  text-align: left;
+}
+@media screen and (max-width: 750px) {
+  .studyRoomPanel {
+    gap: var(--gap-20);
+    padding-left: var(--padding-30);
+    padding-right: var(--padding-30);
+    box-sizing: border-box;
+  }
+}
+@media screen and (max-width: 675px) {
+  .studyRoomPanel {
+    padding-top: var(--padding-26);
+    padding-bottom: var(--padding-26);
+    box-sizing: border-box;
+  }
+  .callOptionPanel {
+    flex-wrap: wrap;
+  }
+}

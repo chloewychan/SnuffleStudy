@@ -1,0 +1,88 @@
+.inputCreateStudyRoom {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-10);
+  text-align: left;
+  font-size: var(--fs-20);
+  color: var(--color-darkgray);
+  font-family: var(--font-shantell-sans);
+}
+.createStudyRoom {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.frame,
+.input {
+  display: flex;
+  align-items: center;
+}
+.frame {
+  align-self: stretch;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: var(--gap-10) var(--gap-20);
+}
+.input {
+  height: var(--height-36);
+  flex: 1;
+  border-radius: var(--br-15);
+  background-color: var(--color-snow-200);
+  border: var(--border-3);
+  box-sizing: border-box;
+  justify-content: space-between;
+  padding: var(--padding-0) var(--padding-10);
+}
+.textbox {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  font-family: var(--font-shantell-sans);
+  font-size: var(--fs-24);
+  background-color: transparent;
+  position: relative;
+  color: var(--color-dimgray);
+  text-align: left;
+  display: inline-block;
+}
+.buttonBoolIcon {
+  height: var(--height-36);
+  width: var(--width-36);
+  position: relative;
+}
+.toggleButtonBackgrounds {
+  position: absolute;
+  height: 100%;
+  width: 100%;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: var(--br-15);
+  background-color: var(--color-linen-100);
+  border: 3px solid var(--color-mistyrose-100);
+  box-sizing: border-box;
+  opacity: var(--opacity-0_5);
+}
+.toggleButtonIcons {
+  position: absolute;
+  height: 41.67%;
+  width: 43.06%;
+  top: 27.78%;
+  right: 29.17%;
+  bottom: 30.56%;
+  left: 27.78%;
+  border-radius: var(--br-1);
+  max-width: 100%;
+  overflow: hidden;
+  max-height: 100%;
+}
+@media screen and (max-width: 450px) {
+  .createStudyRoom {
+    font-size: var(--fs-16);
+  }
+}

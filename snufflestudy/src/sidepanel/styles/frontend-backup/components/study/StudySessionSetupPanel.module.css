@@ -1,0 +1,166 @@
+.studySessionPanel {
+  align-self: stretch;
+  border-radius: var(--br-30);
+  background-color: var(--color-seashell);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-40) var(--padding-60);
+  box-sizing: border-box;
+  gap: var(--gap-40);
+  max-width: 100%;
+  text-align: left;
+  font-size: var(--fs-30);
+  font-family: var(--font-pangolin);
+  color: var(--color-dimgray);
+}
+.studySession {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.inputForm,
+.inputGoal {
+  display: flex;
+  gap: var(--gap-20);
+}
+.inputForm {
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 556.2px;
+  font-size: var(--fs-20);
+  color: var(--color-darkgray);
+  font-family: var(--font-shantell-sans);
+}
+.inputGoal {
+  align-self: stretch;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+.goal {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+.input {
+  height: var(--height-36);
+  width: 370px;
+  border-radius: var(--br-15);
+  background-color: var(--color-snow-200);
+  border: var(--border-3);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--padding-0) var(--padding-10);
+  gap: var(--gap-20);
+  font-size: var(--fs-24);
+  color: var(--color-dimgray);
+}
+.dropdown,
+.vectorIcon3 {
+  position: relative;
+}
+.vectorIcon3 {
+  height: 9.4px;
+  width: var(--width-16);
+}
+.input2,
+.inputFocusDuration {
+  display: flex;
+  align-items: center;
+}
+.inputFocusDuration {
+  align-self: stretch;
+  justify-content: flex-end;
+  gap: var(--gap-20);
+}
+.input2 {
+  height: var(--height-36);
+  width: 175px;
+  border-radius: var(--br-15);
+  background-color: var(--color-snow-200);
+  border: var(--border-3);
+  box-sizing: border-box;
+  justify-content: space-between;
+  padding: var(--padding-0) var(--padding-10);
+}
+.textbox {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  font-family: var(--font-shantell-sans);
+  font-size: var(--fs-24);
+  background-color: transparent;
+  position: relative;
+  color: var(--color-dimgray);
+  text-align: left;
+  display: inline-block;
+}
+.inputRestrictionMode {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-20);
+  max-width: 100%;
+}
+.buttonLarge {
+  cursor: pointer;
+  border: var(--border-2);
+  padding: var(--padding-5) var(--padding-15);
+  background-color: var(--color-linen-200);
+  border-radius: var(--br-15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.button6 {
+  position: relative;
+  font-size: var(--fs-24);
+  font-family: var(--font-shantell-sans);
+  color: var(--color-dimgray);
+  text-align: left;
+}
+@media screen and (max-width: 750px) {
+  .studySessionPanel {
+    gap: var(--gap-20);
+    padding-left: var(--padding-30);
+    padding-right: var(--padding-30);
+    box-sizing: border-box;
+  }
+  .studySession {
+    font-size: var(--fs-24);
+  }
+  .inputRestrictionMode {
+    flex-wrap: wrap;
+  }
+}
+@media screen and (max-width: 675px) {
+  .inputForm {
+    max-width: 100%;
+  }
+  .inputFocusDuration,
+  .inputGoal {
+    flex-wrap: wrap;
+  }
+}
+@media screen and (max-width: 450px) {
+  .studySessionPanel {
+    padding-top: var(--padding-26);
+    padding-bottom: var(--padding-26);
+    box-sizing: border-box;
+  }
+  .studySession {
+    font-size: var(--fs-18);
+  }
+  .goal {
+    font-size: var(--fs-16);
+  }
+}

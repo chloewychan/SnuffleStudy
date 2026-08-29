@@ -1,0 +1,23 @@
+.bunnyPage {
+  width: 100%;
+  position: relative;
+  background-color: var(--color-snow-100);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--padding-100) var(--padding-40) var(--padding-40);
+  box-sizing: border-box;
+  gap: var(--gap-40);
+  line-height: normal;
+  letter-spacing: normal;
+  text-align: left;
+  font-size: var(--fs-40);
+  color: var(--color-darkgray);
+  font-family: var(--font-pangolin);
+}
+@media screen and (max-width: 450px) {
+  .bunnyPage {
+    gap: var(--gap-20);
+  }
+}
