@@ -2,14 +2,6 @@ import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { Profile } from "../../infrastructure/backend/profileApi";
 
-// Stub data - no backend exists for bunny stats yet (confirmed during planning). Local
-// component state only; nothing here is persisted or sent via sendMessage.
-const STUB_METERS = [
-  { label: "Happiness", percent: 85 },
-  { label: "Productivity", percent: 62 },
-  { label: "Friendliness", percent: 79 },
-];
-
 // v3.3 Task 8: bunnyName/humanName used to be pure local stub state (no persistence, no backend -
 // confirmed directly against the pre-Task-8 repo). Now backed by the real `profiles` table via
 // PROFILE_GET_MINE/PROFILE_SAVE_MINE (infrastructure/backend/profileApi.ts,
@@ -26,10 +18,9 @@ const DEFAULT_HUMAN_NAME = "Hooman";
 export function BunnyTab() {
   const [bunnyName, setBunnyName] = useState(DEFAULT_BUNNY_NAME);
   const [humanName, setHumanName] = useState(DEFAULT_HUMAN_NAME);
-  const [showBunny, setShowBunny] = useState(true);
 
-  // Distinguishes "PROFILE_GET_MINE hasn't resolved yet" from "resolved, no row" - the Save
-  // button below is disabled until this is true, so a fast click can't overwrite a real saved
+  // Distinguishes "PROFILE_GET_MINE hasn't resolved yet" from "resolved, no row" - both Save
+  // buttons below are disabled until this is true, so a fast click can't overwrite a real saved
   // name with the stub defaults this component initializes state to before the fetch returns.
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -40,9 +31,18 @@ export function BunnyTab() {
   // tab needs). An explicit Save button, matching this codebase's existing convention for
   // multi-field forms with a deliberate commit step (OptionsApp.tsx's Settings save, AccountPage's
   // various actions), is the implementer's call the plan explicitly leaves open.
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  //
+  // v4.1 Task 5: split into two independent buttons/state trios so saving one field never shows
+  // the other as "Saving..." - both still send { humanName, bunnyName } together via
+  // PROFILE_SAVE_MINE (the message contract is unchanged), only the button-owned loading/success/
+  // error state is now per-field.
+  const [savingBunnyName, setSavingBunnyName] = useState(false);
+  const [bunnyNameSaveError, setBunnyNameSaveError] = useState<string | null>(null);
+  const [bunnyNameSaved, setBunnyNameSaved] = useState(false);
+
+  const [savingHumanName, setSavingHumanName] = useState(false);
+  const [humanNameSaveError, setHumanNameSaveError] = useState<string | null>(null);
+  const [humanNameSaved, setHumanNameSaved] = useState(false);
 
   useEffect(() => {
     sendMessage<{ ok: boolean; profile?: Profile | null; error?: string }>({
@@ -66,26 +66,48 @@ export function BunnyTab() {
       .finally(() => setLoaded(true));
   }, []);
 
-  function handleSave() {
-    setSaving(true);
-    setSaveError(null);
-    setSaved(false);
+  function handleSaveBunnyName() {
+    setSavingBunnyName(true);
+    setBunnyNameSaveError(null);
+    setBunnyNameSaved(false);
     sendMessage<{ ok: boolean; profile?: Profile; error?: string }>({
       type: "PROFILE_SAVE_MINE",
       payload: { humanName, bunnyName },
     })
       .then((res) => {
         if (!res.ok) {
-          setSaveError(res.error ?? "Could not save your names.");
+          setBunnyNameSaveError(res.error ?? "Could not save your bunny name.");
           return;
         }
-        setSaved(true);
+        setBunnyNameSaved(true);
       })
       .catch((err) => {
-        console.error("Failed to save bunny/human names", err);
-        setSaveError(err instanceof Error ? err.message : String(err));
+        console.error("Failed to save bunny name", err);
+        setBunnyNameSaveError(err instanceof Error ? err.message : String(err));
       })
-      .finally(() => setSaving(false));
+      .finally(() => setSavingBunnyName(false));
+  }
+
+  function handleSaveHumanName() {
+    setSavingHumanName(true);
+    setHumanNameSaveError(null);
+    setHumanNameSaved(false);
+    sendMessage<{ ok: boolean; profile?: Profile; error?: string }>({
+      type: "PROFILE_SAVE_MINE",
+      payload: { humanName, bunnyName },
+    })
+      .then((res) => {
+        if (!res.ok) {
+          setHumanNameSaveError(res.error ?? "Could not save your human name.");
+          return;
+        }
+        setHumanNameSaved(true);
+      })
+      .catch((err) => {
+        console.error("Failed to save human name", err);
+        setHumanNameSaveError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => setSavingHumanName(false));
   }
 
   return (
@@ -100,10 +122,22 @@ export function BunnyTab() {
             value={bunnyName}
             onChange={(e) => {
               setBunnyName(e.target.value);
-              setSaved(false);
+              setBunnyNameSaved(false);
             }}
           />
         </div>
+        <button
+          type="button"
+          onClick={handleSaveBunnyName}
+          disabled={savingBunnyName || !loaded}
+        >
+          {savingBunnyName ? "Saving…" : "Save bunny name"}
+        </button>
+        {bunnyNameSaveError && (
+          <p role="alert">Couldn't save your bunny name: {bunnyNameSaveError}.</p>
+        )}
+        {bunnyNameSaved && !bunnyNameSaveError && <p>Saved.</p>}
+
         <div className="sp-field">
           <label htmlFor="human-name">Human Name:</label>
           <input
@@ -111,42 +145,21 @@ export function BunnyTab() {
             value={humanName}
             onChange={(e) => {
               setHumanName(e.target.value);
-              setSaved(false);
+              setHumanNameSaved(false);
             }}
           />
         </div>
-        <button type="button" onClick={handleSave} disabled={saving || !loaded}>
-          {saving ? "Saving…" : "Save"}
+        <button
+          type="button"
+          onClick={handleSaveHumanName}
+          disabled={savingHumanName || !loaded}
+        >
+          {savingHumanName ? "Saving…" : "Save human name"}
         </button>
-        {saveError && <p role="alert">Couldn't save your names: {saveError}.</p>}
-        {saved && !saveError && <p>Saved.</p>}
-        <label className="sp-field sp-field--toggle" htmlFor="show-bunny">
-          Show Bunny
-          <span className="sp-toggle">
-            <input
-              type="checkbox"
-              id="show-bunny"
-              className="sp-toggle__input"
-              checked={showBunny}
-              onChange={(e) => setShowBunny(e.target.checked)}
-            />
-            <span className="sp-toggle__track">
-              <span className="sp-toggle__knob" />
-            </span>
-          </span>
-        </label>
-      </section>
-
-      <section className="sp-card sp-bunny-tab__status">
-        <h2 className="sp-card__title">Status</h2>
-        {STUB_METERS.map(({ label, percent }) => (
-          <div key={label} className="sp-meter">
-            <span className="sp-meter__label">{label}</span>
-            <div className="sp-meter__track">
-              <div className="sp-meter__fill" style={{ width: `${percent}%` }} />
-            </div>
-          </div>
-        ))}
+        {humanNameSaveError && (
+          <p role="alert">Couldn't save your human name: {humanNameSaveError}.</p>
+        )}
+        {humanNameSaved && !humanNameSaveError && <p>Saved.</p>}
       </section>
     </div>
   );
