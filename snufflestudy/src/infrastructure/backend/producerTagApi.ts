@@ -84,6 +84,10 @@ interface ProducerTagRow {
   audio_url: string;
   duration_ms: number;
   created_at: string;
+  // v4.1 Task 1 (supabase/migrations/20260815000046_v4.1_nudge_vault.sql): soft-delete marker
+  // (Decision 2). Not surfaced on the ProducerTag domain type - listMine() already filters
+  // `deleted_at is null` server-side, so a caller of this file never needs to see it.
+  deleted_at?: string | null;
 }
 
 function toProducerTag(row: ProducerTagRow): ProducerTag {
@@ -327,6 +331,38 @@ export async function fetchProducerTagById(tagId: string): Promise<ProducerTag |
     throw new Error(error.message);
   }
   return data ? toProducerTag(data as ProducerTagRow) : null;
+}
+
+// v4.1 Task 1: "My vault" list - the owner's own non-deleted tags, newest first. Distinct from
+// PRODUCER_TAG_SENDS_FETCH (incoming, from friends) and the room-broadcast path - this is
+// specifically "audio I've recorded and kept," per Task 9's Nudge Vault box.
+export async function listMine(): Promise<ProducerTag[]> {
+  const userId = await requireUserId();
+  const { data, error } = await supabase
+    .from("producer_tags")
+    .select()
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data as ProducerTagRow[]).map(toProducerTag);
+}
+
+// v4.1 Task 1: soft delete (Decision 2) - a past send referencing this tag keeps playing for its
+// recipient (producer_tag_sends.tag_id has no cascade and no on-delete rule to lean on); this only
+// removes it from the owner's own vault list (listMine() above) and from future send dropdowns.
+// The existing "owner can manage their own producer tags" FOR ALL policy (20260815000002) already
+// covers this UPDATE, and the immutable-columns trigger (20260815000021) only pins
+// user_id/audio_url/duration_ms/created_at, so deleted_at is free to change - see
+// supabase/migrations/20260815000046_v4.1_nudge_vault.sql's own comment.
+export async function softDelete(tagId: string): Promise<void> {
+  const { error, data } = await supabase
+    .from("producer_tags")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", tagId)
+    .select();
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error("That nudge is already gone.");
 }
 
 // Shared implementation behind fetchIncomingProducerTagSends/pollIncomingProducerTagSends below -

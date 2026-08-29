@@ -360,6 +360,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
             senderUserId: "user-b",
             recipientUserId: "user-a",
             messageId: "keep-going",
+            customBody: null,
             sentAt: Date.now(),
           },
         ],
@@ -474,6 +475,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
             senderUserId: "user-b",
             recipientUserId: "user-a",
             messageId: "some-future-message-id",
+            customBody: null,
             sentAt: Date.now(),
           },
         ],
@@ -495,6 +497,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
           senderUserId: "user-b",
           recipientUserId: "user-a",
           messageId: "keep-going",
+          customBody: null,
           sentAt: Date.now(),
         };
       }

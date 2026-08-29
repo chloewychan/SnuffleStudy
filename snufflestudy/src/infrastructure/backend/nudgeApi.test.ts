@@ -54,7 +54,7 @@ describe("nudgeApi.sendNudge", () => {
     const builder = makeBuilder({ data: null, error: null });
     const fromSpy = vi.spyOn(supabase, "from").mockReturnValue(builder as never);
 
-    const result = await sendNudge("user-r", "keep-going");
+    const result = await sendNudge("user-r", { kind: "catalog", messageId: "keep-going" });
 
     expect(fromSpy).toHaveBeenCalledWith("nudges");
     expect(builder.insert).toHaveBeenCalledWith({
@@ -69,7 +69,7 @@ describe("nudgeApi.sendNudge", () => {
     mockSignedIn("user-s");
     const fromSpy = vi.spyOn(supabase, "from");
 
-    const result = await sendNudge("user-r", "not-a-real-message");
+    const result = await sendNudge("user-r", { kind: "catalog", messageId: "not-a-real-message" });
 
     expect(fromSpy).not.toHaveBeenCalled();
     expect(result.ok).toBe(false);
@@ -86,7 +86,7 @@ describe("nudgeApi.sendNudge", () => {
     );
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const result = await sendNudge("user-r", "keep-going");
+    const result = await sendNudge("user-r", { kind: "catalog", messageId: "keep-going" });
 
     expect(result.ok).toBe(false);
     expect(result.error).toBeTruthy();
@@ -98,7 +98,7 @@ describe("nudgeApi.sendNudge", () => {
     mockSignedOut();
     const fromSpy = vi.spyOn(supabase, "from");
 
-    const result = await sendNudge("user-r", "keep-going");
+    const result = await sendNudge("user-r", { kind: "catalog", messageId: "keep-going" });
 
     expect(fromSpy).not.toHaveBeenCalled();
     expect(result).toEqual({ ok: false, error: expect.any(String) });
@@ -108,7 +108,7 @@ describe("nudgeApi.sendNudge", () => {
     vi.spyOn(supabase.auth, "getSession").mockRejectedValue(new Error("boom"));
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const result = await sendNudge("user-r", "keep-going");
+    const result = await sendNudge("user-r", { kind: "catalog", messageId: "keep-going" });
 
     expect(result.ok).toBe(false);
     expect(consoleErrorSpy).toHaveBeenCalled();

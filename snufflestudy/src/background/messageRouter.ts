@@ -23,6 +23,7 @@ import { supabase } from "../infrastructure/backend/supabaseClient";
 import * as friendshipApi from "../infrastructure/backend/friendshipApi";
 import * as sessionStatusSyncApi from "../infrastructure/backend/sessionStatusSyncApi";
 import * as nudgeApi from "../infrastructure/backend/nudgeApi";
+import * as nudgeVaultApi from "../infrastructure/backend/nudgeVaultApi";
 import * as friendRequestApi from "../infrastructure/backend/friendRequestApi";
 import * as digestApi from "../infrastructure/backend/digestApi";
 import * as friendshipSettingsApi from "../infrastructure/backend/friendshipSettingsApi";
@@ -593,7 +594,16 @@ async function routeMessage(
       // sendNudge already translates a server-side (RLS/can_send_nudge()) rejection into
       // { ok: false, error } - see nudgeApi.ts - never throws for that case, so this stays a
       // thin pass-through like every other case here.
-      return nudgeApi.sendNudge(message.payload.friendUserId, message.payload.messageId);
+      //
+      // v4.1 Task 1 (Decision 6): the payload union is narrowed into a NudgeSource here, at the
+      // router boundary - "vaultTextId" in message.payload distinguishes the two branches
+      // (mirrors this file's other discriminated-payload cases), so nudgeApi.sendNudge() itself
+      // never has to inspect the raw wire payload shape.
+      const source: nudgeApi.NudgeSource =
+        "vaultTextId" in message.payload
+          ? { kind: "vault", vaultTextId: message.payload.vaultTextId }
+          : { kind: "catalog", messageId: message.payload.messageId };
+      return await nudgeApi.sendNudge(message.payload.friendUserId, source);
     }
 
     case "NUDGES_FETCH": {
@@ -758,6 +768,31 @@ async function routeMessage(
     case "PRODUCER_TAG_FETCH_BY_ID": {
       const tag = await producerTagApi.fetchProducerTagById(message.payload.tagId);
       return { ok: true, tag };
+    }
+
+    case "PRODUCER_TAG_LIST_MINE": {
+      const tags = await producerTagApi.listMine();
+      return { ok: true, tags };
+    }
+
+    case "PRODUCER_TAG_DELETE": {
+      await producerTagApi.softDelete(message.payload.tagId);
+      return { ok: true };
+    }
+
+    case "NUDGE_VAULT_TEXT_CREATE": {
+      const text = await nudgeVaultApi.createVaultText(message.payload.body);
+      return { ok: true, text };
+    }
+
+    case "NUDGE_VAULT_TEXT_LIST": {
+      const texts = await nudgeVaultApi.listMyVaultTexts();
+      return { ok: true, texts };
+    }
+
+    case "NUDGE_VAULT_TEXT_DELETE": {
+      await nudgeVaultApi.deleteVaultText(message.payload.id);
+      return { ok: true };
     }
 
     case "PROFILE_GET_MINE": {

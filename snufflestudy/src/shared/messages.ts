@@ -97,7 +97,14 @@ export type ExtensionMessage =
   // server-side (see supabase/migrations/20260815000007_v2_nudges.sql's can_send_nudge()); this
   // handler is a thin pass-through, same convention as every other message case in
   // messageRouter.ts.
-  | { type: "NUDGE_SEND"; payload: { friendUserId: string; messageId: string } }
+  //
+  // v4.1 Task 1 (Decision 6): payload becomes a union - the existing catalog path (`messageId`
+  // against the fixed NUDGE_MESSAGES list) is kept, not replaced (the scope doc explicitly defers
+  // removing NUDGE_MESSAGES to v4.2); `vaultTextId` is purely additive, routing to a Nudge Vault
+  // written text (nudgeVaultApi.ts / supabase/migrations/20260815000046_v4.1_nudge_vault.sql)
+  // copied into the new nudges.custom_body column at send time (Decision 1). Every existing caller
+  // that still sends `{ friendUserId, messageId }` keeps working unchanged.
+  | { type: "NUDGE_SEND"; payload: { friendUserId: string } & ({ messageId: string } | { vaultTextId: string }) }
   // v2 Task 7: routes to nudgeApi.fetchIncomingNudges - the on-demand counterpart to
   // FRIEND_EVENTS_FETCH above, used by FriendGroupPanel.tsx to render incoming nudges. The
   // background's alarm-driven poll (alarmHandlers.ts) calls nudgeApi.pollIncomingNudges directly
@@ -262,6 +269,29 @@ export type ExtensionMessage =
   // { ok: true, tag: null } (not a throw) if the tag genuinely doesn't exist/isn't visible, mirroring
   // maybeSingle()'s own null-not-error distinction.
   | { type: "PRODUCER_TAG_FETCH_BY_ID"; payload: { tagId: string } }
+  // v4.1 Task 1: "My vault" list - producerTagApi.listMine(), the owner's own non-deleted
+  // producer tags, newest first (supabase/migrations/20260815000046_v4.1_nudge_vault.sql's
+  // producer_tags.deleted_at). Distinct from PRODUCER_TAG_SENDS_FETCH above (incoming, from
+  // friends) - this is "audio I've recorded and kept," per Task 9's Nudge Vault box.
+  | { type: "PRODUCER_TAG_LIST_MINE" }
+  // v4.1 Task 1: routes to producerTagApi.softDelete (Decision 2) - a past send referencing this
+  // tag keeps playing for its recipient; this only removes it from the owner's own vault list and
+  // from future send dropdowns. Throws on failure (not signed in, or the tag doesn't exist/isn't
+  // owned by the caller) - same outer-catch convention as above.
+  | { type: "PRODUCER_TAG_DELETE"; payload: { tagId: string } }
+  // v4.1 Task 1: routes to nudgeVaultApi.createVaultText - the Nudge Vault box's written-nudge
+  // textbox (Task 9). Throws on failure (not signed in, insert error, the body-length CHECK
+  // constraint) - same outer-catch convention as above.
+  | { type: "NUDGE_VAULT_TEXT_CREATE"; payload: { body: string } }
+  // v4.1 Task 1: routes to nudgeVaultApi.listMyVaultTexts - the Nudge Vault box's own written-
+  // nudge list, and the source for every "pick a written nudge to send" dropdown elsewhere
+  // (Friends box, Study Room footer - Tasks 7/9).
+  | { type: "NUDGE_VAULT_TEXT_LIST" }
+  // v4.1 Task 1: routes to nudgeVaultApi.deleteVaultText - the Nudge Vault box's per-item delete
+  // button. Throws on failure (not signed in, or the text doesn't exist/isn't owned by the
+  // caller) - same outer-catch convention as above. A nudge already sent from this vault text is
+  // unaffected - its custom_body was copied at send time (Decision 1), not referenced live.
+  | { type: "NUDGE_VAULT_TEXT_DELETE"; payload: { id: string } }
   // v3.3 Task 8: routes to profileApi.getMyProfile() - BunnyTab.tsx's on-mount fetch. Returns
   // profile: null (not a throw, not an error) when the signed-in user has no profiles row yet -
   // BunnyTab.tsx's own stub-default fallback ("Snuffles"/"Hooman") handles that. Throws on a real

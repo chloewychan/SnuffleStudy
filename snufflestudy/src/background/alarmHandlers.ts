@@ -116,7 +116,11 @@ async function pollNudgeUpdates(): Promise<void> {
       !settings.liveNudgesNotificationsEnabled || isWithinQuietHours(settings.quietHours);
     for (const nudge of result.nudges) {
       if (suppressToast) continue;
-      const messageText = nudgeMessageText(nudge.messageId) ?? "sent you a nudge";
+      // v4.1 Task 1: mirrors IncomingNudgeCard.tsx's identical fallback - a nudge is now either
+      // catalog-authored (messageId) or vault-authored (customBody, copied in at send time), and
+      // messageId is nullable so nudgeMessageText() can no longer be called on it unconditionally.
+      const messageText =
+        nudge.customBody ?? (nudge.messageId ? nudgeMessageText(nudge.messageId) : null) ?? "sent you a nudge";
       showNotification(
         `friend-nudge-${nudge.id}`,
         "Nudge from a friend",

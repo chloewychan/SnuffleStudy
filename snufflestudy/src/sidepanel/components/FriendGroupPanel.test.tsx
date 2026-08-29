@@ -64,6 +64,7 @@ const sampleNudge: FriendNudge = {
   senderUserId: "user-friend",
   recipientUserId: "user-self",
   messageId: "keep-going",
+  customBody: null,
   sentAt: new Date("2026-01-01T12:05:00Z").getTime(),
 };
 

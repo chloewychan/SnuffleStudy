@@ -22,7 +22,11 @@ export function IncomingNudgeCard({ nudge, onDismiss }: { nudge: FriendNudge; on
       ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
       : false;
   const imageSrc = reducedMotion ? asset.staticFrame : asset.frames[0];
-  const messageText = nudgeMessageText(nudge.messageId) ?? "sent you a nudge.";
+  // v4.1 Task 1: a nudge is now either catalog-authored (messageId) or vault-authored
+  // (customBody, copied in at send time - Decision 1); exactly one is ever set. customBody takes
+  // priority when present, since it's already display text needing no catalog lookup.
+  const messageText =
+    nudge.customBody ?? (nudge.messageId ? nudgeMessageText(nudge.messageId) : null) ?? "sent you a nudge.";
 
   return (
     <div className="snuffles-overlay snuffles-overlay--warning" role="alert">

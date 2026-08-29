@@ -5,11 +5,18 @@ import { isValidNudgeMessageId } from "../../domain/accountability/nudgeMessages
 // Row shape returned to callers is camelCase, mirroring sessionStatusSyncApi.ts's FriendEvent /
 // friendGroupApi.ts's row->interface mapping style, even though the underlying Postgres columns
 // are snake_case (see supabase/migrations/20260815000007_v2_nudges.sql).
+//
+// v4.1 Task 1: messageId is now nullable and customBody is new (supabase/migrations/
+// 20260815000046_v4.1_nudge_vault.sql's nudges_exactly_one_body check - exactly one of the two is
+// ever set on a given row). A vault-authored written nudge is copied into custom_body at send
+// time (Decision 1), never a live reference to nudge_vault_texts - see sendNudge()'s "vault"
+// branch below.
 export interface FriendNudge {
   id: string;
   senderUserId: string;
   recipientUserId: string;
-  messageId: string;
+  messageId: string | null;
+  customBody: string | null;
   sentAt: number;
 }
 
@@ -17,7 +24,8 @@ interface NudgeRow {
   id: string;
   sender_user_id: string;
   recipient_user_id: string;
-  message_id: string;
+  message_id: string | null;
+  custom_body: string | null;
   sent_at: string;
 }
 
@@ -27,33 +35,43 @@ function toFriendNudge(row: NudgeRow): FriendNudge {
     senderUserId: row.sender_user_id,
     recipientUserId: row.recipient_user_id,
     messageId: row.message_id,
+    customBody: row.custom_body,
     sentAt: new Date(row.sent_at).getTime(),
   };
 }
 
-// Sends a predefined nudge to a friend. The toggle/cooldown gate is entirely server-side (the
-// `nudges` INSERT policy, routed through the can_send_nudge() SECURITY DEFINER function - see
-// supabase/migrations/20260815000007_v2_nudges.sql) - this function never pre-checks
-// friendship_settings or the cooldown client-side, since the plan requires the rejection to be
-// enforceable even against a client that lies about its own state (a malicious client could
-// always bypass a client-side check with a raw REST call; only the server-side gate is load-
-// bearing).
+// v4.1 Task 1: a caller of sendNudge() picks exactly one source - the existing fixed catalog
+// (Decision 6: kept, not replaced - the scope doc explicitly defers removing NUDGE_MESSAGES to
+// v4.2) or a Nudge Vault written text, copied into custom_body at insert time (Decision 1).
+export type NudgeSource = { kind: "catalog"; messageId: string } | { kind: "vault"; vaultTextId: string };
+
+// Sends a nudge (catalog or vault-authored, per NudgeSource) to a friend. The toggle/cooldown
+// gate is entirely server-side (the `nudges` INSERT policy, routed through the can_send_nudge()
+// SECURITY DEFINER function - see supabase/migrations/20260815000007_v2_nudges.sql) - this
+// function never pre-checks friendship_settings or the cooldown client-side, since the plan
+// requires the rejection to be enforceable even against a client that lies about its own state (a
+// malicious client could always bypass a client-side check with a raw REST call; only the
+// server-side gate is load-bearing).
 //
-// The only client-side check here is messageId validity against the fixed catalog
+// The catalog branch's only client-side check is messageId validity against the fixed catalog
 // (nudgeMessages.ts) - this is cheap data-integrity validation, not a security boundary: an
 // invalid messageId would just fail to match anything meaningful downstream too, but rejecting
 // before even attempting the insert avoids a wasted round trip for what's always a client bug
 // (a real attacker can still insert any string via a raw REST call - can_send_nudge() doesn't
 // validate messageId's shape, only who's allowed to send/receive at all - that's fine, an
 // unrecognized messageId is a display concern for the recipient, not a security one).
+//
+// The vault branch (v4.1 Task 1, Decision 1) looks up the vault text's body and copies it into
+// custom_body at insert time, rather than storing a live reference to nudge_vault_texts - a sent
+// nudge must keep displaying correctly for its recipient even after the sender later deletes that
+// vault text. The lookup select is itself gated by nudge_vault_texts' "owner can manage their own
+// vault texts" RLS policy (supabase/migrations/20260815000046_v4.1_nudge_vault.sql) - a
+// vaultTextId belonging to a different user's vault returns no row, not another user's text, so
+// this is a real (not merely client-trusted) ownership check.
 export async function sendNudge(
   friendUserId: string,
-  messageId: string
+  source: NudgeSource
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!isValidNudgeMessageId(messageId)) {
-    return { ok: false, error: "Not a recognized nudge message." };
-  }
-
   const auth = await checkAuth();
   if (!auth.ok) {
     return { ok: false, error: "Could not verify your sign-in status." };
@@ -62,11 +80,39 @@ export async function sendNudge(
     return { ok: false, error: "Not signed in." };
   }
 
-  const { error } = await supabase.from("nudges").insert({
-    sender_user_id: auth.userId,
-    recipient_user_id: friendUserId,
-    message_id: messageId,
-  });
+  let insertPayload: {
+    sender_user_id: string;
+    recipient_user_id: string;
+    message_id?: string;
+    custom_body?: string;
+  };
+
+  if (source.kind === "catalog") {
+    if (!isValidNudgeMessageId(source.messageId)) {
+      return { ok: false, error: "Not a recognized nudge message." };
+    }
+    insertPayload = {
+      sender_user_id: auth.userId,
+      recipient_user_id: friendUserId,
+      message_id: source.messageId,
+    };
+  } else {
+    const { data: vaultText, error: vaultError } = await supabase
+      .from("nudge_vault_texts")
+      .select("body")
+      .eq("id", source.vaultTextId)
+      .single();
+    if (vaultError || !vaultText) {
+      return { ok: false, error: "This nudge no longer exists in your vault." };
+    }
+    insertPayload = {
+      sender_user_id: auth.userId,
+      recipient_user_id: friendUserId,
+      custom_body: vaultText.body,
+    };
+  }
+
+  const { error } = await supabase.from("nudges").insert(insertPayload);
 
   if (error) {
     // RLS denies the INSERT (a toggle is off, or the cooldown is active) with a generic Postgres

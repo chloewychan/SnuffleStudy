@@ -380,7 +380,7 @@ describe("messageRouter — FRIEND_* (v3.4 Task 2 - replaces GROUP_*)", () => {
 });
 
 describe("messageRouter — NUDGE_*", () => {
-  it("NUDGE_SEND calls nudgeApi.sendNudge with the given friendUserId/messageId and returns its result verbatim", async () => {
+  it("NUDGE_SEND calls nudgeApi.sendNudge with the given friendUserId and a catalog NudgeSource, and returns its result verbatim", async () => {
     const spy = vi.spyOn(nudgeApi, "sendNudge").mockResolvedValue({ ok: true });
 
     const result = (await handleMessage({
@@ -388,7 +388,19 @@ describe("messageRouter — NUDGE_*", () => {
       payload: { friendUserId: "user-r", messageId: "keep-going" },
     })) as { ok: boolean };
 
-    expect(spy).toHaveBeenCalledWith("user-r", "keep-going");
+    expect(spy).toHaveBeenCalledWith("user-r", { kind: "catalog", messageId: "keep-going" });
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("NUDGE_SEND calls nudgeApi.sendNudge with a vault NudgeSource when the payload carries a vaultTextId instead of a messageId (v4.1 Task 1)", async () => {
+    const spy = vi.spyOn(nudgeApi, "sendNudge").mockResolvedValue({ ok: true });
+
+    const result = (await handleMessage({
+      type: "NUDGE_SEND",
+      payload: { friendUserId: "user-r", vaultTextId: "vault-text-1" },
+    })) as { ok: boolean };
+
+    expect(spy).toHaveBeenCalledWith("user-r", { kind: "vault", vaultTextId: "vault-text-1" });
     expect(result).toEqual({ ok: true });
   });
 
@@ -414,6 +426,7 @@ describe("messageRouter — NUDGE_*", () => {
         senderUserId: "user-s",
         recipientUserId: "user-r",
         messageId: "keep-going",
+        customBody: null,
         sentAt: Date.now(),
       },
     ];
