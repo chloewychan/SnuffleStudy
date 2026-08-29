@@ -243,17 +243,11 @@
   border-radius: var(--radius-sm);
 }
 
-/* v4.1 Task 7: room list items are now click-to-select (Study tab's Study Rooms box) instead of
-   each carrying its own Join button - same minimal, functional selected-state treatment as the
-   video tiles above. */
-.study-room-panel__room {
-  cursor: pointer;
-}
-
-.study-room-panel__room--selected {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
+/* v4.2 Task 5: .study-room-panel__room/.study-room-panel__room--selected (v4.1 Task 7's
+   click-to-select room list) deleted here - StudyRoomsBox.tsx no longer renders these classnames
+   at all, replaced by StudyRoomsPanel.module.css's own .buttonSmall/[aria-pressed="true"]
+   selected-state styling. Confirmed zero remaining references anywhere in snufflestudy/src before
+   deleting (grep-checked). */
 
 /* v4.1 Task 7: the persistent app-shell footer (AppFooter.tsx) - a sibling of Header.tsx/the tab
    content, stacking the Study Room footer and (Task 8) the Nudges & Unlock Requests footer beneath

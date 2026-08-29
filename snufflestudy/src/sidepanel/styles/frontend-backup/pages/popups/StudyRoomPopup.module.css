@@ -1,3 +1,19 @@
+/* v4.2 Task 5 addition (not in frontend-backup's original file): frontend-backup renders this
+   as its own standalone routed "page" (see StudyRoomPopup.tsx's original App.tsx route) - this
+   app has no routing (plan's Global Constraints), so it's mounted as a real modal overlay
+   instead. .overlayBackdrop is the fixed, dismissible (click-to-close) scrim; .studyRoomPopup
+   itself becomes the centered dialog card rather than a full-width page section. */
+.overlayBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-20, 20px);
+  background-color: rgb(from var(--color-dimgray) r g b / 0.5);
+  box-sizing: border-box;
+}
 .mainContainer,
 .studyRoomPopup {
   display: flex;
@@ -5,11 +21,33 @@
 }
 .studyRoomPopup {
   width: 100%;
+  max-width: 420px;
+  max-height: 100%;
+  overflow-y: auto;
   position: relative;
-  overflow: hidden;
   align-items: flex-start;
   line-height: var(--lh-normal);
   letter-spacing: var(--ls-normal);
+}
+.popupHeader {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-10);
+}
+/* Same button-chrome-reset pattern as HeaderBar.module.css's .buttonIconReset (Task 2) - this
+   close icon is a real <button> here (needed since the popup is a real dismissible modal now),
+   not a static <img> like frontend-backup's own markup has nowhere in this file. */
+.closeButtonReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  flex-shrink: 0;
 }
 .mainContainer {
   align-self: stretch;
@@ -69,6 +107,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+/* v4.2 Task 5 addition: "Archive Study Room" is a real, disable-while-in-flight action now -
+   same disabled-look precedent as .saveButtonReset:disabled (Task 3)/.buttonLarge3 (this task's
+   own StudyRoomsPanel.module.css addition). */
+.buttonLarge:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
 }
 .button {
   position: relative;

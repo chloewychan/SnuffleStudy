@@ -54,6 +54,26 @@
   width: var(--width-36);
   position: relative;
 }
+/* v4.2 Task 5 addition (not in frontend-backup's original file): same .saveButtonReset pattern
+   Task 3 added to InputBunyName.module.css - this checkmark is now a real "Create study room"
+   button (calls handleCreateRoom), not a static <img>. */
+.buttonBoolIconReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.buttonBoolIconReset:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
+}
 .toggleButtonBackgrounds {
   position: absolute;
   height: 100%;

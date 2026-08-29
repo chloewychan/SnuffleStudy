@@ -12,11 +12,24 @@ import type { ExtensionMessage } from "../../shared/messages";
 // list/create/manage-access box) and StudyRoomFooter.tsx (the persistent joined-room view,
 // covered by its own test file). This file's coverage is StudyRoomPanel.test.tsx's old "not
 // joined" branch coverage, adapted for: click-to-select + one "Join study room" button (replacing
-// each room's own per-item Join button), and "Archive this room" now rendered inside
-// ManageAccessSection instead of beside it. Join/leave mechanics themselves (the shared session)
-// are exercised here only through this box's own "select a room, click Join" flow - the deeper
+// each room's own per-item Join button), and "Archive this room" now rendered inside the room's
+// access popup instead of beside it. Join/leave mechanics themselves (the shared session) are
+// exercised here only through this box's own "select a room, click Join" flow - the deeper
 // join/leave/tile/media-event behavior is StudyRoomFooter.test.tsx's concern, since that's what
 // actually renders once joined.
+//
+// v4.2 Task 5: re-skinned as frontend-backup's StudyRoomsPanel.tsx design. The "join the
+// currently-selected room" button keeps its pre-v4.2 button copy exactly, deliberately NOT the
+// design's own literal label for that button - see StudyRoomsBox.tsx's own header comment: it
+// must never collide, textually, with the removed join-by-code heading's copy (both the
+// orchestrator's grep and this file's own DoD wording ("clicking 'Join study room'") assume the
+// lowercase, unchanged text survives). The create-room control lost its visible button text
+// (now an icon-only button, "Create study room" as its accessible name, same precedent as Task
+// 4's "Add task"); the pre-join camera/mic checkboxes became icon toggle buttons (aria-pressed,
+// not aria-checked). The old inline "Manage access" toggle/add-remove-friend flow is gone
+// entirely (Decision 3, settled) - replaced by StudyRoomAccessPopup, covered in its own test file
+// (StudyRoomAccessPopup.test.tsx); this file only covers how the popup gets opened for an owned
+// room and wired to the right room's archive flow.
 vi.mock("../../infrastructure/backend/studyRoomApi", () => ({
   joinRoom: vi.fn(),
   subscribeToPresence: vi.fn(),
@@ -46,6 +59,7 @@ function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Ha
     STUDY_ROOM_CREATE: () => ({ ok: true, room: sampleRoom }),
     STUDY_ROOM_LIST_PARTICIPANTS: () => ({ ok: true, participants: [] }),
     STUDY_ROOM_ARCHIVE: () => ({ ok: true }),
+    STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
   };
   return (msg: ExtensionMessage) => {
     const handler = overrides[msg.type] ?? defaults[msg.type];
@@ -105,10 +119,10 @@ describe("StudyRoomsBox", () => {
     renderBox();
     await screen.findByText("No study rooms yet — create one to get started.");
 
-    fireEvent.change(screen.getByLabelText("New room name"), {
+    fireEvent.change(screen.getByLabelText("Create Study Room"), {
       target: { value: "Thursday study group" },
     });
-    fireEvent.click(screen.getByText("Create room"));
+    fireEvent.click(screen.getByRole("button", { name: "Create study room" }));
 
     expect(await screen.findByText("Thursday study group")).toBeInTheDocument();
     expect(sendMessageSpy).toHaveBeenCalledWith({
@@ -213,8 +227,10 @@ describe("StudyRoomsBox", () => {
 });
 
 // v3.3 Task 6: archive study rooms (soft delete). "Archive this room" is an owner-only action -
-// v4.1 Task 7: now rendered inside ManageAccessSection, only once "Manage access" is opened.
-describe("StudyRoomsBox — Archive (v3.3 Task 6, relocated in v4.1 Task 7)", () => {
+// v4.1 Task 7: relocated inside the (then-inline) manage-access section - v4.2 Task 5: now lives
+// inside StudyRoomAccessPopup, opened via the room's options icon (owner-only, matching today's
+// `room.ownerUserId === selfUserId` gate).
+describe("StudyRoomsBox — Archive (v3.3 Task 6, moved into the access popup in v4.2 Task 5)", () => {
   const ownRoom = {
     id: "room-2",
     name: "My own room",
@@ -222,42 +238,10 @@ describe("StudyRoomsBox — Archive (v3.3 Task 6, relocated in v4.1 Task 7)", ()
     createdAt: "2026-01-01T00:00:00.000Z",
   };
 
-  it("does not show an Archive button until Manage access is opened for an owned room", async () => {
-    vi.spyOn(messenger, "sendMessage").mockImplementation(
-      routeSendMessage({
-        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
-        FRIENDS_LIST: () => ({ ok: true, friendIds: [] }),
-        STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
-      })
-    );
-
-    renderBox();
-    await screen.findByText("My own room");
-
-    expect(screen.queryByText("Archive this room")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("Manage access"));
-
-    expect(await screen.findByText("Archive this room")).toBeInTheDocument();
-  });
-
-  it("does not show a Manage access or Archive button for a room this user does not own", async () => {
-    vi.spyOn(messenger, "sendMessage").mockImplementation(
-      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
-    );
-
-    renderBox();
-    await screen.findByText("Thursday study group");
-
-    expect(screen.queryByText("Manage access")).not.toBeInTheDocument();
-    expect(screen.queryByText("Archive this room")).not.toBeInTheDocument();
-  });
-
-  it("archives an owned room via STUDY_ROOM_ARCHIVE and removes it from the list without a full reload", async () => {
+  it("archives an owned room via STUDY_ROOM_ARCHIVE, removes it from the list, and closes the popup", async () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
         STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom, ownRoom] }),
-        FRIENDS_LIST: () => ({ ok: true, friendIds: [] }),
         STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
         STUDY_ROOM_ARCHIVE: () => ({ ok: true }),
       })
@@ -265,10 +249,10 @@ describe("StudyRoomsBox — Archive (v3.3 Task 6, relocated in v4.1 Task 7)", ()
 
     renderBox();
     await screen.findByText("My own room");
-    fireEvent.click(screen.getByText("Manage access"));
-    await screen.findByText("Archive this room");
+    fireEvent.click(screen.getByRole("button", { name: /manage access for my own room/i }));
+    await screen.findByText("Archive Study Room");
 
-    fireEvent.click(screen.getByText("Archive this room"));
+    fireEvent.click(screen.getByRole("button", { name: "Archive Study Room" }));
 
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith({
@@ -277,14 +261,14 @@ describe("StudyRoomsBox — Archive (v3.3 Task 6, relocated in v4.1 Task 7)", ()
       })
     );
     await waitFor(() => expect(screen.queryByText("My own room")).not.toBeInTheDocument());
+    expect(screen.queryByText("Archive Study Room")).not.toBeInTheDocument();
     expect(screen.getByText("Thursday study group")).toBeInTheDocument();
   });
 
-  it("shows the error inline and keeps the room in the list when STUDY_ROOM_ARCHIVE fails", async () => {
+  it("shows the error inline and keeps the room and popup open when STUDY_ROOM_ARCHIVE fails", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
         STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
-        FRIENDS_LIST: () => ({ ok: true, friendIds: [] }),
         STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
         STUDY_ROOM_ARCHIVE: () => ({ ok: false, error: "not the room owner" }),
       })
@@ -292,30 +276,36 @@ describe("StudyRoomsBox — Archive (v3.3 Task 6, relocated in v4.1 Task 7)", ()
 
     renderBox();
     await screen.findByText("My own room");
-    fireEvent.click(screen.getByText("Manage access"));
-    await screen.findByText("Archive this room");
+    fireEvent.click(screen.getByRole("button", { name: /manage access for my own room/i }));
+    await screen.findByText("Archive Study Room");
 
-    fireEvent.click(screen.getByText("Archive this room"));
+    fireEvent.click(screen.getByRole("button", { name: "Archive Study Room" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("not the room owner");
-    expect(screen.getByText("My own room")).toBeInTheDocument();
+    // "My own room" now appears twice (the room-list button and the still-open popup's own
+    // title) - assert via the room-select button's own accessible name to disambiguate.
+    expect(screen.getByRole("button", { name: "My own room" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Archive Study Room")).toBeInTheDocument();
   });
 });
 
-describe("StudyRoomsBox — Manage access (v3.3 Task 13)", () => {
+// v4.2 Task 5: replaces the old "Manage access" add/remove-friend toggle (v3.3 Task 13) - Decision
+// 3 (settled) narrows this to a real StudyRoomAccessPopup with no add-toggle at all. The popup's
+// own list/remove/dismiss behavior is covered in StudyRoomAccessPopup.test.tsx; this describe
+// block only covers how StudyRoomsBox decides whether/which popup to show.
+describe("StudyRoomsBox — access popup (v4.2 Task 5, replaces the old Manage access toggle)", () => {
   const ownRoom = {
     id: "room-2",
     name: "My own room",
     ownerUserId: "user-self",
     createdAt: "2026-01-01T00:00:00.000Z",
   };
-  const friendIds = ["friend-1"];
 
-  it("shows a Manage access button for a room this user owns, expanding to list friends via FRIENDS_LIST with an Invite toggle", async () => {
+  it("shows an options/manage-access icon for a room this user owns, and opens the access popup for exactly that room", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
         STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
-        FRIENDS_LIST: () => ({ ok: true, friendIds }),
         STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
       })
     );
@@ -323,44 +313,54 @@ describe("StudyRoomsBox — Manage access (v3.3 Task 13)", () => {
     renderBox();
     await screen.findByText("My own room");
 
-    fireEvent.click(screen.getByText("Manage access"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    expect(await screen.findByText("friend-1")).toBeInTheDocument();
-    expect(screen.getByText("Invite")).toBeInTheDocument();
-    expect(screen.queryByText("user-self")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /manage access for my own room/i }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveAccessibleName("Manage access for My own room");
+    expect(screen.getByRole("heading", { name: "My own room" })).toBeInTheDocument();
   });
 
-  it("invites a friend via STUDY_ROOM_INVITEE_ADD and flips the toggle to Remove access", async () => {
-    const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
-      routeSendMessage({
-        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
-        FRIENDS_LIST: () => ({ ok: true, friendIds }),
-        STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
-        STUDY_ROOM_INVITEE_ADD: () => ({ ok: true }),
-      })
+  it("does not show an options/manage-access icon for a room this user does not own", async () => {
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
     );
 
     renderBox();
-    await screen.findByText("My own room");
-    fireEvent.click(screen.getByText("Manage access"));
-    await screen.findByText("Invite");
+    await screen.findByText("Thursday study group");
 
-    fireEvent.click(screen.getByText("Invite"));
-
-    await waitFor(() =>
-      expect(sendMessageSpy).toHaveBeenCalledWith({
-        type: "STUDY_ROOM_INVITEE_ADD",
-        payload: { roomId: "room-2", userId: "friend-1" },
-      })
-    );
-    expect(await screen.findByText("Remove access")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /manage access/i })).not.toBeInTheDocument();
   });
 
-  it("hides the section again when Manage access is toggled a second time", async () => {
+  it("closes the popup when its close button is clicked", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
         STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom] }),
-        FRIENDS_LIST: () => ({ ok: true, friendIds }),
+        STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
+      })
+    );
+
+    renderBox();
+    await screen.findByText("My own room");
+    fireEvent.click(screen.getByRole("button", { name: /manage access for my own room/i }));
+    await screen.findByRole("dialog");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("only ever shows one room's access popup at a time", async () => {
+    const otherOwnRoom = {
+      id: "room-3",
+      name: "Another owned room",
+      ownerUserId: "user-self",
+      createdAt: "2026-01-01T00:00:00.000Z",
+    };
+    vi.spyOn(messenger, "sendMessage").mockImplementation(
+      routeSendMessage({
+        STUDY_ROOM_LIST: () => ({ ok: true, rooms: [ownRoom, otherOwnRoom] }),
         STUDY_ROOM_INVITEES_LIST: () => ({ ok: true, invitees: [] }),
       })
     );
@@ -368,17 +368,23 @@ describe("StudyRoomsBox — Manage access (v3.3 Task 13)", () => {
     renderBox();
     await screen.findByText("My own room");
 
-    fireEvent.click(screen.getByText("Manage access"));
-    await screen.findByText("Invite");
+    fireEvent.click(screen.getByRole("button", { name: /manage access for my own room/i }));
+    await screen.findByRole("heading", { name: "My own room" });
 
-    fireEvent.click(screen.getByText("Hide manage access"));
-    expect(screen.queryByText("Invite")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /manage access for another owned room/i }));
+
+    expect(await screen.findByRole("heading", { name: "Another owned room" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "My own room" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 });
 
-// v3.3 Task 9: pre-join camera/mic checkboxes - mock-verified only (see StudyRoomFooter.test.tsx
+// v3.3 Task 9: pre-join camera/mic toggles - mock-verified only (see StudyRoomFooter.test.tsx
 // for mid-room toggle coverage, and StudyRoomPanel.test.tsx's old header comment for why real
 // device/permission behavior is deferred to Task 11's two-account QA pass).
+//
+// v4.2 Task 5: these were plain checkboxes before this task - re-skinned as icon toggle buttons
+// (aria-pressed, not aria-checked), matching the design's mic/camera icons.
 describe("StudyRoomsBox — pre-join camera/mic toggle (v3.3 Task 9)", () => {
   it("defaults both pre-join toggles to on, and passes them through to joinRoom's options", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
@@ -389,10 +395,12 @@ describe("StudyRoomsBox — pre-join camera/mic toggle (v3.3 Task 9)", () => {
     renderBox();
     await screen.findByText("Thursday study group");
 
-    expect(screen.getByLabelText("Join with camera on")).toBeChecked();
-    expect(screen.getByLabelText("Join with mic on")).toBeChecked();
+    expect(screen.getByRole("button", { name: "Camera" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Microphone" })).toHaveAttribute("aria-pressed", "true");
 
-    fireEvent.click(screen.getByLabelText("Join with camera on"));
+    fireEvent.click(screen.getByRole("button", { name: "Camera" }));
+    expect(screen.getByRole("button", { name: "Camera" })).toHaveAttribute("aria-pressed", "false");
+
     fireEvent.click(screen.getByText("Thursday study group"));
     fireEvent.click(screen.getByRole("button", { name: "Join study room" }));
 
@@ -419,7 +427,7 @@ describe("StudyRoomsBox — signed-out gate (v3.2 Task 2)", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create account" })).toBeInTheDocument();
     expect(screen.queryByText("Rooms among your friends")).not.toBeInTheDocument();
-    expect(screen.queryByText("New room name")).not.toBeInTheDocument();
+    expect(screen.queryByText("Create Study Room")).not.toBeInTheDocument();
   });
 
   it("does not show the sign-in prompt while sign-in status is still loading", async () => {

@@ -58,17 +58,42 @@
   align-items: center;
   opacity: 0.4;
 }
+/* v4.2 Task 5 addition: this is now a real, always-clickable room-select control - the static
+   design's opacity: 0.4 above reads as its "not selected" look; full opacity is this button's
+   real "selected" look (same functional distinction the pre-v4.2 .study-room-panel__room--selected
+   outline made, just expressed as this design's own dimmed/undimmed language instead). */
+.buttonSmall[aria-pressed="true"] {
+  opacity: 1;
+}
 .button6 {
   position: relative;
   font-size: var(--fs-24);
   font-family: var(--font-shantell-sans);
   color: var(--color-dimgray);
   text-align: left;
+  /* v4.2 Task 5 addition: this now wraps a real room-name string of unpredictable length inside
+     a fixed-height button, instead of frontend-backup's own static "Button" placeholder text. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .buttonIcon {
   height: var(--height-36);
   width: var(--width-36);
   position: relative;
+}
+/* v4.2 Task 5 addition (not in frontend-backup's original file): same .buttonIconReset pattern
+   Task 2 added to HeaderBar.module.css - this room's "options" icon is a real, clickable button
+   now (opens StudyRoomAccessPopup), not a static <img> with no button semantics at all. */
+.buttonIconReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  flex-shrink: 0;
 }
 .callOptionPanel {
   align-self: stretch;
@@ -84,6 +109,19 @@
   object-fit: cover;
   opacity: 0.75;
 }
+/* v4.2 Task 5 addition (not in frontend-backup's original file): the mic/camera icons are real,
+   clickable pre-join toggles now (setCameraOn/setMicOn), not static <img>s - same
+   .buttonIconReset-style pattern as this file's own addition above, scoped separately since these
+   two wrap .buttonLargeIcon instead of .buttonIcon. */
+.buttonLargeIconReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
 .buttonLarge3 {
   cursor: pointer;
   border: 3px solid var(--color-pink-100);
@@ -94,6 +132,16 @@
   align-items: center;
   justify-content: center;
   opacity: 0.4;
+}
+/* v4.2 Task 5 addition: "Join Study Room" is a real button now - the static design's opacity: 0.4
+   reads as its disabled look (matches this button's real disabled={selectedRoomId === null ||
+   joining !== null} state exactly, since nothing is selected on first render); full opacity is
+   its real enabled look, same .saveButtonReset:disabled-style precedent as Task 3. */
+.buttonLarge3:not(:disabled) {
+  opacity: 1;
+}
+.buttonLarge3:disabled {
+  cursor: not-allowed;
 }
 .button {
   position: relative;

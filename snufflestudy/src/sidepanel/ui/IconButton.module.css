@@ -26,3 +26,12 @@
   height: 16px;
   object-fit: contain;
 }
+
+/* v4.2 Task 5 addition (not in frontend-backup's original file): this component is now a real,
+   clickable action (see IconButton.tsx's added onClick/disabled props) - matches the
+   .saveButtonReset:disabled/.buttonList precedent from Tasks 2-4 for giving a newly-real control
+   a visible disabled look, since frontend-backup's own static CSS never needed one. */
+.iconButton:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
+}
