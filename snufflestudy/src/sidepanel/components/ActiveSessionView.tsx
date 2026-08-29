@@ -3,7 +3,7 @@ import { SessionStatusCard } from "../../shared/ui/SessionStatusCard";
 import { TimerRing } from "../../shared/ui/TimerRing";
 import { PauseResumeControl } from "../../shared/ui/PauseResumeControl";
 import { EndSessionControl } from "../../shared/ui/EndSessionControl";
-import { useNow } from "../../popup/hooks/useNow";
+import { useNow } from "../../shared/hooks/useNow";
 import { remainingSeconds as computeRemainingSeconds } from "../../domain/session/timer";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import { NUDGE_MESSAGES } from "../../domain/accountability/nudgeMessages";

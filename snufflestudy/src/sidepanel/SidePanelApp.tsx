@@ -13,7 +13,7 @@ import { RequestUnlockForm } from "./components/RequestUnlockForm";
 import { FriendRequestPanel } from "./components/FriendRequestPanel";
 import { CompletionScreen } from "../shared/ui/CompletionScreen";
 import { AbandonedScreen } from "../shared/ui/AbandonedScreen";
-import { useActiveSession } from "../popup/hooks/useActiveSession";
+import { useActiveSession } from "../shared/hooks/useActiveSession";
 import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
 import type { UserSettings } from "../domain/settings/userSettings";
 import { RefreshRegistryProvider } from "./refresh/RefreshRegistryContext";
