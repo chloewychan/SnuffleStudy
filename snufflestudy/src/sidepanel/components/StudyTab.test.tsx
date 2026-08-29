@@ -3,6 +3,21 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { StudyTab } from "./StudyTab";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 import { DEFAULT_USER_SETTINGS } from "../../domain/settings/userSettings";
+import { StudyRoomSessionProvider } from "../studyRoom/StudyRoomSessionContext";
+import { RefreshRegistryProvider } from "../refresh/RefreshRegistryContext";
+
+// v4.1 Task 7: StudyTab now also mounts StudyRoomsBox (a third sp-card), which reads from
+// useStudyRoomSession() - every render here needs the same two app-shell providers
+// SidePanelApp.tsx wraps its whole tree in.
+function renderStudyTab() {
+  return render(
+    <RefreshRegistryProvider>
+      <StudyRoomSessionProvider>
+        <StudyTab settings={DEFAULT_USER_SETTINGS} />
+      </StudyRoomSessionProvider>
+    </RefreshRegistryProvider>
+  );
+}
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -12,7 +27,7 @@ describe("StudyTab", () => {
   it("renders both the session setup form and the task vault", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, tasks: [] });
 
-    render(<StudyTab settings={DEFAULT_USER_SETTINGS} />);
+    renderStudyTab();
 
     // SessionSetupForm's real submit button copy (Task 5, already committed) is "Start session" -
     // the Figma design (nodeId 58:450, confirmed via get_design_context) shows "Start Study
@@ -33,6 +48,23 @@ describe("StudyTab", () => {
     await waitFor(() => expect(messenger.sendMessage).toHaveBeenCalledWith({ type: "TASK_LIST" }));
   });
 
+  // v4.1 Task 7: StudyRoomsBox moved in from the Friends tab, mounted as a third sp-card
+  // (SessionSetupForm, TaskVaultPage, StudyRoomsBox).
+  it("mounts StudyRoomsBox as a third sp-card, alongside SessionSetupForm/TaskVaultPage", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({
+      ok: true,
+      tasks: [],
+      rooms: [],
+      session: { user: { id: "user-self" } },
+    });
+
+    renderStudyTab();
+
+    expect(await screen.findByRole("heading", { name: "Study Rooms" })).toBeInTheDocument();
+    expect(document.querySelectorAll(".sp-study-tab > section.sp-card").length).toBe(3);
+    await waitFor(() => expect(messenger.sendMessage).toHaveBeenCalledWith({ type: "STUDY_ROOM_LIST" }));
+  });
+
   it("makes a task created in the Task Vault card immediately selectable in the Goal select above it (Fix 1 regression guard)", async () => {
     // Reproduces the exact final-review bug: a first-time user with no tasks yet creates their
     // first task in TaskVaultPage, right below SessionSetupForm in the same StudyTab. Before Fix
@@ -46,7 +78,7 @@ describe("StudyTab", () => {
       return { ok: true };
     });
 
-    render(<StudyTab settings={DEFAULT_USER_SETTINGS} />);
+    renderStudyTab();
 
     // Confirms the Goal select starts out with nothing to pick beyond the disabled placeholder -
     // the interesting assertion is what happens after creation, not before.

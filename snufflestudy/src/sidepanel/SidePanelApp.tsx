@@ -17,14 +17,20 @@ import { useActiveSession } from "../shared/hooks/useActiveSession";
 import { sendMessage } from "../infrastructure/messaging/extensionMessenger";
 import type { UserSettings } from "../domain/settings/userSettings";
 import { RefreshRegistryProvider } from "./refresh/RefreshRegistryContext";
+import { StudyRoomSessionProvider } from "./studyRoom/StudyRoomSessionContext";
+import { AppFooter } from "./components/AppFooter";
 
-// v4.1 Task 2: RefreshRegistryProvider wraps the whole render tree here, above every
-// tab/session branch below, so it never remounts on a tab switch or session-state change -
-// any panel mounted in any branch can register its own refresh with the same provider instance.
+// v4.1 Task 2/7: RefreshRegistryProvider and StudyRoomSessionProvider both wrap the whole render
+// tree here, above every tab/session branch below, so neither ever remounts on a tab switch or
+// session-state change - any panel mounted in any branch can register its own refresh, and a
+// joined study room survives every branch swap below (Decision 5) with the same provider
+// instance. Order between the two doesn't matter - neither depends on the other.
 export function SidePanelApp() {
   return (
     <RefreshRegistryProvider>
-      <SidePanelAppInner />
+      <StudyRoomSessionProvider>
+        <SidePanelAppInner />
+      </StudyRoomSessionProvider>
     </RefreshRegistryProvider>
   );
 }
@@ -118,6 +124,7 @@ function SidePanelAppInner() {
           {activeTab === "friends" && <FriendsTab />}
           {activeTab === "settings" && <SettingsTab onSettingsChange={setSettings} />}
         </div>
+        <AppFooter />
       </>
     );
   }
@@ -126,6 +133,7 @@ function SidePanelAppInner() {
     return (
       <div className="sidepanel-app">
         <CompletionScreen session={session} />
+        <AppFooter />
       </div>
     );
   }
@@ -134,6 +142,7 @@ function SidePanelAppInner() {
     return (
       <div className="sidepanel-app">
         <AbandonedScreen session={session} />
+        <AppFooter />
       </div>
     );
   }
@@ -152,6 +161,7 @@ function SidePanelAppInner() {
         <Header />
         <RequestUnlockForm session={session} />
         <FriendRequestPanel onClose={() => setShowFriendRequestPanel(false)} />
+        <AppFooter />
       </>
     );
   }
@@ -163,6 +173,7 @@ function SidePanelAppInner() {
         session={session}
         onShowFriendRequestPanel={() => setShowFriendRequestPanel(true)}
       />
+      <AppFooter />
     </>
   );
 }

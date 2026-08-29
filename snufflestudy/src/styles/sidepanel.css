@@ -274,6 +274,15 @@
   overflow: hidden;
   border-radius: var(--radius-md);
   background: var(--color-accent);
+  cursor: pointer;
+}
+
+/* v4.1 Task 7: tiles are now click-to-select (Nudge target picking) - a functional indicator of
+   selection, not new visual design, matching the outline weight .sp-tabbar__tab--active already
+   uses for its own "currently active" state. */
+.study-room-panel__tile--selected {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .study-room-panel__media {
@@ -291,4 +300,27 @@
   background: rgb(from var(--color-bg) r g b / 0.6);
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
+}
+
+/* v4.1 Task 7: room list items are now click-to-select (Study tab's Study Rooms box) instead of
+   each carrying its own Join button - same minimal, functional selected-state treatment as the
+   video tiles above. */
+.study-room-panel__room {
+  cursor: pointer;
+}
+
+.study-room-panel__room--selected {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* v4.1 Task 7: the persistent app-shell footer (AppFooter.tsx) - a sibling of Header.tsx/the tab
+   content, stacking the Study Room footer and (Task 8) the Nudges & Unlock Requests footer beneath
+   it. Reuses .sp-card's own border/radius/padding treatment rather than inventing a new one. */
+.sp-app-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-top: 2px solid rgb(from var(--color-accent) r g b / 0.5);
 }

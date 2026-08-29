@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { SessionSetupForm } from "./SessionSetupForm";
 import { TaskVaultPage } from "../../app/routes/TaskVaultPage";
+import { StudyRoomsBox } from "./StudyRoomsBox";
 import type { UserSettings } from "../../domain/settings/userSettings";
 import type { Task } from "../../domain/tasks/taskTypes";
 import { sortTasksForDisplay } from "../../domain/tasks/sortTasks";
@@ -30,6 +31,12 @@ export function StudyTab({ settings }: StudyTabProps) {
       </section>
       <section className="sp-card">
         <TaskVaultPage onTasksChanged={setTasks} />
+      </section>
+      {/* v4.1 Task 7: Study Rooms moved in from the Friends tab - the list/create/manage-access
+          view only. The joined-room view is the persistent, app-shell-level Study Room footer
+          (StudyRoomFooter.tsx via AppFooter.tsx), not part of this tab. */}
+      <section className="sp-card">
+        <StudyRoomsBox />
       </section>
     </div>
   );

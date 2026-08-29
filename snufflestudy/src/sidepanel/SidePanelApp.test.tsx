@@ -73,23 +73,30 @@ describe("SidePanelApp", () => {
 
     // One real, source-verified heading per tab's actual content (not guessed): BunnyTab.tsx's
     // <h2>About the Bun</h2>, TaskVaultPage.tsx's <h2>Task Vault</h2> (inside StudyTab),
-    // StudyRoomPanel.tsx's <h2>Study Rooms</h2> (inside FriendsTab), and (v3.3 Task 7)
+    // FriendGroupPanel.tsx's <h2>Friend activity</h2> (inside FriendsTab), and (v3.3 Task 7)
     // SettingsPage.tsx's <h2>Tracking</h2> - the first section of the sidepanel Settings tab's now
     // real (no longer empty-placeholder) default "settings" sub-view. This is the single most
     // transposition-prone spot in SidePanelApp.tsx's four-way conditional - would ship green even
     // with two tabs swapped without a check like this covering all four.
     //
+    // v4.1 Task 7: the Friends tab's distinguishing heading changed from StudyRoomPanel.tsx's
+    // <h2>Study Rooms</h2> to FriendGroupPanel.tsx's <h2>Friend activity</h2> - StudyRoomPanel is
+    // gone, split into StudyRoomsBox.tsx (now mounted on the Study tab, alongside TaskVaultPage's
+    // own "Task Vault" heading) and the persistent StudyRoomFooter.tsx. "Study Rooms" is
+    // deliberately NOT used as any tab's distinguishing heading here anymore, since it can now
+    // legitimately appear on the Study tab too.
+    //
     // v3.3 Task 1 moved TempPasscodePanel.tsx's <h2>Temporary passcode requests</h2> and
     // UnlockRequestPanel.tsx's <h2>Unlock requests</h2> from SettingsTab.tsx into FriendsTab.tsx,
-    // below its existing StudyRoomPanel/FriendGroupPanel, leaving SettingsTab.tsx emptied as a
-    // placeholder. v3.3 Task 7 then rebuilt that placeholder into a real Settings/Account/Friends/
-    // History sub-nav (SettingsTab.test.tsx covers that sub-nav's own four-way switch in detail) -
-    // this test only needs SettingsTab's default "settings" sub-view to have its own distinguishing
-    // heading again, same as the other three tabs.
+    // leaving SettingsTab.tsx emptied as a placeholder. v3.3 Task 7 then rebuilt that placeholder
+    // into a real Settings/Account/Friends/History sub-nav (SettingsTab.test.tsx covers that
+    // sub-nav's own four-way switch in detail) - this test only needs SettingsTab's default
+    // "settings" sub-view to have its own distinguishing heading again, same as the other three
+    // tabs.
     const tabs = [
       { tabName: "Bunny", heading: /^about the bun$/i },
       { tabName: "Study", heading: /^task vault$/i },
-      { tabName: "Friends", heading: /^study rooms$/i },
+      { tabName: "Friends", heading: /^friend activity$/i },
       { tabName: "Settings", heading: /^tracking$/i },
     ];
 
