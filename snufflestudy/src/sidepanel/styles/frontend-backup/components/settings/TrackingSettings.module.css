@@ -24,16 +24,33 @@
   align-items: center;
   gap: var(--gap-20);
 }
+/* v4.2 Task 11: real, grouped radio semantics (Decision 6 - this is the one genuinely
+   either/or pair in the whole app). appearance: none + the checked/unchecked bullet-dot swap
+   matches TaskVaultPanel.module.css's identical .buttonList precedent (v4.2 Task 4) - without it,
+   the browser's own native radio dot would render on top of/instead of this background-image
+   look. Also normalized from frontend-backup's original /bullet-dot.svg to the
+   sidepanel/assets/ convention (Task 1 flagged this file as one of four still using the
+   un-normalized root-level reference; this is the task that first wires it up as a real,
+   functional control). */
 .buttonList {
   cursor: pointer;
   margin: 0;
   height: var(--height-18);
   width: var(--width-18);
   position: relative;
-  background-image: url(/bullet-dot.svg);
+  background-image: url(/sidepanel/assets/bullet-dot.svg);
   background-size: cover;
   background-repeat: no-repeat;
   background-position: top;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.buttonList:checked {
+  background-image: url(/sidepanel/assets/bullet-dot-filled.svg);
+}
+.buttonList:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
 }
 .activityOnly {
   margin: 0;
@@ -55,10 +72,19 @@
   height: var(--height-18);
   width: var(--width-18);
   position: relative;
-  background-image: url(/bullet-dot.svg);
+  background-image: url(/sidepanel/assets/bullet-dot.svg);
   background-size: cover;
   background-repeat: no-repeat;
   background-position: top;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.buttonList2:checked {
+  background-image: url(/sidepanel/assets/bullet-dot-filled.svg);
+}
+.buttonList2:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
 }
 .listItem3 {
   align-self: stretch;
@@ -66,12 +92,36 @@
   align-items: center;
   gap: var(--gap-20);
 }
+/* v4.2 Task 11: real, independent toggle (Decision 6) for the "activity-only" tracking detail -
+   this design element had no checked/unchecked visual at all before (just a fixed 0.75-opacity
+   box) since frontend-backup's own version is 100% static. Matches
+   FriendDetailsPopup.module.css's .buttonListIcon precedent (v4.2 Task 9) for a real checkbox
+   built from a plain square + icon-check.svg on :checked, rather than a native browser checkbox
+   widget. */
 .buttonList3 {
+  cursor: pointer;
   margin: 0;
   height: var(--height-18);
   width: var(--width-18);
   position: relative;
-  opacity: 0.75;
+  flex-shrink: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-darkgray);
+  border-radius: 3px;
+  background-color: transparent;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.buttonList3:checked {
+  background-image: url(/sidepanel/assets/icon-check.svg);
+  border-color: transparent;
+}
+.buttonList3:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
 }
 @media screen and (max-width: 450px) {
   .activityOnly,

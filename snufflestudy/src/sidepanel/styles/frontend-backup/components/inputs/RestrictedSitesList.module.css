@@ -33,6 +33,41 @@
   width: var(--width-36);
   position: relative;
 }
+/* v4.2 Task 11: real, functional "Add site" action (previously a static <img> with no button
+   semantics at all) - matches TaskVaultPanel.module.css's/InputBunyName.module.css's identical
+   .buttonIconReset/.saveButtonReset precedent (v4.2 Tasks 3/4): global.css has a bare `button
+   {...}` reset that would otherwise strip this icon-button's intended look. */
+.buttonIconReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.buttonIconReset:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
+}
+/* v4.2 Task 11: real <ul> wrapping the site rows (previously frontend-backup's own flat, plain
+   <div>s with no list semantics) - carrying forward this app's existing list semantics (Global
+   Constraint) needs the browser's default list marker/indent reset, plus this component's own
+   gap, so the visual is unaffected by the tag swap. Matches TaskVaultPanel.module.css's identical
+   .exampleList precedent (v4.2 Task 4). */
+.sitesList {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-5);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
 .exampleListItem,
 .exampleListItem2 {
   align-self: stretch;

@@ -24,11 +24,36 @@
   align-items: center;
   gap: var(--gap-20);
 }
+/* v4.2 Task 11: real, independently-toggleable checkboxes (Decision 6 - live-nudge/digest/
+   quiet-hours-enable are three separate, independent settings, not a mutually-exclusive group).
+   frontend-backup's own version is a bare, src-less <img> (100% static, no checked/unchecked
+   visual at all) - matches FriendDetailsPopup.module.css's .buttonListIcon precedent (v4.2 Task
+   9) exactly, down to the shared icon-check.svg asset, for the same real-checkbox-built-from-a-
+   plain-square look. */
 .buttonListIcon {
+  cursor: pointer;
+  margin: 0;
   height: var(--height-18);
   width: var(--width-18);
   position: relative;
-  opacity: 0.75;
+  flex-shrink: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-darkgray);
+  border-radius: 3px;
+  background-color: transparent;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.buttonListIcon:checked {
+  background-image: url(/sidepanel/assets/icon-check.svg);
+  border-color: transparent;
+}
+.buttonListIcon:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
 }
 .showANotification {
   margin: 0;

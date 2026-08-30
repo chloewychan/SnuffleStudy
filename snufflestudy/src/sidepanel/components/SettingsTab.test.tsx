@@ -15,6 +15,12 @@ beforeEach(() => {
   vi.stubGlobal("chrome", {
     runtime: {
       openOptionsPage: vi.fn(),
+      // v4.2 Task 11: SettingsPage.tsx's Restricted Sites/Camera-and-microphone sections now
+      // resolve icons via chrome.runtime.getURL (matches Header.test.tsx's identical stub, v4.2
+      // Task 2) - this suite's own chrome stub replaces WXT's fake-browser test polyfill
+      // entirely, so it needs its own getURL now that SettingsPage.tsx (rendered inside this
+      // tab) actually calls it.
+      getURL: vi.fn((path: string) => `/chrome-extension://fake/${path}`),
     },
   });
 });
@@ -57,18 +63,22 @@ describe("SettingsTab", () => {
     expect(screen.queryByRole("button", { name: "Friends" })).not.toBeInTheDocument();
   });
 
-  it("shows a callout that opens the real Options tab for camera & microphone access, and no other full-tab navigation", async () => {
+  it("shows a button that opens the real Options tab for camera & microphone access, and no other full-tab navigation", async () => {
     mockAllSettled();
 
     render(<SettingsTab />);
     await screen.findByLabelText("Detailed site tracking");
 
-    // The Settings box itself never shows the camera/microphone section inline (that's the one
-    // deliberate exception - see OptionsApp.tsx's still-inline section) - only the callout button.
-    expect(screen.queryByRole("heading", { name: /camera.*microphone/i })).not.toBeInTheDocument();
+    // v4.2 Task 11: this button now lives inside SettingsPage.tsx's own "Camera & Microphone"
+    // section (Decision 7 - moved from the old sp-settings-tab__media-callout button, which this
+    // task deleted). The Settings box still never shows the full permission-status flow inline
+    // (mediaGrantStatus's granted/error states are OptionsApp.tsx's own still-inline, full-tab-
+    // only section) - only this button, which just opens the real Options tab.
+    expect(screen.queryByText(/you can close this tab now/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert", { name: /couldn't grant access/i })).not.toBeInTheDocument();
 
-    const callout = screen.getByRole("button", { name: /grant camera & microphone access/i });
-    fireEvent.click(callout);
+    const button = screen.getByRole("button", { name: /grant camera & microphone access/i });
+    fireEvent.click(button);
 
     expect(chrome.runtime.openOptionsPage).toHaveBeenCalledOnce();
   });

@@ -18,32 +18,19 @@ interface SettingsTabProps {
 // HistoryPage are the exact same components OptionsApp.tsx renders in its own "account"/"history"
 // views - reused directly, not reimplemented.
 //
-// Camera & microphone access is the one deliberate exception to "everything embedded in place":
-// Chrome's getUserMedia permission prompt can never be shown from the sidepanel at all (a
-// documented platform limitation - see OptionsApp.tsx's own mediaGrantStatus header comment), so
-// it stays a full-tab-only flow. The callout button below just opens the real Options tab, which
-// already has that section (still inline in OptionsApp.tsx, after its own <SettingsPage />).
+// v4.2 Task 11: the "Grant camera & microphone access" callout that used to live here (a plain
+// <button> right below <SettingsPage />) is gone - Decision 7 moved that affordance INTO
+// SettingsPage.tsx itself, since that's where frontend-backup's SettingsBody.tsx design puts it
+// (its own "Camera & Microphone" section, at the end of the General box). Chrome's getUserMedia
+// permission prompt still can never be shown from the sidepanel at all (a documented platform
+// limitation - see OptionsApp.tsx's own mediaGrantStatus header comment) - the button (now inside
+// SettingsPage.tsx) still just calls chrome.runtime.openOptionsPage(), unchanged behavior, new
+// location.
 export function SettingsTab({ onSettingsChange }: SettingsTabProps) {
   return (
     <div className="sp-tab-content sp-settings-tab">
       <section className="sp-card">
         <SettingsPage onSettingsSaved={onSettingsChange} />
-        <button
-          type="button"
-          className="sp-settings-tab__media-callout"
-          onClick={() => {
-            // Standing convention in this codebase (see Header.tsx's "Fix 6" comment): never
-            // leave an async call triggered from a UI handler unhandled.
-            // chrome.runtime.openOptionsPage() returns a Promise that can reject (e.g.
-            // extension-context-invalidated) - Promise.resolve(...) also normalizes a test
-            // mock's openOptionsPage() returning undefined instead of a real Promise.
-            void Promise.resolve(chrome.runtime.openOptionsPage()).catch((err) =>
-              console.error("Failed to open the options page", err)
-            );
-          }}
-        >
-          Grant camera &amp; microphone access →
-        </button>
       </section>
 
       <section className="sp-card">

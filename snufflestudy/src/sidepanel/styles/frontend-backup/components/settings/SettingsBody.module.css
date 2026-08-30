@@ -46,12 +46,34 @@
   color: var(--color-dimgray);
   font-family: var(--font-nunito);
 }
+/* v4.2 Task 11: real, independent toggle (Decision 6) for "Share session activity with my
+   friends" - matches FriendDetailsPopup.module.css's/TrackingSettings.module.css's identical
+   .buttonListIcon/.buttonList3 precedent (v4.2 Tasks 9/11) for a real checkbox built from a plain
+   square + icon-check.svg on :checked. */
 .buttonList {
+  cursor: pointer;
   margin: 0;
   height: var(--height-18);
   width: var(--width-18);
   position: relative;
-  opacity: 0.75;
+  flex-shrink: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-darkgray);
+  border-radius: 3px;
+  background-color: transparent;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.buttonList:checked {
+  background-image: url(/sidepanel/assets/icon-check.svg);
+  border-color: transparent;
+}
+.buttonList:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
 }
 .frameRestrictedSites {
   align-self: stretch;

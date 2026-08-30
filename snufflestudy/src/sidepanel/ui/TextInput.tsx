@@ -53,6 +53,17 @@ export type TextInputType = {
   // Enter-to-submit test coverage. Additive/optional/backward-compatible - omitting it reproduces
   // the exact prior behavior for every other caller.
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
+  // v4.2 Task 11: SettingsPage.tsx's hard-block passcode fields are looked up via
+  // `getByTestId("old-passcode-input")`/etc. by OptionsApp.test.tsx (a suite this task doesn't
+  // touch, since SettingsPage.tsx is shared unchanged logic per that file's own header comment) -
+  // this primitive had no way to attach a data-testid before. Additive/optional/
+  // backward-compatible, same extension pattern as ariaLabel/onKeyDown above.
+  dataTestId?: string;
+  // v4.2 Task 11: the quiet-hours start/end fields are real `type="number"` inputs (unchanged from
+  // SettingsPage.tsx's pre-v4.2 markup) - min/max preserve the exact same 0-23 native constraint
+  // they've always had. Additive/optional/backward-compatible.
+  min?: number;
+  max?: number;
 };
 
 const TextInput: FunctionComponent<TextInputType> = ({
@@ -78,6 +89,9 @@ const TextInput: FunctionComponent<TextInputType> = ({
   disabled = false,
   ariaLabel,
   onKeyDown,
+  dataTestId,
+  min,
+  max,
 }) => {
   const inputStyle: CSSProperties = useMemo(() => {
     return {
@@ -126,6 +140,9 @@ const TextInput: FunctionComponent<TextInputType> = ({
         onKeyDown={onKeyDown}
         disabled={disabled}
         aria-label={ariaLabel}
+        data-testid={dataTestId}
+        min={min}
+        max={max}
       />
     </div>
   );
