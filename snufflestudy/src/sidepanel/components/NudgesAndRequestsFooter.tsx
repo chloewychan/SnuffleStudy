@@ -7,6 +7,10 @@ import type { FriendNudge } from "../../infrastructure/backend/nudgeApi";
 import type { IncomingProducerTag } from "../../infrastructure/backend/producerTagApi";
 import type { FriendRequest } from "../../domain/accountability/friendRequest";
 import type { IncomingActivity } from "../appFooter/useIncomingActivity";
+import ButtonSmall from "../ui/ButtonSmall";
+import IconButton from "../ui/IconButton";
+import ButtonBoolIcon from "../ui/ButtonBoolIcon";
+import styles from "../styles/frontend-backup/pages/footers/DefaultFooter.module.css";
 
 // v4.1 Task 8: the second half of the persistent app-shell footer (stacked beneath
 // StudyRoomFooter.tsx inside AppFooter.tsx - see that file). Relocates logic that already worked -
@@ -15,12 +19,18 @@ import type { IncomingActivity } from "../appFooter/useIncomingActivity";
 // scope doc's "Nudges & Unlock Requests footer" section. All data/handlers are supplied by
 // useIncomingActivity.ts (called once, by AppFooter.tsx) as props - this component itself owns no
 // fetches of its own beyond the lazy per-item audio download below.
+//
+// v4.2 Task 8: re-skinned as frontend-backup's DefaultFooter.tsx design. Every hook call, handler,
+// and sendMessage()-adjacent call (the lazy producerTagApi.downloadTagAudio download) below is
+// byte-for-byte the same logic that shipped in v4.1 - only the JSX/CSS changed.
 
-// Moved verbatim from the old standalone approver-side friend-requests panel.
-function detailLine(r: FriendRequest, requesterName: string): string {
-  if (r.kind === "site_unlock") return `${requesterName} wants to unlock ${r.hostname}`;
-  if (r.kind === "site_temp_pass") return `${requesterName} wants a temporary passcode for ${r.hostname}`;
-  return `${requesterName} wants to end their session early`;
+// Moved verbatim from the old standalone approver-side friend-requests panel, minus the requester
+// name (now shown as its own line via displayName - see the request row markup below) so the two
+// don't duplicate each other inside DefaultFooter's two-line-per-row layout.
+function detailLine(r: FriendRequest): string {
+  if (r.kind === "site_unlock") return `wants to unlock ${r.hostname}`;
+  if (r.kind === "site_temp_pass") return `wants a temporary passcode for ${r.hostname}`;
+  return "wants to end their session early";
 }
 
 // Every "pick a nudge to send" list elsewhere merges written + audio items into one chronological
@@ -33,7 +43,10 @@ type IncomingNudgeItem =
 
 // Carried over from friendGroupPanel/NudgeSendSection.tsx's IncomingProducerTagCard - the audio
 // Blob is fetched lazily, only once "Play" is pressed, via producerTagApi.downloadTagAudio, called
-// DIRECTLY (not through sendMessage - see that file's own header comment for why).
+// DIRECTLY (not through sendMessage - see that file's own header comment for why). v4.2 Task 8:
+// the "Play"/"Loading…" trigger is now DefaultFooter.tsx's own ButtonSmall primitive (extended
+// with real onClick/disabled/label props for this, its first real call site) instead of a plain
+// <button> - same mechanism, new skin.
 function IncomingTagRow({
   tag,
   senderLabel,
@@ -61,22 +74,30 @@ function IncomingTagRow({
   }
 
   return (
-    <li>
-      <span>
-        {senderLabel} sent you a {Math.round(tag.durationMs / 1000)}s audio nudge.
-      </span>
-      {playbackUrl ? (
-        // eslint-disable-next-line jsx-a11y/media-has-caption -- a short voice tag, not video
-        <audio src={playbackUrl} controls autoPlay />
-      ) : (
-        <button type="button" onClick={handlePlay} disabled={loading}>
-          {loading ? "Loading…" : "Play"}
-        </button>
-      )}
+    <li className={styles.exampleListItem}>
+      <div className={styles.itemContent}>
+        <h3 className={styles.egUsername}>
+          {senderLabel} sent you a {Math.round(tag.durationMs / 1000)}s audio nudge.
+        </h3>
+        {playbackUrl ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption -- a short voice tag, not video
+          <audio src={playbackUrl} controls autoPlay />
+        ) : (
+          <ButtonSmall
+            property1="pink"
+            property2="default"
+            button={loading ? "Loading…" : "Play"}
+            onClick={handlePlay}
+            disabled={loading}
+          />
+        )}
+      </div>
       {error && <p role="alert">{error}</p>}
-      <button type="button" onClick={onDismiss}>
-        Dismiss
-      </button>
+      <IconButton
+        icon={chrome.runtime.getURL("sidepanel/assets/icon-close.svg")}
+        label="Dismiss"
+        onClick={onDismiss}
+      />
     </li>
   );
 }
@@ -119,26 +140,30 @@ export function NudgesAndRequestsFooter({
   const showRequestSection = requests.length > 0 || requestsError;
 
   return (
-    <div className="nudges-and-requests-footer">
+    <div className={styles.defaultFooter}>
       {showNudgeSection && (
-        <section className="nudges-and-requests-footer__nudges">
-          <h3>Nudges</h3>
+        <section className={styles.nudgesContainer}>
+          <h3 className={styles.nudgesSentTo}>Nudges Sent to You</h3>
           {nudgesError && <p role="alert">Couldn't load incoming nudges: {nudgesError}.</p>}
           {tagsError && <p role="alert">Couldn't load incoming audio nudges: {tagsError}.</p>}
           {nudgeItems.length > 0 && (
             <ul>
               {nudgeItems.map((item) =>
                 item.kind === "nudge" ? (
-                  <li key={`nudge-${item.nudge.id}`}>
-                    <span>
-                      {displayName(item.nudge.senderUserId)}:{" "}
-                      {item.nudge.customBody ??
-                        (item.nudge.messageId ? nudgeMessageText(item.nudge.messageId) : null) ??
-                        "sent you a nudge."}
-                    </span>
-                    <button type="button" onClick={() => dismissNudge(item.nudge.id)}>
-                      Dismiss
-                    </button>
+                  <li key={`nudge-${item.nudge.id}`} className={styles.exampleListItem}>
+                    <div className={styles.nudgeContent}>
+                      <h3 className={styles.egUsername}>{displayName(item.nudge.senderUserId)}</h3>
+                      <h3 className={styles.egUsername}>
+                        {item.nudge.customBody ??
+                          (item.nudge.messageId ? nudgeMessageText(item.nudge.messageId) : null) ??
+                          "sent you a nudge."}
+                      </h3>
+                    </div>
+                    <IconButton
+                      icon={chrome.runtime.getURL("sidepanel/assets/icon-close.svg")}
+                      label="Dismiss"
+                      onClick={() => dismissNudge(item.nudge.id)}
+                    />
                   </li>
                 ) : (
                   <IncomingTagRow
@@ -155,34 +180,36 @@ export function NudgesAndRequestsFooter({
       )}
 
       {showRequestSection && (
-        <section className="nudges-and-requests-footer__requests">
-          <h3>Friend requests</h3>
+        <section className={styles.nudgesContainer}>
+          <h3 className={styles.nudgesSentTo}>Unlock Requests</h3>
           {requestsError && <p role="alert">Couldn't load friend requests: {requestsError}.</p>}
           {resolveError && <p role="alert">{resolveError}</p>}
           {requests.length > 0 && (
             <ul>
               {requests.map((request) => (
-                <li key={request.id}>
-                  <span>{detailLine(request, displayName(request.requesterUserId))}</span>
-                  {request.message && (
-                    <p className="nudges-and-requests-footer__message">"{request.message}"</p>
-                  )}
-                  <button
-                    type="button"
-                    aria-label="Deny"
-                    onClick={() => resolveRequest(request, "denied")}
-                    disabled={resolvingRequestId === request.id}
-                  >
-                    ✕
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Approve"
-                    onClick={() => resolveRequest(request, "approved")}
-                    disabled={resolvingRequestId === request.id}
-                  >
-                    ✓
-                  </button>
+                <li key={request.id} className={styles.exampleListItem3}>
+                  <div className={styles.egUsernameParent}>
+                    <h3 className={styles.egUsername}>{displayName(request.requesterUserId)}</h3>
+                    <h3 className={styles.egUsername}>{detailLine(request)}</h3>
+                  </div>
+                  {request.message && <p className={styles.message}>"{request.message}"</p>}
+                  <div className={styles.buttonBoolParent}>
+                    <IconButton
+                      icon={chrome.runtime.getURL("sidepanel/assets/icon-close.svg")}
+                      label="Deny"
+                      onClick={() => resolveRequest(request, "denied")}
+                      disabled={resolvingRequestId === request.id}
+                    />
+                    <button
+                      type="button"
+                      className={styles.buttonBoolIconReset}
+                      aria-label="Approve"
+                      onClick={() => resolveRequest(request, "approved")}
+                      disabled={resolvingRequestId === request.id}
+                    >
+                      <ButtonBoolIcon property1="check" property2="default" />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

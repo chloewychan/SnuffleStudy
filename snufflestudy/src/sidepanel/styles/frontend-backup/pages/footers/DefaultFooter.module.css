@@ -92,6 +92,40 @@
   height: var(--height-36);
   gap: var(--gap-5);
 }
+/* v4.2 Task 8 additions (not in frontend-backup's original file): */
+/* the approve check icon is now a real, clickable "Approve" action (previously a static <img>
+   with no button semantics at all - frontend-backup is 100% static). Wrapping it in a <button>
+   picks up global.css's bare `button {...}` chrome (background/border/padding) unless reset here -
+   matches the .saveButtonReset/.buttonBoolIconReset pattern Tasks 3/5 already added for the same
+   reason. ButtonBoolIcon's own sizing is unaffected and still applies to the icon <img> inside. */
+.buttonBoolIconReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.buttonBoolIconReset:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
+}
+/* an unlock request's optional free-text message - the design's own two-h3 mockup has no slot for
+   this (real requests may or may not include one), styled to match .egUsername's type scale. */
+.message {
+  margin: 0;
+  position: relative;
+  font-size: inherit;
+  font-weight: 400;
+  font-style: italic;
+  font-family: inherit;
+  color: var(--color-dimgray);
+}
 @media screen and (max-width: 675px) {
   .defaultFooter {
     gap: var(--gap-20);

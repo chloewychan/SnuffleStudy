@@ -187,8 +187,11 @@ describe("NudgesAndRequestsFooter", () => {
 
   it("renders nothing (no sections) when there is genuinely nothing pending and nothing errored", () => {
     renderFooter(makeActivity());
-    expect(document.querySelector(".nudges-and-requests-footer__nudges")).not.toBeInTheDocument();
-    expect(document.querySelector(".nudges-and-requests-footer__requests")).not.toBeInTheDocument();
+    // v4.2 Task 8: re-skinned onto DefaultFooter.tsx's CSS-Module markup, whose class names are
+    // hashed at build time - a section's own heading text is the stable, skin-independent way to
+    // assert it isn't mounted (same convention Task 3's BunnyTab.test.tsx already uses).
+    expect(screen.queryByText("Nudges Sent to You")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unlock Requests")).not.toBeInTheDocument();
   });
 
   it("registers its refresh callback into the refresh registry", () => {

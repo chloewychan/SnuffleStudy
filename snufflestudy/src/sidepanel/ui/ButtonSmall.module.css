@@ -19,3 +19,12 @@
   color: var(--color-dimgray);
   text-align: left;
 }
+/* v4.2 Task 8 addition (not in frontend-backup's original file): this button is now a real,
+   clickable "Play"/"Loading…" action (see ButtonSmall.tsx's added onClick/disabled props) -
+   matches the .buttonLarge:disabled/.iconButton:disabled precedent from Tasks 5/7 for giving a
+   newly-real control a visible disabled look, since frontend-backup's own static CSS never needed
+   one. */
+.buttonSmall:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
+}
