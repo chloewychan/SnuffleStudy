@@ -140,7 +140,11 @@
   height: var(--height-18);
   width: var(--width-18);
   position: relative;
-  background-image: url(/bullet-dot.svg);
+  /* v4.2 Task 14: normalized from frontend-backup's original /bullet-dot.svg to the
+     sidepanel/assets/ convention (Task 1's report flagged this file as still needing this;
+     it's now wired live as ActiveSessionView.tsx's decorative activity/focus status markers,
+     so the unnormalized root-relative path was no longer just a theoretical gap). */
+  background-image: url(/sidepanel/assets/bullet-dot.svg);
   background-size: cover;
   background-repeat: no-repeat;
   background-position: top;
