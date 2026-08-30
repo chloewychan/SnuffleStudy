@@ -1,0 +1,33 @@
+/* v4.2 Task 10: this component has no frontend-backup frame of its own - NudgeVaultPanel.tsx's
+   design only shows the idle "Record New Audio Nudge" placeholder (a single static ButtonLarge);
+   the recording/preview states this widget's existing state machine actually needs (a live
+   countdown + Stop button, then a preview player + Send/Discard, plus an inline recording-error
+   affordance) have no design frame to transplant. Composed fresh from the same tokens/primitives
+   (ButtonLarge) NudgeVaultPanel.module.css itself already uses, matching the RequestUnlockForm
+   precedent (v4.2 Task 7 / Decision 5) for undesigned surfaces - not carried forward from any old
+   plain-CSS predecessor (this component's old producer-tag-recorder__* classnames were pure JSX
+   hooks with no backing rule anywhere; see the v4.2 Task 10 report). */
+.recorder {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: var(--gap-10);
+}
+
+.recordingRow,
+.previewRow {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: var(--gap-10);
+}
+
+.status {
+  font-family: var(--font-shantell-sans);
+  font-size: var(--fs-20);
+  color: var(--color-darkgray);
+}
+
+.previewRow audio {
+  width: 100%;
+}

@@ -241,6 +241,32 @@ describe("NudgeVaultBox", () => {
       );
       await waitFor(() => expect(screen.queryByText("Keep going!")).not.toBeInTheDocument());
     });
+
+    // v4.2 Task 10: NudgeVaultPanel.tsx's design shows an "Edit" icon per written nudge, but this
+    // app has no NUDGE_VAULT_TEXT_UPDATE message (only create/list/delete) - the icon is present,
+    // deliberately non-functional, an explicitly logged open item rather than a silently-broken
+    // affordance. This test enshrines that contract: the control renders, but clicking it triggers
+    // no sendMessage call at all (not even an unexpected one).
+    it("shows a non-functional Edit control (no NUDGE_VAULT_TEXT_UPDATE message exists yet)", async () => {
+      const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
+        routeSendMessage({
+          NUDGE_VAULT_TEXT_LIST: () => ({
+            ok: true,
+            texts: [{ id: "text-1", body: "Keep going!", createdAt: 2000 }],
+          }),
+        })
+      );
+
+      renderBox();
+      const row = (await screen.findByText("Keep going!")).closest("li")!;
+      const editButton = within(row).getByRole("button", { name: "Edit" });
+
+      sendMessageSpy.mockClear();
+      fireEvent.click(editButton);
+
+      expect(sendMessageSpy).not.toHaveBeenCalled();
+      expect(screen.getByText("Keep going!")).toBeInTheDocument();
+    });
   });
 
   it("registers its own refresh with the refresh registry", async () => {

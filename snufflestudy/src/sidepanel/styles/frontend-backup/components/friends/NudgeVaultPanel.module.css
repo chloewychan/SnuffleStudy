@@ -52,6 +52,11 @@
   gap: var(--gap-15);
   font-size: var(--fs-24);
   color: var(--color-dimgray);
+  /* v4.2 Task 10: now a real <ul> (was a plain <div> in the design) - reset default list chrome,
+     matching the .exampleList(s)/.exampleListItems precedent from Tasks 4/8/9. */
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 .exampleListItem {
   align-self: stretch;
@@ -66,11 +71,19 @@
   display: flex;
   align-items: center;
   gap: var(--gap-20);
+  /* v4.2 Task 10 addition: a real written-nudge body or a real clip-length label (unlike the
+     static "E.g., nudge one" placeholder) needs this row to take the available space and
+     truncate internally (see .egNudgeOne's ellipsis rules below) rather than overflow past the
+     controls on the row's right edge. Same rationale as Task 9's .taskDetails flex:1/min-width:0
+     addition in FriendPanel.module.css. */
+  flex: 1;
+  min-width: 0;
 }
 .buttonListIcon {
   height: var(--height-18);
   width: var(--width-18);
   position: relative;
+  flex-shrink: 0;
 }
 .egNudgeOne {
   margin: 0;
@@ -78,6 +91,10 @@
   font-size: inherit;
   font-weight: 400;
   font-family: inherit;
+  /* v4.2 Task 10 addition: see .nudgeItemDetails's flex:1/min-width:0 comment above. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .nudgeItemControls {
   height: var(--height-36);
@@ -129,6 +146,27 @@
   height: var(--height-36);
   width: var(--width-36);
   position: relative;
+}
+/* v4.2 Task 10 addition (not in frontend-backup's original file): the written-nudge submit icon is
+   a real, clickable <button> now (frontend-backup's own markup has only a static <img>, no button
+   semantics at all) - same button-chrome-reset pattern as every other re-skinned component's
+   .buttonIconReset (Tasks 2, 4, 5, 9). */
+.buttonBoolIconReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.buttonBoolIconReset:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
 }
 .rectangle4 {
   position: absolute;

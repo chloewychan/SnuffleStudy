@@ -123,7 +123,11 @@ describe("ProducerTagRecorder", () => {
     fireEvent.click(screen.getByText("Stop"));
 
     await waitFor(() => expect(screen.getByText("Sending…")).toBeInTheDocument());
-    expect(screen.getByText("Sending…")).toBeDisabled();
+    // v4.2 Task 10: the Send action is now a ButtonLarge (button text nested in its own <h3>) -
+    // toBeDisabled() only recognizes bona fide form controls, so this must target the actual
+    // <button> via role rather than the text node getByText resolves to. Still verifies the exact
+    // same thing (the Send control is disabled while sending).
+    expect(screen.getByRole("button", { name: "Sending…" })).toBeDisabled();
   });
 
   it("disables Send when sendDisabled is set (e.g. no target picked yet)", async () => {
@@ -133,7 +137,7 @@ describe("ProducerTagRecorder", () => {
     fireEvent.click(screen.getByText("Record a tag (10s max)"));
     fireEvent.click(screen.getByText("Stop"));
 
-    await waitFor(() => expect(screen.getByText("Send")).toBeDisabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send" })).toBeDisabled());
   });
 
   it("surfaces a recording error inline when stopRecording rejects (e.g. mic permission was denied)", async () => {

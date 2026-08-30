@@ -1,4 +1,10 @@
-import { useMemo, type FunctionComponent, type CSSProperties, type ChangeEvent } from "react";
+import {
+  useMemo,
+  type FunctionComponent,
+  type CSSProperties,
+  type ChangeEvent,
+  type KeyboardEvent,
+} from "react";
 import styles from "./TextInput.module.css";
 
 export type TextInputType = {
@@ -39,6 +45,14 @@ export type TextInputType = {
   // to reuse as a real <label>. Additive/optional/backward-compatible, same extension pattern as
   // id/name/value/onChange/disabled above.
   ariaLabel?: string;
+  // v4.2 Task 10: NudgeVaultPanel.tsx's written-nudge field needs to keep its pre-existing
+  // Enter-submits behavior (NudgeVaultBox.tsx's own handleAddText, called on Enter as well as on
+  // the check-icon click) - jsdom/Testing Library's fireEvent.keyDown doesn't simulate a real
+  // browser's native "Enter in a text field implicitly submits the form" default action, so this
+  // can't be carried forward via a <form> alone the way Tasks 4/9 did for fields with no existing
+  // Enter-to-submit test coverage. Additive/optional/backward-compatible - omitting it reproduces
+  // the exact prior behavior for every other caller.
+  onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
 };
 
 const TextInput: FunctionComponent<TextInputType> = ({
@@ -63,6 +77,7 @@ const TextInput: FunctionComponent<TextInputType> = ({
   onChange,
   disabled = false,
   ariaLabel,
+  onKeyDown,
 }) => {
   const inputStyle: CSSProperties = useMemo(() => {
     return {
@@ -108,6 +123,7 @@ const TextInput: FunctionComponent<TextInputType> = ({
         style={siteElementsStyle}
         value={value}
         onChange={onChange}
+        onKeyDown={onKeyDown}
         disabled={disabled}
         aria-label={ariaLabel}
       />

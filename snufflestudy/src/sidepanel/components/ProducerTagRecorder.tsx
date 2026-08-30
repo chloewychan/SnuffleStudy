@@ -5,6 +5,8 @@ import {
   isMediaPermissionError,
   openMediaPermissionTab,
 } from "../../infrastructure/media/mediaPermissions";
+import ButtonLarge from "../ui/ButtonLarge";
+import styles from "./ProducerTagRecorder.module.css";
 
 interface ProducerTagRecorderProps {
   onSend: (blob: Blob, durationMs: number) => void;
@@ -102,39 +104,40 @@ export function ProducerTagRecorder({ onSend, sending, sendLabel, sendDisabled }
   const capSeconds = Math.round(audioRecorder.MAX_RECORDING_MS / 1000);
   const elapsedSeconds = Math.min(Math.floor(elapsedMs / 1000), capSeconds);
 
+  // v4.2 Task 10: re-skinned to match NudgeVaultPanel.tsx's visual language (ButtonLarge for every
+  // action, this file's own new ProducerTagRecorder.module.css for layout - see that file's header
+  // comment on why it's originated rather than transplanted). The state machine itself (what
+  // triggers recording start/stop, preview playback, discard, send) is untouched below - only the
+  // JSX/CSS changed. Every literal button/status string is preserved exactly as before, so
+  // ProducerTagRecorder.test.tsx's text-based queries still resolve the same content; two of its
+  // toBeDisabled() assertions were updated from getByText(...) to getByRole("button", {name:...})
+  // since ButtonLarge now nests that text inside its own <h3> (toBeDisabled() only recognizes bona
+  // fide form controls) - same behavior verified, just queried via the actual <button> now.
   return (
-    <div className="producer-tag-recorder">
+    <div className={styles.recorder}>
       {!recording && !preview && (
-        <button type="button" onClick={handleStart}>
-          Record a tag ({capSeconds}s max)
-        </button>
+        <ButtonLarge button={`Record a tag (${capSeconds}s max)`} onClick={handleStart} />
       )}
 
       {recording && (
-        <div className="producer-tag-recorder__recording">
-          <span role="status">
+        <div className={styles.recordingRow}>
+          <span role="status" className={styles.status}>
             Recording… {elapsedSeconds}s / {capSeconds}s
           </span>
-          <button type="button" onClick={() => void finishRecording()}>
-            Stop
-          </button>
+          <ButtonLarge button="Stop" onClick={() => void finishRecording()} />
         </div>
       )}
 
       {preview && (
-        <div className="producer-tag-recorder__preview">
+        <div className={styles.previewRow}>
           {/* eslint-disable-next-line jsx-a11y/media-has-caption -- a short voice tag, not video */}
           <audio src={preview.url} controls />
-          <button
-            type="button"
+          <ButtonLarge
+            button={sending ? "Sending…" : sendLabel}
             onClick={() => onSend(preview.blob, preview.durationMs)}
             disabled={sending || sendDisabled}
-          >
-            {sending ? "Sending…" : sendLabel}
-          </button>
-          <button type="button" onClick={handleDiscard} disabled={sending}>
-            Discard
-          </button>
+          />
+          <ButtonLarge button="Discard" onClick={handleDiscard} disabled={sending} />
         </div>
       )}
 
@@ -144,9 +147,7 @@ export function ProducerTagRecorder({ onSend, sending, sendLabel, sendDisabled }
           {recordErrorActionable && (
             <>
               {" "}
-              <button type="button" onClick={openMediaPermissionTab}>
-                Open a tab to grant access
-              </button>
+              <ButtonLarge button="Open a tab to grant access" onClick={openMediaPermissionTab} />
             </>
           )}
         </p>

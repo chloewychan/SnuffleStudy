@@ -5,6 +5,9 @@ import type { ProducerTag } from "../../domain/rooms/producerTag";
 import type { NudgeVaultText } from "../../infrastructure/backend/nudgeVaultApi";
 import { useRegisterRefresh } from "../refresh/RefreshRegistryContext";
 import { ProducerTagRecorder } from "./ProducerTagRecorder";
+import IconButton from "../ui/IconButton";
+import TextInput from "../ui/TextInput";
+import styles from "../styles/frontend-backup/components/friends/NudgeVaultPanel.module.css";
 
 // v4.1 Task 9: replaces FriendGroupPanel.tsx's old "Friend activity" panel with the user's own
 // Nudge Vault - a library of saved audio and written nudges, reusable across every "pick a nudge
@@ -14,6 +17,17 @@ import { ProducerTagRecorder } from "./ProducerTagRecorder";
 // since each half needs its own independent Delete action against its own backend
 // (PRODUCER_TAG_DELETE / NUDGE_VAULT_TEXT_DELETE) - see useNudgeVaultItems.ts's own comment on why
 // this box doesn't consume it.
+//
+// v4.2 Task 10: re-skinned as frontend-backup's NudgeVaultPanel.tsx design. Every hook, handler,
+// and sendMessage() call below is unchanged in behavior - only the JSX changed. "Edit" (per-text
+// nudge) has NO backing capability anywhere in this app (only NUDGE_VAULT_TEXT_CREATE/_LIST/
+// _DELETE exist - grep-confirmed against shared/messages.ts, no _UPDATE) - its icon is present per
+// the design but intentionally not wired to anything (no onClick), an explicitly open item per the
+// plan (see the v4.2 Task 10 report), not a silently-broken affordance.
+
+function asset(name: string) {
+  return chrome.runtime.getURL(`sidepanel/assets/${name}`);
+}
 
 // Same lazy-download-on-Play pattern as StudyRoomFooter.tsx's/NudgeSendSection.tsx's identical
 // IncomingProducerTagCard - the audio Blob is fetched only once "Play" is pressed, via
@@ -46,19 +60,30 @@ function VaultAudioTagRow({
   }
 
   return (
-    <li>
-      <span>{Math.round(tag.durationMs / 1000)}s clip</span>
-      {playbackUrl ? (
-        // eslint-disable-next-line jsx-a11y/media-has-caption -- a short voice tag, not video
-        <audio src={playbackUrl} controls autoPlay />
-      ) : (
-        <button type="button" onClick={handlePlay} disabled={loading}>
-          {loading ? "Loading…" : "Play"}
-        </button>
-      )}
-      <button type="button" onClick={onDelete} disabled={deleting}>
-        {deleting ? "Deleting…" : "Delete"}
-      </button>
+    <li className={styles.exampleListItem}>
+      <div className={styles.nudgeItemDetails}>
+        <img className={styles.buttonListIcon} loading="lazy" alt="" src={asset("bullet-dot.svg")} />
+        <h3 className={styles.egNudgeOne}>{Math.round(tag.durationMs / 1000)}s clip</h3>
+      </div>
+      <div className={styles.nudgeItemControls}>
+        {playbackUrl ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption -- a short voice tag, not video
+          <audio src={playbackUrl} controls autoPlay />
+        ) : (
+          <IconButton
+            icon={asset("icon-play-pause.svg")}
+            label={loading ? "Loading…" : "Play"}
+            onClick={handlePlay}
+            disabled={loading}
+          />
+        )}
+        <IconButton
+          icon={asset("icon-trash.svg")}
+          label={deleting ? "Deleting…" : "Delete"}
+          onClick={onDelete}
+          disabled={deleting}
+        />
+      </div>
       {error && <p role="alert">{error}</p>}
     </li>
   );
@@ -222,16 +247,18 @@ export function NudgeVaultBox() {
   }
 
   return (
-    <div className="nudge-vault-box">
-      <h2>Nudge Vault</h2>
+    <section className={styles.nudgeVaultPanel}>
+      <h2 className={styles.nudgeVault}>Nudge Vault</h2>
 
-      <section className="nudge-vault-box__audio">
-        <h3>Audio nudges</h3>
-        <ProducerTagRecorder
-          onSend={(blob, durationMs) => void handleRecordAndSave(blob, durationMs)}
-          sending={savingAudio}
-          sendLabel="Save to vault"
-        />
+      <section className={styles.frameAudioNudges}>
+        <div className={styles.buttonRecordNewAudioNudge}>
+          <h3 className={styles.audioNudges10s}>Audio Nudges (10s max)</h3>
+          <ProducerTagRecorder
+            onSend={(blob, durationMs) => void handleRecordAndSave(blob, durationMs)}
+            sending={savingAudio}
+            sendLabel="Save to vault"
+          />
+        </div>
         {saveAudioError && <p role="alert">Couldn't save: {saveAudioError}. Please try again.</p>}
         {audioError && <p role="alert">Couldn't load your saved audio nudges: {audioError}.</p>}
         {audioTags === null && !audioError && <p>Loading…</p>}
@@ -239,7 +266,7 @@ export function NudgeVaultBox() {
           <p>No saved audio nudges yet — record one above.</p>
         )}
         {audioTags !== null && audioTags.length > 0 && (
-          <ul>
+          <ul className={styles.exampleListItems}>
             {audioTags.map((tag) => (
               <VaultAudioTagRow
                 key={tag.id}
@@ -253,27 +280,45 @@ export function NudgeVaultBox() {
         {deleteAudioError && <p role="alert">{deleteAudioError}</p>}
       </section>
 
-      <section className="nudge-vault-box__written">
-        <h3>Written nudges</h3>
-        <label>
-          New nudge
-          <input
-            type="text"
-            value={newText}
-            onChange={(e) => setNewText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleAddText();
-              }
-            }}
-            placeholder="e.g. You've got this!"
-            disabled={savingText}
-          />
-        </label>
-        <button type="button" onClick={handleAddText} disabled={savingText || !newText.trim()}>
-          {savingText ? "Adding…" : "Add"}
-        </button>
+      <section className={styles.frameAudioNudges}>
+        <div className={styles.buttonRecordNewAudioNudge}>
+          <h3 className={styles.audioNudges10s}>Written Nudges</h3>
+          <div className={styles.newNudgeEditor}>
+            <TextInput
+              id="new-written-nudge"
+              inputHeight="36px"
+              inputBorderRadius="15px"
+              inputWidth="unset"
+              inputFlex="1"
+              entryFieldFontFamily="'Shantell Sans'"
+              value={newText}
+              onChange={(e) => setNewText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddText();
+                }
+              }}
+              placeholder="e.g. You've got this!"
+              disabled={savingText}
+              ariaLabel="New nudge"
+            />
+            <button
+              type="button"
+              className={styles.buttonBoolIconReset}
+              onClick={handleAddText}
+              disabled={savingText || !newText.trim()}
+              aria-label={savingText ? "Adding…" : "Add"}
+            >
+              <img
+                className={styles.buttonBoolIcon}
+                loading="lazy"
+                alt=""
+                src={asset("button-check.svg")}
+              />
+            </button>
+          </div>
+        </div>
         {saveTextError && <p role="alert">Couldn't save: {saveTextError}. Please try again.</p>}
         {textsError && <p role="alert">Couldn't load your saved written nudges: {textsError}.</p>}
         {texts === null && !textsError && <p>Loading…</p>}
@@ -281,23 +326,37 @@ export function NudgeVaultBox() {
           <p>No saved written nudges yet — add one above.</p>
         )}
         {texts !== null && texts.length > 0 && (
-          <ul>
+          <ul className={styles.exampleListItems}>
             {texts.map((text) => (
-              <li key={text.id}>
-                <span>{text.body}</span>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteText(text.id)}
-                  disabled={deletingTextId === text.id}
-                >
-                  {deletingTextId === text.id ? "Deleting…" : "Delete"}
-                </button>
+              <li key={text.id} className={styles.exampleListItem}>
+                <div className={styles.nudgeItemDetails}>
+                  <img
+                    className={styles.buttonListIcon}
+                    loading="lazy"
+                    alt=""
+                    src={asset("bullet-dot.svg")}
+                  />
+                  <h3 className={styles.egNudgeOne}>{text.body}</h3>
+                </div>
+                <div className={styles.nudgeItemControls}>
+                  {/* Edit has no backing capability anywhere in this app (no
+                      NUDGE_VAULT_TEXT_UPDATE message - only create/list/delete exist). Present per
+                      the design, deliberately non-functional (no onClick) - see this file's own
+                      header comment and the v4.2 Task 10 report. */}
+                  <IconButton icon={asset("icon-edit.svg")} label="Edit" />
+                  <IconButton
+                    icon={asset("icon-trash.svg")}
+                    label={deletingTextId === text.id ? "Deleting…" : "Delete"}
+                    onClick={() => handleDeleteText(text.id)}
+                    disabled={deletingTextId === text.id}
+                  />
+                </div>
               </li>
             ))}
           </ul>
         )}
         {deleteTextError && <p role="alert">{deleteTextError}</p>}
       </section>
-    </div>
+    </section>
   );
 }
