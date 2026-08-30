@@ -203,23 +203,23 @@ describe("AccountPage — signed in", () => {
   // for a pre-existing no-password account (created before this feature shipped), and the normal
   // way to change a password later.
   describe("password", () => {
-    it("disables Set password until both fields are filled and match (genuinely disabled, not just visual)", async () => {
+    it("disables Save Password until both fields are filled and match (genuinely disabled, not just visual)", async () => {
       mockSignedIn();
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      const submitButton = screen.getByRole("button", { name: "Set password" });
+      const submitButton = screen.getByRole("button", { name: "Save Password" });
       expect(submitButton).toBeDisabled();
 
-      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "new-pw" } });
       expect(submitButton).toBeDisabled();
 
-      fireEvent.change(screen.getByLabelText("Confirm new password"), {
+      fireEvent.change(screen.getByLabelText("Confirm New Password"), {
         target: { value: "does-not-match" },
       });
       expect(submitButton).toBeDisabled();
 
-      fireEvent.change(screen.getByLabelText("Confirm new password"), {
+      fireEvent.change(screen.getByLabelText("Confirm New Password"), {
         target: { value: "new-pw" },
       });
       expect(submitButton).not.toBeDisabled();
@@ -232,11 +232,11 @@ describe("AccountPage — signed in", () => {
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
-      fireEvent.change(screen.getByLabelText("Confirm new password"), {
+      fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("Confirm New Password"), {
         target: { value: "new-pw" },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save Password" }));
 
       await waitFor(() =>
         expect(setPasswordSpy).toHaveBeenCalledWith({
@@ -258,9 +258,9 @@ describe("AccountPage — signed in", () => {
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "x" } });
-      fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "x" } });
-      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+      fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "x" } });
+      fireEvent.change(screen.getByLabelText("Confirm New Password"), { target: { value: "x" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save Password" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
         /password should be at least 6 characters/i
@@ -271,12 +271,12 @@ describe("AccountPage — signed in", () => {
     // v3.4 Task 6: `passwordSetAt` (loaded via PROFILE_GET_MINE) gates whether a "Current
     // password" field renders/is required at all - these two states are asserted explicitly here
     // rather than only via the JSX, per this task's own DoD.
-    it("does not render a Current password field for an account that has never had a password", async () => {
+    it("does not render an Old Password field for an account that has never had a password", async () => {
       mockSignedIn();
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Old Password")).not.toBeInTheDocument();
     });
 
     function mockSignedInWithExistingPassword(
@@ -297,22 +297,22 @@ describe("AccountPage — signed in", () => {
       });
     }
 
-    it("renders and requires a Current password field for an account that already has a password", async () => {
+    it("renders and requires an Old Password field for an account that already has a password", async () => {
       mockSignedInWithExistingPassword();
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      expect(await screen.findByLabelText("Current password")).toBeInTheDocument();
+      expect(await screen.findByLabelText("Old Password")).toBeInTheDocument();
 
-      const submitButton = screen.getByRole("button", { name: "Set password" });
-      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
-      fireEvent.change(screen.getByLabelText("Confirm new password"), {
+      const submitButton = screen.getByRole("button", { name: "Save Password" });
+      fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("Confirm New Password"), {
         target: { value: "new-pw" },
       });
-      // New/confirm match, but Current password is still empty - stays disabled.
+      // New/confirm match, but Old Password is still empty - stays disabled.
       expect(submitButton).toBeDisabled();
 
-      fireEvent.change(screen.getByLabelText("Current password"), { target: { value: "old-pw" } });
+      fireEvent.change(screen.getByLabelText("Old Password"), { target: { value: "old-pw" } });
       expect(submitButton).not.toBeDisabled();
     });
 
@@ -322,14 +322,14 @@ describe("AccountPage — signed in", () => {
 
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
-      await screen.findByLabelText("Current password");
+      await screen.findByLabelText("Old Password");
 
-      fireEvent.change(screen.getByLabelText("Current password"), { target: { value: "old-pw" } });
-      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
-      fireEvent.change(screen.getByLabelText("Confirm new password"), {
+      fireEvent.change(screen.getByLabelText("Old Password"), { target: { value: "old-pw" } });
+      fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("Confirm New Password"), {
         target: { value: "new-pw" },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save Password" }));
 
       await waitFor(() =>
         expect(setPasswordSpy).toHaveBeenCalledWith({
@@ -338,28 +338,28 @@ describe("AccountPage — signed in", () => {
         })
       );
       // Success clears currentPassword alongside the other two fields.
-      await waitFor(() => expect(screen.getByLabelText("Current password")).toHaveValue(""));
+      await waitFor(() => expect(screen.getByLabelText("Old Password")).toHaveValue(""));
     });
 
-    it("surfaces 'Current password is incorrect' without clearing the current password field", async () => {
+    it("surfaces 'Current password is incorrect' without clearing the Old Password field", async () => {
       mockSignedInWithExistingPassword({
         AUTH_SET_PASSWORD: async () => ({ ok: false, error: "Current password is incorrect." }),
       });
 
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
-      await screen.findByLabelText("Current password");
+      await screen.findByLabelText("Old Password");
 
-      fireEvent.change(screen.getByLabelText("Current password"), { target: { value: "wrong-pw" } });
-      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
-      fireEvent.change(screen.getByLabelText("Confirm new password"), {
+      fireEvent.change(screen.getByLabelText("Old Password"), { target: { value: "wrong-pw" } });
+      fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("Confirm New Password"), {
         target: { value: "new-pw" },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save Password" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(/current password is incorrect/i);
       // "Don't wipe input on a failed attempt" - the field the user needs to look at again.
-      expect(screen.getByLabelText("Current password")).toHaveValue("wrong-pw");
+      expect(screen.getByLabelText("Old Password")).toHaveValue("wrong-pw");
     });
   });
 
@@ -391,12 +391,12 @@ describe("AccountPage — signed in", () => {
     // Signed in via code alone - no password step tacked on for the sign-in branch.
     expect(await screen.findByText(/signed in as legacy@example.com/i)).toBeInTheDocument();
 
-    // The recovery path: set a password now, from AccountPage's own "Password" section.
-    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "fresh-pw" } });
-    fireEvent.change(screen.getByLabelText("Confirm new password"), {
+    // The recovery path: set a password now, from AccountPage's own "Account Password" section.
+    fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "fresh-pw" } });
+    fireEvent.change(screen.getByLabelText("Confirm New Password"), {
       target: { value: "fresh-pw" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Password" }));
 
     expect(await screen.findByText("Password updated.")).toBeInTheDocument();
     expect(messenger.sendMessage).toHaveBeenCalledWith({
@@ -413,7 +413,7 @@ describe("AccountPage — signed in", () => {
     render(<AccountPage />);
     await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign Out" }));
 
     // v3.3 Task 14: the signed-out view is now SignInForm's entry choice, not a bare email
     // field - see SignInForm.test.tsx for full coverage of the Create account/Sign in split.
@@ -433,7 +433,7 @@ describe("AccountPage — signed in", () => {
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+      fireEvent.click(screen.getByRole("button", { name: "Delete Account" }));
       fireEvent.click(await screen.findByRole("button", { name: /yes, permanently delete/i }));
 
       await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith({ type: "AUTH_DELETE_ACCOUNT" }));
@@ -449,7 +449,7 @@ describe("AccountPage — signed in", () => {
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+      fireEvent.click(screen.getByRole("button", { name: "Delete Account" }));
       fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
 
       // Give any stray microtask a chance to run before asserting the negative.
@@ -466,7 +466,7 @@ describe("AccountPage — signed in", () => {
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+      fireEvent.click(screen.getByRole("button", { name: "Delete Account" }));
       fireEvent.click(await screen.findByRole("button", { name: /yes, permanently delete/i }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(

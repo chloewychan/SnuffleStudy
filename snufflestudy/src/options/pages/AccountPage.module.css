@@ -1,0 +1,51 @@
+/* v4.2 Task 12: styling for the one piece of AccountPage.tsx's signed-in view that has no
+   frontend-backup design frame at all - the delete-account confirmation dialog
+   (AccountSettingsPanel.tsx composes no such thing; ButtonLarge/ButtonLarge.module.css compose the
+   two action buttons themselves). Per the "no visible evidence of the old frontend" constraint,
+   this is originated fresh rather than left in its pre-v4.2 plain div/p form - but it reuses
+   AccountSettingsPanel.module.css's own color, spacing, and type-scale vocabulary (the custom
+   properties, e.g. color-dimgray, gap-15, padding-20, br-15, merged into global.css by Task 1)
+   rather than inventing a new one, so it still reads as part of the same design system.
+
+   Destructive and high-attention treatment: this design system has no dedicated "danger" or
+   "error" color anywhere in its merged palette (checked - only the pink and mistyrose families are
+   remotely warm-toned; everything else is neutral cream or gray). Task 5's archive-room action
+   (StudyRoomPopup.module.css's plain .buttonLarge) and Task 9's remove-friend action
+   (FriendDetailsPopup.module.css's plain .buttonLarge, reused via FriendSettingsFields'
+   classNames prop) were both checked first, per this task's own instructions, and neither
+   establishes a destructive-styling precedent to reuse - both render with the same default
+   treatment as every other button. This file establishes one: the pink and mistyrose family (this
+   palette's most saturated, most attention-drawing tones) marks the dialog's border and
+   background, and ButtonLarge's new buttonLargeBackgroundColor and buttonFontWeight props (v4.2
+   Task 12) mark its one truly destructive action. */
+
+.deleteConfirmDialog {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-15);
+  padding: var(--padding-20);
+  box-sizing: border-box;
+  border-radius: var(--br-15);
+  background-color: var(--color-mistyrose-200);
+  border: 3px solid var(--color-pink-100);
+}
+
+.deleteConfirmText {
+  margin: 0;
+  font-size: inherit;
+  font-family: inherit;
+  color: var(--color-dimgray);
+  line-height: var(--lh-normal);
+}
+
+.deleteConfirmActions {
+  align-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-15);
+}
+
+.deleteConfirmButton {
+  flex: 1;
+}

@@ -24,6 +24,16 @@ export type ButtonLargeType = {
   onClick?: () => void;
   disabled?: boolean;
   type?: "button" | "submit";
+
+  // v4.2 Task 12: AccountPage.tsx's delete-account confirmation dialog has no frontend-backup
+  // design frame at all (see that file's own header comment) - its "Yes, permanently delete"
+  // action needs a visually distinct destructive/high-attention treatment, and neither Task 5's
+  // archive-room nor Task 9's remove-friend action (the two precedents checked first) established
+  // one to reuse - both render as plain default-styled ButtonLarge instances. An inline style
+  // (rather than an extra CSS-module className) avoids depending on stylesheet import order to win
+  // the cascade against this component's own .buttonLarge background rule. Additive, optional,
+  // backward-compatible - omitting it reproduces the exact prior background for every other caller.
+  buttonLargeBackgroundColor?: CSSProperties["backgroundColor"];
 };
 
 const ButtonLarge: FunctionComponent<ButtonLargeType> = ({
@@ -39,14 +49,16 @@ const ButtonLarge: FunctionComponent<ButtonLargeType> = ({
   onClick,
   disabled = false,
   type = "button",
+  buttonLargeBackgroundColor,
 }) => {
   const buttonLargeStyle: CSSProperties = useMemo(() => {
     return {
       borderRadius: buttonLargeBorderRadius,
       alignSelf: buttonLargeAlignSelf,
       width: buttonLargeWidth,
+      backgroundColor: buttonLargeBackgroundColor,
     };
-  }, [buttonLargeBorderRadius, buttonLargeAlignSelf, buttonLargeWidth]);
+  }, [buttonLargeBorderRadius, buttonLargeAlignSelf, buttonLargeWidth, buttonLargeBackgroundColor]);
 
   const buttonStyle: CSSProperties = useMemo(() => {
     return {

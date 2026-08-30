@@ -2,6 +2,15 @@ import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { Profile } from "../../infrastructure/backend/profileApi";
 import { SignInForm, type SignInFormSession } from "../../shared/ui/SignInForm";
+import ButtonLarge from "../../sidepanel/ui/ButtonLarge";
+import TextInput from "../../sidepanel/ui/TextInput";
+// v4.2 Task 12: re-skinned as frontend-backup's AccountSettingsPanel.tsx design (signed-in branch
+// only - see this file's own return(...) for the OptionsApp.tsx-sharing rationale). `panelStyles`
+// is the ported, byte-for-byte copy of AccountSettingsPanel.module.css (Task 1); `dialogStyles` is
+// this task's own new file for the one piece with no design frame at all - the delete-account
+// confirmation dialog (see AccountPage.module.css's own header comment).
+import panelStyles from "../../sidepanel/styles/frontend-backup/components/settings/AccountSettingsPanel.module.css";
+import dialogStyles from "./AccountPage.module.css";
 
 // v3.2 Task 1: the OTP email/code sign-in state and AUTH_REQUEST_OTP/AUTH_VERIFY_OTP round trip
 // this page used to own inline now live in the shared SignInForm - this page just holds the
@@ -29,7 +38,7 @@ export function AccountPage() {
   // branch) - this is a secondary action, always available while signed in.
   // v3.4 Task 6: `passwordSetAt` is now also loaded from the signed-in user's profile
   // (PROFILE_GET_MINE, below) rather than starting purely local - it's the durable, server-side
-  // signal for whether a "Current password" field needs to be shown/required at all. It's still
+  // signal for whether an "Old Password" field needs to be shown/required at all. It's still
   // updated locally to Date.now() on a successful set (unchanged from before this task), which
   // both confirms the "Password updated." message and immediately flips a first-time set into
   // "current password now required" for any subsequent change, without waiting on a re-fetch.
@@ -72,7 +81,7 @@ export function AccountPage() {
 
   // v3.4 Task 6: loads `passwordSetAt` from the signed-in user's profile once signed in - the
   // password section below (rendered further down, once `session` is set) needs this resolved
-  // before it can decide whether to show/require the "Current password" field.
+  // before it can decide whether to show/require the "Old Password" field.
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
@@ -197,24 +206,27 @@ export function AccountPage() {
 
   if (!sessionLoaded) {
     return (
-      <div className="account-page">
+      <section className={panelStyles.accountSettingsPanel}>
         <p>Loading…</p>
-      </div>
+      </section>
     );
   }
 
   if (sessionError) {
     return (
-      <div className="account-page">
+      <section className={panelStyles.accountSettingsPanel}>
         <p role="alert">Couldn't load your account: {sessionError}. Please reload this page.</p>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="account-page">
-      <h2>Account</h2>
+    <section className={panelStyles.accountSettingsPanel}>
+      <h2 className={panelStyles.account}>Account</h2>
 
+      {/* v4.2 Task 12: signed-out branch (SignInForm) is unchanged - only the signed-in branch
+          below is in this task's scope (see this file's own header comment / the task report for
+          the OptionsApp.tsx-sharing rationale). */}
       {!session && (
         <section>
           <SignInForm onSignedIn={handleSignedIn} />
@@ -226,103 +238,190 @@ export function AccountPage() {
           {/* v4.1 Task 10: Sign out and Delete account merged into one row under the single
               "Account" heading above (scope doc's Settings section) - previously two separate
               sections, one with its own "Delete account" h3. The deleteConfirming
-              confirm-then-delete flow itself (below) is unchanged, just relocated here. */}
-          <section>
-            <p>Signed in as {session.user.email ?? session.user.id}.</p>
-            <div>
-              <button type="button" onClick={() => void handleSignOut()} disabled={authBusy}>
-                {authBusy ? "Signing out…" : "Sign out"}
-              </button>
+              confirm-then-delete flow itself (below) is unchanged, just relocated here.
+              v4.2 Task 12: re-skinned as AccountSettingsPanel.tsx's design - see this task's report
+              for the exact markup mapping and the delete-confirmation dialog's own rationale
+              (no frontend-backup design frame exists for it; see AccountPage.module.css). */}
+          <div className={panelStyles.accountOptions}>
+            <h3 className={panelStyles.signedInAs}>
+              Signed in as {session.user.email ?? session.user.id}
+            </h3>
+            <div className={panelStyles.buttonSignOutDeleteAccount}>
+              <ButtonLarge
+                property1="default"
+                buttonLargeBorderRadius="15px"
+                button={authBusy ? "Signing out…" : "Sign Out"}
+                buttonFontFamily="'Shantell Sans'"
+                buttonMargin="0"
+                buttonFontWeight="400"
+                buttonLargeAlignSelf="unset"
+                onClick={() => void handleSignOut()}
+                disabled={authBusy}
+              />
               {!deleteConfirming && (
-                <button
-                  type="button"
+                <ButtonLarge
+                  property1="default"
+                  buttonLargeBorderRadius="15px"
+                  button="Delete Account"
+                  buttonFontFamily="'Shantell Sans'"
+                  buttonMargin="0"
+                  buttonFontWeight="400"
+                  buttonLargeAlignSelf="unset"
                   onClick={() => setDeleteConfirming(true)}
                   disabled={deleteBusy}
-                >
-                  Delete account
-                </button>
+                />
               )}
             </div>
             {authError && <p role="alert">Couldn't sign out: {authError}. Please try again.</p>}
             {deleteConfirming && (
-              <div role="alertdialog" aria-label="Confirm account deletion">
-                <p>
+              <div
+                className={dialogStyles.deleteConfirmDialog}
+                role="alertdialog"
+                aria-label="Confirm account deletion"
+              >
+                <p className={dialogStyles.deleteConfirmText}>
                   <strong>Are you sure?</strong> This removes your friend connections (or hands
                   them off to another friend), study room history, audio nudges, digests, and
                   every other record tied to your account, everywhere. This cannot be undone.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteAccount()}
-                  disabled={deleteBusy}
-                >
-                  {deleteBusy ? "Deleting…" : "Yes, permanently delete my account"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteConfirming(false)}
-                  disabled={deleteBusy}
-                >
-                  Cancel
-                </button>
+                <div className={dialogStyles.deleteConfirmActions}>
+                  <ButtonLarge
+                    className={dialogStyles.deleteConfirmButton}
+                    property1="default"
+                    buttonLargeBorderRadius="15px"
+                    button={deleteBusy ? "Deleting…" : "Yes, permanently delete my account"}
+                    buttonFontFamily="'Shantell Sans'"
+                    buttonMargin="0"
+                    buttonFontWeight="700"
+                    buttonLargeAlignSelf="unset"
+                    buttonLargeBackgroundColor="var(--color-pink-100)"
+                    onClick={() => void handleDeleteAccount()}
+                    disabled={deleteBusy}
+                  />
+                  <ButtonLarge
+                    className={dialogStyles.deleteConfirmButton}
+                    property1="default"
+                    buttonLargeBorderRadius="15px"
+                    button="Cancel"
+                    buttonFontFamily="'Shantell Sans'"
+                    buttonMargin="0"
+                    buttonFontWeight="400"
+                    buttonLargeAlignSelf="unset"
+                    onClick={() => setDeleteConfirming(false)}
+                    disabled={deleteBusy}
+                  />
+                </div>
               </div>
             )}
             {deleteError && (
               <p role="alert">Couldn't delete your account: {deleteError}. Please try again.</p>
             )}
-          </section>
+          </div>
 
-          <section>
-            <h3>Password</h3>
-            <form onSubmit={(e) => void handleSetPassword(e)}>
+          <div className={panelStyles.frameAccountPassword}>
+            <h3 className={panelStyles.accountPassword}>Account Password</h3>
+            <form className={panelStyles.listItems} onSubmit={(e) => void handleSetPassword(e)}>
               {passwordSetAt !== null && (
-                <label>
-                  Current password
-                  <input
-                    type="password"
-                    required
+                <div className={panelStyles.inputOldPassword}>
+                  <label htmlFor="account-old-password" className={panelStyles.accountPassword}>
+                    Old Password
+                  </label>
+                  <TextInput
+                    id="account-old-password"
+                    property1="textbox"
+                    inputHeight="36px"
+                    inputBorderRadius="15px"
+                    inputWidth="unset"
+                    inputFlex="1"
+                    placeholder="E.g., Old password"
+                    entryFieldType="password"
+                    entryFieldFontFamily="'Shantell Sans'"
+                    entryFieldDisplay="inline-block"
+                    entryFieldBorder="none"
+                    entryFieldOutline="none"
+                    entryFieldBackgroundColor="transparent"
+                    entryFieldMargin="unset"
+                    entryFieldFontWeight="unset"
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                   />
-                </label>
+                </div>
               )}
-              <label>
-                New password
-                <input
-                  type="password"
-                  required
+              <div className={panelStyles.inputOldPassword}>
+                <label htmlFor="account-new-password" className={panelStyles.accountPassword}>
+                  New Password
+                </label>
+                <TextInput
+                  id="account-new-password"
+                  property1="textbox"
+                  inputHeight="36px"
+                  inputBorderRadius="15px"
+                  inputWidth="unset"
+                  inputFlex="1"
+                  placeholder="E.g., New password"
+                  entryFieldType="password"
+                  entryFieldFontFamily="'Shantell Sans'"
+                  entryFieldDisplay="inline-block"
+                  entryFieldBorder="none"
+                  entryFieldOutline="none"
+                  entryFieldBackgroundColor="transparent"
+                  entryFieldMargin="unset"
+                  entryFieldFontWeight="unset"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                 />
-              </label>
-              <label>
-                Confirm new password
-                <input
-                  type="password"
-                  required
+              </div>
+              <div className={panelStyles.inputOldPassword}>
+                <label
+                  htmlFor="account-confirm-new-password"
+                  className={panelStyles.accountPassword}
+                >
+                  Confirm New Password
+                </label>
+                <TextInput
+                  id="account-confirm-new-password"
+                  property1="textbox"
+                  inputHeight="36px"
+                  inputBorderRadius="15px"
+                  inputWidth="unset"
+                  inputFlex="1"
+                  placeholder="E.g., Confirm new password"
+                  entryFieldType="password"
+                  entryFieldFontFamily="'Shantell Sans'"
+                  entryFieldDisplay="inline-block"
+                  entryFieldBorder="none"
+                  entryFieldOutline="none"
+                  entryFieldBackgroundColor="transparent"
+                  entryFieldMargin="unset"
+                  entryFieldFontWeight="unset"
                   value={confirmNewPassword}
                   onChange={(e) => setConfirmNewPassword(e.target.value)}
                 />
-              </label>
-              <button
+              </div>
+              <ButtonLarge
                 type="submit"
+                property1="default"
+                buttonLargeBorderRadius="15px"
+                button={passwordBusy ? "Saving…" : "Save Password"}
+                buttonFontFamily="'Shantell Sans'"
+                buttonMargin="unset"
+                buttonFontWeight="unset"
+                buttonLargeAlignSelf="unset"
                 disabled={
                   passwordBusy ||
                   !newPassword ||
                   newPassword !== confirmNewPassword ||
                   (passwordSetAt !== null && !currentPassword)
                 }
-              >
-                {passwordBusy ? "Saving…" : "Set password"}
-              </button>
+              />
             </form>
             {passwordError && (
               <p role="alert">Couldn't set your password: {passwordError}. Please try again.</p>
             )}
             {passwordSetAt !== null && !passwordError && <p>Password updated.</p>}
-          </section>
+          </div>
         </>
       )}
-    </div>
+    </section>
   );
 }
