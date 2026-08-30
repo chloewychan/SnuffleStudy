@@ -16,13 +16,41 @@
   color: var(--color-dimgray);
   font-family: var(--font-pangolin);
 }
+/* v4.2 Task 7 addition: .activeStudySessionPage above (100px top padding, its own snow
+   background) was sized to hold this page's own HeaderBar/NavigationBar - Decision 1 means the
+   shell already renders those once, so ActiveSessionView.tsx never mounts .activeStudySessionPage
+   itself (same precedent as Task 3's BunnyTab.tsx, which never mounts BunnyPage.module.css's
+   identically-shaped page wrapper either - see that file's own header-clearance padding). This
+   lightweight root replaces it for ActiveSessionView.tsx's own two top-level pieces (the goal
+   heading below, and ActiveSession.module.css's own self-contained card): same centering/gap,
+   no header-clearance padding, no page-level background override (the shell already owns that).
+*/
+.activeSessionViewRoot {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gap-40);
+  box-sizing: border-box;
+  text-align: center;
+}
+@media screen and (max-width: 450px) {
+  .activeSessionViewRoot {
+    gap: var(--gap-20);
+  }
+}
 .egGoalName {
   margin: 0;
   align-self: stretch;
   position: relative;
-  font-size: inherit;
+  /* v4.2 Task 7: was font-size/font-family: inherit, inheriting from .activeStudySessionPage
+     above - which, per the comment above, is no longer this heading's mounted ancestor (Decision
+     1). Set explicitly here instead so this heading keeps its intended look without that
+     ancestor. */
+  font-size: var(--fs-40);
   font-weight: 400;
-  font-family: inherit;
+  font-family: var(--font-pangolin);
+  color: var(--color-dimgray);
 }
 @media screen and (max-width: 750px) {
   .egGoalName {

@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { FriendRequest } from "../../domain/accountability/friendRequest";
 import type { StudySession, SessionEvent } from "../../domain/session/sessionTypes";
+import ButtonLarge from "../ui/ButtonLarge";
+import TextInput from "../ui/TextInput";
+import TextSmall from "../ui/TextSmall";
+import styles from "./RequestUnlockForm.module.css";
 
 interface RequestUnlockFormProps {
   // Non-null, unlike UnlockRequestPanel.tsx's old `session: StudySession | null` - this
@@ -43,20 +47,14 @@ function distinctBlockedHostnames(events: SessionEvent[]): string[] {
   return [...seen];
 }
 
-// v3.4 Task 3, Decision 5: the mid-session "Request an unlock" requester form, relocated here
-// from UnlockRequestPanel.tsx's top half (that component - and TempPasscodePanel.tsx/
-// SessionEndRequestPanel.tsx - are deleted this task, replaced by this component + what was then
-// a standalone approver-side panel). Carries UnlockRequestPanel.tsx's exact requester-side
-// behavior (blocked-hostname suggestion buttons, a hostname text field, "my requests for this
-// session" status list) - only the create call changes, from UNLOCK_REQUEST_CREATE to
-// FRIEND_REQUEST_CREATE("site_unlock", { sessionId, hostname }). SidePanelApp.tsx's
-// active-session view composes this (session-aware) alongside ActiveSessionView.
-//
-// v4.1 Task 8: the approver-side panel this used to sit beside (behind a toggle) is gone - its
-// content is now always visible in the new, persistent Nudges & Unlock Requests footer instead,
-// so this form now renders directly in the active-session view, unconditionally, rather than
-// behind that toggle. This component itself is otherwise unaffected (Task 8's own Deliverables:
-// "session-scoped, unaffected").
+// v4.2 Task 7 (Decision 5): rebuilt fresh from the new design system's own primitives -
+// frontend-backup has no page/component corresponding to this form at all (see this file's own
+// CSS module header comment), so unlike every other v4.2 task this isn't a JSX transplant. Every
+// piece of state, every handler, and every sendMessage() call below is byte-for-byte unchanged
+// from the pre-v4.2 version - only the JSX return(...) block changed, composed from ButtonLarge
+// (the suggestion chips + "Request unlock"/"Refresh" actions), TextInput (the hostname field), and
+// this file's own RequestUnlockForm.module.css (mirroring ActiveSession.tsx's card/section/heading
+// conventions - see the v4.2 Task 7 report for the full layout rationale).
 export function RequestUnlockForm({ session }: RequestUnlockFormProps) {
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
 
@@ -162,56 +160,70 @@ export function RequestUnlockForm({ session }: RequestUnlockFormProps) {
   if (!isSessionActive) return null;
 
   return (
-    <section className="request-unlock-form">
-      <h3>Request an unlock</h3>
-      <p>Ask a friend to unlock a site for the rest of this session.</p>
+    <section className={styles.requestUnlockForm}>
+      <h2 className={styles.heading}>Request an unlock</h2>
+      <p className={styles.description}>
+        Ask a friend to unlock a site for the rest of this session.
+      </p>
+
       {blockedHostnames.length > 0 && (
-        <div className="request-unlock-form__suggestions">
-          {blockedHostnames.map((hostname) => (
-            <button
-              key={hostname}
-              type="button"
-              onClick={() => setHostnameInput(hostname)}
-              disabled={createBusy}
-            >
-              {hostname}
-            </button>
-          ))}
+        <div className={styles.section}>
+          <h3 className={styles.subheading}>Recently Blocked</h3>
+          <ul className={styles.suggestionList}>
+            {blockedHostnames.map((hostname) => (
+              <li key={hostname} className={styles.suggestionChip}>
+                <ButtonLarge
+                  button={hostname}
+                  onClick={() => setHostnameInput(hostname)}
+                  disabled={createBusy}
+                />
+              </li>
+            ))}
+          </ul>
         </div>
       )}
-      <label>
-        Hostname
-        <input
-          type="text"
-          value={hostnameInput}
-          onChange={(e) => setHostnameInput(e.target.value)}
-          placeholder="e.g. youtube.com"
-          disabled={createBusy}
+
+      <div className={styles.section}>
+        <div className={styles.hostnameField}>
+          <label className={styles.label} htmlFor="unlock-request-hostname">
+            Hostname
+          </label>
+          <TextInput
+            id="unlock-request-hostname"
+            entryFieldType="text"
+            value={hostnameInput}
+            onChange={(e) => setHostnameInput(e.target.value)}
+            placeholder="e.g. youtube.com"
+            disabled={createBusy}
+          />
+        </div>
+        <ButtonLarge
+          button={createBusy ? "Requesting…" : "Request unlock"}
+          onClick={() => handleCreateRequest(hostnameInput)}
+          disabled={createBusy || !hostnameInput.trim()}
         />
-      </label>
-      <button
-        type="button"
-        onClick={() => handleCreateRequest(hostnameInput)}
-        disabled={createBusy || !hostnameInput.trim()}
-      >
-        {createBusy ? "Requesting…" : "Request unlock"}
-      </button>
-      {createError && <p role="alert">Request not sent: {createError}</p>}
+        {createError && <p role="alert">Request not sent: {createError}</p>}
+      </div>
 
       {myRequestsForThisSession.length > 0 && (
-        <ul className="request-unlock-form__my-requests">
-          {myRequestsForThisSession.map((r) => (
-            <li key={r.id}>
-              {r.hostname} — {STATUS_LABEL[r.status]}
-            </li>
-          ))}
-        </ul>
+        <div className={styles.section}>
+          <h3 className={styles.subheading}>Your Requests This Session</h3>
+          <ul className={styles.requestList}>
+            {myRequestsForThisSession.map((r) => (
+              <li key={r.id}>
+                <TextSmall textbox={`${r.hostname} — ${STATUS_LABEL[r.status]}`} />
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {error && <p role="alert">Couldn't load your unlock requests: {error}. Please try again.</p>}
-      <button type="button" onClick={loadRequests} disabled={loading}>
-        {loading ? "Refreshing…" : "Refresh"}
-      </button>
+      <ButtonLarge
+        button={loading ? "Refreshing…" : "Refresh"}
+        onClick={loadRequests}
+        disabled={loading}
+      />
     </section>
   );
 }

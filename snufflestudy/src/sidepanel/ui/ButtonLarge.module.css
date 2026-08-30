@@ -20,3 +20,10 @@
   color: var(--color-dimgray);
   text-align: left;
 }
+
+/* v4.2 Task 7: first real (disableable) use of this primitive - matches the .iconButton:disabled/
+   .saveButtonReset:disabled precedent from Tasks 5/3. */
+.buttonLarge:disabled {
+  opacity: var(--opacity-0_5);
+  cursor: not-allowed;
+}

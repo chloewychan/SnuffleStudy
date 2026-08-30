@@ -138,60 +138,15 @@
   outline-offset: 2px;
 }
 
-/* Fix 2 (final-review fix wave), updated for the transparent .sp-card treatment: global.css's
-   .timer-ring__track defaults to stroke: var(--color-surface), and ActiveSessionView.tsx nests
-   <TimerRing> inside a .sp-card - which no longer has a fill at all, so any track color that
-   matches the page background behind it (--color-bg) would be just as invisible as the original
-   surface-on-surface bug this fix addressed. --color-accent gives the track real contrast against
-   that transparent backdrop; scoped here (not in global.css/TimerRing.tsx) since other consumers
-   of .timer-ring may rely on the current colors. */
-.sp-active-session__progress .timer-ring__track {
-  stroke: var(--color-accent);
-}
-
-.sp-active-session__progress .timer-ring__progress {
-  stroke: var(--color-text);
-}
-
-.sp-active-session__goal {
-  font-family: var(--font-display);
-  font-size: var(--font-size-lg);
-  color: var(--color-text);
-  text-align: center;
-}
-
-.sp-active-session__controls {
-  display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-
-.sp-active-session__sites {
-  list-style: none;
-  padding: 0;
-  margin: var(--space-3) 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  color: var(--color-text-muted);
-  font-family: var(--font-body);
-  font-size: var(--font-size-sm);
-}
-
-.sp-active-session__friend-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.sp-active-session__friend-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
+/* v4.2 Task 7: .sp-active-session__progress .timer-ring__track/__progress, .sp-active-session__goal,
+   .sp-active-session__controls, .sp-active-session__sites, and the already-dead (v4.1 Task 7,
+   Decision 4) .sp-active-session__friend-list/li deleted here - ActiveSessionView.tsx no longer
+   renders any of these classnames, replaced by ActiveSession.module.css's/
+   ActiveStudySessionPage.module.css's own styling. Grep-confirmed zero remaining references
+   anywhere in snufflestudy/src before deleting (ActiveSessionView.tsx was the only consumer of
+   every one of these six selectors). TimerRing itself keeps its own global.css
+   .timer-ring__track/__progress default stroke colors now (no more surface-on-surface override
+   needed here), since the new .timer box gives it a filled, non-transparent background already. */
 
 /* v4.2 Task 6: .study-room-panel__grid/__tile/__tile--selected/__tile--unselectable/
    __tile-label (v3.3 Task 3's/v4.1 Task 7's video-tile layout, selection outline, and label)

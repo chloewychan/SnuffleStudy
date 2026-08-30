@@ -1,37 +1,38 @@
 import { useNow } from "../../shared/hooks/useNow";
-import { SessionStatusCard } from "../../shared/ui/SessionStatusCard";
 import { TimerRing } from "../../shared/ui/TimerRing";
 import { PauseResumeControl } from "../../shared/ui/PauseResumeControl";
 import { EndSessionControl } from "../../shared/ui/EndSessionControl";
+import { ACTIVITY_LABELS, DISTRACTION_LABELS } from "../../shared/ui/SessionStatusCard";
 import { remainingSeconds as computeRemainingSeconds } from "../../domain/session/timer";
 import type { StudySession } from "../../domain/session/sessionTypes";
+import pageStyles from "../styles/frontend-backup/pages/tabs/ActiveStudySessionPage.module.css";
+import styles from "../styles/frontend-backup/components/study/ActiveSession.module.css";
 
 interface ActiveSessionViewProps {
   session: StudySession;
 }
 
-// Task 9: replaces SidePanelApp.tsx's inline active-session branch (SessionStatusCard/TimerRing/
-// restricted-sites-list/PauseResumeControl/EndSessionControl, plus the two showUnlockPanel/
-// showTempPasscodePanel trigger buttons) with a standalone component matching the Figma "Study
-// Session" screen (get_design_context on nodeId=60:774 was attempted first per the task brief but
-// hit this project's exhausted Figma MCP "Starter plan" quota - see the task report for the raw
-// structural fallback metadata this was built from instead).
+// v4.2 Task 7: re-skinned as frontend-backup's ActiveStudySessionPage.tsx (goal heading only -
+// Decision 1 means its own HeaderBar/NavigationBar import+JSX is dropped, the shell already
+// renders both once) + ActiveSession.tsx (the "Study Session in Progress" card). Every hook and
+// piece of state below is byte-for-byte unchanged from the pre-v4.2 version - only the JSX
+// return(...) block changed.
 //
-// v4.1 Task 7 (Decision 4): this file used to also render a "Study Room" section here - a
-// participant list + one Nudge button per accountability-group member, gated on
-// session.accountabilityGroupId. That field has no producer anywhere in the codebase (nothing
-// ever sets it on session creation), so the section never actually rendered. Removed entirely
-// rather than left in place, dead, alongside the new persistent Study Room footer
-// (StudyRoomFooter.tsx via AppFooter.tsx) - keeping two different "Study Room during a session"
-// implementations in one file, one of them permanently unreachable, would only confuse a future
-// reader.
-//
-// v4.1 Task 8: the "Friend requests" escape-hatch button (and the reveal-callback prop it used to
-// take) is removed too - the standalone approver-side panel it used to reveal is now always
-// visible in the new persistent Nudges & Unlock Requests footer, not something to reveal on
-// demand from here. RequestUnlockForm (session-scoped, unaffected by this task) now renders
-// directly alongside this component at SidePanelApp.tsx's active-session call site, instead of
-// behind this button's toggle.
+// Two deliberate departures from a literal transplant, both documented in the v4.2 Task 7 report:
+// 1. The design's own "Study Session in Progress" card has a plain <h2>21:56</h2> time display in
+//    a .timer box with no background-image asset defined anywhere in its own CSS (an incomplete
+//    static export - .timer sets background-size/repeat/position but never background-image).
+//    TimerRing is kept instead of that plain text: it already implements the exact
+//    remaining/totalSeconds formatting this task's own Interfaces block calls out, and it carries
+//    the role="timer"/aria-live="polite" accessibility attributes the Global Constraints require
+//    carrying forward (the design has no accessibility semantics of its own to preserve here).
+// 2. The design's two "Activity Status"/"Focus Status" rows use a static, non-interactive
+//    <input type="radio"> as a decorative bullet-dot marker - there is no real user-facing choice
+//    behind either one (session.activityState/interventionLevel are read-only telemetry, not
+//    something a user toggles), so unlike Decision 6's actual toggles (Task Vault's per-task
+//    checkbox, the tracking-tier radio pair), these become plain aria-hidden <span> markers -
+//    matching SessionStatusCard.tsx's own pre-existing decorative-dot precedent - rather than a
+//    functionless <input>.
 export function ActiveSessionView({ session }: ActiveSessionViewProps) {
   const now = useNow();
   const remaining = computeRemainingSeconds(session, now);
@@ -43,31 +44,42 @@ export function ActiveSessionView({ session }: ActiveSessionViewProps) {
     session.state === "BREAK" ? session.breakDurationSeconds : session.focusDurationSeconds;
 
   return (
-    <div className="sp-tab-content sp-active-session">
-      {/* Figma node 60:783 ("Example Goal Name") sits above the "Study Session in Progress"
-          card (Group 17, node 62:1003) as its own standalone headline - kept as a separate
-          element here rather than folded away, even though the reused, unmodified
-          SessionStatusCard below also renders session.goal itself (its own
-          session-status-card__goal paragraph). That duplication is an accepted, documented
-          consequence of composing an already-built component rather than a bug - see
-          FriendsTab.tsx for the same "reuse composed components as-is, document any resulting
-          mismatch" precedent from Task 7. */}
-      <h2 className="sp-active-session__goal">{session.goal}</h2>
+    <div className={pageStyles.activeSessionViewRoot}>
+      <h2 className={pageStyles.egGoalName}>{session.goal}</h2>
 
-      <section className="sp-card sp-active-session__progress">
-        <TimerRing remainingSeconds={remaining} totalSeconds={totalSeconds} />
-        <h3 className="sp-card__title">Study Session in Progress</h3>
-        <div className="sp-active-session__controls">
-          <PauseResumeControl session={session} />
-          <EndSessionControl session={session} />
+      <section className={styles.activeSession}>
+        <h2 className={styles.studySessionIn}>Study Session in Progress</h2>
+
+        <div className={styles.sessionControl}>
+          <div className={styles.timer}>
+            <TimerRing remainingSeconds={remaining} totalSeconds={totalSeconds} />
+          </div>
+          <div className={styles.buttonOptions}>
+            <PauseResumeControl session={session} />
+            <EndSessionControl session={session} />
+          </div>
         </div>
-        <SessionStatusCard session={session} />
+
+        <div className={styles.statuses}>
+          <div className={styles.activityStatus}>
+            <span className={styles.buttonList} aria-hidden="true" />
+            <h3 className={styles.activityStatusEg}>
+              Activity Status: {ACTIVITY_LABELS[session.activityState]}
+            </h3>
+          </div>
+          <div className={styles.activityStatus}>
+            <span className={styles.buttonList} aria-hidden="true" />
+            <h3 className={styles.activityStatusEg}>
+              Focus Status: {DISTRACTION_LABELS[session.interventionLevel]}
+            </h3>
+          </div>
+        </div>
+
         {/* Restricted-sites list, lifted from the original inline SidePanelApp.tsx active-session
-            branch - not part of the Figma mock's trimmed metadata, but functionally needed and
-            explicitly called out in this task's own description as part of what's being
-            replaced. */}
+            branch - not part of the design's own trimmed markup, but functionally needed (see
+            file-header comment) and explicitly preserved rather than dropped. */}
         {session.restrictedSites.length > 0 && (
-          <ul className="sp-active-session__sites">
+          <ul className={styles.restrictedSites}>
             {session.restrictedSites.map((site) => (
               <li key={site}>{site}</li>
             ))}

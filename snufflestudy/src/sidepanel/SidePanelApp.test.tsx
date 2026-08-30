@@ -200,11 +200,12 @@ describe("SidePanelApp", () => {
     });
 
     render(<SidePanelApp />);
-    // ActiveSessionView (Task 9) shows the goal twice by design - once as its own headline, once
-    // inside the reused SessionStatusCard (see ActiveSessionView.test.tsx for the same assertion
-    // shape and rationale) - so getAllByText/length is used instead of a single getByText.
+    // v4.2 Task 7: ActiveSessionView no longer embeds the whole SessionStatusCard component (its
+    // "Activity Status"/"Focus Status" rows are built directly from SessionStatusCard.tsx's own
+    // exported label maps instead - see ActiveSessionView.test.tsx), so the goal is shown once now,
+    // not twice.
     await waitFor(() =>
-      expect(screen.getAllByText("Finish 20 chemistry problems").length).toBe(2)
+      expect(screen.getByText("Finish 20 chemistry problems")).toBeInTheDocument()
     );
     expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument();
   });

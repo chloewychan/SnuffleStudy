@@ -25,3 +25,10 @@
   text-align: left;
   display: inline-block;
 }
+
+/* v4.2 Task 7: first real (disableable) use of this primitive - matches the .iconButton:disabled/
+   .buttonLarge:disabled precedent from Tasks 5/7. */
+.siteElements:disabled {
+  opacity: var(--opacity-0_5);
+  cursor: not-allowed;
+}

@@ -1,4 +1,4 @@
-import { useMemo, type FunctionComponent, type CSSProperties } from "react";
+import { useMemo, type FunctionComponent, type CSSProperties, type ChangeEvent } from "react";
 import styles from "./TextInput.module.css";
 
 export type TextInputType = {
@@ -21,6 +21,18 @@ export type TextInputType = {
   entryFieldBackgroundColor?: CSSProperties["backgroundColor"];
   entryFieldMargin?: CSSProperties["margin"];
   entryFieldFontWeight?: CSSProperties["fontWeight"];
+
+  // v4.2 Task 7 (Decision 5): frontend-backup's own TextInput.tsx renders an uncontrolled,
+  // static <input> (no value/onChange/disabled at all - a 100% static design). RequestUnlockForm's
+  // hostname field (rebuilt fresh from this primitive) is the first real call site needing a
+  // controlled input. Additive, optional, backward-compatible - omitting these reproduces the
+  // exact prior static/uncontrolled behavior. Mirrors IconButton.tsx's/ButtonLarge.tsx's identical
+  // extensions in v4.2 Tasks 5/7.
+  id?: string;
+  name?: string;
+  value?: string;
+  onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
+  disabled?: boolean;
 };
 
 const TextInput: FunctionComponent<TextInputType> = ({
@@ -39,6 +51,11 @@ const TextInput: FunctionComponent<TextInputType> = ({
   entryFieldBackgroundColor,
   entryFieldMargin,
   entryFieldFontWeight,
+  id,
+  name,
+  value,
+  onChange,
+  disabled = false,
 }) => {
   const inputStyle: CSSProperties = useMemo(() => {
     return {
@@ -76,10 +93,15 @@ const TextInput: FunctionComponent<TextInputType> = ({
       style={inputStyle}
     >
       <input
+        id={id}
+        name={name}
         className={styles.siteElements}
         placeholder={placeholder}
         type={entryFieldType}
         style={siteElementsStyle}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
       />
     </div>
   );

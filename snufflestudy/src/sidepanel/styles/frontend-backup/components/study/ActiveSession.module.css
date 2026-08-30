@@ -58,6 +58,36 @@
   padding: var(--padding-20) 0;
   gap: var(--gap-20);
 }
+/* v4.2 Task 7: PauseResumeControl/EndSessionControl (shared/ui, byte-for-byte unmodified - "wrap
+   in the new visual shell, don't reimplement their logic") each render their own bare <button>
+   directly as a child of .buttonOptions above - restyled via this descendant selector (rather than
+   adding a className prop to those two shared, non-design-owned components) to read like
+   .buttonLarge/.buttonLarge2 + .button combined, overriding global.css's generic `button {...}`
+   chrome the same way every other newly-real <button> in this plan needed its own *Reset-class
+   treatment. The last button (End Session, in both the 2-button FOCUSING/PAUSED case and the
+   1-button BREAK case where PauseResumeControl renders null) gets .buttonLarge2's align-self:
+   stretch treatment; the first (Pause/Resume) keeps .buttonLarge's fit-content width. */
+.buttonOptions > button {
+  cursor: pointer;
+  border: var(--border-1);
+  padding: var(--padding-5) var(--padding-15);
+  background-color: var(--color-linen);
+  border-radius: var(--br-15);
+  font-size: var(--fs-24);
+  font-weight: 400;
+  font-family: var(--font-shantell-sans);
+  color: var(--color-dimgray);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.buttonOptions > button:last-of-type {
+  align-self: stretch;
+}
+.buttonOptions > button:disabled {
+  opacity: var(--opacity-0_5);
+  cursor: not-allowed;
+}
 .buttonLarge {
   cursor: pointer;
   border: var(--border-1);
@@ -121,6 +151,26 @@
   font-size: inherit;
   font-weight: 400;
   font-family: inherit;
+}
+/* v4.2 Task 7 addition: the restricted-sites list has no slot anywhere in this file's own static
+   mockup (only the "Study Session in Progress" card + the two Activity/Focus status rows exist
+   there) - carried forward from the pre-v4.2 implementation since it's functionally needed (the
+   only place a user sees which sites are currently blocked this session), styled with this same
+   file's own .statuses-section typography/spacing rather than inventing a new visual language for
+   an undesigned surface. */
+.restrictedSites {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-10);
+  max-width: 349.2px;
+  font-size: var(--fs-20);
+  font-family: var(--font-shantell-sans);
+  color: var(--color-darkgray);
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 @media screen and (max-width: 750px) {
   .activeSession {

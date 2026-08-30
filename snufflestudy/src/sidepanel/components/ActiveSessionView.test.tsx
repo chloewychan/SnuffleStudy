@@ -39,26 +39,33 @@ beforeEach(() => {
 // v4.1 Task 8: the "Friend requests" escape-hatch button (and the reveal-callback prop it used to
 // take) is removed too - the standalone approver-side panel it used to reveal is now always
 // visible in the new persistent Nudges & Unlock Requests footer instead of behind this button's
-// toggle (see
-// SidePanelApp.test.tsx for the replacement coverage of RequestUnlockForm rendering directly in
-// the active-session view). Only the goal/timer/controls/restricted-sites coverage below remains,
-// since that's all this component still owns.
+// toggle (see SidePanelApp.test.tsx for the replacement coverage of RequestUnlockForm rendering
+// directly in the active-session view).
+//
+// v4.2 Task 7: re-skinned as frontend-backup's ActiveStudySessionPage.tsx/ActiveSession.tsx
+// design. The goal is now shown once (not twice) - the old duplication came from also embedding
+// the whole SessionStatusCard component (which renders session.goal itself a second time); the
+// new design's "Activity Status"/"Focus Status" rows are built directly from
+// SessionStatusCard.tsx's own exported ACTIVITY_LABELS/DISTRACTION_LABELS instead of embedding
+// that component, so there's no second goal render left to assert on.
 describe("ActiveSessionView", () => {
-  it("renders the goal, timer, pause/end controls, and restricted sites", async () => {
+  it("renders the goal once, a ticking timer, pause/end controls, activity/focus labels, and restricted sites", async () => {
     render(<ActiveSessionView session={mockSession} />);
 
-    // Goal is shown twice by design: once as this screen's own headline (Figma node 60:783,
-    // positioned above the "Study Session in Progress" card) and once inside the reused,
-    // unmodified SessionStatusCard (which renders session.goal itself). See ActiveSessionView.tsx
-    // for the full comment on this intentional duplication.
-    expect(screen.getAllByText("Finish essay").length).toBe(2);
+    expect(screen.getByText("Finish essay")).toBeInTheDocument();
 
     expect(screen.getByRole("timer")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^pause$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^end session$/i })).toBeInTheDocument();
 
+    // Activity Status/Focus Status rows bind to session.activityState/interventionLevel exactly
+    // as SessionStatusCard.tsx's own ACTIVITY_LABELS/DISTRACTION_LABELS compute them - mockSession
+    // is activityState: "active" / interventionLevel: "none" -> "Active" / "On track".
+    expect(screen.getByText("Activity Status: Active")).toBeInTheDocument();
+    expect(screen.getByText("Focus Status: On track")).toBeInTheDocument();
+
     // restricted-sites list preserved from the original inline SidePanelApp.tsx active-session
-    // branch (lift-and-adapt, not part of the Figma mock's trimmed metadata).
+    // branch (lift-and-adapt, not part of the design's own trimmed markup).
     expect(screen.getByText("distracting.example")).toBeInTheDocument();
 
     // No "Friend requests" escape hatch remains (Task 8) - the approver-side content it used to
@@ -66,5 +73,16 @@ describe("ActiveSessionView", () => {
     expect(
       screen.queryByRole("button", { name: /friend requests/i })
     ).not.toBeInTheDocument();
+  });
+
+  it("reflects a different activityState/interventionLevel independently", () => {
+    render(
+      <ActiveSessionView
+        session={{ ...mockSession, activityState: "idle", interventionLevel: "escalated" }}
+      />
+    );
+
+    expect(screen.getByText("Activity Status: Idle")).toBeInTheDocument();
+    expect(screen.getByText("Focus Status: Escalated")).toBeInTheDocument();
   });
 });

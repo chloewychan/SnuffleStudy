@@ -16,7 +16,12 @@ const ACTIVITY_TIER: Record<StudySession["activityState"], Tier> = {
   locked: "danger",
 };
 
-const ACTIVITY_LABELS: Record<StudySession["activityState"], string> = {
+// v4.2 Task 7: exported (was module-private) so ActiveSessionView.tsx's re-skinned "Activity
+// Status"/"Focus Status" rows can bind to the exact same label mapping this card already computes,
+// without duplicating it - the new design shows these two indicators as its own standalone rows
+// (frontend-backup's ActiveSession.tsx `.statuses` markup), not by embedding this whole card
+// component, so the labels need to be importable on their own.
+export const ACTIVITY_LABELS: Record<StudySession["activityState"], string> = {
   active: "Active",
   idle: "Idle",
   locked: "Locked",
@@ -28,7 +33,7 @@ const DISTRACTION_TIER: Record<StudySession["interventionLevel"], Tier> = {
   escalated: "danger",
 };
 
-const DISTRACTION_LABELS: Record<StudySession["interventionLevel"], string> = {
+export const DISTRACTION_LABELS: Record<StudySession["interventionLevel"], string> = {
   none: "On track",
   warned: "Warned",
   escalated: "Escalated",

@@ -1,0 +1,104 @@
+/* v4.2 Task 7 (Decision 5): RequestUnlockForm has no frontend-backup design frame at all - nothing
+   under frontend-backup/src corresponds to it (ActiveStudySessionPage.tsx composes only HeaderBar
+   + a goal heading + ActiveSession). This file is composed fresh from the design system's own
+   tokens and the same outer "card" shape every other top-level panel in this design uses -
+   ActiveSession.module.css's .activeSession, StudySessionSetupPanel.module.css's
+   .studySessionPanel, TaskVaultPanel.module.css's .taskVaultPanel, AboutTheBun.module.css's
+   .aboutTheBunSection - all four share this exact background/radius/padding/gap/font recipe - so
+   this undesigned surface still reads as part of the same system rather than a bolted-on one-off.
+   See the v4.2 Task 7 report for the full layout rationale. */
+.requestUnlockForm {
+  align-self: stretch;
+  width: 100%;
+  border-radius: var(--br-30);
+  background-color: var(--color-seashell);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--padding-40) var(--padding-60);
+  box-sizing: border-box;
+  gap: var(--gap-40);
+  text-align: left;
+  font-size: var(--fs-30);
+  color: var(--color-dimgray);
+  font-family: var(--font-pangolin);
+}
+
+.heading {
+  margin: 0;
+  align-self: stretch;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+
+.description {
+  margin: 0;
+  align-self: stretch;
+  font-size: var(--fs-20);
+  font-weight: 400;
+  font-family: var(--font-shantell-sans);
+  color: var(--color-darkgray);
+}
+
+/* One shared "sub-section" shell for every group below the intro paragraph (suggestions,
+   hostname field, my-requests list, refresh) - mirrors StudySessionSetupPanel.module.css's
+   .inputForm/TaskVaultPanel.module.css's .frameNewTask sub-section convention (own font-size/
+   color/font-family, flex column, gap-20). */
+.section {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-20);
+  font-size: var(--fs-20);
+  color: var(--color-darkgray);
+  font-family: var(--font-shantell-sans);
+}
+
+.subheading {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 400;
+  font-family: inherit;
+}
+
+/* Blocked-hostname suggestion chips: a wrapping row of ButtonLarge instances, each shrunk to fit
+   its own hostname text (ButtonLarge's own default is width: 100%, sized for a single full-width
+   CTA elsewhere in this design - .suggestionChip constrains the wrapping <li> instead of fighting
+   ButtonLarge's own CSS-module class on specificity). */
+.suggestionList {
+  align-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-10);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.suggestionChip {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.hostnameField {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-5);
+}
+.label {
+  font-size: var(--fs-20);
+  font-family: var(--font-shantell-sans);
+  color: var(--color-darkgray);
+}
+
+.requestList {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-10);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
