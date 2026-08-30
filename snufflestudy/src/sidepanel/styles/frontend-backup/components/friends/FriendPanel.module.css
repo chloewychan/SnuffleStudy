@@ -29,6 +29,13 @@
   align-items: flex-start;
   gap: var(--gap-20);
   font-size: var(--fs-24);
+  /* v4.2 Task 9 addition: this now styles a real <ul> (previously frontend-backup's own plain
+     <div>) - carrying forward this app's existing list semantics (Global Constraint, same
+     precedent as Task 4's TaskVaultPanel.module.css .exampleList) needs the browser's default
+     list marker/indent reset so the visual is unaffected by the tag swap. */
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 .exampleListItem,
 .taskDetails {
@@ -44,11 +51,35 @@
 .taskDetails {
   height: var(--height-32);
   gap: var(--gap-20);
+  /* v4.2 Task 9 addition: a real friend display name (unlike the static "E.g., task one"
+     placeholder) can be arbitrarily long - flex:1/min-width:0 let this row take the available
+     space and truncate internally (see .egTaskOne's ellipsis rules below) instead of overflowing
+     past the options icon on the row's right edge. Same rationale as Task 5's .button6 ellipsis
+     addition in StudyRoomsPanel.module.css. */
+  flex: 1;
+  min-width: 0;
 }
+/* v4.2 Task 9 addition: this is now a real, functional <input type="checkbox"> (frontend-backup's
+   own markup here is a static <img>, no input element at all) bound to selectedFriendIds/
+   toggleFriendSelected - same bullet-dot background-image-swap-on-:checked pattern Task 4 already
+   established for TaskVaultPanel.module.css's identical .buttonList (this file's own checkbox
+   icon is the exact same bullet-dot.svg/bullet-dot-filled.svg asset pair). */
 .buttonListIcon {
+  cursor: pointer;
+  margin: 0;
   height: var(--height-18);
   width: var(--width-18);
   position: relative;
+  flex-shrink: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url(/sidepanel/assets/bullet-dot.svg);
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: top;
+}
+.buttonListIcon:checked {
+  background-image: url(/sidepanel/assets/bullet-dot-filled.svg);
 }
 .egTaskOne {
   margin: 0;
@@ -56,11 +87,36 @@
   font-size: inherit;
   font-weight: 400;
   font-family: inherit;
+  /* v4.2 Task 9 addition: see .taskDetails's flex:1/min-width:0 comment above. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .buttonIcon {
   height: var(--height-36);
   width: var(--width-36);
   position: relative;
+}
+/* v4.2 Task 9 addition (not in frontend-backup's original file): the per-friend options icon and
+   the "Add Friend" submit icon are real, clickable <button>s now (frontend-backup's own markup has
+   only static <img>s, no button semantics at all) - same button-chrome-reset pattern as every
+   other re-skinned component's .buttonIconReset (Tasks 2, 4, 5). */
+.buttonIconReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.buttonIconReset:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
 }
 .friendOptions {
   align-self: stretch;

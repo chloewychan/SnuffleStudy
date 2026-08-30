@@ -98,7 +98,12 @@ describe("FriendsBox", () => {
   });
 
   describe("per-friend Options popover", () => {
-    it("opens to show exactly seven checkboxes (no daily-digest) and a working Remove friend button", async () => {
+    // v4.2 Task 9: the old inline openOptionsForFriendId-driven expansion is now a real
+    // FriendOptionsPopup modal (FriendOptionsPopup.test.tsx covers its own list/toggle/remove/
+    // dismiss behavior in isolation - these integration tests cover how it gets opened and wired
+    // to a specific friend from FriendsBox.tsx, mirroring StudyRoomsBox.test.tsx's own "access
+    // popup" describe block for StudyRoomAccessPopup).
+    it("opens a dialog scoped to the clicked friend, showing exactly seven checkboxes (no daily-digest) and a working Remove friend button", async () => {
       vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
 
       renderBox();
@@ -106,6 +111,9 @@ describe("FriendsBox", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Options" }));
 
+      const dialog = screen.getByRole("dialog", { name: "Options for user-friend" });
+      expect(within(dialog).getByRole("heading", { name: "user-friend" })).toBeInTheDocument();
+      expect(within(dialog).getAllByRole("checkbox")).toHaveLength(7);
       expect(screen.getByLabelText("I may send this friend a live nudge")).toBeChecked();
       expect(screen.getByLabelText("This friend may send me a live nudge")).toBeChecked();
       expect(
@@ -116,10 +124,23 @@ describe("FriendsBox", () => {
       expect(screen.getByLabelText("Share my session goal text with this friend")).not.toBeChecked();
       expect(screen.getByLabelText("Share my intervention count with this friend")).not.toBeChecked();
       expect(screen.getByLabelText("Share my full session history with this friend")).not.toBeChecked();
-      expect(screen.getByRole("button", { name: "Remove friend" })).toBeInTheDocument();
+      expect(within(dialog).getByRole("button", { name: "Remove friend" })).toBeInTheDocument();
     });
 
-    it("removes a friend via FRIEND_REMOVE and drops them from the list", async () => {
+    it("closes via the dialog's close button", async () => {
+      vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
+
+      renderBox();
+      await screen.findByText("user-friend");
+      fireEvent.click(screen.getByRole("button", { name: "Options" }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("removes a friend via FRIEND_REMOVE, drops them from the list, and closes the popup", async () => {
       const removeSpy = vi.fn(async () => ({ ok: true }));
       vi.spyOn(messenger, "sendMessage").mockImplementation(
         routeSendMessage({ FRIEND_REMOVE: removeSpy })
@@ -138,6 +159,7 @@ describe("FriendsBox", () => {
         })
       );
       await waitFor(() => expect(screen.queryByText("user-friend")).not.toBeInTheDocument());
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
   });
 
@@ -225,8 +247,8 @@ describe("FriendsBox", () => {
       );
 
       renderBox();
-      await waitFor(() => screen.getByRole("button", { name: "Invite a friend" }));
-      fireEvent.click(screen.getByRole("button", { name: "Invite a friend" }));
+      await waitFor(() => screen.getByRole("button", { name: "Generate Invite Code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Generate Invite Code" }));
 
       expect(await screen.findByText("ABCD1234")).toBeInTheDocument();
     });

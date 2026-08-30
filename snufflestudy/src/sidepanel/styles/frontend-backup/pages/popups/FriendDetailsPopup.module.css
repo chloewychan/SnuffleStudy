@@ -1,3 +1,20 @@
+/* v4.2 Task 9 addition (not in frontend-backup's original file): frontend-backup renders this as
+   its own standalone routed "page" - this app has no routing (Global Constraint), so it's mounted
+   as a real, dismissible modal overlay instead, following the exact convention Task 5's
+   StudyRoomAccessPopup/StudyRoomPopup.module.css established (.overlayBackdrop scrim + role="dialog"
+   card + explicit close button + backdrop-click-to-dismiss), for visual/structural consistency
+   with this codebase's one other popup rather than inventing a second modal convention. */
+.overlayBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-20, 20px);
+  background-color: rgb(from var(--color-dimgray) r g b / 0.5);
+  box-sizing: border-box;
+}
 .friendDetails,
 .friendDetailsPopup {
   display: flex;
@@ -6,10 +23,44 @@
 .friendDetailsPopup {
   width: 560px;
   max-width: 100%;
-  overflow: hidden;
+  /* v4.2 Task 9: changed from `overflow: hidden` to a scrollable dialog card (max-height/
+     overflow-y) - same adaptation Task 5 made to StudyRoomPopup.module.css's own
+     `.studyRoomPopup` for the same reason (this is now a real modal that must fit the side
+     panel's viewport, not an unconstrained full-page section). */
+  max-height: 100%;
+  overflow-y: auto;
+  position: relative;
   align-items: flex-start;
   line-height: var(--lh-normal);
   letter-spacing: var(--ls-normal);
+}
+/* v4.2 Task 9 addition: new header row (not in frontend-backup's original markup) holding the
+   friend's name and a close icon - same .popupHeader/.closeButtonReset pattern as
+   StudyRoomPopup.module.css (Task 5). */
+.popupHeader {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-10);
+}
+.closeButtonReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  flex-shrink: 0;
+}
+/* v4.2 Task 9 addition: frontend-backup's own file has no 36px icon class at all (its only icon
+   size is the 18px .buttonListIcon checkbox) - the close icon needs its own, same size/shape as
+   StudyRoomPopup.module.css's identical .buttonIcon (Task 5). */
+.buttonIcon {
+  height: var(--height-36);
+  width: var(--width-36);
+  position: relative;
 }
 .friendDetails {
   align-self: stretch;
@@ -55,11 +106,37 @@
   align-items: center;
   gap: var(--gap-20);
 }
+/* v4.2 Task 9: this is now a real, functional <input type="checkbox"> bound to
+   settingsByFriend[friendId]/handleToggleSetting via FriendSettingsFields (frontend-backup's own
+   markup here is a static <img icon-check.svg>, no input element at all, and always rendered at a
+   fixed 0.75 opacity regardless of any real state). Only one "checked" icon asset exists (no
+   separate unchecked variant, unlike TaskVaultPanel's/FriendPanel's bullet-dot pair) - unchecked
+   renders as an empty bordered box, checked swaps in icon-check.svg as a background-image, same
+   swap-on-:checked mechanism as those two files. */
 .buttonListIcon {
+  cursor: pointer;
+  margin: 0;
   height: var(--height-18);
   width: var(--width-18);
   position: relative;
-  opacity: 0.75;
+  flex-shrink: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-darkgray);
+  border-radius: 3px;
+  background-color: transparent;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.buttonListIcon:checked {
+  background-image: url(/sidepanel/assets/icon-check.svg);
+  border-color: transparent;
+}
+.buttonListIcon:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
 }
 .listItem4 {
   align-self: stretch;
@@ -84,6 +161,19 @@
   background-color: var(--color-linen);
   border-radius: var(--br-15);
   justify-content: center;
+  /* v4.2 Task 9: FriendSettingsFields renders this button as part of the same fragment as the
+     seven checkboxes above it, so mounting FriendSettingsFields inside .trackingOptions (see
+     FriendOptionsPopup.tsx) nests this button one level deeper than frontend-backup's own markup
+     (there, it's a direct sibling of .trackingOptions inside .friendDetails, not nested inside
+     it) - restoring comparable visual spacing here rather than splitting the shared component's
+     render output just to preserve exact DOM nesting. */
+  margin-top: var(--gap-15);
+}
+/* v4.2 Task 9 addition: "Remove Friend" is a real, disable-while-in-flight action now - same
+   disabled-look precedent as StudyRoomPopup.module.css's .buttonLarge:disabled (Task 5). */
+.buttonLarge:disabled {
+  cursor: not-allowed;
+  opacity: var(--opacity-0_5);
 }
 .button {
   position: relative;

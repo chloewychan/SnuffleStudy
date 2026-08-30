@@ -10,7 +10,10 @@ import { SignInForm } from "../../shared/ui/SignInForm";
 import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 import { useRegisterRefresh } from "../refresh/RefreshRegistryContext";
 import { useNudgeVaultItems } from "../nudgeVault/useNudgeVaultItems";
-import { FriendSettingsFields } from "../../options/pages/FriendsPage";
+import ButtonLarge from "../ui/ButtonLarge";
+import TextInput from "../ui/TextInput";
+import { FriendOptionsPopup } from "./FriendOptionsPopup";
+import styles from "../styles/frontend-backup/components/friends/FriendPanel.module.css";
 
 // v4.1 Task 9: replaces FriendGroupPanel.tsx's friend-picker/nudge-send half and the old
 // Settings -> Account "Your friends"/"Add a friend"/"Invite a friend" sections (scope doc's
@@ -25,6 +28,15 @@ import { FriendSettingsFields } from "../../options/pages/FriendsPage";
 //   ManageAccessSection already uses one at a time);
 // - "Add a friend"/"Invite a friend", moved verbatim from AccountPage.tsx (FRIEND_REDEEM_CODE/
 //   FRIEND_INVITE_GENERATE_CODE - unchanged messages, unchanged logic).
+//
+// v4.2 Task 9: re-skinned as frontend-backup's FriendPanel.tsx design. Every hook/handler/
+// sendMessage() call below is unchanged in behavior - only the JSX return blocks changed. The old
+// inline openOptionsForFriendId-driven expansion (a <div> rendered in place, inside the friend's
+// own <li>) is replaced by a new FriendOptionsPopup component, built from FriendDetailsPopup.tsx's
+// design (Decision 2: renders the current, seven-field FriendSettingsFields, not the design's
+// stale eight-item list - see that popup's own header comment). `openOptionsForFriendId` itself is
+// unchanged/reused as-is - only its meaning shifts from "which friend's inline panel is expanded"
+// to "which friend's popup is open," and only one can be open at a time either way.
 export function FriendsBox() {
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
   const [selfLoaded, setSelfLoaded] = useState(false);
@@ -367,29 +379,33 @@ export function FriendsBox() {
   // Mirrors StudyRoomsBox.tsx's identical gate (selfLoaded so a signed-in user's real friend list
   // never flashes a sign-in prompt first; !selfError so a failed AUTH_GET_SESSION call falls
   // through to its own error handling instead).
+  //
+  // v4.2 Task 9: frontend-backup's FriendPanel.tsx design has no sign-in state of its own (a 100%
+  // static design with no auth concept at all) - built fresh using this file's own
+  // friendPanel/friends classes for visual consistency with the signed-in view below, same
+  // "no design, build from the same design system" treatment Decision 5 gives RequestUnlockForm
+  // and Task 5 gave StudyRoomsBox.tsx's identical signed-out branch.
   if (selfLoaded && selfUserId === null && !selfError) {
     return (
-      <div className="friends-box">
-        <h2>Friends</h2>
+      <section className={styles.friendPanel}>
+        <h2 className={styles.friends}>Friends</h2>
         {selfError && <p role="alert">Couldn't verify sign-in: {selfError}.</p>}
-        <div className="friends-box__sign-in">
-          <p>Sign in to manage your friends.</p>
-          <SignInForm
-            onSignedIn={(session) => {
-              setSelfUserId(session.user.id);
-              loadFriends();
-              loadFriendshipSettings();
-              loadRooms();
-            }}
-          />
-        </div>
-      </div>
+        <p>Sign in to manage your friends.</p>
+        <SignInForm
+          onSignedIn={(session) => {
+            setSelfUserId(session.user.id);
+            loadFriends();
+            loadFriendshipSettings();
+            loadRooms();
+          }}
+        />
+      </section>
     );
   }
 
   return (
-    <div className="friends-box">
-      <h2>Friends</h2>
+    <section className={styles.friendPanel}>
+      <h2 className={styles.friends}>Friends</h2>
 
       {friendsError && <p role="alert">Couldn't load friends: {friendsError}. Please try again.</p>}
       {friendIds === null && !friendsError && <p>Loading…</p>}
@@ -397,60 +413,56 @@ export function FriendsBox() {
         <p>No friends yet — add one below.</p>
       )}
       {friendIds !== null && friendIds.length > 0 && (
-        <ul className="friends-box__list">
+        <ul className={styles.exampleListItems}>
           {friendIds.map((friendId) => (
-            <li key={friendId}>
-              <label>
+            <li key={friendId} className={styles.exampleListItem}>
+              <label className={styles.taskDetails}>
                 <input
                   type="checkbox"
+                  className={styles.buttonListIcon}
                   checked={selectedFriendIds.has(friendId)}
                   onChange={() => toggleFriendSelected(friendId)}
                 />
-                {displayName(friendId)}
+                <h3 className={styles.egTaskOne}>{displayName(friendId)}</h3>
               </label>
               <button
                 type="button"
-                onClick={() =>
-                  setOpenOptionsForFriendId((prev) => (prev === friendId ? null : friendId))
-                }
+                className={styles.buttonIconReset}
+                onClick={() => setOpenOptionsForFriendId(friendId)}
+                aria-label="Options"
               >
-                {openOptionsForFriendId === friendId ? "Hide options" : "Options"}
+                <img
+                  className={styles.buttonIcon}
+                  alt=""
+                  src={chrome.runtime.getURL("sidepanel/assets/button-options.svg")}
+                />
               </button>
-              {openOptionsForFriendId === friendId && (
-                <div className="friends-box__options-popover">
-                  {settingsError && (
-                    <p role="alert">Couldn't load friend settings: {settingsError}.</p>
-                  )}
-                  <FriendSettingsFields
-                    friendId={friendId}
-                    settings={settingsByFriend[friendId]}
-                    savingKey={savingKey}
-                    onToggle={handleToggleSetting}
-                    onRemove={handleRemoveFriend}
-                    removing={removingId === friendId}
-                  />
-                </div>
-              )}
             </li>
           ))}
         </ul>
       )}
-      {saveError && <p role="alert">Couldn't save: {saveError}. Please try again.</p>}
-      {removeError && (
-        <p role="alert">Couldn't remove this friend: {removeError}. Please try again.</p>
-      )}
 
-      <section className="friends-box__nudge">
-        <h3>Nudge</h3>
-        {vaultError && <p role="alert">Couldn't load your Nudge Vault: {vaultError}.</p>}
-        {vaultLoading && vaultItems.length === 0 && !vaultError && <p>Loading…</p>}
-        {!vaultLoading && vaultItems.length === 0 && !vaultError && (
-          <p>No saved nudges yet — add one below in the Nudge Vault.</p>
-        )}
-        {vaultItems.length > 0 && (
-          <label>
-            Nudge Vault item
-            <select value={vaultNudgeKey} onChange={(e) => setVaultNudgeKey(e.target.value)}>
+      <div className={styles.friendOptions}>
+        <div className={styles.buttonNudge}>
+          <ButtonLarge
+            property1="default"
+            buttonLargeBorderRadius="15px"
+            button={nudging ? "Sending…" : `Nudge (${selectedFriendIds.size} selected)`}
+            buttonFontFamily="'Shantell Sans'"
+            buttonMargin="0"
+            buttonFontWeight="400"
+            buttonLargeAlignSelf="unset"
+            buttonLargeWidth="auto"
+            onClick={handleNudge}
+            disabled={nudging || !vaultNudgeKey || selectedFriendIds.size === 0}
+          />
+          {vaultItems.length > 0 && (
+            <select
+              className={styles.input}
+              aria-label="Nudge Vault item"
+              value={vaultNudgeKey}
+              onChange={(e) => setVaultNudgeKey(e.target.value)}
+            >
               <option value="">Choose a saved nudge</option>
               {vaultItems.map((item) => (
                 <option key={`${item.kind}:${item.id}`} value={`${item.kind}:${item.id}`}>
@@ -460,26 +472,35 @@ export function FriendsBox() {
                 </option>
               ))}
             </select>
-          </label>
+          )}
+        </div>
+        {vaultError && <p role="alert">Couldn't load your Nudge Vault: {vaultError}.</p>}
+        {vaultLoading && vaultItems.length === 0 && !vaultError && <p>Loading…</p>}
+        {!vaultLoading && vaultItems.length === 0 && !vaultError && (
+          <p>No saved nudges yet — add one below in the Nudge Vault.</p>
         )}
-        <button
-          type="button"
-          onClick={handleNudge}
-          disabled={nudging || !vaultNudgeKey || selectedFriendIds.size === 0}
-        >
-          {nudging ? "Sending…" : `Nudge (${selectedFriendIds.size} selected)`}
-        </button>
         {nudgeError && <p role="alert">{nudgeError}</p>}
-      </section>
 
-      <section className="friends-box__add-to-room">
-        <h3>Add to room</h3>
-        {roomsError && <p role="alert">Couldn't load study rooms: {roomsError}.</p>}
-        {rooms !== null && rooms.length === 0 && !roomsError && <p>No study rooms yet.</p>}
-        {rooms !== null && rooms.length > 0 && (
-          <label>
-            Study room
-            <select value={roomToAddTo} onChange={(e) => setRoomToAddTo(e.target.value)}>
+        <div className={styles.buttonAddToRoom}>
+          <ButtonLarge
+            property1="default"
+            buttonLargeBorderRadius="15px"
+            button={addingToRoom ? "Adding…" : `Add to Room (${selectedFriendIds.size} selected)`}
+            buttonFontFamily="'Shantell Sans'"
+            buttonMargin="0"
+            buttonFontWeight="400"
+            buttonLargeAlignSelf="unset"
+            buttonLargeWidth="auto"
+            onClick={handleAddToRoom}
+            disabled={addingToRoom || !roomToAddTo || selectedFriendIds.size === 0}
+          />
+          {rooms !== null && rooms.length > 0 && (
+            <select
+              className={styles.input}
+              aria-label="Study room"
+              value={roomToAddTo}
+              onChange={(e) => setRoomToAddTo(e.target.value)}
+            >
               <option value="">Choose a room</option>
               {rooms.map((room) => (
                 <option key={room.id} value={room.id}>
@@ -487,24 +508,65 @@ export function FriendsBox() {
                 </option>
               ))}
             </select>
-          </label>
-        )}
-        <button
-          type="button"
-          onClick={handleAddToRoom}
-          disabled={addingToRoom || !roomToAddTo || selectedFriendIds.size === 0}
-        >
-          {addingToRoom ? "Adding…" : `Add to room (${selectedFriendIds.size} selected)`}
-        </button>
+          )}
+        </div>
+        {roomsError && <p role="alert">Couldn't load study rooms: {roomsError}.</p>}
+        {rooms !== null && rooms.length === 0 && !roomsError && <p>No study rooms yet.</p>}
         {addToRoomError && <p role="alert">{addToRoomError}</p>}
-      </section>
+      </div>
 
-      <section className="friends-box__invite">
-        <h3>Invite a friend</h3>
-        <p>Generates a one-time invite code you can share with a friend to connect.</p>
-        <button type="button" onClick={() => void handleInviteAFriend()} disabled={inviteBusy}>
-          {inviteBusy ? "Setting up your invite…" : "Invite a friend"}
-        </button>
+      <div className={styles.friendManagement}>
+        <form className={styles.buttonAddToRoom} onSubmit={(e) => void handleAddFriend(e)}>
+          <h3 className={styles.addFriend}>Add Friend</h3>
+          <TextInput
+            property1="textbox"
+            inputHeight="36px"
+            inputBorderRadius="15px"
+            inputWidth="unset"
+            inputFlex="1"
+            placeholder="E.g., invite code"
+            entryFieldType="text"
+            entryFieldFontFamily="'Shantell Sans'"
+            entryFieldDisplay="inline-block"
+            entryFieldBorder="none"
+            entryFieldOutline="none"
+            entryFieldBackgroundColor="transparent"
+            entryFieldMargin="unset"
+            entryFieldFontWeight="unset"
+            id="join-code"
+            ariaLabel="Invite code"
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+          />
+          <button
+            type="submit"
+            className={styles.buttonIconReset}
+            disabled={joinBusy || !joinCode}
+            aria-label={joinBusy ? "Adding…" : "Add friend"}
+          >
+            <img
+              className={styles.buttonIcon}
+              alt=""
+              src={chrome.runtime.getURL("sidepanel/assets/button-check.svg")}
+            />
+          </button>
+        </form>
+        {joinError && <p role="alert">Couldn't add your friend: {joinError}. Please try again.</p>}
+
+        <div className={styles.buttonInviteFriend}>
+          <h3 className={styles.addFriend}>Invite Friend</h3>
+          <ButtonLarge
+            property1="default"
+            buttonLargeBorderRadius="15px"
+            button={inviteBusy ? "Setting up your invite…" : "Generate Invite Code"}
+            buttonFontFamily="'Shantell Sans'"
+            buttonMargin="0"
+            buttonFontWeight="400"
+            buttonLargeAlignSelf="unset"
+            onClick={() => void handleInviteAFriend()}
+            disabled={inviteBusy}
+          />
+        </div>
         {inviteError && (
           <p role="alert">Couldn't generate an invite code: {inviteError}. Please try again.</p>
         )}
@@ -514,26 +576,23 @@ export function FriendsBox() {
             {new Date(inviteCode.expiresAt).toLocaleString()})
           </p>
         )}
-      </section>
+      </div>
 
-      <section className="friends-box__add">
-        <h3>Add a friend</h3>
-        <form onSubmit={(e) => void handleAddFriend(e)}>
-          <label>
-            Invite code
-            <input
-              type="text"
-              required
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-            />
-          </label>
-          <button type="submit" disabled={joinBusy || !joinCode}>
-            {joinBusy ? "Adding…" : "Add friend"}
-          </button>
-        </form>
-        {joinError && <p role="alert">Couldn't add your friend: {joinError}. Please try again.</p>}
-      </section>
-    </div>
+      {openOptionsForFriendId && (
+        <FriendOptionsPopup
+          friendId={openOptionsForFriendId}
+          friendName={displayName(openOptionsForFriendId)}
+          settings={settingsByFriend[openOptionsForFriendId]}
+          settingsError={settingsError}
+          savingKey={savingKey}
+          saveError={saveError}
+          onToggle={handleToggleSetting}
+          onRemove={handleRemoveFriend}
+          removing={removingId === openOptionsForFriendId}
+          removeError={removeError}
+          onClose={() => setOpenOptionsForFriendId(null)}
+        />
+      )}
+    </section>
   );
 }

@@ -41,6 +41,22 @@ const TOGGLE_FIELDS: { key: keyof FriendshipSettingsPatch; label: string }[] = [
 // friendId/settings/savingKey/onToggle/onRemove/removing from its own state, mirroring this page's
 // own handleToggle/handleRemove shape exactly (same optimistic-update convention, same
 // per-(friendId,field) savingKey scoping).
+//
+// v4.2 Task 9: optional `classNames` lets a caller with its own visual design (the sidepanel's new
+// FriendOptionsPopup, built from frontend-backup's FriendDetailsPopup.tsx markup) style this same
+// render loop's checkboxes/remove-button to match its own CSS Module, without touching this page's
+// own plain, unstyled rendering (FriendsPage.tsx itself has no frontend-backup equivalent and is
+// out of this plan's scope - it never passes `classNames`, so its DOM output is byte-identical to
+// before). Additive/optional/backward-compatible, the same pattern Tasks 5/7 used to extend
+// IconButton/ButtonLarge/TextInput with real interactivity props.
+export interface FriendSettingsFieldsClassNames {
+  row?: string;
+  checkbox?: string;
+  labelText?: string;
+  removeButton?: string;
+  removeButtonText?: string;
+}
+
 export interface FriendSettingsFieldsProps {
   friendId: string;
   settings: FriendshipSettings | undefined;
@@ -48,6 +64,7 @@ export interface FriendSettingsFieldsProps {
   onToggle: (friendId: string, field: keyof FriendshipSettingsPatch, checked: boolean) => void;
   onRemove: (friendId: string) => void;
   removing: boolean;
+  classNames?: FriendSettingsFieldsClassNames;
 }
 
 export function FriendSettingsFields({
@@ -57,6 +74,7 @@ export function FriendSettingsFields({
   onToggle,
   onRemove,
   removing,
+  classNames,
 }: FriendSettingsFieldsProps) {
   return (
     <>
@@ -70,19 +88,33 @@ export function FriendSettingsFields({
         TOGGLE_FIELDS.map(({ key, label }) => {
           const fieldKey = `${friendId}:${key}`;
           return (
-            <label key={fieldKey}>
+            <label key={fieldKey} className={classNames?.row}>
               <input
                 type="checkbox"
+                className={classNames?.checkbox}
                 checked={Boolean(settings[key])}
                 disabled={savingKey === fieldKey}
                 onChange={(e) => onToggle(friendId, key, e.target.checked)}
               />
-              {label}
+              {classNames?.labelText ? <span className={classNames.labelText}>{label}</span> : label}
             </label>
           );
         })}
-      <button type="button" onClick={() => onRemove(friendId)} disabled={removing}>
-        {removing ? "Removing…" : "Remove friend"}
+      <button
+        type="button"
+        className={classNames?.removeButton}
+        onClick={() => onRemove(friendId)}
+        disabled={removing}
+      >
+        {classNames?.removeButtonText ? (
+          <span className={classNames.removeButtonText}>
+            {removing ? "Removing…" : "Remove friend"}
+          </span>
+        ) : removing ? (
+          "Removing…"
+        ) : (
+          "Remove friend"
+        )}
       </button>
     </>
   );

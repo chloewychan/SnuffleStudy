@@ -33,6 +33,12 @@ export type TextInputType = {
   value?: string;
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
   disabled?: boolean;
+  // v4.2 Task 9: FriendPanel.tsx's "Add Friend" field has no visible label text at all in the
+  // design (only a placeholder) - this app's pre-existing accessible name for that field
+  // ("Invite code") must carry forward regardless (Global Constraint), and there's no design text
+  // to reuse as a real <label>. Additive/optional/backward-compatible, same extension pattern as
+  // id/name/value/onChange/disabled above.
+  ariaLabel?: string;
 };
 
 const TextInput: FunctionComponent<TextInputType> = ({
@@ -56,6 +62,7 @@ const TextInput: FunctionComponent<TextInputType> = ({
   value,
   onChange,
   disabled = false,
+  ariaLabel,
 }) => {
   const inputStyle: CSSProperties = useMemo(() => {
     return {
@@ -102,6 +109,7 @@ const TextInput: FunctionComponent<TextInputType> = ({
         value={value}
         onChange={onChange}
         disabled={disabled}
+        aria-label={ariaLabel}
       />
     </div>
   );
