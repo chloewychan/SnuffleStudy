@@ -1,6 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
+import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import type { HistoryQuery, SessionEvent, SessionEventType, StudySession } from "../../domain/session/sessionTypes";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
+import TextSmall from "../../sidepanel/ui/TextSmall";
+// v4.2 Task 13: re-skinned as frontend-backup's SessionHistory.tsx design. `sessionHistoryStyles`
+// is the ported, byte-for-byte copy of SessionHistory.module.css (Task 1, plus this task's own
+// .buttonIconReset addition - see that file's own header comment); `styles` is this task's new
+// file for the one piece with no design frame at all (Decision 9) - the expanded per-session event
+// log (see HistoryPage.module.css's own header comment).
+import sessionHistoryStyles from "../../sidepanel/styles/frontend-backup/components/settings/SessionHistory.module.css";
+import styles from "./HistoryPage.module.css";
 
 type ArchivedState = "COMPLETED" | "ABANDONED";
 type StateFilter = ArchivedState | "";
@@ -30,6 +40,17 @@ const EVENT_LABELS: Record<SessionEventType, string> = {
   USER_RETURNED_FROM_IDLE: "Returned from idle",
 };
 
+// Design step's own wording: "Goal — Completed — Date" - the design's single "Goal - Date" line
+// needs the state folded in too, since the current model always shows all three (Task 13 Steps).
+const STATE_LABELS: Record<ArchivedState, string> = {
+  COMPLETED: "Completed",
+  ABANDONED: "Abandoned",
+};
+
+function asset(name: string) {
+  return chrome.runtime.getURL(`sidepanel/assets/${name}`);
+}
+
 function startOfDayTimestamp(dateStr: string): number | undefined {
   if (!dateStr) return undefined;
   const ms = new Date(`${dateStr}T00:00:00`).getTime();
@@ -53,6 +74,37 @@ function formatDuration(startedAt: number | undefined, endedAt: number | undefin
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+}
+
+const YYYY_MM_DD = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+// Decision 8's own onChange contract: the MUI DatePicker hands back a `Date | null`, but
+// sinceDate/untilDate (and the query logic that consumes them - startOfDayTimestamp/
+// endOfDayTimestamp above, unchanged) still expect the exact `YYYY-MM-DD` string shape the old
+// plain `<input type="date">` produced. Both directions below are written to stay entirely in
+// local-calendar-day terms, never routing through UTC, so a picked date never silently shifts by
+// one day for a user whose local UTC offset is negative:
+//   - dateStringToPickerValue constructs the Date from explicit y/m/d components (`new Date(y, m,
+//     d)`, always local midnight) rather than `new Date(dateStr)`, which the ECMAScript spec
+//     parses a bare "YYYY-MM-DD" string as *UTC* midnight - the same local-time convention
+//     startOfDayTimestamp already uses for this exact string shape (`new Date(`${d}T00:00:00`)`,
+//     no zone suffix).
+//   - pickerValueToDateString reads the Date's local calendar fields directly
+//     (getFullYear/getMonth/getDate), never toISOString()/toJSON(), which convert through UTC
+//     first and can roll the date backward a day for any zone with a non-zero UTC offset.
+function dateStringToPickerValue(dateStr: string): Date | null {
+  const match = YYYY_MM_DD.exec(dateStr);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day));
+}
+
+function pickerValueToDateString(date: Date | null): string {
+  if (!date || Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 export function HistoryPage() {
@@ -114,6 +166,9 @@ export function HistoryPage() {
     return sessions.filter((session) => session.createdAt <= until);
   }, [sessions, untilDate]);
 
+  const sinceDateValue = useMemo(() => dateStringToPickerValue(sinceDate), [sinceDate]);
+  const untilDateValue = useMemo(() => dateStringToPickerValue(untilDate), [untilDate]);
+
   async function toggleExpand(sessionId: string) {
     if (expandedSessionId === sessionId) {
       setExpandedSessionId(null);
@@ -154,31 +209,75 @@ export function HistoryPage() {
   }
 
   return (
-    <div className="history-page">
-      <h2>Session history</h2>
+    <section className={sessionHistoryStyles.sessionHistorySection}>
+      {/* "Session history" (lowercase "history") is deliberately kept byte-identical to the
+          pre-v4.2 heading text, not the design's own "History"/"Session History" copy - both
+          OptionsApp.tsx and SettingsTab.tsx (out of this task's scope) look this exact string up
+          via screen.findByText("Session history") in their own, already-passing test suites. */}
+      <h2 className={sessionHistoryStyles.history}>Session history</h2>
 
-      <div className="history-page__filters">
-        <label>
-          From
-          <input
-            type="date"
-            aria-label="From date"
-            value={sinceDate}
-            onChange={(e) => setSinceDate(e.target.value)}
-          />
-        </label>
-        <label>
-          To
-          <input
-            type="date"
-            aria-label="To date"
-            value={untilDate}
-            onChange={(e) => setUntilDate(e.target.value)}
-          />
-        </label>
-        <label>
-          Status
+      <LocalizationProvider dateAdapter={AdapterDateFns}>
+        <div className={sessionHistoryStyles.sessionHistoryControls}>
+          <div className={sessionHistoryStyles.sessionHistoryTimePeriod}>
+            <div className={sessionHistoryStyles.input}>
+              <DatePicker
+                value={sinceDateValue}
+                onChange={(newValue) => setSinceDate(pickerValueToDateString(newValue))}
+                format="yyyy-MM-dd"
+                // The single-native-<input> field structure (rather than the new accessible,
+                // multi-section field) - a real, documented MUI x-date-pickers option, chosen
+                // here so the field keeps behaving like a normal text input for both keyboard
+                // users and this file's own test suite, matching the plain <input type="date">
+                // it replaces as closely as this component allows.
+                enableAccessibleFieldDOMStructure={false}
+                slotProps={{
+                  textField: {
+                    size: "medium",
+                    fullWidth: false,
+                    required: false,
+                    autoFocus: false,
+                    error: false,
+                    color: "primary",
+                    inputProps: { "aria-label": "From date" },
+                  },
+                  openPickerIcon: {
+                    component: () => <></>,
+                  },
+                }}
+              />
+            </div>
+            <h3 className={sessionHistoryStyles.sessionHistory}>to</h3>
+            <div className={sessionHistoryStyles.input}>
+              <DatePicker
+                value={untilDateValue}
+                onChange={(newValue) => setUntilDate(pickerValueToDateString(newValue))}
+                format="yyyy-MM-dd"
+                enableAccessibleFieldDOMStructure={false}
+                slotProps={{
+                  textField: {
+                    size: "medium",
+                    fullWidth: false,
+                    required: false,
+                    autoFocus: false,
+                    error: false,
+                    color: "primary",
+                    inputProps: { "aria-label": "To date" },
+                  },
+                  openPickerIcon: {
+                    component: () => <></>,
+                  },
+                }}
+              />
+            </div>
+            {/* Decorative, matching the design's own static check icon - filtering already
+                applies live (via sinceDate/stateFilter's own effect above, and untilDate's own
+                client-side memo), so there's no separate "apply filters" step for this icon to
+                back. Mirrors Task 11's identical treatment of NotificationSettings.tsx's trailing
+                quiet-hours checkmark. */}
+            <img className={sessionHistoryStyles.buttonBoolIcon} alt="" src={asset("button-check.svg")} />
+          </div>
           <select
+            className={sessionHistoryStyles.input3}
             aria-label="Status filter"
             value={stateFilter}
             onChange={(e) => setStateFilter(e.target.value as StateFilter)}
@@ -187,49 +286,64 @@ export function HistoryPage() {
             <option value="COMPLETED">Completed</option>
             <option value="ABANDONED">Abandoned</option>
           </select>
-        </label>
-      </div>
+        </div>
+      </LocalizationProvider>
 
       {loadError && (
         <p role="alert">Couldn't load session history: {loadError}. Please try again.</p>
       )}
 
-      {!loadError && visibleSessions === null && <p>Loading…</p>}
+      {!loadError && visibleSessions === null && <TextSmall textbox="Loading…" />}
 
       {!loadError && visibleSessions !== null && visibleSessions.length === 0 && (
-        <p>No sessions match these filters.</p>
+        <TextSmall textbox="No sessions match these filters." />
       )}
 
       {!loadError && visibleSessions !== null && visibleSessions.length > 0 && (
-        <ul className="history-page__sessions">
+        <ul className={sessionHistoryStyles.exampleListItems}>
           {visibleSessions.map((session) => {
             const expanded = expandedSessionId === session.id;
+            const sortedEvents = eventsBySession[session.id]
+              ? [...eventsBySession[session.id]!].sort((a, b) => a.occurredAt - b.occurredAt)
+              : undefined;
+
             return (
-              <li key={session.id} className="history-page__session">
-                <button
-                  type="button"
-                  className="history-page__session-summary"
-                  aria-expanded={expanded}
-                  onClick={() => void toggleExpand(session.id)}
-                >
-                  <span className="history-page__session-goal">{session.goal}</span>
-                  <span className="history-page__session-state">{session.state}</span>
-                  <span className="history-page__session-date">{formatTimestamp(session.createdAt)}</span>
-                  <span className="history-page__session-duration">
-                    {formatDuration(session.startedAt, session.endedAt)}
-                  </span>
-                </button>
+              <li key={session.id} className={styles.sessionRow}>
+                <div className={sessionHistoryStyles.exampleListItem}>
+                  <h3 className={sessionHistoryStyles.sessionHistory}>
+                    {session.goal} — {STATE_LABELS[session.state as ArchivedState] ?? session.state} —{" "}
+                    {formatTimestamp(session.createdAt)}
+                  </h3>
+                  <button
+                    type="button"
+                    className={sessionHistoryStyles.buttonIconReset}
+                    aria-expanded={expanded}
+                    aria-label={`Toggle details for ${session.goal}`}
+                    onClick={() => void toggleExpand(session.id)}
+                  >
+                    <img
+                      className={sessionHistoryStyles.buttonBoolIcon}
+                      alt=""
+                      src={asset("button-options.svg")}
+                    />
+                  </button>
+                </div>
 
                 {expanded && (
-                  <div className="history-page__events">
-                    <dl>
-                      <dt>Distraction attempts</dt>
-                      <dd>{session.distractionAttempts}</dd>
-                      <dt>Recoveries</dt>
-                      <dd>{session.recoveries}</dd>
-                    </dl>
+                  <div className={styles.expandedDetails}>
+                    <div className={styles.summaryStats}>
+                      <TextSmall
+                        textbox={`Distraction attempts: ${session.distractionAttempts}`}
+                      />
+                      <TextSmall textbox={`Recoveries: ${session.recoveries}`} />
+                      <TextSmall
+                        textbox={`Duration: ${formatDuration(session.startedAt, session.endedAt)}`}
+                      />
+                    </div>
 
-                    {loadingEventsFor === session.id && <p>Loading events…</p>}
+                    {loadingEventsFor === session.id && (
+                      <p className={styles.statusText}>Loading events…</p>
+                    )}
 
                     {eventsErrorBySession[session.id] && (
                       <p role="alert">
@@ -238,35 +352,28 @@ export function HistoryPage() {
                       </p>
                     )}
 
-                    {eventsBySession[session.id] && (
+                    {sortedEvents && (
                       <>
-                        {eventsBySession[session.id]!.length === 0 ? (
-                          <p>No events recorded for this session.</p>
+                        {sortedEvents.length === 0 ? (
+                          <p className={styles.statusText}>No events recorded for this session.</p>
                         ) : (
                           // Rendered as a flat chronological list rather than paired up (e.g.
                           // idle/returned intervals) — a chrome.idle idle→locked transition can
                           // record two consecutive USER_WENT_IDLE events with no
                           // USER_RETURNED_FROM_IDLE in between, so these event types don't
                           // always alternate and must not be assumed to.
-                          <ol className="history-page__event-list">
-                            {[...eventsBySession[session.id]!]
-                              .sort((a, b) => a.occurredAt - b.occurredAt)
-                              .map((event) => (
-                                <li key={event.id}>
-                                  <span className="history-page__event-time">
-                                    {formatTimestamp(event.occurredAt)}
-                                  </span>{" "}
-                                  <span className="history-page__event-label">
-                                    {EVENT_LABELS[event.type]}
-                                  </span>
-                                  {event.hostname && (
-                                    <span className="history-page__event-hostname"> — {event.hostname}</span>
-                                  )}
-                                  {event.reason && (
-                                    <span className="history-page__event-reason"> ({event.reason})</span>
-                                  )}
-                                </li>
-                              ))}
+                          <ol className={styles.eventList}>
+                            {sortedEvents.map((event) => (
+                              <li key={event.id}>
+                                <TextSmall
+                                  textbox={
+                                    `${formatTimestamp(event.occurredAt)} — ${EVENT_LABELS[event.type]}` +
+                                    (event.hostname ? ` — ${event.hostname}` : "") +
+                                    (event.reason ? ` (${event.reason})` : "")
+                                  }
+                                />
+                              </li>
+                            ))}
                           </ol>
                         )}
                       </>
@@ -278,6 +385,6 @@ export function HistoryPage() {
           })}
         </ul>
       )}
-    </div>
+    </section>
   );
 }

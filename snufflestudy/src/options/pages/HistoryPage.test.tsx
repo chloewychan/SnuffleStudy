@@ -41,7 +41,7 @@ describe("HistoryPage", () => {
 
     render(<HistoryPage />);
 
-    expect(await screen.findByText("Finish 20 chemistry problems")).toBeInTheDocument();
+    expect(await screen.findByText(/Finish 20 chemistry problems/)).toBeInTheDocument();
     expect(messenger.sendMessage).toHaveBeenCalledWith({
       type: "SESSION_LIST_HISTORY",
       payload: { limit: HISTORY_LIST_LIMIT },
@@ -56,7 +56,7 @@ describe("HistoryPage", () => {
       .mockResolvedValue({ ok: true, sessions: [buildSession()] });
 
     render(<HistoryPage />);
-    await screen.findByText("Finish 20 chemistry problems");
+    await screen.findByText(/Finish 20 chemistry problems/);
 
     const call = sendMessageSpy.mock.calls[0]![0] as { payload: { limit?: number } };
     expect(call.payload.limit).toBe(HISTORY_LIST_LIMIT);
@@ -89,7 +89,7 @@ describe("HistoryPage", () => {
       .mockResolvedValue({ ok: true, sessions: [buildSession()] });
 
     render(<HistoryPage />);
-    await screen.findByText("Finish 20 chemistry problems");
+    await screen.findByText(/Finish 20 chemistry problems/);
 
     fireEvent.change(screen.getByLabelText("Status filter"), { target: { value: "COMPLETED" } });
 
@@ -107,7 +107,7 @@ describe("HistoryPage", () => {
       .mockResolvedValue({ ok: true, sessions: [buildSession()] });
 
     render(<HistoryPage />);
-    await screen.findByText("Finish 20 chemistry problems");
+    await screen.findByText(/Finish 20 chemistry problems/);
 
     fireEvent.change(screen.getByLabelText("From date"), { target: { value: "2024-01-01" } });
 
@@ -129,13 +129,13 @@ describe("HistoryPage", () => {
       .mockResolvedValue({ ok: true, sessions: [late, early] });
 
     render(<HistoryPage />);
-    await screen.findAllByText("Finish 20 chemistry problems");
+    await screen.findAllByText(/Finish 20 chemistry problems/);
 
     const callCountBefore = sendMessageSpy.mock.calls.length;
     fireEvent.change(screen.getByLabelText("To date"), { target: { value: "2024-02-01" } });
 
     await waitFor(() => {
-      expect(screen.getAllByText("Finish 20 chemistry problems")).toHaveLength(1);
+      expect(screen.getAllByText(/Finish 20 chemistry problems/)).toHaveLength(1);
     });
     // Filtering by "To" is applied client-side over the already-fetched sessions (HistoryQuery
     // has no "until" field) - it must not trigger a redundant SESSION_LIST_HISTORY call.
@@ -154,16 +154,28 @@ describe("HistoryPage", () => {
     });
 
     const { container } = render(<HistoryPage />);
-    await screen.findByText("Finish 20 chemistry problems");
+    await screen.findByText(/Finish 20 chemistry problems/);
 
-    fireEvent.click(screen.getByRole("button", { name: /Finish 20 chemistry problems/ }));
+    // v4.2 Task 13: the collapsed row's text (goal — state — date) is no longer itself the
+    // toggle control (frontend-backup's design only makes the options icon clickable) - the
+    // options icon now carries its own accessible name and aria-expanded state.
+    fireEvent.click(screen.getByRole("button", { name: /Toggle details for Finish 20 chemistry problems/ }));
 
-    expect(await screen.findByText("Distraction attempt")).toBeInTheDocument();
-    expect(screen.getByText("Returned from idle")).toBeInTheDocument();
+    // Wait on "youtube.com" (the DISTRACTION_ATTEMPT event's own hostname), not a bare
+    // /Distraction attempt/ match - the expanded summary stats render synchronously on click
+    // ("Distraction attempts: 2"), which also satisfies that broader regex immediately, before
+    // the async SESSION_LIST_EVENTS fetch below has actually resolved. Anchoring on text that
+    // only exists once the real event has loaded is what makes this a genuine wait, not a
+    // same-tick false positive.
+    expect(await screen.findByText(/youtube\.com/)).toBeInTheDocument();
+    expect(screen.getByText(/— Distraction attempt —/)).toBeInTheDocument();
+    expect(screen.getByText(/Returned from idle/)).toBeInTheDocument();
 
     // Chronological order: the DISTRACTION_ATTEMPT (occurredAt: 1000) should render before
-    // USER_RETURNED_FROM_IDLE (occurredAt: 2000), regardless of the order the API returned them in.
-    const eventItems = container.querySelectorAll(".history-page__event-list li");
+    // USER_RETURNED_FROM_IDLE (occurredAt: 2000), regardless of the order the API returned them
+    // in. The event list is the only <ol> this component ever renders (v4.2 Task 13's originated,
+    // Decision-9 expanded-details markup) - no CSS-module classname needed to select it.
+    const eventItems = container.querySelectorAll("ol li");
     expect(eventItems).toHaveLength(2);
     expect(eventItems[0]).toHaveTextContent("Distraction attempt");
     expect(eventItems[1]).toHaveTextContent("Returned from idle");
@@ -184,10 +196,10 @@ describe("HistoryPage", () => {
     });
 
     render(<HistoryPage />);
-    await screen.findByText("Finish 20 chemistry problems");
-    fireEvent.click(screen.getByRole("button", { name: /Finish 20 chemistry problems/ }));
+    await screen.findByText(/Finish 20 chemistry problems/);
+    fireEvent.click(screen.getByRole("button", { name: /Toggle details for Finish 20 chemistry problems/ }));
 
-    expect(await screen.findAllByText("Went idle")).toHaveLength(2);
+    expect(await screen.findAllByText(/Went idle/)).toHaveLength(2);
   });
 
   it("does not re-fetch events when a session is collapsed and re-expanded", async () => {
@@ -201,11 +213,11 @@ describe("HistoryPage", () => {
     });
 
     render(<HistoryPage />);
-    await screen.findByText("Finish 20 chemistry problems");
-    const summaryButton = screen.getByRole("button", { name: /Finish 20 chemistry problems/ });
+    await screen.findByText(/Finish 20 chemistry problems/);
+    const summaryButton = screen.getByRole("button", { name: /Toggle details for Finish 20 chemistry problems/ });
 
     fireEvent.click(summaryButton);
-    await screen.findByText("Session started");
+    await screen.findByText(/Session started/);
     fireEvent.click(summaryButton); // collapse
     fireEvent.click(summaryButton); // expand again
 
@@ -228,8 +240,8 @@ describe("HistoryPage", () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     render(<HistoryPage />);
-    await screen.findByText("Finish 20 chemistry problems");
-    fireEvent.click(screen.getByRole("button", { name: /Finish 20 chemistry problems/ }));
+    await screen.findByText(/Finish 20 chemistry problems/);
+    fireEvent.click(screen.getByRole("button", { name: /Toggle details for Finish 20 chemistry problems/ }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/Could not establish connection/);
     expect(consoleErrorSpy).toHaveBeenCalled();

@@ -1,0 +1,67 @@
+/* v4.2 Task 13 (Decision 9): SessionHistory.tsx's own frontend-backup design has no expanded/
+   per-session-detail frame at all - the design only shows the collapsed row (goal - date, plus an
+   options icon). This file originates a fresh layout for what that icon reveals (the distraction-
+   attempts/recoveries/duration summary and the chronological event list), reusing
+   SessionHistory.module.css's own color, spacing, and type-scale vocabulary rather than inventing
+   an unrelated visual language:
+     - --color-snow-200 / --border-3 / --br-15 match SessionHistory.module.css's own .input3 (the
+       one other "boxed content" surface already in that file - the status <select>).
+     - --color-dimgray (body text) / --color-darkgray (secondary/label text), --font-shantell-sans
+       (matches .sessionHistoryControls' own font-family) for the summary stats, --font-nunito
+       (matches .exampleListItems' own font-family - i.e. the same family the collapsed rows above
+       already use) for the event list itself, so expanded content reads as a continuation of the
+       collapsed row's own typography, not a different system.
+   All custom properties above were merged into snufflestudy/src/styles/global.css by v4.2 Task 1.
+
+   (The row's own options-icon-turned-button reset lives on SessionHistory.module.css itself, not
+   here - see that file's own .buttonIconReset addition - since it styles a ported design element,
+   not one of this file's own originated ones.) */
+
+.sessionRow {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-5);
+}
+
+.expandedDetails {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-15);
+  padding: var(--padding-20);
+  box-sizing: border-box;
+  border-radius: var(--br-15);
+  background-color: var(--color-snow-200);
+  border: var(--border-3);
+  color: var(--color-dimgray);
+  font-family: var(--font-shantell-sans);
+  font-size: var(--fs-20);
+}
+
+.summaryStats {
+  align-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-10);
+}
+
+.statusText {
+  margin: 0;
+  font-size: inherit;
+  font-family: inherit;
+  color: inherit;
+  line-height: var(--lh-normal);
+}
+
+.eventList {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-5);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-nunito);
+  font-size: var(--fs-16);
+}

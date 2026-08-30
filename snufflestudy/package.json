@@ -17,7 +17,12 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^7.3.11",
+    "@mui/x-date-pickers": "^8.29.3",
     "@supabase/supabase-js": "^2.112.3",
+    "date-fns": "^4.4.0",
     "idb": "^8.0.3",
     "livekit-client": "^2.21.0",
     "react": "^19.2.4",
