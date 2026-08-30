@@ -75,7 +75,7 @@ function renderFooter() {
 
 async function joinSampleRoom() {
   fireEvent.click(screen.getByText("Join (test harness)"));
-  await screen.findByText("Leave room");
+  await screen.findByRole("button", { name: "Leave Study Room" });
 }
 
 beforeEach(() => {
@@ -93,7 +93,7 @@ describe("StudyRoomFooter", () => {
   it("renders nothing when no room is joined", () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
     renderFooter();
-    expect(screen.queryByText("Leave room")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Leave Study Room" })).not.toBeInTheDocument();
   });
 
   it("shows the joined room's name and no participant-name list once joined", async () => {
@@ -126,7 +126,7 @@ describe("StudyRoomFooter", () => {
     expect(screen.queryByText("Producer tags")).not.toBeInTheDocument();
   });
 
-  it("toggles a tile's selected state on click, reflected in aria-pressed", async () => {
+  it("toggles a tile's selected state on click, reflected in aria-pressed and VideoBox's own property1 variant", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
 
     let capturedListener: ((event: videoCallClient.VideoCallEvent) => void) | null = null;
@@ -148,12 +148,17 @@ describe("StudyRoomFooter", () => {
 
     const tile = screen.getByText("user-b").closest('[data-participant="user-b"]') as HTMLElement;
     expect(tile).toHaveAttribute("aria-pressed", "false");
+    // v4.2 Task 6: VideoBox.tsx's own `property1` variant prop drives the selected-state visual
+    // (VideoBox.module.css's new [data-property1="selected"] rule) - not just aria-pressed.
+    expect(tile).toHaveAttribute("data-property1", "default");
 
     fireEvent.click(tile);
     expect(tile).toHaveAttribute("aria-pressed", "true");
+    expect(tile).toHaveAttribute("data-property1", "selected");
 
     fireEvent.click(tile);
     expect(tile).toHaveAttribute("aria-pressed", "false");
+    expect(tile).toHaveAttribute("data-property1", "default");
   });
 
   it("does not let the local (\"You\") tile be selected as a nudge target", async () => {
@@ -236,17 +241,18 @@ describe("StudyRoomFooter", () => {
     expect(tabsCreateSpy).toHaveBeenCalledWith({ url: expect.stringContaining("options.html") });
   });
 
-  it("mid-room: clicking the Camera toggle calls videoCallClient.setCameraEnabled(false) and flips its own label", async () => {
+  it("mid-room: clicking the Camera toggle calls videoCallClient.setCameraEnabled(false) and flips its own aria-pressed state", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
 
     renderFooter();
     await joinSampleRoom();
 
-    expect(screen.getByText("Camera: On")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Camera: On"));
+    const cameraToggle = screen.getByRole("button", { name: "Camera" });
+    expect(cameraToggle).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(cameraToggle);
 
     expect(videoCallClient.setCameraEnabled).toHaveBeenCalledWith(false);
-    expect(await screen.findByText("Camera: Off")).toBeInTheDocument();
+    await waitFor(() => expect(cameraToggle).toHaveAttribute("aria-pressed", "false"));
   });
 
   it("leaves a room: unsubscribes presence, ends the video call, and sends STUDY_ROOM_LEAVE", async () => {
@@ -257,7 +263,7 @@ describe("StudyRoomFooter", () => {
     renderFooter();
     await joinSampleRoom();
 
-    fireEvent.click(screen.getByText("Leave room"));
+    fireEvent.click(screen.getByRole("button", { name: "Leave Study Room" }));
 
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith({
@@ -267,7 +273,9 @@ describe("StudyRoomFooter", () => {
     );
     expect(unsubscribe).toHaveBeenCalled();
     expect(videoCallClient.leaveCall).toHaveBeenCalled();
-    await waitFor(() => expect(screen.queryByText("Leave room")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Leave Study Room" })).not.toBeInTheDocument()
+    );
   });
 
   describe("Nudge Vault picker and sending (v4.1 Task 7, Decision 8)", () => {
@@ -461,8 +469,10 @@ describe("StudyRoomFooter — stale tile cleanup across leave/rejoin (v3.3 QA pa
     expect(firstSessionVideo.isConnected).toBe(true);
     expect(screen.getByText("You")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Leave room"));
-    await waitFor(() => expect(screen.queryByText("Leave room")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Leave Study Room" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Leave Study Room" })).not.toBeInTheDocument()
+    );
 
     vi.mocked(videoCallClient.joinCall).mockImplementationOnce(async () => {});
     await joinSampleRoom();

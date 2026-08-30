@@ -99,3 +99,35 @@
     justify-content: center;
   }
 }
+
+/* v4.2 Task 6 addition (not in frontend-backup's original file): the mic/camera icons were plain
+   <img>s with no button semantics at all in the static design - same .buttonIconReset/
+   .buttonLargeIconReset pattern Task 5 added to StudyRoomsPanel.module.css for its own
+   pre-join mic/camera toggles, needed here because these two are now real, clickable
+   toggleCamera()/toggleMic() buttons. */
+.buttonLargeIconReset {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+}
+
+/* v4.2 Task 6 addition: `.dropdown` was a plain, unstyled-by-itself <div>Dropdown</div> in the
+   static design - all of its visible box/border/background comes from the parent `.input`
+   wrapper. Applying it to a real <select> (the Nudge Vault item picker) needs a chrome reset so
+   the browser's native select appearance doesn't render on top of/instead of that wrapper's
+   intended look - same `.dropdown` reset Task 4 added to StudySessionSetupPanel.module.css for
+   the identical reason. */
+.dropdown {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  cursor: pointer;
+}

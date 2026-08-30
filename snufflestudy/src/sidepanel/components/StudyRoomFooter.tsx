@@ -5,6 +5,10 @@ import { openMediaPermissionTab } from "../../infrastructure/media/mediaPermissi
 import { useRegisterRefresh } from "../refresh/RefreshRegistryContext";
 import { useStudyRoomSession, type Tile } from "../studyRoom/StudyRoomSessionContext";
 import { useNudgeVaultItems } from "../nudgeVault/useNudgeVaultItems";
+import TextSmall from "../ui/TextSmall";
+import footerStyles from "../styles/frontend-backup/pages/footers/StudyRoomFooter.module.css";
+import callPanelStyles from "../styles/frontend-backup/components/study/StudyRoomCallPanel.module.css";
+import videoBoxStyles from "../styles/frontend-backup/components/study/VideoBox.module.css";
 
 // v4.1 Task 7: the persistent, joined-room half of the old StudyRoomPanel.tsx, now reading
 // everything from the shared study-room session (useStudyRoomSession()) instead of local state -
@@ -20,6 +24,12 @@ import { useNudgeVaultItems } from "../nudgeVault/useNudgeVaultItems";
 // (3) in-room producer-tag recording is removed entirely (not relocated - Decision 9 leaves the
 //     room-broadcast backend in place, unused). One Nudge button + a Nudge Vault picker replaces
 //     it, sending the chosen vault item to every currently-selected tile.
+//
+// v4.2 Task 6: re-skinned as frontend-backup's StudyRoomFooter.tsx/StudyRoomCallPanel.tsx/
+// VideoBox.tsx design. Per Task 1's own scaffolding convention, VideoBox/StudyRoomCallPanel never
+// got ported as separate component files (only their CSS Modules did) - their markup is grafted
+// in here directly, same as every other v4.2 task's "remaining" (non-primitive) frontend-backup
+// components. StudyRoomVideoTile below IS this file's VideoBox usage - not a new file.
 
 // QA-discovered bug precedent (v3.3 QA pass), preserved verbatim from StudyRoomPanel.tsx: video
 // tiles are real React state (not a persistent ref-based DOM Map) so React's own reconciliation
@@ -63,14 +73,15 @@ function StudyRoomVideoTile({
     };
   }, [tile.audioElement]);
 
-  const classNames = ["study-room-panel__tile"];
-  if (selected) classNames.push("study-room-panel__tile--selected");
-  if (!onToggle) classNames.push("study-room-panel__tile--unselectable");
-
   return (
     <div
       ref={containerRef}
-      className={classNames.join(" ")}
+      className={videoBoxStyles.videoBox}
+      // v4.2 Task 6: VideoBox.tsx's own `property1` variant prop ("default"/"selected") - its
+      // source CSS module has no visual rule for "selected" at all (a static mockup never needed
+      // one), so this task adds one (see VideoBox.module.css) rather than leaving the toggle
+      // invisible.
+      data-property1={selected ? "selected" : "default"}
       data-participant={tile.participantIdentity}
       {...(onToggle
         ? {
@@ -87,7 +98,7 @@ function StudyRoomVideoTile({
           }
         : {})}
     >
-      <span className="study-room-panel__tile-label">{label}</span>
+      <TextSmall textbox={label} />
     </div>
   );
 }
@@ -180,84 +191,131 @@ export function StudyRoomFooter() {
 
   if (!joinedRoom) return null;
 
+  const nudgeAccessibleName = nudging
+    ? "Sending…"
+    : `Nudge (${selectedParticipantIds.size} selected)`;
+
   return (
-    <div className="study-room-panel study-room-panel--footer">
-      <header className="study-room-panel__header">
-        <h2>{joinedRoom.name}</h2>
-      </header>
+    <div className={footerStyles.studyRoomFooter}>
+      <h1 className={footerStyles.egStudyRoom}>{joinedRoom.name}</h1>
 
-      <div className="study-room-panel__grid">
-        {tiles.map((tile) => (
-          <StudyRoomVideoTile
-            key={tile.participantIdentity}
-            tile={tile}
-            label={tile.isLocal ? "You" : displayName(tile.participantIdentity)}
-            selected={selectedParticipantIds.has(tile.participantIdentity)}
-            onToggle={
-              tile.isLocal ? null : () => toggleParticipantSelected(tile.participantIdentity)
-            }
-          />
-        ))}
-      </div>
+      <section className={callPanelStyles.studyRoomCallPanel}>
+        <div className={callPanelStyles.callOptions}>
+          <button
+            type="button"
+            className={callPanelStyles.buttonLargeIconReset}
+            onClick={toggleMic}
+            aria-pressed={micOn}
+            aria-label="Microphone"
+          >
+            <img
+              className={callPanelStyles.buttonLargeIcon}
+              loading="lazy"
+              alt=""
+              src={chrome.runtime.getURL(
+                micOn ? "sidepanel/assets/button-mic-on.svg" : "sidepanel/assets/button-mic-off@2x.png"
+              )}
+            />
+          </button>
+          <button
+            type="button"
+            className={callPanelStyles.buttonLargeIconReset}
+            onClick={toggleCamera}
+            aria-pressed={cameraOn}
+            aria-label="Camera"
+          >
+            <img
+              className={callPanelStyles.buttonLargeIcon}
+              loading="lazy"
+              alt=""
+              src={chrome.runtime.getURL(
+                cameraOn
+                  ? "sidepanel/assets/button-camera-on.svg"
+                  : "sidepanel/assets/button-camera-off@2x.png"
+              )}
+            />
+          </button>
+          <button
+            type="button"
+            className={callPanelStyles.buttonLarge}
+            onClick={() => void leaveRoom()}
+            disabled={leaving}
+          >
+            <h3 className={callPanelStyles.button}>{leaving ? "Leaving…" : "Leave Study Room"}</h3>
+          </button>
+        </div>
 
-      <div className="study-room-panel__media-toggles">
-        <button type="button" onClick={toggleCamera}>
-          Camera: {cameraOn ? "On" : "Off"}
-        </button>
-        <button type="button" onClick={toggleMic}>
-          Mic: {micOn ? "On" : "Off"}
-        </button>
-      </div>
+        {mediaError && (
+          <p role="alert">
+            {mediaError.message}
+            {mediaError.actionable && (
+              <>
+                {" "}
+                <button type="button" onClick={openMediaPermissionTab}>
+                  Open a tab to grant access
+                </button>
+              </>
+            )}
+          </p>
+        )}
 
-      {mediaError && (
-        <p role="alert">
-          {mediaError.message}
-          {mediaError.actionable && (
-            <>
-              {" "}
-              <button type="button" onClick={openMediaPermissionTab}>
-                Open a tab to grant access
-              </button>
-            </>
+        <div className={callPanelStyles.exampleListItems}>
+          {tiles.map((tile) => (
+            <StudyRoomVideoTile
+              key={tile.participantIdentity}
+              tile={tile}
+              label={tile.isLocal ? "You" : displayName(tile.participantIdentity)}
+              selected={selectedParticipantIds.has(tile.participantIdentity)}
+              onToggle={
+                tile.isLocal ? null : () => toggleParticipantSelected(tile.participantIdentity)
+              }
+            />
+          ))}
+        </div>
+
+        <div className={callPanelStyles.buttonNudge}>
+          <button
+            type="button"
+            className={callPanelStyles.buttonLarge}
+            onClick={handleNudge}
+            disabled={nudging || !selectedVaultKey || selectedParticipantIds.size === 0}
+            aria-label={nudgeAccessibleName}
+          >
+            <h3 className={callPanelStyles.button}>{nudging ? "Sending…" : "Nudge"}</h3>
+          </button>
+
+          {vaultError && <p role="alert">Couldn't load your Nudge Vault: {vaultError}.</p>}
+          {vaultLoading && vaultItems.length === 0 && !vaultError && <p>Loading…</p>}
+          {!vaultLoading && vaultItems.length === 0 && !vaultError && (
+            <p>No saved nudges yet — add one from the Nudge Vault on the Friends tab.</p>
           )}
-        </p>
-      )}
-
-      <section className="study-room-panel__nudge">
-        <h3>Nudge</h3>
-        {vaultError && <p role="alert">Couldn't load your Nudge Vault: {vaultError}.</p>}
-        {vaultLoading && vaultItems.length === 0 && !vaultError && <p>Loading…</p>}
-        {!vaultLoading && vaultItems.length === 0 && !vaultError && (
-          <p>No saved nudges yet — add one from the Nudge Vault on the Friends tab.</p>
-        )}
-        {vaultItems.length > 0 && (
-          <label>
-            Nudge Vault item
-            <select value={selectedVaultKey} onChange={(e) => setSelectedVaultKey(e.target.value)}>
-              <option value="">Choose a saved nudge</option>
-              {vaultItems.map((item) => (
-                <option key={`${item.kind}:${item.id}`} value={`${item.kind}:${item.id}`}>
-                  {item.kind === "written"
-                    ? item.body
-                    : `Audio clip (${Math.round(item.durationMs / 1000)}s)`}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <button
-          type="button"
-          onClick={handleNudge}
-          disabled={nudging || !selectedVaultKey || selectedParticipantIds.size === 0}
-        >
-          {nudging ? "Sending…" : `Nudge (${selectedParticipantIds.size} selected)`}
-        </button>
+          {vaultItems.length > 0 && (
+            <div className={callPanelStyles.input}>
+              <select
+                className={callPanelStyles.dropdown}
+                aria-label="Nudge Vault item"
+                value={selectedVaultKey}
+                onChange={(e) => setSelectedVaultKey(e.target.value)}
+              >
+                <option value="">Choose a saved nudge</option>
+                {vaultItems.map((item) => (
+                  <option key={`${item.kind}:${item.id}`} value={`${item.kind}:${item.id}`}>
+                    {item.kind === "written"
+                      ? item.body
+                      : `Audio clip (${Math.round(item.durationMs / 1000)}s)`}
+                  </option>
+                ))}
+              </select>
+              <img
+                className={callPanelStyles.vectorIcon}
+                alt=""
+                src={chrome.runtime.getURL("sidepanel/assets/icon-chevron-down.svg")}
+              />
+            </div>
+          )}
+        </div>
         {nudgeError && <p role="alert">{nudgeError}</p>}
       </section>
-
-      <button type="button" onClick={() => void leaveRoom()} disabled={leaving}>
-        {leaving ? "Leaving…" : "Leave room"}
-      </button>
     </div>
   );
 }

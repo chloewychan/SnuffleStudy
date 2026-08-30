@@ -193,54 +193,19 @@
   align-items: center;
 }
 
-/* v3.3 Task 3: study-room video tiles had no sizing rules at all before this - every tile
-   rendered at its own native/intrinsic size, so a local camera preview (full native capture
-   resolution) looked larger than a remote peer's tile (subject to LiveKit's adaptiveStream
-   simulcast-layer selection). Applies uniformly to every tile (local and remote) - nothing here
-   is conditioned on isLocal. */
-.study-room-panel__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: var(--space-2);
-}
-
-.study-room-panel__tile {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  border-radius: var(--radius-md);
-  background: var(--color-accent);
-  cursor: pointer;
-}
-
-/* v4.1 Task 7: tiles are now click-to-select (Nudge target picking) - a functional indicator of
-   selection, not new visual design, matching the outline weight this app already uses elsewhere
-   for its own "currently active" states. */
-.study-room-panel__tile--selected {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-/* Your own tile - not a valid nudge target, so no click affordance. */
-.study-room-panel__tile--unselectable {
-  cursor: default;
-}
-
+/* v4.2 Task 6: .study-room-panel__grid/__tile/__tile--selected/__tile--unselectable/
+   __tile-label (v3.3 Task 3's/v4.1 Task 7's video-tile layout, selection outline, and label)
+   deleted here - StudyRoomFooter.tsx no longer renders any of these classnames, replaced by
+   VideoBox.module.css's own .videoBox/[data-property1="selected"]/[role="button"] styling.
+   Grep-confirmed zero remaining references anywhere in snufflestudy/src before deleting.
+   .study-room-panel__media is the one exception, kept below: it is not assigned by
+   StudyRoomFooter.tsx's own JSX at all - StudyRoomSessionContext.tsx (out of this task's scope)
+   adds it directly to every <video>/<audio> element via classList.add() the moment the element is
+   created, so it keeps working unmodified regardless of this task's re-skin. */
 .study-room-panel__media {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.study-room-panel__tile-label {
-  position: absolute;
-  bottom: var(--space-1);
-  left: var(--space-1);
-  font-size: var(--font-size-sm);
-  color: var(--color-text);
-  background: rgb(from var(--color-bg) r g b / 0.6);
-  padding: 0 var(--space-1);
-  border-radius: var(--radius-sm);
 }
 
 /* v4.2 Task 5: .study-room-panel__room/.study-room-panel__room--selected (v4.1 Task 7's

@@ -13,4 +13,45 @@
   font-size: var(--fs-20);
   color: var(--color-dimgray);
   font-family: var(--font-shantell-sans);
+  /* v4.2 Task 6 addition (not in frontend-backup's original file): the static design never held a
+     real <video>/<audio> element, so it never needed `position: relative`/`overflow: hidden` -
+     this tile now has StudyRoomFooter.tsx's real media element appended into it (via ref, see
+     `.study-room-panel__media` rule below), so it needs both to clip the media to this box's own
+     border-radius and to anchor that media's absolute positioning to this box, not the page. */
+  position: relative;
+  overflow: hidden;
+  /* Matches the pre-v4.2 `.study-room-panel__tile`/`--unselectable` cursor split: selectable by
+     default, `cursor: default` only when the tile carries no role="button" (the local "You"
+     tile). */
+  cursor: default;
+}
+.videoBox[role="button"] {
+  cursor: pointer;
+}
+
+/* v4.2 Task 6 addition: VideoBox.tsx's own `property1` variant prop has no visual rule for
+   "selected" anywhere in frontend-backup's source (a static mockup never demonstrated the
+   selected state) - added here, matching the outline treatment
+   `.study-room-panel__tile--selected` used pre-v4.2, in this design's own color vocabulary
+   (mistyrose - the same family ButtonTab.module.css uses for its own "selected" tab state). */
+.videoBox[data-property1="selected"] {
+  outline: 3px solid var(--color-mistyrose-100);
+  outline-offset: 2px;
+}
+
+/* v4.2 Task 6 addition: StudyRoomSessionContext.tsx (out of this task's scope - it is the shared
+   study-room session provider, not this component) assigns every <video>/<audio> element the
+   global, non-module classname `study-room-panel__media` the moment it's created (width/height
+   100%, object-fit: cover - see src/styles/sidepanel.css) - this survives this task's re-skin
+   unmodified and unrelated to it. This rule only adds the positioning this new tile shape needs
+   (full-bleed behind the name label), scoped to this component via CSS Modules' :global()
+   escape hatch rather than editing that shared global rule. */
+.videoBox :global(.study-room-panel__media) {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.videoBox > * {
+  position: relative;
+  z-index: 1;
 }

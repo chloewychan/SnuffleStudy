@@ -90,7 +90,7 @@ describe("AppFooter", () => {
 
     fireEvent.click(screen.getByText("Join (test harness)"));
 
-    await screen.findByText("Leave room");
+    await screen.findByRole("button", { name: "Leave Study Room" });
     const footer = document.querySelector(".sp-app-footer");
     expect(footer).toBeInTheDocument();
     expect(footer).toContainElement(screen.getByRole("heading", { name: "Thursday study group" }));
