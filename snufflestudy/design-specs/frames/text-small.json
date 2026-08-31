@@ -1,0 +1,163 @@
+{
+  "id": "177:2697",
+  "name": "text-small",
+  "type": "COMPONENT_SET",
+  "cornerRadius": 5,
+  "variantProps": {},
+  "children": [
+    {
+      "id": "177:2696",
+      "name": "Colour=white",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "padding": {
+          "right": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          }
+        },
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "White-50",
+          "values": {
+            "Mode 1": "#fdfbfa80"
+          }
+        }
+      ],
+      "cornerRadius": 15,
+      "variantProps": {
+        "Colour": "white"
+      },
+      "children": [
+        {
+          "id": "285:600",
+          "name": "Frame 32",
+          "type": "FRAME",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": 10,
+            "padding": {},
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "children": [
+            {
+              "id": "175:2679",
+              "name": "Textbox",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "Textbox",
+              "textStyle": {
+                "fontFamily": "Shantell Sans",
+                "fontSize": 10,
+                "fontWeight": 400,
+                "lineHeight": 13.40000057220459,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "177:2695",
+      "name": "Colour=pink",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "padding": {
+          "right": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          }
+        },
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Light-Pink-50",
+          "values": {
+            "Mode 1": "#f7e9dc80"
+          }
+        }
+      ],
+      "cornerRadius": 15,
+      "variantProps": {
+        "Colour": "pink"
+      },
+      "children": [
+        {
+          "id": "285:601",
+          "name": "Frame 32",
+          "type": "FRAME",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": 10,
+            "padding": {},
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "children": [
+            {
+              "id": "177:2694",
+              "name": "Textbox",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "Textbox",
+              "textStyle": {
+                "fontFamily": "Shantell Sans",
+                "fontSize": 10,
+                "fontWeight": 400,
+                "lineHeight": 13.40000057220459,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

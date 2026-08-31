@@ -1,0 +1,319 @@
+{
+  "id": "173:1609",
+  "name": "nagivation-bar",
+  "type": "COMPONENT",
+  "layout": {
+    "direction": "HORIZONTAL",
+    "padding": {},
+    "primaryAxisAlign": "CENTER",
+    "counterAxisAlign": "CENTER",
+    "sizing": {}
+  },
+  "variantProps": {},
+  "children": [
+    {
+      "id": "173:1601",
+      "name": "button-tab",
+      "type": "INSTANCE",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": {
+          "token": "Padding-5",
+          "values": {
+            "Mode 1": 5
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "right": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "bottom": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          }
+        },
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "componentId": "173:1596",
+      "componentProperties": {
+        "Propery": {
+          "value": "default",
+          "type": "VARIANT",
+          "boundVariables": {}
+        }
+      },
+      "children": [
+        {
+          "id": "I173:1601;173:1591",
+          "name": "Button",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Grey",
+              "values": {
+                "Mode 1": "#a99d9d"
+              }
+            }
+          ],
+          "text": "Bunny",
+          "textStyle": {
+            "fontFamily": "Pangolin",
+            "fontSize": 15,
+            "fontWeight": 400,
+            "lineHeight": 18.73499870300293,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        }
+      ]
+    },
+    {
+      "id": "173:1603",
+      "name": "button-tab",
+      "type": "INSTANCE",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": {
+          "token": "Padding-5",
+          "values": {
+            "Mode 1": 5
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "right": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "bottom": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          }
+        },
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "componentId": "173:1596",
+      "componentProperties": {
+        "Propery": {
+          "value": "default",
+          "type": "VARIANT",
+          "boundVariables": {}
+        }
+      },
+      "children": [
+        {
+          "id": "I173:1603;173:1591",
+          "name": "Button",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Grey",
+              "values": {
+                "Mode 1": "#a99d9d"
+              }
+            }
+          ],
+          "text": "Study",
+          "textStyle": {
+            "fontFamily": "Pangolin",
+            "fontSize": 15,
+            "fontWeight": 400,
+            "lineHeight": 18.73499870300293,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        }
+      ]
+    },
+    {
+      "id": "173:1605",
+      "name": "button-tab",
+      "type": "INSTANCE",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": {
+          "token": "Padding-5",
+          "values": {
+            "Mode 1": 5
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "right": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "bottom": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          }
+        },
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "componentId": "173:1596",
+      "componentProperties": {
+        "Propery": {
+          "value": "default",
+          "type": "VARIANT",
+          "boundVariables": {}
+        }
+      },
+      "children": [
+        {
+          "id": "I173:1605;173:1591",
+          "name": "Button",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Grey",
+              "values": {
+                "Mode 1": "#a99d9d"
+              }
+            }
+          ],
+          "text": "Friends",
+          "textStyle": {
+            "fontFamily": "Pangolin",
+            "fontSize": 15,
+            "fontWeight": 400,
+            "lineHeight": 18.73499870300293,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        }
+      ]
+    },
+    {
+      "id": "173:1607",
+      "name": "button-tab",
+      "type": "INSTANCE",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": {
+          "token": "Padding-5",
+          "values": {
+            "Mode 1": 5
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "right": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "bottom": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          }
+        },
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "componentId": "173:1596",
+      "componentProperties": {
+        "Propery": {
+          "value": "default",
+          "type": "VARIANT",
+          "boundVariables": {}
+        }
+      },
+      "children": [
+        {
+          "id": "I173:1607;173:1591",
+          "name": "Button",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Grey",
+              "values": {
+                "Mode 1": "#a99d9d"
+              }
+            }
+          ],
+          "text": "Settings",
+          "textStyle": {
+            "fontFamily": "Pangolin",
+            "fontSize": 15,
+            "fontWeight": 400,
+            "lineHeight": 18.73499870300293,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        }
+      ]
+    }
+  ]
+}

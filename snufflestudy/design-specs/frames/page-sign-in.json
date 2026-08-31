@@ -1,0 +1,438 @@
+{
+  "id": "279:343",
+  "name": "page-sign-in",
+  "type": "FRAME",
+  "layout": {
+    "direction": "VERTICAL",
+    "gap": {
+      "token": "Padding-20",
+      "values": {
+        "Mode 1": 20
+      }
+    },
+    "padding": {
+      "top": {
+        "token": "Padding-50",
+        "values": {
+          "Mode 1": 50
+        }
+      },
+      "right": {
+        "token": "Padding-50",
+        "values": {
+          "Mode 1": 50
+        }
+      },
+      "bottom": {
+        "token": "Padding-50",
+        "values": {
+          "Mode 1": 50
+        }
+      },
+      "left": {
+        "token": "Padding-50",
+        "values": {
+          "Mode 1": 50
+        }
+      }
+    },
+    "sizing": {
+      "counter": "FIXED"
+    }
+  },
+  "fills": [
+    {
+      "kind": "token",
+      "token": "White",
+      "values": {
+        "Mode 1": "#fdfbfa"
+      }
+    }
+  ],
+  "children": [
+    {
+      "id": "284:409",
+      "name": "Frame 1",
+      "type": "FRAME",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": {
+          "token": "Padding-20",
+          "values": {
+            "Mode 1": 20
+          }
+        },
+        "padding": {},
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "primary": "FIXED"
+        }
+      },
+      "children": [
+        {
+          "id": "284:406",
+          "name": "button-icon",
+          "type": "INSTANCE",
+          "componentId": "284:394",
+          "componentProperties": {
+            "Type": {
+              "value": "back",
+              "type": "VARIANT",
+              "boundVariables": {}
+            },
+            "Property": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I284:406;284:395",
+              "name": "Rectangle",
+              "type": "RECTANGLE",
+              "opacity": 0.75,
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-White",
+                  "values": {
+                    "Mode 1": "#f5f0eb"
+                  }
+                }
+              ],
+              "cornerRadius": 5
+            },
+            {
+              "id": "I284:406;284:393",
+              "name": "Vector",
+              "type": "VECTOR"
+            }
+          ]
+        },
+        {
+          "id": "279:344",
+          "name": "Sign In",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Grey",
+              "values": {
+                "Mode 1": "#796c6c"
+              }
+            }
+          ],
+          "text": "Sign In",
+          "textStyle": {
+            "fontFamily": "Pangolin",
+            "fontSize": 20,
+            "fontWeight": 400,
+            "lineHeight": 24.979999542236328,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        }
+      ]
+    },
+    {
+      "id": "279:364",
+      "name": "Sign in to use friends, rooms, nudges, approvals, and synced accountability features.",
+      "type": "TEXT",
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Dark-Grey",
+          "values": {
+            "Mode 1": "#796c6c"
+          }
+        }
+      ],
+      "text": "Sign in to use friends, rooms, nudges, approvals, and synced accountability features.",
+      "textStyle": {
+        "fontFamily": "Shantell Sans",
+        "fontSize": 12,
+        "fontWeight": 400,
+        "lineHeight": 16.079999923706055,
+        "letterSpacing": 0,
+        "align": "LEFT"
+      }
+    },
+    {
+      "id": "284:420",
+      "name": "Frame 1",
+      "type": "FRAME",
+      "layout": {
+        "direction": "VERTICAL",
+        "gap": {
+          "token": "Padding-10",
+          "values": {
+            "Mode 1": 10
+          }
+        },
+        "padding": {},
+        "sizing": {}
+      },
+      "children": [
+        {
+          "id": "279:360",
+          "name": "button-large",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-2-5",
+                "values": {
+                  "Mode 1": 2.5
+                }
+              },
+              "right": {
+                "token": "Padding-7-5",
+                "values": {
+                  "Mode 1": 7.5
+                }
+              },
+              "bottom": {
+                "token": "Padding-2-5",
+                "values": {
+                  "Mode 1": 2.5
+                }
+              },
+              "left": {
+                "token": "Padding-7-5",
+                "values": {
+                  "Mode 1": 7.5
+                }
+              }
+            },
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Pink-50",
+              "values": {
+                "Mode 1": "#f7e9dc80"
+              }
+            }
+          ],
+          "cornerRadius": 5,
+          "componentId": "168:1420",
+          "componentProperties": {
+            "Property": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I279:360;168:1350",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "Create new account",
+              "textStyle": {
+                "fontFamily": "Shantell Sans",
+                "fontSize": 12,
+                "fontWeight": 400,
+                "lineHeight": 16.079999923706055,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        },
+        {
+          "id": "279:362",
+          "name": "button-large",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-2-5",
+                "values": {
+                  "Mode 1": 2.5
+                }
+              },
+              "right": {
+                "token": "Padding-7-5",
+                "values": {
+                  "Mode 1": 7.5
+                }
+              },
+              "bottom": {
+                "token": "Padding-2-5",
+                "values": {
+                  "Mode 1": 2.5
+                }
+              },
+              "left": {
+                "token": "Padding-7-5",
+                "values": {
+                  "Mode 1": 7.5
+                }
+              }
+            },
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Pink-50",
+              "values": {
+                "Mode 1": "#f7e9dc80"
+              }
+            }
+          ],
+          "cornerRadius": 5,
+          "componentId": "168:1420",
+          "componentProperties": {
+            "Property": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I279:362;168:1350",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "Sign in (with password)",
+              "textStyle": {
+                "fontFamily": "Shantell Sans",
+                "fontSize": 12,
+                "fontWeight": 400,
+                "lineHeight": 16.079999923706055,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        },
+        {
+          "id": "284:365",
+          "name": "button-large",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-2-5",
+                "values": {
+                  "Mode 1": 2.5
+                }
+              },
+              "right": {
+                "token": "Padding-7-5",
+                "values": {
+                  "Mode 1": 7.5
+                }
+              },
+              "bottom": {
+                "token": "Padding-2-5",
+                "values": {
+                  "Mode 1": 2.5
+                }
+              },
+              "left": {
+                "token": "Padding-7-5",
+                "values": {
+                  "Mode 1": 7.5
+                }
+              }
+            },
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Pink-50",
+              "values": {
+                "Mode 1": "#f7e9dc80"
+              }
+            }
+          ],
+          "cornerRadius": 5,
+          "componentId": "168:1420",
+          "componentProperties": {
+            "Property": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I284:365;168:1350",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "Sign in (one-time code)",
+              "textStyle": {
+                "fontFamily": "Shantell Sans",
+                "fontSize": 12,
+                "fontWeight": 400,
+                "lineHeight": 16.079999923706055,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

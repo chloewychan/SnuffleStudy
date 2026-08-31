@@ -1,0 +1,1171 @@
+{
+  "id": "106:53",
+  "name": "page-bunny",
+  "type": "FRAME",
+  "layout": {
+    "direction": "VERTICAL",
+    "gap": {
+      "token": "Padding-20",
+      "values": {
+        "Mode 1": 20
+      }
+    },
+    "padding": {
+      "top": {
+        "token": "Padding-50",
+        "values": {
+          "Mode 1": 50
+        }
+      },
+      "right": {
+        "token": "Padding-20",
+        "values": {
+          "Mode 1": 20
+        }
+      },
+      "bottom": {
+        "token": "Padding-20",
+        "values": {
+          "Mode 1": 20
+        }
+      },
+      "left": {
+        "token": "Padding-20",
+        "values": {
+          "Mode 1": 20
+        }
+      }
+    },
+    "counterAxisAlign": "CENTER",
+    "sizing": {
+      "counter": "FIXED"
+    }
+  },
+  "fills": [
+    {
+      "kind": "token",
+      "token": "White",
+      "values": {
+        "Mode 1": "#fdfbfa"
+      }
+    }
+  ],
+  "children": [
+    {
+      "id": "173:1522",
+      "name": "header-bar",
+      "type": "INSTANCE",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": {
+          "token": "Padding-20",
+          "values": {
+            "Mode 1": 20
+          }
+        },
+        "padding": {},
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "componentId": "170:1476",
+      "children": [
+        {
+          "id": "I173:1522;170:1466",
+          "name": "frame",
+          "type": "FRAME",
+          "layout": {
+            "direction": "VERTICAL",
+            "gap": {
+              "token": "Padding-10",
+              "values": {
+                "Mode 1": 10
+              }
+            },
+            "padding": {},
+            "sizing": {}
+          },
+          "children": [
+            {
+              "id": "I173:1522;170:1465",
+              "name": "frame",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "primaryAxisAlign": "CENTER",
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "I173:1522;170:1453",
+                  "name": "button-icon",
+                  "type": "INSTANCE",
+                  "componentId": "168:1409",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "x",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:1522;170:1453;168:1316",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "opacity": 0.75,
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I173:1522;170:1453;203:490",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 1
+                    }
+                  ]
+                },
+                {
+                  "id": "I173:1522;170:1458",
+                  "name": "button-icon",
+                  "type": "INSTANCE",
+                  "componentId": "168:1412",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "reload",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:1522;170:1458;168:1321",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "opacity": 0.75,
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I173:1522;170:1458;203:555",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "I173:1522;170:1463",
+                  "name": "button-large",
+                  "type": "INSTANCE",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": {
+                      "token": "Padding-5",
+                      "values": {
+                        "Mode 1": 5
+                      }
+                    },
+                    "padding": {
+                      "top": {
+                        "token": "Padding-2-5",
+                        "values": {
+                          "Mode 1": 2.5
+                        }
+                      },
+                      "right": {
+                        "token": "Padding-7-5",
+                        "values": {
+                          "Mode 1": 7.5
+                        }
+                      },
+                      "bottom": {
+                        "token": "Padding-2-5",
+                        "values": {
+                          "Mode 1": 2.5
+                        }
+                      },
+                      "left": {
+                        "token": "Padding-7-5",
+                        "values": {
+                          "Mode 1": 7.5
+                        }
+                      }
+                    },
+                    "primaryAxisAlign": "CENTER",
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {}
+                  },
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Light-Pink-50",
+                      "values": {
+                        "Mode 1": "#f7e9dc80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5,
+                  "componentId": "168:1420",
+                  "componentProperties": {
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:1522;170:1463;168:1350",
+                      "name": "Button",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Grey",
+                          "values": {
+                            "Mode 1": "#796c6c"
+                          }
+                        }
+                      ],
+                      "text": "Log In",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 12,
+                        "fontWeight": 400,
+                        "lineHeight": 16.079999923706055,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "I173:1522;167:1105",
+              "name": "SnuffleStudy",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "SnuffleStudy",
+              "textStyle": {
+                "fontFamily": "Pangolin",
+                "fontSize": 35,
+                "fontWeight": 400,
+                "lineHeight": 43.71500015258789,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        },
+        {
+          "id": "I173:1522;173:1713",
+          "name": "Bunny and Book",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "image",
+              "imageRef": "4692fae6cd574c24bc8910154f874ef15f9cb583",
+              "scaleMode": "FILL"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "173:1610",
+      "name": "nagivation-bar",
+      "type": "INSTANCE",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "padding": {},
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "componentId": "173:1609",
+      "children": [
+        {
+          "id": "I173:1610;173:1601",
+          "name": "button-tab",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "right": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              },
+              "bottom": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "left": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              }
+            },
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Pink-50",
+              "values": {
+                "Mode 1": "#f7e9dc80"
+              }
+            }
+          ],
+          "cornerRadius": 30,
+          "componentId": "173:1597",
+          "componentProperties": {
+            "Propery": {
+              "value": "selected",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I173:1610;173:1601;173:1590",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "Bunny",
+              "textStyle": {
+                "fontFamily": "Pangolin",
+                "fontSize": 15,
+                "fontWeight": 400,
+                "lineHeight": 18.73499870300293,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        },
+        {
+          "id": "I173:1610;173:1603",
+          "name": "button-tab",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "right": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              },
+              "bottom": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "left": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              }
+            },
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "componentId": "173:1596",
+          "componentProperties": {
+            "Propery": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I173:1610;173:1603;173:1591",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Light-Grey",
+                  "values": {
+                    "Mode 1": "#a99d9d"
+                  }
+                }
+              ],
+              "text": "Study",
+              "textStyle": {
+                "fontFamily": "Pangolin",
+                "fontSize": 15,
+                "fontWeight": 400,
+                "lineHeight": 18.73499870300293,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        },
+        {
+          "id": "I173:1610;173:1605",
+          "name": "button-tab",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "right": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              },
+              "bottom": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "left": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              }
+            },
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "componentId": "173:1596",
+          "componentProperties": {
+            "Propery": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I173:1610;173:1605;173:1591",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Light-Grey",
+                  "values": {
+                    "Mode 1": "#a99d9d"
+                  }
+                }
+              ],
+              "text": "Friends",
+              "textStyle": {
+                "fontFamily": "Pangolin",
+                "fontSize": 15,
+                "fontWeight": 400,
+                "lineHeight": 18.73499870300293,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        },
+        {
+          "id": "I173:1610;173:1607",
+          "name": "button-tab",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "right": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              },
+              "bottom": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "left": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              }
+            },
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "componentId": "173:1596",
+          "componentProperties": {
+            "Propery": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I173:1610;173:1607;173:1591",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Light-Grey",
+                  "values": {
+                    "Mode 1": "#a99d9d"
+                  }
+                }
+              ],
+              "text": "Settings",
+              "textStyle": {
+                "fontFamily": "Pangolin",
+                "fontSize": 15,
+                "fontWeight": 400,
+                "lineHeight": 18.73499870300293,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "173:1620",
+      "name": "frame-about-the-bun",
+      "type": "FRAME",
+      "layout": {
+        "direction": "VERTICAL",
+        "gap": {
+          "token": "Padding-20",
+          "values": {
+            "Mode 1": 20
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "right": {
+            "token": "Padding-30",
+            "values": {
+              "Mode 1": 30
+            }
+          },
+          "bottom": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "left": {
+            "token": "Padding-30",
+            "values": {
+              "Mode 1": 30
+            }
+          }
+        },
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "counter": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Dark-White",
+          "values": {
+            "Mode 1": "#f5f0eb"
+          }
+        }
+      ],
+      "cornerRadius": 30,
+      "children": [
+        {
+          "id": "173:1621",
+          "name": "About the Bun",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Grey",
+              "values": {
+                "Mode 1": "#796c6c"
+              }
+            }
+          ],
+          "text": "About the Bun",
+          "textStyle": {
+            "fontFamily": "Pangolin",
+            "fontSize": 15,
+            "fontWeight": 400,
+            "lineHeight": 18.73499870300293,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        },
+        {
+          "id": "173:1685",
+          "name": "frame",
+          "type": "FRAME",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-20",
+              "values": {
+                "Mode 1": 20
+              }
+            },
+            "padding": {},
+            "counterAxisAlign": "CENTER",
+            "sizing": {
+              "primary": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "173:1943",
+              "name": "Bunny",
+              "type": "RECTANGLE",
+              "fills": [
+                {
+                  "kind": "image",
+                  "imageRef": "b8d3c744f1debaff08f25ec51168cc7ef7d70ccb",
+                  "scaleMode": "FILL"
+                }
+              ]
+            },
+            {
+              "id": "173:1682",
+              "name": "frame",
+              "type": "FRAME",
+              "layout": {
+                "direction": "VERTICAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "sizing": {
+                  "counter": "FIXED"
+                }
+              },
+              "children": [
+                {
+                  "id": "173:1683",
+                  "name": "input-bunny-name",
+                  "type": "FRAME",
+                  "layout": {
+                    "direction": "VERTICAL",
+                    "gap": {
+                      "token": "Padding-2-5",
+                      "values": {
+                        "Mode 1": 2.5
+                      }
+                    },
+                    "padding": {},
+                    "sizing": {
+                      "counter": "FIXED"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "173:1678",
+                      "name": "Bunny Name:",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Grey",
+                          "values": {
+                            "Mode 1": "#a99d9d"
+                          }
+                        }
+                      ],
+                      "text": "Bunny Name:",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 10,
+                        "fontWeight": 400,
+                        "lineHeight": 13.40000057220459,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    },
+                    {
+                      "id": "173:1670",
+                      "name": "frame",
+                      "type": "FRAME",
+                      "layout": {
+                        "direction": "HORIZONTAL",
+                        "gap": {
+                          "token": "Padding-7-5",
+                          "values": {
+                            "Mode 1": 7.5
+                          }
+                        },
+                        "padding": {},
+                        "counterAxisAlign": "CENTER",
+                        "sizing": {
+                          "primary": "FIXED"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "173:1660",
+                          "name": "input",
+                          "type": "INSTANCE",
+                          "layout": {
+                            "direction": "HORIZONTAL",
+                            "gap": 10,
+                            "padding": {
+                              "right": {
+                                "token": "Padding-5",
+                                "values": {
+                                  "Mode 1": 5
+                                }
+                              },
+                              "left": {
+                                "token": "Padding-5",
+                                "values": {
+                                  "Mode 1": 5
+                                }
+                              }
+                            },
+                            "primaryAxisAlign": "SPACE_BETWEEN",
+                            "counterAxisAlign": "CENTER",
+                            "sizing": {
+                              "primary": "FIXED"
+                            }
+                          },
+                          "fills": [
+                            {
+                              "kind": "token",
+                              "token": "White-50",
+                              "values": {
+                                "Mode 1": "#fdfbfa80"
+                              }
+                            }
+                          ],
+                          "cornerRadius": 5,
+                          "componentId": "286:1799",
+                          "componentProperties": {
+                            "Type": {
+                              "value": "textbox",
+                              "type": "VARIANT",
+                              "boundVariables": {}
+                            },
+                            "Colour": {
+                              "value": "white",
+                              "type": "VARIANT",
+                              "boundVariables": {}
+                            },
+                            "Property": {
+                              "value": "blank",
+                              "type": "VARIANT",
+                              "boundVariables": {}
+                            }
+                          },
+                          "children": [
+                            {
+                              "id": "I173:1660;286:1800",
+                              "name": "Textbox",
+                              "type": "TEXT",
+                              "fills": [
+                                {
+                                  "kind": "token",
+                                  "token": "Dark-Beige",
+                                  "values": {
+                                    "Mode 1": "#cfc1bd"
+                                  }
+                                }
+                              ],
+                              "text": "Textbox",
+                              "textStyle": {
+                                "fontFamily": "Shantell Sans",
+                                "fontSize": 10,
+                                "fontWeight": 400,
+                                "lineHeight": 13.40000057220459,
+                                "letterSpacing": 0,
+                                "align": "LEFT"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "id": "173:1664",
+                          "name": "button-bool",
+                          "type": "INSTANCE",
+                          "componentId": "168:1417",
+                          "componentProperties": {
+                            "Type": {
+                              "value": "check",
+                              "type": "VARIANT",
+                              "boundVariables": {}
+                            },
+                            "Property": {
+                              "value": "default",
+                              "type": "VARIANT",
+                              "boundVariables": {}
+                            }
+                          },
+                          "children": [
+                            {
+                              "id": "I173:1664;168:1327",
+                              "name": "Rectangle",
+                              "type": "RECTANGLE",
+                              "opacity": 0.5,
+                              "fills": [
+                                {
+                                  "kind": "token",
+                                  "token": "Light-Pink",
+                                  "values": {
+                                    "Mode 1": "#f7e9dc"
+                                  }
+                                }
+                              ],
+                              "cornerRadius": 5
+                            },
+                            {
+                              "id": "I173:1664;203:654",
+                              "name": "Vector",
+                              "type": "VECTOR",
+                              "cornerRadius": 1
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "173:1684",
+                  "name": "input-bunny-name",
+                  "type": "FRAME",
+                  "layout": {
+                    "direction": "VERTICAL",
+                    "gap": {
+                      "token": "Padding-2-5",
+                      "values": {
+                        "Mode 1": 2.5
+                      }
+                    },
+                    "padding": {},
+                    "sizing": {
+                      "counter": "FIXED"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "173:1680",
+                      "name": "Human Name:",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Grey",
+                          "values": {
+                            "Mode 1": "#a99d9d"
+                          }
+                        }
+                      ],
+                      "text": "Human Name:",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 10,
+                        "fontWeight": 400,
+                        "lineHeight": 13.40000057220459,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    },
+                    {
+                      "id": "173:1671",
+                      "name": "frame",
+                      "type": "FRAME",
+                      "layout": {
+                        "direction": "HORIZONTAL",
+                        "gap": {
+                          "token": "Padding-7-5",
+                          "values": {
+                            "Mode 1": 7.5
+                          }
+                        },
+                        "padding": {},
+                        "counterAxisAlign": "CENTER",
+                        "sizing": {
+                          "primary": "FIXED"
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "173:1672",
+                          "name": "input",
+                          "type": "INSTANCE",
+                          "layout": {
+                            "direction": "HORIZONTAL",
+                            "gap": 10,
+                            "padding": {
+                              "right": {
+                                "token": "Padding-5",
+                                "values": {
+                                  "Mode 1": 5
+                                }
+                              },
+                              "left": {
+                                "token": "Padding-5",
+                                "values": {
+                                  "Mode 1": 5
+                                }
+                              }
+                            },
+                            "primaryAxisAlign": "SPACE_BETWEEN",
+                            "counterAxisAlign": "CENTER",
+                            "sizing": {
+                              "primary": "FIXED"
+                            }
+                          },
+                          "fills": [
+                            {
+                              "kind": "token",
+                              "token": "White-50",
+                              "values": {
+                                "Mode 1": "#fdfbfa80"
+                              }
+                            }
+                          ],
+                          "cornerRadius": 5,
+                          "componentId": "286:1799",
+                          "componentProperties": {
+                            "Type": {
+                              "value": "textbox",
+                              "type": "VARIANT",
+                              "boundVariables": {}
+                            },
+                            "Colour": {
+                              "value": "white",
+                              "type": "VARIANT",
+                              "boundVariables": {}
+                            },
+                            "Property": {
+                              "value": "blank",
+                              "type": "VARIANT",
+                              "boundVariables": {}
+                            }
+                          },
+                          "children": [
+                            {
+                              "id": "I173:1672;286:1800",
+                              "name": "Textbox",
+                              "type": "TEXT",
+                              "fills": [
+                                {
+                                  "kind": "token",
+                                  "token": "Dark-Beige",
+                                  "values": {
+                                    "Mode 1": "#cfc1bd"
+                                  }
+                                }
+                              ],
+                              "text": "Textbox",
+                              "textStyle": {
+                                "fontFamily": "Shantell Sans",
+                                "fontSize": 10,
+                                "fontWeight": 400,
+                                "lineHeight": 13.40000057220459,
+                                "letterSpacing": 0,
+                                "align": "LEFT"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "id": "173:1673",
+                          "name": "button-bool",
+                          "type": "INSTANCE",
+                          "componentId": "168:1417",
+                          "componentProperties": {
+                            "Type": {
+                              "value": "check",
+                              "type": "VARIANT",
+                              "boundVariables": {}
+                            },
+                            "Property": {
+                              "value": "default",
+                              "type": "VARIANT",
+                              "boundVariables": {}
+                            }
+                          },
+                          "children": [
+                            {
+                              "id": "I173:1673;168:1327",
+                              "name": "Rectangle",
+                              "type": "RECTANGLE",
+                              "opacity": 0.5,
+                              "fills": [
+                                {
+                                  "kind": "token",
+                                  "token": "Light-Pink",
+                                  "values": {
+                                    "Mode 1": "#f7e9dc"
+                                  }
+                                }
+                              ],
+                              "cornerRadius": 5
+                            },
+                            {
+                              "id": "I173:1673;203:654",
+                              "name": "Vector",
+                              "type": "VECTOR",
+                              "cornerRadius": 1
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

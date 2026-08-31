@@ -1,0 +1,135 @@
+{
+  "id": "173:2210",
+  "name": "button-large-icon",
+  "type": "COMPONENT_SET",
+  "cornerRadius": 5,
+  "variantProps": {},
+  "children": [
+    {
+      "id": "173:2209",
+      "name": "Type=microphone, Property=default",
+      "type": "COMPONENT",
+      "opacity": 0.75,
+      "variantProps": {
+        "Type": "microphone",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "173:2172",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Pink-50",
+              "values": {
+                "Mode 1": "#f7e9dc80"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "203:698",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "173:2208",
+      "name": "Type=camera, Property=default",
+      "type": "COMPONENT",
+      "opacity": 0.75,
+      "variantProps": {
+        "Type": "camera",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "173:2174",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Pink-50",
+              "values": {
+                "Mode 1": "#f7e9dc80"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "203:718",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "173:2207",
+      "name": "Type=microphone, Property=selected",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "microphone",
+        "Property": "selected"
+      },
+      "children": [
+        {
+          "id": "173:2182",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Pink-50",
+              "values": {
+                "Mode 1": "#f7e9dc80"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "203:723",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "173:2206",
+      "name": "Type=camera, Property=selected",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "camera",
+        "Property": "selected"
+      },
+      "children": [
+        {
+          "id": "173:2185",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Pink-50",
+              "values": {
+                "Mode 1": "#f7e9dc80"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "203:724",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    }
+  ]
+}

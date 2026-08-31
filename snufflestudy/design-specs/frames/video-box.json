@@ -1,0 +1,281 @@
+{
+  "id": "177:2719",
+  "name": "video-box",
+  "type": "COMPONENT_SET",
+  "cornerRadius": 5,
+  "variantProps": {},
+  "children": [
+    {
+      "id": "177:2718",
+      "name": "Property=default",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "VERTICAL",
+        "padding": {
+          "top": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          },
+          "right": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          },
+          "bottom": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          },
+          "left": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          }
+        },
+        "primaryAxisAlign": "MAX",
+        "sizing": {
+          "primary": "FIXED",
+          "counter": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Dark-White",
+          "values": {
+            "Mode 1": "#f5f0eb"
+          }
+        }
+      ],
+      "cornerRadius": 15,
+      "variantProps": {
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "177:2711",
+          "name": "text-small",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "padding": {
+              "right": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "left": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              }
+            },
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "fills": [
+            {
+              "kind": "token",
+              "token": "White-50",
+              "values": {
+                "Mode 1": "#fdfbfa80"
+              }
+            }
+          ],
+          "cornerRadius": 15,
+          "componentId": "177:2696",
+          "componentProperties": {
+            "Colour": {
+              "value": "white",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I177:2711;285:600",
+              "name": "Frame 32",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": 10,
+                "padding": {},
+                "primaryAxisAlign": "CENTER",
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "I177:2711;175:2679",
+                  "name": "Textbox",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "E.g., Name",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 10,
+                    "fontWeight": 400,
+                    "lineHeight": 13.40000057220459,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "177:2717",
+      "name": "Property=selected",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "VERTICAL",
+        "padding": {
+          "top": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          },
+          "right": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          },
+          "bottom": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          },
+          "left": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          }
+        },
+        "primaryAxisAlign": "MAX",
+        "sizing": {
+          "primary": "FIXED",
+          "counter": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Dark-White",
+          "values": {
+            "Mode 1": "#f5f0eb"
+          }
+        }
+      ],
+      "cornerRadius": 15,
+      "variantProps": {
+        "Property": "selected"
+      },
+      "children": [
+        {
+          "id": "177:2715",
+          "name": "text-small",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "padding": {
+              "right": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "left": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              }
+            },
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "fills": [
+            {
+              "kind": "token",
+              "token": "White-50",
+              "values": {
+                "Mode 1": "#fdfbfa80"
+              }
+            }
+          ],
+          "cornerRadius": 15,
+          "componentId": "177:2696",
+          "componentProperties": {
+            "Colour": {
+              "value": "white",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I177:2715;285:600",
+              "name": "Frame 32",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": 10,
+                "padding": {},
+                "primaryAxisAlign": "CENTER",
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "I177:2715;175:2679",
+                  "name": "Textbox",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "E.g., Name",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 10,
+                    "fontWeight": 400,
+                    "lineHeight": 13.40000057220459,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

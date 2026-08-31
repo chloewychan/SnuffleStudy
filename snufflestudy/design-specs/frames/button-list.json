@@ -1,0 +1,333 @@
+{
+  "id": "168:1437",
+  "name": "button-list",
+  "type": "COMPONENT_SET",
+  "cornerRadius": 5,
+  "variantProps": {},
+  "children": [
+    {
+      "id": "168:1436",
+      "name": "Type=circle, Colour=white, Property=default",
+      "type": "COMPONENT",
+      "opacity": 0.75,
+      "variantProps": {
+        "Type": "circle",
+        "Colour": "white",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "168:1358",
+          "name": "Circle",
+          "type": "ELLIPSE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "White-50",
+              "values": {
+                "Mode 1": "#fdfbfa80"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "168:1434",
+      "name": "Type=circle, Colour=pink, Property=default",
+      "type": "COMPONENT",
+      "opacity": 0.75,
+      "variantProps": {
+        "Type": "circle",
+        "Colour": "pink",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "168:1360",
+          "name": "Circle",
+          "type": "ELLIPSE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Pink-50",
+              "values": {
+                "Mode 1": "#f6cbc080"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "168:1432",
+      "name": "Type=circle, Colour=beige, Property=default",
+      "type": "COMPONENT",
+      "opacity": 0.75,
+      "variantProps": {
+        "Type": "circle",
+        "Colour": "beige",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "168:1362",
+          "name": "Circle",
+          "type": "ELLIPSE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Beige-50",
+              "values": {
+                "Mode 1": "#e5dbd280"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "168:1431",
+      "name": "Type=square, Colour=white, Property=default",
+      "type": "COMPONENT",
+      "opacity": 0.75,
+      "variantProps": {
+        "Type": "square",
+        "Colour": "white",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "168:1366",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "White-50",
+              "values": {
+                "Mode 1": "#fdfbfa80"
+              }
+            }
+          ],
+          "cornerRadius": 3
+        }
+      ]
+    },
+    {
+      "id": "168:1435",
+      "name": "Type=square, Colour=pink, Property=default",
+      "type": "COMPONENT",
+      "opacity": 0.75,
+      "variantProps": {
+        "Type": "square",
+        "Colour": "pink",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "168:1368",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Pink-50",
+              "values": {
+                "Mode 1": "#f6cbc080"
+              }
+            }
+          ],
+          "cornerRadius": 3
+        }
+      ]
+    },
+    {
+      "id": "183:904",
+      "name": "Type=square, Colour=beige, Property=default",
+      "type": "COMPONENT",
+      "opacity": 0.75,
+      "variantProps": {
+        "Type": "square",
+        "Colour": "beige",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "183:905",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Beige-50",
+              "values": {
+                "Mode 1": "#e5dbd280"
+              }
+            }
+          ],
+          "cornerRadius": 3
+        }
+      ]
+    },
+    {
+      "id": "168:1433",
+      "name": "Type=circle, Colour=white, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "circle",
+        "Colour": "white",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "168:1403",
+          "name": "Circle",
+          "type": "ELLIPSE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "White-50",
+              "values": {
+                "Mode 1": "#fdfbfa80"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "168:1430",
+      "name": "Type=circle, Colour=pink, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "circle",
+        "Colour": "pink",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "168:1400",
+          "name": "Circle",
+          "type": "ELLIPSE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Pink-50",
+              "values": {
+                "Mode 1": "#f6cbc080"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "168:1428",
+      "name": "Type=circle, Colour=beige, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "circle",
+        "Colour": "beige",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "168:1404",
+          "name": "Circle",
+          "type": "ELLIPSE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Beige-50",
+              "values": {
+                "Mode 1": "#e5dbd280"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "168:1429",
+      "name": "Type=square, Colour=white, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "square",
+        "Colour": "white",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "168:1374",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "White-50",
+              "values": {
+                "Mode 1": "#fdfbfa80"
+              }
+            }
+          ],
+          "cornerRadius": 3
+        }
+      ]
+    },
+    {
+      "id": "168:1427",
+      "name": "Type=square, Colour=pink, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "square",
+        "Colour": "pink",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "168:1375",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Pink-50",
+              "values": {
+                "Mode 1": "#f6cbc080"
+              }
+            }
+          ],
+          "cornerRadius": 3
+        }
+      ]
+    },
+    {
+      "id": "183:906",
+      "name": "Type=square, Colour=beige, Property=default",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "square",
+        "Colour": "beige",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "183:907",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Beige-50",
+              "values": {
+                "Mode 1": "#e5dbd280"
+              }
+            }
+          ],
+          "cornerRadius": 3
+        }
+      ]
+    }
+  ]
+}

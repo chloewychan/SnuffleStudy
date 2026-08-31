@@ -1,0 +1,573 @@
+{
+  "id": "173:1659",
+  "name": "input",
+  "type": "COMPONENT_SET",
+  "cornerRadius": 5,
+  "variantProps": {},
+  "children": [
+    {
+      "id": "173:1658",
+      "name": "Type=textbox, Colour=white, Property=default",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": 10,
+        "padding": {
+          "right": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          }
+        },
+        "primaryAxisAlign": "SPACE_BETWEEN",
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "primary": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "White-50",
+          "values": {
+            "Mode 1": "#fdfbfa80"
+          }
+        }
+      ],
+      "cornerRadius": 5,
+      "variantProps": {
+        "Type": "textbox",
+        "Colour": "white",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "173:1648",
+          "name": "Textbox",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Grey",
+              "values": {
+                "Mode 1": "#796c6c"
+              }
+            }
+          ],
+          "text": "Textbox",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 10,
+            "fontWeight": 400,
+            "lineHeight": 13.40000057220459,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        }
+      ]
+    },
+    {
+      "id": "284:378",
+      "name": "Type=textbox, Colour=beige, Property=default",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": 10,
+        "padding": {
+          "right": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          }
+        },
+        "primaryAxisAlign": "SPACE_BETWEEN",
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "primary": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Dark-White-50",
+          "values": {
+            "Mode 1": "#f5f0eb80"
+          }
+        }
+      ],
+      "cornerRadius": 5,
+      "variantProps": {
+        "Type": "textbox",
+        "Colour": "beige",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "284:379",
+          "name": "Textbox",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Grey",
+              "values": {
+                "Mode 1": "#796c6c"
+              }
+            }
+          ],
+          "text": "Textbox",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 10,
+            "fontWeight": 400,
+            "lineHeight": 13.40000057220459,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        }
+      ]
+    },
+    {
+      "id": "173:1657",
+      "name": "Type=dropdown, Colour=white, Property=default",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": 168,
+        "padding": {
+          "right": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          }
+        },
+        "primaryAxisAlign": "SPACE_BETWEEN",
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "primary": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "White-50",
+          "values": {
+            "Mode 1": "#fdfbfa80"
+          }
+        }
+      ],
+      "cornerRadius": 5,
+      "variantProps": {
+        "Type": "dropdown",
+        "Colour": "white",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "173:1653",
+          "name": "Dropdown",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Grey",
+              "values": {
+                "Mode 1": "#796c6c"
+              }
+            }
+          ],
+          "text": "Dropdown",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 10,
+            "fontWeight": 400,
+            "lineHeight": 13.40000057220459,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        },
+        {
+          "id": "203:725",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "284:380",
+      "name": "Type=dropdown, Colour=beige, Property=default",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": 168,
+        "padding": {
+          "right": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          }
+        },
+        "primaryAxisAlign": "SPACE_BETWEEN",
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "primary": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Dark-White-50",
+          "values": {
+            "Mode 1": "#f5f0eb80"
+          }
+        }
+      ],
+      "cornerRadius": 5,
+      "variantProps": {
+        "Type": "dropdown",
+        "Colour": "beige",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "284:381",
+          "name": "Dropdown",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Grey",
+              "values": {
+                "Mode 1": "#796c6c"
+              }
+            }
+          ],
+          "text": "Dropdown",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 10,
+            "fontWeight": 400,
+            "lineHeight": 13.40000057220459,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        },
+        {
+          "id": "284:382",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "286:1799",
+      "name": "Type=textbox, Colour=white, Property=blank",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": 10,
+        "padding": {
+          "right": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          }
+        },
+        "primaryAxisAlign": "SPACE_BETWEEN",
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "primary": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "White-50",
+          "values": {
+            "Mode 1": "#fdfbfa80"
+          }
+        }
+      ],
+      "cornerRadius": 5,
+      "variantProps": {
+        "Type": "textbox",
+        "Colour": "white",
+        "Property": "blank"
+      },
+      "children": [
+        {
+          "id": "286:1800",
+          "name": "Textbox",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Beige",
+              "values": {
+                "Mode 1": "#cfc1bd"
+              }
+            }
+          ],
+          "text": "Textbox",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 10,
+            "fontWeight": 400,
+            "lineHeight": 13.40000057220459,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        }
+      ]
+    },
+    {
+      "id": "286:1801",
+      "name": "Type=textbox, Colour=beige, Property=blank",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": 10,
+        "padding": {
+          "right": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          }
+        },
+        "primaryAxisAlign": "SPACE_BETWEEN",
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "primary": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Dark-White-50",
+          "values": {
+            "Mode 1": "#f5f0eb80"
+          }
+        }
+      ],
+      "cornerRadius": 5,
+      "variantProps": {
+        "Type": "textbox",
+        "Colour": "beige",
+        "Property": "blank"
+      },
+      "children": [
+        {
+          "id": "286:1802",
+          "name": "Textbox",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Beige",
+              "values": {
+                "Mode 1": "#cfc1bd"
+              }
+            }
+          ],
+          "text": "Textbox",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 10,
+            "fontWeight": 400,
+            "lineHeight": 13.40000057220459,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        }
+      ]
+    },
+    {
+      "id": "286:1803",
+      "name": "Type=dropdown, Colour=white, Property=blank",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": 168,
+        "padding": {
+          "right": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          }
+        },
+        "primaryAxisAlign": "SPACE_BETWEEN",
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "primary": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "White-50",
+          "values": {
+            "Mode 1": "#fdfbfa80"
+          }
+        }
+      ],
+      "cornerRadius": 5,
+      "variantProps": {
+        "Type": "dropdown",
+        "Colour": "white",
+        "Property": "blank"
+      },
+      "children": [
+        {
+          "id": "286:1804",
+          "name": "Dropdown",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Beige",
+              "values": {
+                "Mode 1": "#cfc1bd"
+              }
+            }
+          ],
+          "text": "Dropdown",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 10,
+            "fontWeight": 400,
+            "lineHeight": 13.40000057220459,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        },
+        {
+          "id": "286:1805",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "286:1806",
+      "name": "Type=dropdown, Colour=beige, Property=blank",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": 168,
+        "padding": {
+          "right": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          },
+          "left": {
+            "token": "Padding-5",
+            "values": {
+              "Mode 1": 5
+            }
+          }
+        },
+        "primaryAxisAlign": "SPACE_BETWEEN",
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "primary": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Dark-White-50",
+          "values": {
+            "Mode 1": "#f5f0eb80"
+          }
+        }
+      ],
+      "cornerRadius": 5,
+      "variantProps": {
+        "Type": "dropdown",
+        "Colour": "beige",
+        "Property": "blank"
+      },
+      "children": [
+        {
+          "id": "286:1807",
+          "name": "Dropdown",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Beige",
+              "values": {
+                "Mode 1": "#cfc1bd"
+              }
+            }
+          ],
+          "text": "Dropdown",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 10,
+            "fontWeight": 400,
+            "lineHeight": 13.40000057220459,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        },
+        {
+          "id": "286:1808",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,880 @@
+{
+  "id": "168:1413",
+  "name": "button-icon",
+  "type": "COMPONENT_SET",
+  "cornerRadius": 5,
+  "variantProps": {},
+  "children": [
+    {
+      "id": "168:1408",
+      "name": "Type=options, Property=default",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "options",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "168:1311",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "opacity": 0.75,
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "203:431",
+          "name": "Vector",
+          "type": "VECTOR",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Pink",
+              "values": {
+                "Mode 1": "#eabab7"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "168:1409",
+      "name": "Type=x, Property=default",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "x",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "168:1316",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "opacity": 0.75,
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "203:490",
+          "name": "Vector",
+          "type": "VECTOR",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 1
+        }
+      ]
+    },
+    {
+      "id": "168:1412",
+      "name": "Type=reload, Property=default",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "reload",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "168:1321",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "opacity": 0.75,
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "203:555",
+          "name": "Vector",
+          "type": "VECTOR",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "168:1410",
+      "name": "Type=info, Property=default",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "info",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "168:1336",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "opacity": 0.75,
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "203:562",
+          "name": "Vector",
+          "type": "VECTOR",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Pink",
+              "values": {
+                "Mode 1": "#eabab7"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "183:796",
+      "name": "Type=trash, Property=default",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "trash",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "183:798",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "opacity": 0.75,
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "203:577",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "183:923",
+      "name": "Type=play-pause, Property=default",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "play-pause",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "183:925",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "opacity": 0.75,
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "203:596",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "184:1066",
+      "name": "Type=edit, Property=default",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "edit",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "184:1068",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "opacity": 0.75,
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "203:626",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "284:394",
+      "name": "Type=back, Property=default",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "back",
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "284:395",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "opacity": 0.75,
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "284:393",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "285:1665",
+      "name": "Type=options, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "options",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "285:1666",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1667",
+          "name": "Vector",
+          "type": "VECTOR",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Pink",
+              "values": {
+                "Mode 1": "#eabab7"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "285:1668",
+      "name": "Type=x, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "x",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "285:1669",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1670",
+          "name": "Vector",
+          "type": "VECTOR",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 1
+        }
+      ]
+    },
+    {
+      "id": "285:1671",
+      "name": "Type=reload, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "reload",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "285:1672",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1673",
+          "name": "Vector",
+          "type": "VECTOR",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "285:1674",
+      "name": "Type=info, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "info",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "285:1675",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1676",
+          "name": "Vector",
+          "type": "VECTOR",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Pink",
+              "values": {
+                "Mode 1": "#eabab7"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "285:1677",
+      "name": "Type=trash, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "trash",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "285:1678",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1679",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "285:1680",
+      "name": "Type=play-pause, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "play-pause",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "285:1681",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1682",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "285:1683",
+      "name": "Type=edit, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "edit",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "285:1684",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1685",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "285:1686",
+      "name": "Type=back, Property=hover",
+      "type": "COMPONENT",
+      "variantProps": {
+        "Type": "back",
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "285:1687",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1688",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "285:1713",
+      "name": "Type=options, Property=disabled",
+      "type": "COMPONENT",
+      "opacity": 0.5,
+      "variantProps": {
+        "Type": "options",
+        "Property": "disabled"
+      },
+      "children": [
+        {
+          "id": "285:1714",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1715",
+          "name": "Vector",
+          "type": "VECTOR",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Pink",
+              "values": {
+                "Mode 1": "#eabab7"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "285:1716",
+      "name": "Type=x, Property=disabled",
+      "type": "COMPONENT",
+      "opacity": 0.5,
+      "variantProps": {
+        "Type": "x",
+        "Property": "disabled"
+      },
+      "children": [
+        {
+          "id": "285:1717",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1718",
+          "name": "Vector",
+          "type": "VECTOR",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 1
+        }
+      ]
+    },
+    {
+      "id": "285:1719",
+      "name": "Type=reload, Property=disabled",
+      "type": "COMPONENT",
+      "opacity": 0.5,
+      "variantProps": {
+        "Type": "reload",
+        "Property": "disabled"
+      },
+      "children": [
+        {
+          "id": "285:1720",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1721",
+          "name": "Vector",
+          "type": "VECTOR",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "285:1722",
+      "name": "Type=info, Property=disabled",
+      "type": "COMPONENT",
+      "opacity": 0.5,
+      "variantProps": {
+        "Type": "info",
+        "Property": "disabled"
+      },
+      "children": [
+        {
+          "id": "285:1723",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1724",
+          "name": "Vector",
+          "type": "VECTOR",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Pink",
+              "values": {
+                "Mode 1": "#eabab7"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "285:1725",
+      "name": "Type=trash, Property=disabled",
+      "type": "COMPONENT",
+      "opacity": 0.5,
+      "variantProps": {
+        "Type": "trash",
+        "Property": "disabled"
+      },
+      "children": [
+        {
+          "id": "285:1726",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1727",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "285:1728",
+      "name": "Type=play-pause, Property=disabled",
+      "type": "COMPONENT",
+      "opacity": 0.5,
+      "variantProps": {
+        "Type": "play-pause",
+        "Property": "disabled"
+      },
+      "children": [
+        {
+          "id": "285:1729",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1730",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "285:1731",
+      "name": "Type=edit, Property=disabled",
+      "type": "COMPONENT",
+      "opacity": 0.5,
+      "variantProps": {
+        "Type": "edit",
+        "Property": "disabled"
+      },
+      "children": [
+        {
+          "id": "285:1732",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1733",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    },
+    {
+      "id": "285:1734",
+      "name": "Type=back, Property=disabled",
+      "type": "COMPONENT",
+      "opacity": 0.5,
+      "variantProps": {
+        "Type": "back",
+        "Property": "disabled"
+      },
+      "children": [
+        {
+          "id": "285:1735",
+          "name": "Rectangle",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-White",
+              "values": {
+                "Mode 1": "#f5f0eb"
+              }
+            }
+          ],
+          "cornerRadius": 5
+        },
+        {
+          "id": "285:1736",
+          "name": "Vector",
+          "type": "VECTOR"
+        }
+      ]
+    }
+  ]
+}

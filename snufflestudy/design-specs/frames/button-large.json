@@ -1,0 +1,253 @@
+{
+  "id": "168:1421",
+  "name": "button-large",
+  "type": "COMPONENT_SET",
+  "cornerRadius": 5,
+  "variantProps": {},
+  "children": [
+    {
+      "id": "168:1420",
+      "name": "Property=default",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": {
+          "token": "Padding-5",
+          "values": {
+            "Mode 1": 5
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-2-5",
+            "values": {
+              "Mode 1": 2.5
+            }
+          },
+          "right": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          },
+          "bottom": {
+            "token": "Padding-2-5",
+            "values": {
+              "Mode 1": 2.5
+            }
+          },
+          "left": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          }
+        },
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Light-Pink-50",
+          "values": {
+            "Mode 1": "#f7e9dc80"
+          }
+        }
+      ],
+      "cornerRadius": 5,
+      "variantProps": {
+        "Property": "default"
+      },
+      "children": [
+        {
+          "id": "168:1350",
+          "name": "Button",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Grey",
+              "values": {
+                "Mode 1": "#796c6c"
+              }
+            }
+          ],
+          "text": "Button",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 12,
+            "fontWeight": 400,
+            "lineHeight": 16.079999923706055,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        }
+      ]
+    },
+    {
+      "id": "168:1419",
+      "name": "Property=hover",
+      "type": "COMPONENT",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": {
+          "token": "Padding-5",
+          "values": {
+            "Mode 1": 5
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-2-5",
+            "values": {
+              "Mode 1": 2.5
+            }
+          },
+          "right": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          },
+          "bottom": {
+            "token": "Padding-2-5",
+            "values": {
+              "Mode 1": 2.5
+            }
+          },
+          "left": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          }
+        },
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Light-Pink",
+          "values": {
+            "Mode 1": "#f7e9dc"
+          }
+        }
+      ],
+      "cornerRadius": 5,
+      "variantProps": {
+        "Property": "hover"
+      },
+      "children": [
+        {
+          "id": "168:1397",
+          "name": "Button",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Grey",
+              "values": {
+                "Mode 1": "#796c6c"
+              }
+            }
+          ],
+          "text": "Button",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 12,
+            "fontWeight": 400,
+            "lineHeight": 16.079999923706055,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        }
+      ]
+    },
+    {
+      "id": "173:2130",
+      "name": "Property=diabled",
+      "type": "COMPONENT",
+      "opacity": 0.4000000059604645,
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": {
+          "token": "Padding-5",
+          "values": {
+            "Mode 1": 5
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-2-5",
+            "values": {
+              "Mode 1": 2.5
+            }
+          },
+          "right": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          },
+          "bottom": {
+            "token": "Padding-2-5",
+            "values": {
+              "Mode 1": 2.5
+            }
+          },
+          "left": {
+            "token": "Padding-7-5",
+            "values": {
+              "Mode 1": 7.5
+            }
+          }
+        },
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Light-Pink",
+          "values": {
+            "Mode 1": "#f7e9dc"
+          }
+        }
+      ],
+      "cornerRadius": 5,
+      "variantProps": {
+        "Property": "diabled"
+      },
+      "children": [
+        {
+          "id": "173:2131",
+          "name": "Button",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Grey",
+              "values": {
+                "Mode 1": "#796c6c"
+              }
+            }
+          ],
+          "text": "Button",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 12,
+            "fontWeight": 400,
+            "lineHeight": 16.079999923706055,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        }
+      ]
+    }
+  ]
+}

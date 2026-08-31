@@ -1,0 +1,207 @@
+[
+  {
+    "collection": "Variable collection",
+    "variables": [
+      {
+        "id": "VariableID:1:4",
+        "name": "Dark-Grey",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#796c6c"
+        }
+      },
+      {
+        "id": "VariableID:1:6",
+        "name": "Light-Grey",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#a99d9d"
+        }
+      },
+      {
+        "id": "VariableID:1:9",
+        "name": "Dark-Beige",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#cfc1bd"
+        }
+      },
+      {
+        "id": "VariableID:1:12",
+        "name": "Light-Beige",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#e5dbd2"
+        }
+      },
+      {
+        "id": "VariableID:2:21",
+        "name": "White",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#fdfbfa"
+        }
+      },
+      {
+        "id": "VariableID:54:88",
+        "name": "Dark-Pink",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#eabab7"
+        }
+      },
+      {
+        "id": "VariableID:54:89",
+        "name": "Pink",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#f6cbc0"
+        }
+      },
+      {
+        "id": "VariableID:54:90",
+        "name": "Light-Pink",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#f7e9dc"
+        }
+      },
+      {
+        "id": "VariableID:163:1086",
+        "name": "Dark-White",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#f5f0eb"
+        }
+      },
+      {
+        "id": "VariableID:173:2049",
+        "name": "Padding-2-5",
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": 2.5
+        }
+      },
+      {
+        "id": "VariableID:173:2050",
+        "name": "Padding-5",
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": 5
+        }
+      },
+      {
+        "id": "VariableID:173:2051",
+        "name": "Padding-7-5",
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": 7.5
+        }
+      },
+      {
+        "id": "VariableID:173:2052",
+        "name": "Padding-10",
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": 10
+        }
+      },
+      {
+        "id": "VariableID:173:2053",
+        "name": "Padding-20",
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": 20
+        }
+      },
+      {
+        "id": "VariableID:173:2054",
+        "name": "Padding-50",
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": 50
+        }
+      },
+      {
+        "id": "VariableID:182:462",
+        "name": "Padding-30",
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": 30
+        }
+      },
+      {
+        "id": "VariableID:285:1638",
+        "name": "Stroke-2",
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": 2
+        }
+      },
+      {
+        "id": "VariableID:285:1639",
+        "name": "Corner-5",
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": 5
+        }
+      },
+      {
+        "id": "VariableID:285:1640",
+        "name": "Stroke-1-5",
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": 1.5
+        }
+      },
+      {
+        "id": "VariableID:285:1745",
+        "name": "Corner-15",
+        "type": "FLOAT",
+        "values": {
+          "Mode 1": 15
+        }
+      },
+      {
+        "id": "VariableID:296:1922",
+        "name": "Pink-50",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#f6cbc080"
+        }
+      },
+      {
+        "id": "VariableID:296:1923",
+        "name": "Light-Pink-50",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#f7e9dc80"
+        }
+      },
+      {
+        "id": "VariableID:296:1924",
+        "name": "White-50",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#fdfbfa80"
+        }
+      },
+      {
+        "id": "VariableID:296:1925",
+        "name": "Dark-White-50",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#f5f0eb80"
+        }
+      },
+      {
+        "id": "VariableID:296:1926",
+        "name": "Light-Beige-50",
+        "type": "COLOR",
+        "values": {
+          "Mode 1": "#e5dbd280"
+        }
+      }
+    ]
+  }
+]

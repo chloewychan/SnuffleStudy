@@ -1,0 +1,811 @@
+{
+  "id": "178:2847",
+  "name": "footer-default",
+  "type": "FRAME",
+  "layout": {
+    "direction": "VERTICAL",
+    "gap": {
+      "token": "Padding-20",
+      "values": {
+        "Mode 1": 20
+      }
+    },
+    "padding": {
+      "top": {
+        "token": "Padding-30",
+        "values": {
+          "Mode 1": 30
+        }
+      },
+      "right": {
+        "token": "Padding-30",
+        "values": {
+          "Mode 1": 30
+        }
+      },
+      "bottom": {
+        "token": "Padding-30",
+        "values": {
+          "Mode 1": 30
+        }
+      },
+      "left": {
+        "token": "Padding-30",
+        "values": {
+          "Mode 1": 30
+        }
+      }
+    },
+    "counterAxisAlign": "CENTER",
+    "sizing": {
+      "counter": "FIXED"
+    }
+  },
+  "fills": [
+    {
+      "kind": "token",
+      "token": "White",
+      "values": {
+        "Mode 1": "#fdfbfa"
+      }
+    }
+  ],
+  "children": [
+    {
+      "id": "178:2861",
+      "name": "frame-nudges-sent-to-you",
+      "type": "FRAME",
+      "layout": {
+        "direction": "VERTICAL",
+        "gap": {
+          "token": "Padding-5",
+          "values": {
+            "Mode 1": 5
+          }
+        },
+        "padding": {},
+        "sizing": {
+          "counter": "FIXED"
+        }
+      },
+      "children": [
+        {
+          "id": "178:2862",
+          "name": "Nudges Sent to You",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Grey",
+              "values": {
+                "Mode 1": "#a99d9d"
+              }
+            }
+          ],
+          "text": "Nudges Sent to You",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 12,
+            "fontWeight": 400,
+            "lineHeight": 16.079999923706055,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        },
+        {
+          "id": "178:2863",
+          "name": "example-list-item",
+          "type": "FRAME",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "padding": {},
+            "primaryAxisAlign": "SPACE_BETWEEN",
+            "counterAxisAlign": "CENTER",
+            "sizing": {
+              "primary": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "178:2864",
+              "name": "Frame 30",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-20",
+                  "values": {
+                    "Mode 1": 20
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "178:2865",
+                  "name": "E.g. Username",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "E.g. Username",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                },
+                {
+                  "id": "178:2866",
+                  "name": "button-small",
+                  "type": "INSTANCE",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": {
+                      "token": "Padding-5",
+                      "values": {
+                        "Mode 1": 5
+                      }
+                    },
+                    "padding": {
+                      "right": {
+                        "token": "Padding-7-5",
+                        "values": {
+                          "Mode 1": 7.5
+                        }
+                      },
+                      "left": {
+                        "token": "Padding-7-5",
+                        "values": {
+                          "Mode 1": 7.5
+                        }
+                      }
+                    },
+                    "primaryAxisAlign": "CENTER",
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {}
+                  },
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Light-Pink-50",
+                      "values": {
+                        "Mode 1": "#f7e9dc80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5,
+                  "componentId": "168:1425",
+                  "componentProperties": {
+                    "Colour": {
+                      "value": "pink",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I178:2866;168:1356",
+                      "name": "Button",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Grey",
+                          "values": {
+                            "Mode 1": "#796c6c"
+                          }
+                        }
+                      ],
+                      "text": "Play Nudge",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 12,
+                        "fontWeight": 400,
+                        "lineHeight": 16.079999923706055,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "178:2867",
+              "name": "button-bool",
+              "type": "INSTANCE",
+              "componentId": "168:1416",
+              "componentProperties": {
+                "Type": {
+                  "value": "x",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                },
+                "Property": {
+                  "value": "default",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                }
+              },
+              "children": [
+                {
+                  "id": "I178:2867;168:1331",
+                  "name": "Rectangle",
+                  "type": "RECTANGLE",
+                  "opacity": 0.5,
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Light-Pink",
+                      "values": {
+                        "Mode 1": "#f7e9dc"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5
+                },
+                {
+                  "id": "I178:2867;203:680",
+                  "name": "Vector",
+                  "type": "VECTOR",
+                  "cornerRadius": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "178:2868",
+          "name": "example-list-item",
+          "type": "FRAME",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "padding": {},
+            "primaryAxisAlign": "SPACE_BETWEEN",
+            "counterAxisAlign": "CENTER",
+            "sizing": {
+              "primary": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "178:2869",
+              "name": "Frame 30",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-20",
+                  "values": {
+                    "Mode 1": 20
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "178:2870",
+                  "name": "E.g. Username",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "E.g. Username",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                },
+                {
+                  "id": "178:2871",
+                  "name": "E.g. Written nudge",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "E.g. Written nudge",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "178:2872",
+              "name": "button-bool",
+              "type": "INSTANCE",
+              "componentId": "168:1416",
+              "componentProperties": {
+                "Type": {
+                  "value": "x",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                },
+                "Property": {
+                  "value": "default",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                }
+              },
+              "children": [
+                {
+                  "id": "I178:2872;168:1331",
+                  "name": "Rectangle",
+                  "type": "RECTANGLE",
+                  "opacity": 0.5,
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Light-Pink",
+                      "values": {
+                        "Mode 1": "#f7e9dc"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5
+                },
+                {
+                  "id": "I178:2872;203:680",
+                  "name": "Vector",
+                  "type": "VECTOR",
+                  "cornerRadius": 1
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "178:2873",
+      "name": "frame-unlock-requests",
+      "type": "FRAME",
+      "layout": {
+        "direction": "VERTICAL",
+        "gap": {
+          "token": "Padding-5",
+          "values": {
+            "Mode 1": 5
+          }
+        },
+        "padding": {},
+        "sizing": {
+          "counter": "FIXED"
+        }
+      },
+      "children": [
+        {
+          "id": "178:2874",
+          "name": "Unlock Requests",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Grey",
+              "values": {
+                "Mode 1": "#a99d9d"
+              }
+            }
+          ],
+          "text": "Unlock Requests",
+          "textStyle": {
+            "fontFamily": "Shantell Sans",
+            "fontSize": 12,
+            "fontWeight": 400,
+            "lineHeight": 16.079999923706055,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        },
+        {
+          "id": "178:2875",
+          "name": "example-list-item",
+          "type": "FRAME",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "padding": {},
+            "primaryAxisAlign": "SPACE_BETWEEN",
+            "counterAxisAlign": "CENTER",
+            "sizing": {
+              "primary": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "178:2876",
+              "name": "Frame 30",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-20",
+                  "values": {
+                    "Mode 1": 20
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "178:2877",
+                  "name": "E.g. Username",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "E.g. Username",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                },
+                {
+                  "id": "178:2878",
+                  "name": "E.g. note",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "E.g. note",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "178:2879",
+              "name": "Frame 31",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-2-5",
+                  "values": {
+                    "Mode 1": 2.5
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "178:2880",
+                  "name": "button-bool",
+                  "type": "INSTANCE",
+                  "componentId": "168:1416",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "x",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I178:2880;168:1331",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "opacity": 0.5,
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Pink",
+                          "values": {
+                            "Mode 1": "#f7e9dc"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I178:2880;203:680",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "cornerRadius": 1
+                    }
+                  ]
+                },
+                {
+                  "id": "178:2881",
+                  "name": "button-bool",
+                  "type": "INSTANCE",
+                  "componentId": "168:1417",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "check",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I178:2881;168:1327",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "opacity": 0.5,
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Pink",
+                          "values": {
+                            "Mode 1": "#f7e9dc"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I178:2881;203:654",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "cornerRadius": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "178:2882",
+          "name": "example-list-item",
+          "type": "FRAME",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "padding": {},
+            "primaryAxisAlign": "SPACE_BETWEEN",
+            "counterAxisAlign": "CENTER",
+            "sizing": {
+              "primary": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "178:2883",
+              "name": "Frame 30",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-20",
+                  "values": {
+                    "Mode 1": 20
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "178:2884",
+                  "name": "E.g. Username",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "E.g. Username",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                },
+                {
+                  "id": "178:2885",
+                  "name": "E.g. note",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "E.g. note",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "178:2886",
+              "name": "Frame 31",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-2-5",
+                  "values": {
+                    "Mode 1": 2.5
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "178:2887",
+                  "name": "button-bool",
+                  "type": "INSTANCE",
+                  "componentId": "168:1416",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "x",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I178:2887;168:1331",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "opacity": 0.5,
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Pink",
+                          "values": {
+                            "Mode 1": "#f7e9dc"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I178:2887;203:680",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "cornerRadius": 1
+                    }
+                  ]
+                },
+                {
+                  "id": "178:2888",
+                  "name": "button-bool",
+                  "type": "INSTANCE",
+                  "componentId": "168:1417",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "check",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I178:2888;168:1327",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "opacity": 0.5,
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Pink",
+                          "values": {
+                            "Mode 1": "#f7e9dc"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I178:2888;203:654",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "cornerRadius": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

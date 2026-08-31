@@ -1,0 +1,2979 @@
+{
+  "id": "106:192",
+  "name": "page-study",
+  "type": "FRAME",
+  "layout": {
+    "direction": "VERTICAL",
+    "gap": {
+      "token": "Padding-20",
+      "values": {
+        "Mode 1": 20
+      }
+    },
+    "padding": {
+      "top": {
+        "token": "Padding-50",
+        "values": {
+          "Mode 1": 50
+        }
+      },
+      "right": {
+        "token": "Padding-20",
+        "values": {
+          "Mode 1": 20
+        }
+      },
+      "bottom": {
+        "token": "Padding-20",
+        "values": {
+          "Mode 1": 20
+        }
+      },
+      "left": {
+        "token": "Padding-20",
+        "values": {
+          "Mode 1": 20
+        }
+      }
+    },
+    "counterAxisAlign": "CENTER",
+    "sizing": {
+      "counter": "FIXED"
+    }
+  },
+  "fills": [
+    {
+      "kind": "token",
+      "token": "White",
+      "values": {
+        "Mode 1": "#fdfbfa"
+      }
+    }
+  ],
+  "children": [
+    {
+      "id": "173:1538",
+      "name": "header-bar",
+      "type": "INSTANCE",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "gap": {
+          "token": "Padding-20",
+          "values": {
+            "Mode 1": 20
+          }
+        },
+        "padding": {},
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "componentId": "170:1476",
+      "children": [
+        {
+          "id": "I173:1538;170:1466",
+          "name": "frame",
+          "type": "FRAME",
+          "layout": {
+            "direction": "VERTICAL",
+            "gap": {
+              "token": "Padding-10",
+              "values": {
+                "Mode 1": 10
+              }
+            },
+            "padding": {},
+            "sizing": {}
+          },
+          "children": [
+            {
+              "id": "I173:1538;170:1465",
+              "name": "frame",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "primaryAxisAlign": "CENTER",
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "I173:1538;170:1453",
+                  "name": "button-icon",
+                  "type": "INSTANCE",
+                  "componentId": "168:1409",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "x",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:1538;170:1453;168:1316",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "opacity": 0.75,
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I173:1538;170:1453;203:490",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 1
+                    }
+                  ]
+                },
+                {
+                  "id": "I173:1538;170:1458",
+                  "name": "button-icon",
+                  "type": "INSTANCE",
+                  "componentId": "168:1412",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "reload",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:1538;170:1458;168:1321",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "opacity": 0.75,
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I173:1538;170:1458;203:555",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "I173:1538;170:1463",
+                  "name": "button-large",
+                  "type": "INSTANCE",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": {
+                      "token": "Padding-5",
+                      "values": {
+                        "Mode 1": 5
+                      }
+                    },
+                    "padding": {
+                      "top": {
+                        "token": "Padding-2-5",
+                        "values": {
+                          "Mode 1": 2.5
+                        }
+                      },
+                      "right": {
+                        "token": "Padding-7-5",
+                        "values": {
+                          "Mode 1": 7.5
+                        }
+                      },
+                      "bottom": {
+                        "token": "Padding-2-5",
+                        "values": {
+                          "Mode 1": 2.5
+                        }
+                      },
+                      "left": {
+                        "token": "Padding-7-5",
+                        "values": {
+                          "Mode 1": 7.5
+                        }
+                      }
+                    },
+                    "primaryAxisAlign": "CENTER",
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {}
+                  },
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Light-Pink-50",
+                      "values": {
+                        "Mode 1": "#f7e9dc80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5,
+                  "componentId": "168:1420",
+                  "componentProperties": {
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:1538;170:1463;168:1350",
+                      "name": "Button",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Grey",
+                          "values": {
+                            "Mode 1": "#796c6c"
+                          }
+                        }
+                      ],
+                      "text": "Log In",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 12,
+                        "fontWeight": 400,
+                        "lineHeight": 16.079999923706055,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "I173:1538;167:1105",
+              "name": "SnuffleStudy",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "SnuffleStudy",
+              "textStyle": {
+                "fontFamily": "Pangolin",
+                "fontSize": 35,
+                "fontWeight": 400,
+                "lineHeight": 43.71500015258789,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        },
+        {
+          "id": "I173:1538;173:1713",
+          "name": "Bunny and Book",
+          "type": "RECTANGLE",
+          "fills": [
+            {
+              "kind": "image",
+              "imageRef": "4692fae6cd574c24bc8910154f874ef15f9cb583",
+              "scaleMode": "FILL"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "173:1686",
+      "name": "nagivation-bar",
+      "type": "INSTANCE",
+      "layout": {
+        "direction": "HORIZONTAL",
+        "padding": {},
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {}
+      },
+      "componentId": "173:1609",
+      "children": [
+        {
+          "id": "I173:1686;173:1601",
+          "name": "button-tab",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "right": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              },
+              "bottom": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "left": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              }
+            },
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "componentId": "173:1596",
+          "componentProperties": {
+            "Propery": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I173:1686;173:1601;173:1591",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Light-Grey",
+                  "values": {
+                    "Mode 1": "#a99d9d"
+                  }
+                }
+              ],
+              "text": "Bunny",
+              "textStyle": {
+                "fontFamily": "Pangolin",
+                "fontSize": 15,
+                "fontWeight": 400,
+                "lineHeight": 18.73499870300293,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        },
+        {
+          "id": "I173:1686;173:1603",
+          "name": "button-tab",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "right": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              },
+              "bottom": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "left": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              }
+            },
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Pink-50",
+              "values": {
+                "Mode 1": "#f7e9dc80"
+              }
+            }
+          ],
+          "cornerRadius": 30,
+          "componentId": "173:1597",
+          "componentProperties": {
+            "Propery": {
+              "value": "selected",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I173:1686;173:1603;173:1590",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "Study",
+              "textStyle": {
+                "fontFamily": "Pangolin",
+                "fontSize": 15,
+                "fontWeight": 400,
+                "lineHeight": 18.73499870300293,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        },
+        {
+          "id": "I173:1686;173:1605",
+          "name": "button-tab",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "right": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              },
+              "bottom": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "left": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              }
+            },
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "componentId": "173:1596",
+          "componentProperties": {
+            "Propery": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I173:1686;173:1605;173:1591",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Light-Grey",
+                  "values": {
+                    "Mode 1": "#a99d9d"
+                  }
+                }
+              ],
+              "text": "Friends",
+              "textStyle": {
+                "fontFamily": "Pangolin",
+                "fontSize": 15,
+                "fontWeight": 400,
+                "lineHeight": 18.73499870300293,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        },
+        {
+          "id": "I173:1686;173:1607",
+          "name": "button-tab",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "right": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              },
+              "bottom": {
+                "token": "Padding-5",
+                "values": {
+                  "Mode 1": 5
+                }
+              },
+              "left": {
+                "token": "Padding-20",
+                "values": {
+                  "Mode 1": 20
+                }
+              }
+            },
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "componentId": "173:1596",
+          "componentProperties": {
+            "Propery": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I173:1686;173:1607;173:1591",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Light-Grey",
+                  "values": {
+                    "Mode 1": "#a99d9d"
+                  }
+                }
+              ],
+              "text": "Settings",
+              "textStyle": {
+                "fontFamily": "Pangolin",
+                "fontSize": 15,
+                "fontWeight": 400,
+                "lineHeight": 18.73499870300293,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "173:1947",
+      "name": "frame-study-session",
+      "type": "FRAME",
+      "layout": {
+        "direction": "VERTICAL",
+        "gap": {
+          "token": "Padding-20",
+          "values": {
+            "Mode 1": 20
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "right": {
+            "token": "Padding-30",
+            "values": {
+              "Mode 1": 30
+            }
+          },
+          "bottom": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "left": {
+            "token": "Padding-30",
+            "values": {
+              "Mode 1": 30
+            }
+          }
+        },
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "counter": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Dark-White",
+          "values": {
+            "Mode 1": "#f5f0eb"
+          }
+        }
+      ],
+      "cornerRadius": 30,
+      "children": [
+        {
+          "id": "173:1948",
+          "name": "Study Session",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Grey",
+              "values": {
+                "Mode 1": "#796c6c"
+              }
+            }
+          ],
+          "text": "Study Session",
+          "textStyle": {
+            "fontFamily": "Pangolin",
+            "fontSize": 15,
+            "fontWeight": 400,
+            "lineHeight": 18.73499870300293,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        },
+        {
+          "id": "173:1997",
+          "name": "frame",
+          "type": "FRAME",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-10",
+              "values": {
+                "Mode 1": 10
+              }
+            },
+            "padding": {},
+            "primaryAxisAlign": "MAX",
+            "sizing": {
+              "primary": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "285:613",
+              "name": "Frame 1",
+              "type": "FRAME",
+              "layout": {
+                "direction": "VERTICAL",
+                "gap": 20,
+                "padding": {
+                  "top": {
+                    "token": "Padding-2-5",
+                    "values": {
+                      "Mode 1": 2.5
+                    }
+                  },
+                  "bottom": {
+                    "token": "Padding-2-5",
+                    "values": {
+                      "Mode 1": 2.5
+                    }
+                  }
+                },
+                "primaryAxisAlign": "SPACE_BETWEEN",
+                "counterAxisAlign": "MAX",
+                "sizing": {
+                  "primary": "FIXED"
+                }
+              },
+              "children": [
+                {
+                  "id": "173:1972",
+                  "name": "Goal",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Light-Grey",
+                      "values": {
+                        "Mode 1": "#a99d9d"
+                      }
+                    }
+                  ],
+                  "text": "Goal",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "RIGHT"
+                  }
+                },
+                {
+                  "id": "173:1990",
+                  "name": "Focus Duration",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Light-Grey",
+                      "values": {
+                        "Mode 1": "#a99d9d"
+                      }
+                    }
+                  ],
+                  "text": "Focus Duration",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "RIGHT"
+                  }
+                },
+                {
+                  "id": "173:1976",
+                  "name": "Pressure Style",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Light-Grey",
+                      "values": {
+                        "Mode 1": "#a99d9d"
+                      }
+                    }
+                  ],
+                  "text": "Pressure Style",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "RIGHT"
+                  }
+                },
+                {
+                  "id": "173:1980",
+                  "name": "Restriction Mode",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Light-Grey",
+                      "values": {
+                        "Mode 1": "#a99d9d"
+                      }
+                    }
+                  ],
+                  "text": "Restriction Mode",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "285:614",
+              "name": "Frame 2",
+              "type": "FRAME",
+              "layout": {
+                "direction": "VERTICAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "MAX",
+                "sizing": {
+                  "counter": "FIXED"
+                }
+              },
+              "children": [
+                {
+                  "id": "173:1981",
+                  "name": "input",
+                  "type": "INSTANCE",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": 168,
+                    "padding": {
+                      "right": {
+                        "token": "Padding-5",
+                        "values": {
+                          "Mode 1": 5
+                        }
+                      },
+                      "left": {
+                        "token": "Padding-5",
+                        "values": {
+                          "Mode 1": 5
+                        }
+                      }
+                    },
+                    "primaryAxisAlign": "SPACE_BETWEEN",
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "White-50",
+                      "values": {
+                        "Mode 1": "#fdfbfa80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5,
+                  "componentId": "286:1803",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "dropdown",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Colour": {
+                      "value": "white",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "blank",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:1981;286:1804",
+                      "name": "Dropdown",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Beige",
+                          "values": {
+                            "Mode 1": "#cfc1bd"
+                          }
+                        }
+                      ],
+                      "text": "Dropdown",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 10,
+                        "fontWeight": 400,
+                        "lineHeight": 13.40000057220459,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    },
+                    {
+                      "id": "I173:1981;286:1805",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ]
+                },
+                {
+                  "id": "173:1977",
+                  "name": "input",
+                  "type": "INSTANCE",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": 168,
+                    "padding": {
+                      "right": {
+                        "token": "Padding-5",
+                        "values": {
+                          "Mode 1": 5
+                        }
+                      },
+                      "left": {
+                        "token": "Padding-5",
+                        "values": {
+                          "Mode 1": 5
+                        }
+                      }
+                    },
+                    "primaryAxisAlign": "SPACE_BETWEEN",
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "White-50",
+                      "values": {
+                        "Mode 1": "#fdfbfa80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5,
+                  "componentId": "286:1803",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "dropdown",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Colour": {
+                      "value": "white",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "blank",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:1977;286:1804",
+                      "name": "Dropdown",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Beige",
+                          "values": {
+                            "Mode 1": "#cfc1bd"
+                          }
+                        }
+                      ],
+                      "text": "Dropdown",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 10,
+                        "fontWeight": 400,
+                        "lineHeight": 13.40000057220459,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    },
+                    {
+                      "id": "I173:1977;286:1805",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ]
+                },
+                {
+                  "id": "285:615",
+                  "name": "Frame 3",
+                  "type": "FRAME",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": {
+                      "token": "Padding-10",
+                      "values": {
+                        "Mode 1": 10
+                      }
+                    },
+                    "padding": {},
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "173:1991",
+                      "name": "input",
+                      "type": "INSTANCE",
+                      "layout": {
+                        "direction": "HORIZONTAL",
+                        "gap": 10,
+                        "padding": {
+                          "right": {
+                            "token": "Padding-5",
+                            "values": {
+                              "Mode 1": 5
+                            }
+                          },
+                          "left": {
+                            "token": "Padding-5",
+                            "values": {
+                              "Mode 1": 5
+                            }
+                          }
+                        },
+                        "primaryAxisAlign": "SPACE_BETWEEN",
+                        "counterAxisAlign": "CENTER",
+                        "sizing": {
+                          "primary": "FIXED"
+                        }
+                      },
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "White-50",
+                          "values": {
+                            "Mode 1": "#fdfbfa80"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5,
+                      "componentId": "286:1799",
+                      "componentProperties": {
+                        "Type": {
+                          "value": "textbox",
+                          "type": "VARIANT",
+                          "boundVariables": {}
+                        },
+                        "Colour": {
+                          "value": "white",
+                          "type": "VARIANT",
+                          "boundVariables": {}
+                        },
+                        "Property": {
+                          "value": "blank",
+                          "type": "VARIANT",
+                          "boundVariables": {}
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "I173:1991;286:1800",
+                          "name": "Textbox",
+                          "type": "TEXT",
+                          "fills": [
+                            {
+                              "kind": "token",
+                              "token": "Dark-Beige",
+                              "values": {
+                                "Mode 1": "#cfc1bd"
+                              }
+                            }
+                          ],
+                          "text": "Textbox",
+                          "textStyle": {
+                            "fontFamily": "Shantell Sans",
+                            "fontSize": 10,
+                            "fontWeight": 400,
+                            "lineHeight": 13.40000057220459,
+                            "letterSpacing": 0,
+                            "align": "LEFT"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "id": "173:1995",
+                      "name": "input",
+                      "type": "INSTANCE",
+                      "layout": {
+                        "direction": "HORIZONTAL",
+                        "gap": 10,
+                        "padding": {
+                          "right": {
+                            "token": "Padding-5",
+                            "values": {
+                              "Mode 1": 5
+                            }
+                          },
+                          "left": {
+                            "token": "Padding-5",
+                            "values": {
+                              "Mode 1": 5
+                            }
+                          }
+                        },
+                        "primaryAxisAlign": "SPACE_BETWEEN",
+                        "counterAxisAlign": "CENTER",
+                        "sizing": {
+                          "primary": "FIXED"
+                        }
+                      },
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "White-50",
+                          "values": {
+                            "Mode 1": "#fdfbfa80"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5,
+                      "componentId": "286:1799",
+                      "componentProperties": {
+                        "Type": {
+                          "value": "textbox",
+                          "type": "VARIANT",
+                          "boundVariables": {}
+                        },
+                        "Colour": {
+                          "value": "white",
+                          "type": "VARIANT",
+                          "boundVariables": {}
+                        },
+                        "Property": {
+                          "value": "blank",
+                          "type": "VARIANT",
+                          "boundVariables": {}
+                        }
+                      },
+                      "children": [
+                        {
+                          "id": "I173:1995;286:1800",
+                          "name": "Textbox",
+                          "type": "TEXT",
+                          "fills": [
+                            {
+                              "kind": "token",
+                              "token": "Dark-Beige",
+                              "values": {
+                                "Mode 1": "#cfc1bd"
+                              }
+                            }
+                          ],
+                          "text": "Textbox",
+                          "textStyle": {
+                            "fontFamily": "Shantell Sans",
+                            "fontSize": 10,
+                            "fontWeight": 400,
+                            "lineHeight": 13.40000057220459,
+                            "letterSpacing": 0,
+                            "align": "LEFT"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "173:1969",
+                  "name": "input",
+                  "type": "INSTANCE",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": 168,
+                    "padding": {
+                      "right": {
+                        "token": "Padding-5",
+                        "values": {
+                          "Mode 1": 5
+                        }
+                      },
+                      "left": {
+                        "token": "Padding-5",
+                        "values": {
+                          "Mode 1": 5
+                        }
+                      }
+                    },
+                    "primaryAxisAlign": "SPACE_BETWEEN",
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "White-50",
+                      "values": {
+                        "Mode 1": "#fdfbfa80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5,
+                  "componentId": "286:1803",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "dropdown",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Colour": {
+                      "value": "white",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "blank",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:1969;286:1804",
+                      "name": "Dropdown",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Beige",
+                          "values": {
+                            "Mode 1": "#cfc1bd"
+                          }
+                        }
+                      ],
+                      "text": "Dropdown",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 10,
+                        "fontWeight": 400,
+                        "lineHeight": 13.40000057220459,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    },
+                    {
+                      "id": "I173:1969;286:1805",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "173:1998",
+          "name": "button-large",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-2-5",
+                "values": {
+                  "Mode 1": 2.5
+                }
+              },
+              "right": {
+                "token": "Padding-7-5",
+                "values": {
+                  "Mode 1": 7.5
+                }
+              },
+              "bottom": {
+                "token": "Padding-2-5",
+                "values": {
+                  "Mode 1": 2.5
+                }
+              },
+              "left": {
+                "token": "Padding-7-5",
+                "values": {
+                  "Mode 1": 7.5
+                }
+              }
+            },
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Pink-50",
+              "values": {
+                "Mode 1": "#f7e9dc80"
+              }
+            }
+          ],
+          "cornerRadius": 5,
+          "componentId": "168:1420",
+          "componentProperties": {
+            "Property": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I173:1998;168:1350",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "Start Study Session",
+              "textStyle": {
+                "fontFamily": "Shantell Sans",
+                "fontSize": 12,
+                "fontWeight": 400,
+                "lineHeight": 16.079999923706055,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "173:2055",
+      "name": "frame-study-rooms",
+      "type": "FRAME",
+      "layout": {
+        "direction": "VERTICAL",
+        "gap": {
+          "token": "Padding-20",
+          "values": {
+            "Mode 1": 20
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "right": {
+            "token": "Padding-30",
+            "values": {
+              "Mode 1": 30
+            }
+          },
+          "bottom": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "left": {
+            "token": "Padding-30",
+            "values": {
+              "Mode 1": 30
+            }
+          }
+        },
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "counter": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Dark-White",
+          "values": {
+            "Mode 1": "#f5f0eb"
+          }
+        }
+      ],
+      "cornerRadius": 30,
+      "children": [
+        {
+          "id": "173:2056",
+          "name": "Study Rooms",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Grey",
+              "values": {
+                "Mode 1": "#796c6c"
+              }
+            }
+          ],
+          "text": "Study Rooms",
+          "textStyle": {
+            "fontFamily": "Pangolin",
+            "fontSize": 15,
+            "fontWeight": 400,
+            "lineHeight": 18.73499870300293,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        },
+        {
+          "id": "173:2165",
+          "name": "frame-study-rooms",
+          "type": "FRAME",
+          "layout": {
+            "direction": "VERTICAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {},
+            "sizing": {
+              "counter": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "173:2091",
+              "name": "Study Rooms",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Light-Grey",
+                  "values": {
+                    "Mode 1": "#a99d9d"
+                  }
+                }
+              ],
+              "text": "Study Rooms",
+              "textStyle": {
+                "fontFamily": "Shantell Sans",
+                "fontSize": 10,
+                "fontWeight": 400,
+                "lineHeight": 13.40000057220459,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            },
+            {
+              "id": "173:2156",
+              "name": "example-list-item",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {
+                  "primary": "FIXED"
+                }
+              },
+              "children": [
+                {
+                  "id": "173:2138",
+                  "name": "button-small",
+                  "type": "INSTANCE",
+                  "opacity": 0.4000000059604645,
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": {
+                      "token": "Padding-5",
+                      "values": {
+                        "Mode 1": 5
+                      }
+                    },
+                    "padding": {
+                      "right": {
+                        "token": "Padding-7-5",
+                        "values": {
+                          "Mode 1": 7.5
+                        }
+                      },
+                      "left": {
+                        "token": "Padding-7-5",
+                        "values": {
+                          "Mode 1": 7.5
+                        }
+                      }
+                    },
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "White-50",
+                      "values": {
+                        "Mode 1": "#fdfbfa80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5,
+                  "componentId": "173:2148",
+                  "componentProperties": {
+                    "Colour": {
+                      "value": "white",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "disabled",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:2138;173:2149",
+                      "name": "Button",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Grey",
+                          "values": {
+                            "Mode 1": "#796c6c"
+                          }
+                        }
+                      ],
+                      "text": "Button",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 12,
+                        "fontWeight": 400,
+                        "lineHeight": 16.079999923706055,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "173:2151",
+                  "name": "button-icon",
+                  "type": "INSTANCE",
+                  "componentId": "168:1408",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "options",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:2151;168:1311",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "opacity": 0.75,
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I173:2151;203:431",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Pink",
+                          "values": {
+                            "Mode 1": "#eabab7"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "173:2157",
+              "name": "example-list-item",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {
+                  "primary": "FIXED"
+                }
+              },
+              "children": [
+                {
+                  "id": "173:2158",
+                  "name": "button-small",
+                  "type": "INSTANCE",
+                  "opacity": 0.4000000059604645,
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": {
+                      "token": "Padding-5",
+                      "values": {
+                        "Mode 1": 5
+                      }
+                    },
+                    "padding": {
+                      "right": {
+                        "token": "Padding-7-5",
+                        "values": {
+                          "Mode 1": 7.5
+                        }
+                      },
+                      "left": {
+                        "token": "Padding-7-5",
+                        "values": {
+                          "Mode 1": 7.5
+                        }
+                      }
+                    },
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "White-50",
+                      "values": {
+                        "Mode 1": "#fdfbfa80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5,
+                  "componentId": "173:2148",
+                  "componentProperties": {
+                    "Colour": {
+                      "value": "white",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "disabled",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:2158;173:2149",
+                      "name": "Button",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Grey",
+                          "values": {
+                            "Mode 1": "#796c6c"
+                          }
+                        }
+                      ],
+                      "text": "Button",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 12,
+                        "fontWeight": 400,
+                        "lineHeight": 16.079999923706055,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "173:2159",
+                  "name": "button-icon",
+                  "type": "INSTANCE",
+                  "componentId": "168:1408",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "options",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:2159;168:1311",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "opacity": 0.75,
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I173:2159;203:431",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Pink",
+                          "values": {
+                            "Mode 1": "#eabab7"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "173:2223",
+          "name": "frame-call-options",
+          "type": "FRAME",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-10",
+              "values": {
+                "Mode 1": 10
+              }
+            },
+            "padding": {},
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "children": [
+            {
+              "id": "173:2215",
+              "name": "button-large-icon",
+              "type": "INSTANCE",
+              "opacity": 0.75,
+              "componentId": "173:2209",
+              "componentProperties": {
+                "Type": {
+                  "value": "microphone",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                },
+                "Property": {
+                  "value": "default",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                }
+              },
+              "children": [
+                {
+                  "id": "I173:2215;173:2172",
+                  "name": "Rectangle",
+                  "type": "RECTANGLE",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Light-Pink-50",
+                      "values": {
+                        "Mode 1": "#f7e9dc80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5
+                },
+                {
+                  "id": "I173:2215;203:698",
+                  "name": "Vector",
+                  "type": "VECTOR"
+                }
+              ]
+            },
+            {
+              "id": "173:2219",
+              "name": "button-large-icon",
+              "type": "INSTANCE",
+              "opacity": 0.75,
+              "componentId": "173:2208",
+              "componentProperties": {
+                "Type": {
+                  "value": "camera",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                },
+                "Property": {
+                  "value": "default",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                }
+              },
+              "children": [
+                {
+                  "id": "I173:2219;173:2174",
+                  "name": "Rectangle",
+                  "type": "RECTANGLE",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Light-Pink-50",
+                      "values": {
+                        "Mode 1": "#f7e9dc80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5
+                },
+                {
+                  "id": "I173:2219;203:718",
+                  "name": "Vector",
+                  "type": "VECTOR"
+                }
+              ]
+            },
+            {
+              "id": "173:2166",
+              "name": "button-large",
+              "type": "INSTANCE",
+              "opacity": 0.4000000059604645,
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-5",
+                  "values": {
+                    "Mode 1": 5
+                  }
+                },
+                "padding": {
+                  "top": {
+                    "token": "Padding-2-5",
+                    "values": {
+                      "Mode 1": 2.5
+                    }
+                  },
+                  "right": {
+                    "token": "Padding-7-5",
+                    "values": {
+                      "Mode 1": 7.5
+                    }
+                  },
+                  "bottom": {
+                    "token": "Padding-2-5",
+                    "values": {
+                      "Mode 1": 2.5
+                    }
+                  },
+                  "left": {
+                    "token": "Padding-7-5",
+                    "values": {
+                      "Mode 1": 7.5
+                    }
+                  }
+                },
+                "primaryAxisAlign": "CENTER",
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Light-Pink",
+                  "values": {
+                    "Mode 1": "#f7e9dc"
+                  }
+                }
+              ],
+              "cornerRadius": 5,
+              "componentId": "173:2130",
+              "componentProperties": {
+                "Property": {
+                  "value": "diabled",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                }
+              },
+              "children": [
+                {
+                  "id": "I173:2166;173:2131",
+                  "name": "Button",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "Join Study Room",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "173:2239",
+          "name": "input-create-study-room",
+          "type": "FRAME",
+          "layout": {
+            "direction": "VERTICAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {},
+            "sizing": {
+              "counter": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "173:2231",
+              "name": "Create Study Room",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Light-Grey",
+                  "values": {
+                    "Mode 1": "#a99d9d"
+                  }
+                }
+              ],
+              "text": "Create Study Room",
+              "textStyle": {
+                "fontFamily": "Shantell Sans",
+                "fontSize": 10,
+                "fontWeight": 400,
+                "lineHeight": 13.40000057220459,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            },
+            {
+              "id": "173:2238",
+              "name": "frame",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {
+                  "primary": "FIXED"
+                }
+              },
+              "children": [
+                {
+                  "id": "173:2233",
+                  "name": "input",
+                  "type": "INSTANCE",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": 10,
+                    "padding": {
+                      "right": {
+                        "token": "Padding-5",
+                        "values": {
+                          "Mode 1": 5
+                        }
+                      },
+                      "left": {
+                        "token": "Padding-5",
+                        "values": {
+                          "Mode 1": 5
+                        }
+                      }
+                    },
+                    "primaryAxisAlign": "SPACE_BETWEEN",
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "White-50",
+                      "values": {
+                        "Mode 1": "#fdfbfa80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5,
+                  "componentId": "286:1799",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "textbox",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Colour": {
+                      "value": "white",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "blank",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:2233;286:1800",
+                      "name": "Textbox",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Beige",
+                          "values": {
+                            "Mode 1": "#cfc1bd"
+                          }
+                        }
+                      ],
+                      "text": "Room Name",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 10,
+                        "fontWeight": 400,
+                        "lineHeight": 13.40000057220459,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "173:2235",
+                  "name": "button-bool",
+                  "type": "INSTANCE",
+                  "opacity": 0.4000000059604645,
+                  "componentId": "173:2123",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "check",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "disabled",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:2235;173:2124",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Pink",
+                          "values": {
+                            "Mode 1": "#f7e9dc"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I173:2235;203:688",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "cornerRadius": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "173:2240",
+          "name": "input-join-study-room",
+          "type": "FRAME",
+          "layout": {
+            "direction": "VERTICAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {},
+            "sizing": {
+              "counter": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "173:2241",
+              "name": "Join Study Room",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Light-Grey",
+                  "values": {
+                    "Mode 1": "#a99d9d"
+                  }
+                }
+              ],
+              "text": "Join Study Room",
+              "textStyle": {
+                "fontFamily": "Shantell Sans",
+                "fontSize": 10,
+                "fontWeight": 400,
+                "lineHeight": 13.40000057220459,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            },
+            {
+              "id": "173:2242",
+              "name": "frame",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {
+                  "primary": "FIXED"
+                }
+              },
+              "children": [
+                {
+                  "id": "173:2243",
+                  "name": "input",
+                  "type": "INSTANCE",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": 10,
+                    "padding": {
+                      "right": {
+                        "token": "Padding-5",
+                        "values": {
+                          "Mode 1": 5
+                        }
+                      },
+                      "left": {
+                        "token": "Padding-5",
+                        "values": {
+                          "Mode 1": 5
+                        }
+                      }
+                    },
+                    "primaryAxisAlign": "SPACE_BETWEEN",
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "White-50",
+                      "values": {
+                        "Mode 1": "#fdfbfa80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5,
+                  "componentId": "286:1799",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "textbox",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Colour": {
+                      "value": "white",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "blank",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:2243;286:1800",
+                      "name": "Textbox",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Beige",
+                          "values": {
+                            "Mode 1": "#cfc1bd"
+                          }
+                        }
+                      ],
+                      "text": "Room Code",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 10,
+                        "fontWeight": 400,
+                        "lineHeight": 13.40000057220459,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "173:2244",
+                  "name": "button-bool",
+                  "type": "INSTANCE",
+                  "opacity": 0.4000000059604645,
+                  "componentId": "173:2123",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "check",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "disabled",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:2244;173:2124",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Pink",
+                          "values": {
+                            "Mode 1": "#f7e9dc"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I173:2244;203:688",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "cornerRadius": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "173:2000",
+      "name": "frame-task-vault",
+      "type": "FRAME",
+      "layout": {
+        "direction": "VERTICAL",
+        "gap": {
+          "token": "Padding-20",
+          "values": {
+            "Mode 1": 20
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "right": {
+            "token": "Padding-30",
+            "values": {
+              "Mode 1": 30
+            }
+          },
+          "bottom": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "left": {
+            "token": "Padding-30",
+            "values": {
+              "Mode 1": 30
+            }
+          }
+        },
+        "primaryAxisAlign": "CENTER",
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "counter": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "Dark-White",
+          "values": {
+            "Mode 1": "#f5f0eb"
+          }
+        }
+      ],
+      "cornerRadius": 30,
+      "children": [
+        {
+          "id": "173:2001",
+          "name": "Task Vault",
+          "type": "TEXT",
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Dark-Grey",
+              "values": {
+                "Mode 1": "#796c6c"
+              }
+            }
+          ],
+          "text": "Task Vault",
+          "textStyle": {
+            "fontFamily": "Pangolin",
+            "fontSize": 15,
+            "fontWeight": 400,
+            "lineHeight": 18.73499870300293,
+            "letterSpacing": 0,
+            "align": "LEFT"
+          }
+        },
+        {
+          "id": "173:2048",
+          "name": "frame-new-task",
+          "type": "FRAME",
+          "layout": {
+            "direction": "VERTICAL",
+            "gap": {
+              "token": "Padding-10",
+              "values": {
+                "Mode 1": 10
+              }
+            },
+            "padding": {},
+            "sizing": {
+              "counter": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "173:2003",
+              "name": "input-new-task",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": 20,
+                "padding": {},
+                "primaryAxisAlign": "MAX",
+                "counterAxisAlign": "CENTER",
+                "sizing": {
+                  "primary": "FIXED"
+                }
+              },
+              "children": [
+                {
+                  "id": "173:2004",
+                  "name": "New Task",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Light-Grey",
+                      "values": {
+                        "Mode 1": "#a99d9d"
+                      }
+                    }
+                  ],
+                  "text": "New Task",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 10,
+                    "fontWeight": 400,
+                    "lineHeight": 13.40000057220459,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                },
+                {
+                  "id": "173:2005",
+                  "name": "input",
+                  "type": "INSTANCE",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": 10,
+                    "padding": {
+                      "right": {
+                        "token": "Padding-5",
+                        "values": {
+                          "Mode 1": 5
+                        }
+                      },
+                      "left": {
+                        "token": "Padding-5",
+                        "values": {
+                          "Mode 1": 5
+                        }
+                      }
+                    },
+                    "primaryAxisAlign": "SPACE_BETWEEN",
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "White-50",
+                      "values": {
+                        "Mode 1": "#fdfbfa80"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5,
+                  "componentId": "173:1658",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "textbox",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Colour": {
+                      "value": "white",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:2005;173:1648",
+                      "name": "Textbox",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Grey",
+                          "values": {
+                            "Mode 1": "#796c6c"
+                          }
+                        }
+                      ],
+                      "text": "Textbox",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 10,
+                        "fontWeight": 400,
+                        "lineHeight": 13.40000057220459,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "173:2027",
+                  "name": "button-bool",
+                  "type": "INSTANCE",
+                  "componentId": "168:1417",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "check",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I173:2027;168:1327",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "opacity": 0.5,
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Pink",
+                          "values": {
+                            "Mode 1": "#f7e9dc"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I173:2027;203:654",
+                      "name": "Vector",
+                      "type": "VECTOR",
+                      "cornerRadius": 1
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "173:2047",
+              "name": "example-list",
+              "type": "FRAME",
+              "layout": {
+                "direction": "VERTICAL",
+                "gap": {
+                  "token": "Padding-7-5",
+                  "values": {
+                    "Mode 1": 7.5
+                  }
+                },
+                "padding": {},
+                "sizing": {
+                  "counter": "FIXED"
+                }
+              },
+              "children": [
+                {
+                  "id": "173:2034",
+                  "name": "example-list-item",
+                  "type": "FRAME",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": {
+                      "token": "Padding-10",
+                      "values": {
+                        "Mode 1": 10
+                      }
+                    },
+                    "padding": {},
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "173:2030",
+                      "name": "button-list",
+                      "type": "INSTANCE",
+                      "opacity": 0.75,
+                      "componentId": "168:1431",
+                      "children": [
+                        {
+                          "id": "I173:2030;168:1366",
+                          "name": "Rectangle",
+                          "type": "RECTANGLE",
+                          "fills": [
+                            {
+                              "kind": "token",
+                              "token": "White-50",
+                              "values": {
+                                "Mode 1": "#fdfbfa80"
+                              }
+                            }
+                          ],
+                          "cornerRadius": 3
+                        }
+                      ]
+                    },
+                    {
+                      "id": "173:2032",
+                      "name": "E.g., task one",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Grey",
+                          "values": {
+                            "Mode 1": "#796c6c"
+                          }
+                        }
+                      ],
+                      "text": "E.g., task one",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 10,
+                        "fontWeight": 400,
+                        "lineHeight": 13.40000057220459,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "173:2035",
+                  "name": "example-list-item",
+                  "type": "FRAME",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": {
+                      "token": "Padding-10",
+                      "values": {
+                        "Mode 1": 10
+                      }
+                    },
+                    "padding": {},
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "173:2036",
+                      "name": "button-list",
+                      "type": "INSTANCE",
+                      "opacity": 0.75,
+                      "componentId": "168:1431",
+                      "children": [
+                        {
+                          "id": "I173:2036;168:1366",
+                          "name": "Rectangle",
+                          "type": "RECTANGLE",
+                          "fills": [
+                            {
+                              "kind": "token",
+                              "token": "White-50",
+                              "values": {
+                                "Mode 1": "#fdfbfa80"
+                              }
+                            }
+                          ],
+                          "cornerRadius": 3
+                        }
+                      ]
+                    },
+                    {
+                      "id": "173:2037",
+                      "name": "E.g., task two",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Grey",
+                          "values": {
+                            "Mode 1": "#796c6c"
+                          }
+                        }
+                      ],
+                      "text": "E.g., task two",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 10,
+                        "fontWeight": 400,
+                        "lineHeight": 13.40000057220459,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "173:2039",
+                  "name": "example-list-item",
+                  "type": "FRAME",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": {
+                      "token": "Padding-10",
+                      "values": {
+                        "Mode 1": 10
+                      }
+                    },
+                    "padding": {},
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "173:2040",
+                      "name": "button-list",
+                      "type": "INSTANCE",
+                      "opacity": 0.75,
+                      "componentId": "168:1431",
+                      "children": [
+                        {
+                          "id": "I173:2040;168:1366",
+                          "name": "Rectangle",
+                          "type": "RECTANGLE",
+                          "fills": [
+                            {
+                              "kind": "token",
+                              "token": "White-50",
+                              "values": {
+                                "Mode 1": "#fdfbfa80"
+                              }
+                            }
+                          ],
+                          "cornerRadius": 3
+                        }
+                      ]
+                    },
+                    {
+                      "id": "173:2041",
+                      "name": "E.g., task three",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Grey",
+                          "values": {
+                            "Mode 1": "#796c6c"
+                          }
+                        }
+                      ],
+                      "text": "E.g., task three",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 10,
+                        "fontWeight": 400,
+                        "lineHeight": 13.40000057220459,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "173:2043",
+                  "name": "example-list-item",
+                  "type": "FRAME",
+                  "layout": {
+                    "direction": "HORIZONTAL",
+                    "gap": {
+                      "token": "Padding-10",
+                      "values": {
+                        "Mode 1": 10
+                      }
+                    },
+                    "padding": {},
+                    "counterAxisAlign": "CENTER",
+                    "sizing": {
+                      "primary": "FIXED"
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "173:2044",
+                      "name": "button-list",
+                      "type": "INSTANCE",
+                      "opacity": 0.75,
+                      "componentId": "168:1431",
+                      "children": [
+                        {
+                          "id": "I173:2044;168:1366",
+                          "name": "Rectangle",
+                          "type": "RECTANGLE",
+                          "fills": [
+                            {
+                              "kind": "token",
+                              "token": "White-50",
+                              "values": {
+                                "Mode 1": "#fdfbfa80"
+                              }
+                            }
+                          ],
+                          "cornerRadius": 3
+                        }
+                      ]
+                    },
+                    {
+                      "id": "173:2045",
+                      "name": "E.g., task four",
+                      "type": "TEXT",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-Grey",
+                          "values": {
+                            "Mode 1": "#796c6c"
+                          }
+                        }
+                      ],
+                      "text": "E.g., task four",
+                      "textStyle": {
+                        "fontFamily": "Shantell Sans",
+                        "fontSize": 10,
+                        "fontWeight": 400,
+                        "lineHeight": 13.40000057220459,
+                        "letterSpacing": 0,
+                        "align": "LEFT"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

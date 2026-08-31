@@ -1,0 +1,817 @@
+{
+  "id": "183:850",
+  "name": "popup-friend",
+  "type": "FRAME",
+  "layout": {
+    "direction": "VERTICAL",
+    "gap": 10,
+    "padding": {},
+    "sizing": {
+      "counter": "FIXED"
+    }
+  },
+  "children": [
+    {
+      "id": "183:851",
+      "name": "frame",
+      "type": "FRAME",
+      "layout": {
+        "direction": "VERTICAL",
+        "gap": {
+          "token": "Padding-10",
+          "values": {
+            "Mode 1": 10
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "right": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "bottom": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "left": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          }
+        },
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "counter": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "White-50",
+          "values": {
+            "Mode 1": "#fdfbfa80"
+          }
+        }
+      ],
+      "cornerRadius": 30,
+      "children": [
+        {
+          "id": "284:581",
+          "name": "Frame 1",
+          "type": "FRAME",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "padding": {},
+            "counterAxisAlign": "CENTER",
+            "sizing": {
+              "primary": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "284:582",
+              "name": "E.g., Friend",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "E.g., Friend",
+              "textStyle": {
+                "fontFamily": "Pangolin",
+                "fontSize": 20,
+                "fontWeight": 400,
+                "lineHeight": 24.979999542236328,
+                "letterSpacing": 0,
+                "align": "CENTER"
+              }
+            },
+            {
+              "id": "284:583",
+              "name": "button-icon",
+              "type": "INSTANCE",
+              "componentId": "168:1409",
+              "componentProperties": {
+                "Type": {
+                  "value": "x",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                },
+                "Property": {
+                  "value": "default",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                }
+              },
+              "children": [
+                {
+                  "id": "I284:583;168:1316",
+                  "name": "Rectangle",
+                  "type": "RECTANGLE",
+                  "opacity": 0.75,
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-White",
+                      "values": {
+                        "Mode 1": "#f5f0eb"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5
+                },
+                {
+                  "id": "I284:583;203:490",
+                  "name": "Vector",
+                  "type": "VECTOR",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-White",
+                      "values": {
+                        "Mode 1": "#f5f0eb"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "183:874",
+          "name": "frame-tracking",
+          "type": "FRAME",
+          "layout": {
+            "direction": "VERTICAL",
+            "gap": {
+              "token": "Padding-2-5",
+              "values": {
+                "Mode 1": 2.5
+              }
+            },
+            "padding": {},
+            "sizing": {
+              "counter": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "183:875",
+              "name": "Tracking",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Light-Grey",
+                  "values": {
+                    "Mode 1": "#a99d9d"
+                  }
+                }
+              ],
+              "text": "Tracking",
+              "textStyle": {
+                "fontFamily": "Shantell Sans",
+                "fontSize": 10,
+                "fontWeight": 400,
+                "lineHeight": 13.40000057220459,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            },
+            {
+              "id": "183:876",
+              "name": "list-item",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "183:877",
+                  "name": "button-list",
+                  "type": "INSTANCE",
+                  "opacity": 0.75,
+                  "componentId": "168:1435",
+                  "children": [
+                    {
+                      "id": "I183:877;168:1368",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Pink-50",
+                          "values": {
+                            "Mode 1": "#f6cbc080"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 3
+                    }
+                  ]
+                },
+                {
+                  "id": "183:878",
+                  "name": "I may send this friend a live nudge",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "I may send this friend a live nudge",
+                  "textStyle": {
+                    "fontFamily": "Nunito",
+                    "fontSize": 10,
+                    "fontWeight": 400,
+                    "lineHeight": 13.639999389648438,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "183:879",
+              "name": "list-item",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "183:880",
+                  "name": "button-list",
+                  "type": "INSTANCE",
+                  "opacity": 0.75,
+                  "componentId": "168:1435",
+                  "children": [
+                    {
+                      "id": "I183:880;168:1368",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Pink-50",
+                          "values": {
+                            "Mode 1": "#f6cbc080"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 3
+                    }
+                  ]
+                },
+                {
+                  "id": "183:881",
+                  "name": "This friend may send me a live nudge",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "This friend may send me a live nudge",
+                  "textStyle": {
+                    "fontFamily": "Nunito",
+                    "fontSize": 10,
+                    "fontWeight": 400,
+                    "lineHeight": 13.639999389648438,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "183:882",
+              "name": "list-item",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "183:883",
+                  "name": "button-list",
+                  "type": "INSTANCE",
+                  "opacity": 0.75,
+                  "componentId": "168:1435",
+                  "children": [
+                    {
+                      "id": "I183:883;168:1368",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Pink-50",
+                          "values": {
+                            "Mode 1": "#f6cbc080"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 3
+                    }
+                  ]
+                },
+                {
+                  "id": "183:884",
+                  "name": "Receive a daily digest about this friend",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "Receive a daily digest about this friend",
+                  "textStyle": {
+                    "fontFamily": "Nunito",
+                    "fontSize": 10,
+                    "fontWeight": 400,
+                    "lineHeight": 13.639999389648438,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "183:894",
+              "name": "list-item",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "183:895",
+                  "name": "button-list",
+                  "type": "INSTANCE",
+                  "opacity": 0.75,
+                  "componentId": "168:1435",
+                  "children": [
+                    {
+                      "id": "I183:895;168:1368",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Pink-50",
+                          "values": {
+                            "Mode 1": "#f6cbc080"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 3
+                    }
+                  ]
+                },
+                {
+                  "id": "183:896",
+                  "name": "Share my distraction attempts with this friend",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "Share my distraction attempts with this friend",
+                  "textStyle": {
+                    "fontFamily": "Nunito",
+                    "fontSize": 10,
+                    "fontWeight": 400,
+                    "lineHeight": 13.639999389648438,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "183:898",
+              "name": "list-item",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "183:899",
+                  "name": "button-list",
+                  "type": "INSTANCE",
+                  "opacity": 0.75,
+                  "componentId": "183:904",
+                  "children": [
+                    {
+                      "id": "I183:899;183:905",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Beige-50",
+                          "values": {
+                            "Mode 1": "#e5dbd280"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 3
+                    }
+                  ]
+                },
+                {
+                  "id": "183:900",
+                  "name": "Share my current site with this friend",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "Share my current site with this friend",
+                  "textStyle": {
+                    "fontFamily": "Nunito",
+                    "fontSize": 10,
+                    "fontWeight": 400,
+                    "lineHeight": 13.639999389648438,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "183:909",
+              "name": "list-item",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "183:910",
+                  "name": "button-list",
+                  "type": "INSTANCE",
+                  "opacity": 0.75,
+                  "componentId": "183:904",
+                  "children": [
+                    {
+                      "id": "I183:910;183:905",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Beige-50",
+                          "values": {
+                            "Mode 1": "#e5dbd280"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 3
+                    }
+                  ]
+                },
+                {
+                  "id": "183:911",
+                  "name": "Share my session goal text with this friend",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "Share my session goal text with this friend",
+                  "textStyle": {
+                    "fontFamily": "Nunito",
+                    "fontSize": 10,
+                    "fontWeight": 400,
+                    "lineHeight": 13.639999389648438,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "183:913",
+              "name": "list-item",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "183:914",
+                  "name": "button-list",
+                  "type": "INSTANCE",
+                  "opacity": 0.75,
+                  "componentId": "183:904",
+                  "children": [
+                    {
+                      "id": "I183:914;183:905",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Beige-50",
+                          "values": {
+                            "Mode 1": "#e5dbd280"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 3
+                    }
+                  ]
+                },
+                {
+                  "id": "183:915",
+                  "name": "Share my intervention count with this friend",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "Share my intervention count with this friend",
+                  "textStyle": {
+                    "fontFamily": "Nunito",
+                    "fontSize": 10,
+                    "fontWeight": 400,
+                    "lineHeight": 13.639999389648438,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "183:917",
+              "name": "list-item",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": {
+                  "token": "Padding-10",
+                  "values": {
+                    "Mode 1": 10
+                  }
+                },
+                "padding": {},
+                "counterAxisAlign": "CENTER",
+                "sizing": {}
+              },
+              "children": [
+                {
+                  "id": "183:918",
+                  "name": "button-list",
+                  "type": "INSTANCE",
+                  "opacity": 0.75,
+                  "componentId": "183:904",
+                  "children": [
+                    {
+                      "id": "I183:918;183:905",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Light-Beige-50",
+                          "values": {
+                            "Mode 1": "#e5dbd280"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 3
+                    }
+                  ]
+                },
+                {
+                  "id": "183:919",
+                  "name": "Share my full session history with this friend",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "Share my full session history with this friend",
+                  "textStyle": {
+                    "fontFamily": "Nunito",
+                    "fontSize": 10,
+                    "fontWeight": 400,
+                    "lineHeight": 13.639999389648438,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "186:412",
+          "name": "button-large",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-2-5",
+                "values": {
+                  "Mode 1": 2.5
+                }
+              },
+              "right": {
+                "token": "Padding-7-5",
+                "values": {
+                  "Mode 1": 7.5
+                }
+              },
+              "bottom": {
+                "token": "Padding-2-5",
+                "values": {
+                  "Mode 1": 2.5
+                }
+              },
+              "left": {
+                "token": "Padding-7-5",
+                "values": {
+                  "Mode 1": 7.5
+                }
+              }
+            },
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Pink-50",
+              "values": {
+                "Mode 1": "#f7e9dc80"
+              }
+            }
+          ],
+          "cornerRadius": 5,
+          "componentId": "168:1420",
+          "componentProperties": {
+            "Property": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I186:412;168:1350",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "Remove Friend",
+              "textStyle": {
+                "fontFamily": "Shantell Sans",
+                "fontSize": 12,
+                "fontWeight": 400,
+                "lineHeight": 16.079999923706055,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

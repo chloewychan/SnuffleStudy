@@ -1,0 +1,506 @@
+{
+  "id": "113:537",
+  "name": "popup-study-room",
+  "type": "FRAME",
+  "layout": {
+    "direction": "VERTICAL",
+    "gap": 10,
+    "padding": {},
+    "sizing": {
+      "counter": "FIXED"
+    }
+  },
+  "children": [
+    {
+      "id": "183:812",
+      "name": "frame",
+      "type": "FRAME",
+      "layout": {
+        "direction": "VERTICAL",
+        "gap": {
+          "token": "Padding-10",
+          "values": {
+            "Mode 1": 10
+          }
+        },
+        "padding": {
+          "top": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "right": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "bottom": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          },
+          "left": {
+            "token": "Padding-20",
+            "values": {
+              "Mode 1": 20
+            }
+          }
+        },
+        "counterAxisAlign": "CENTER",
+        "sizing": {
+          "counter": "FIXED"
+        }
+      },
+      "fills": [
+        {
+          "kind": "token",
+          "token": "White-50",
+          "values": {
+            "Mode 1": "#fdfbfa80"
+          }
+        }
+      ],
+      "cornerRadius": 30,
+      "children": [
+        {
+          "id": "284:569",
+          "name": "Frame 1",
+          "type": "FRAME",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "padding": {},
+            "counterAxisAlign": "CENTER",
+            "sizing": {
+              "primary": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "152:923",
+              "name": "E.g., Study room",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "E.g., Study room",
+              "textStyle": {
+                "fontFamily": "Pangolin",
+                "fontSize": 20,
+                "fontWeight": 400,
+                "lineHeight": 24.979999542236328,
+                "letterSpacing": 0,
+                "align": "CENTER"
+              }
+            },
+            {
+              "id": "284:564",
+              "name": "button-icon",
+              "type": "INSTANCE",
+              "componentId": "168:1409",
+              "componentProperties": {
+                "Type": {
+                  "value": "x",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                },
+                "Property": {
+                  "value": "default",
+                  "type": "VARIANT",
+                  "boundVariables": {}
+                }
+              },
+              "children": [
+                {
+                  "id": "I284:564;168:1316",
+                  "name": "Rectangle",
+                  "type": "RECTANGLE",
+                  "opacity": 0.75,
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-White",
+                      "values": {
+                        "Mode 1": "#f5f0eb"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 5
+                },
+                {
+                  "id": "I284:564;203:490",
+                  "name": "Vector",
+                  "type": "VECTOR",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-White",
+                      "values": {
+                        "Mode 1": "#f5f0eb"
+                      }
+                    }
+                  ],
+                  "cornerRadius": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "183:821",
+          "name": "example-list-items",
+          "type": "FRAME",
+          "layout": {
+            "direction": "VERTICAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {},
+            "sizing": {
+              "counter": "FIXED"
+            }
+          },
+          "children": [
+            {
+              "id": "183:813",
+              "name": "Frame 29",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": 230,
+                "padding": {},
+                "primaryAxisAlign": "SPACE_BETWEEN",
+                "counterAxisAlign": "CENTER",
+                "sizing": {
+                  "primary": "FIXED"
+                }
+              },
+              "children": [
+                {
+                  "id": "152:925",
+                  "name": "E.g., Friend One",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "E.g., Friend One",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                },
+                {
+                  "id": "183:822",
+                  "name": "button-icon",
+                  "type": "INSTANCE",
+                  "componentId": "183:796",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "trash",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I183:822;183:798",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I183:822;203:577",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "183:814",
+              "name": "Frame 30",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": 174,
+                "padding": {},
+                "primaryAxisAlign": "SPACE_BETWEEN",
+                "counterAxisAlign": "CENTER",
+                "sizing": {
+                  "primary": "FIXED"
+                }
+              },
+              "children": [
+                {
+                  "id": "152:926",
+                  "name": "E.g., Friend Two",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "E.g., Friend Two",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                },
+                {
+                  "id": "183:827",
+                  "name": "button-icon",
+                  "type": "INSTANCE",
+                  "componentId": "183:796",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "trash",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I183:827;183:798",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I183:827;203:577",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "183:815",
+              "name": "Frame 31",
+              "type": "FRAME",
+              "layout": {
+                "direction": "HORIZONTAL",
+                "gap": 205,
+                "padding": {},
+                "primaryAxisAlign": "SPACE_BETWEEN",
+                "counterAxisAlign": "CENTER",
+                "sizing": {
+                  "primary": "FIXED"
+                }
+              },
+              "children": [
+                {
+                  "id": "152:927",
+                  "name": "E.g., Friend Three",
+                  "type": "TEXT",
+                  "fills": [
+                    {
+                      "kind": "token",
+                      "token": "Dark-Grey",
+                      "values": {
+                        "Mode 1": "#796c6c"
+                      }
+                    }
+                  ],
+                  "text": "E.g., Friend Three",
+                  "textStyle": {
+                    "fontFamily": "Shantell Sans",
+                    "fontSize": 12,
+                    "fontWeight": 400,
+                    "lineHeight": 16.079999923706055,
+                    "letterSpacing": 0,
+                    "align": "LEFT"
+                  }
+                },
+                {
+                  "id": "183:832",
+                  "name": "button-icon",
+                  "type": "INSTANCE",
+                  "componentId": "183:796",
+                  "componentProperties": {
+                    "Type": {
+                      "value": "trash",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    },
+                    "Property": {
+                      "value": "default",
+                      "type": "VARIANT",
+                      "boundVariables": {}
+                    }
+                  },
+                  "children": [
+                    {
+                      "id": "I183:832;183:798",
+                      "name": "Rectangle",
+                      "type": "RECTANGLE",
+                      "fills": [
+                        {
+                          "kind": "token",
+                          "token": "Dark-White",
+                          "values": {
+                            "Mode 1": "#f5f0eb"
+                          }
+                        }
+                      ],
+                      "cornerRadius": 5
+                    },
+                    {
+                      "id": "I183:832;203:577",
+                      "name": "Vector",
+                      "type": "VECTOR"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "186:410",
+          "name": "button-large",
+          "type": "INSTANCE",
+          "layout": {
+            "direction": "HORIZONTAL",
+            "gap": {
+              "token": "Padding-5",
+              "values": {
+                "Mode 1": 5
+              }
+            },
+            "padding": {
+              "top": {
+                "token": "Padding-2-5",
+                "values": {
+                  "Mode 1": 2.5
+                }
+              },
+              "right": {
+                "token": "Padding-7-5",
+                "values": {
+                  "Mode 1": 7.5
+                }
+              },
+              "bottom": {
+                "token": "Padding-2-5",
+                "values": {
+                  "Mode 1": 2.5
+                }
+              },
+              "left": {
+                "token": "Padding-7-5",
+                "values": {
+                  "Mode 1": 7.5
+                }
+              }
+            },
+            "primaryAxisAlign": "CENTER",
+            "counterAxisAlign": "CENTER",
+            "sizing": {}
+          },
+          "fills": [
+            {
+              "kind": "token",
+              "token": "Light-Pink-50",
+              "values": {
+                "Mode 1": "#f7e9dc80"
+              }
+            }
+          ],
+          "cornerRadius": 5,
+          "componentId": "168:1420",
+          "componentProperties": {
+            "Property": {
+              "value": "default",
+              "type": "VARIANT",
+              "boundVariables": {}
+            }
+          },
+          "children": [
+            {
+              "id": "I186:410;168:1350",
+              "name": "Button",
+              "type": "TEXT",
+              "fills": [
+                {
+                  "kind": "token",
+                  "token": "Dark-Grey",
+                  "values": {
+                    "Mode 1": "#796c6c"
+                  }
+                }
+              ],
+              "text": "Archive Study Room",
+              "textStyle": {
+                "fontFamily": "Shantell Sans",
+                "fontSize": 12,
+                "fontWeight": 400,
+                "lineHeight": 16.079999923706055,
+                "letterSpacing": 0,
+                "align": "LEFT"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
