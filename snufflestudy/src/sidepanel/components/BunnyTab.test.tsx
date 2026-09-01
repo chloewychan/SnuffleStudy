@@ -38,8 +38,8 @@ describe("BunnyTab", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Save bunny name" })).not.toBeDisabled()
     );
-    expect(screen.getByLabelText(/bunny name/i)).toHaveValue("Snuffles");
-    expect(screen.getByLabelText(/human name/i)).toHaveValue("Hooman");
+    expect(screen.getByLabelText("Bunny Name:")).toHaveValue("Snuffles");
+    expect(screen.getByLabelText("Human Name:")).toHaveValue("Hooman");
   });
 
   it("updates name fields when typed", async () => {
@@ -48,8 +48,8 @@ describe("BunnyTab", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Save bunny name" })).not.toBeDisabled()
     );
-    const bunnyInput = screen.getByLabelText(/bunny name/i);
-    const humanInput = screen.getByLabelText(/human name/i);
+    const bunnyInput = screen.getByLabelText("Bunny Name:");
+    const humanInput = screen.getByLabelText("Human Name:");
 
     fireEvent.change(bunnyInput, { target: { value: "Fluffball" } });
     fireEvent.change(humanInput, { target: { value: "Alice" } });
@@ -84,8 +84,8 @@ describe("BunnyTab", () => {
     mockMessages({ PROFILE_GET_MINE: () => ({ ok: true, profile: savedProfile }) });
     render(<BunnyTab />);
 
-    await waitFor(() => expect(screen.getByLabelText(/bunny name/i)).toHaveValue("Fluffball"));
-    expect(screen.getByLabelText(/human name/i)).toHaveValue("Alice");
+    await waitFor(() => expect(screen.getByLabelText("Bunny Name:")).toHaveValue("Fluffball"));
+    expect(screen.getByLabelText("Human Name:")).toHaveValue("Alice");
   });
 
   it("saves the current field values via PROFILE_SAVE_MINE when Save bunny name is clicked", async () => {
@@ -95,8 +95,8 @@ describe("BunnyTab", () => {
       expect(screen.getByRole("button", { name: "Save bunny name" })).not.toBeDisabled()
     );
 
-    fireEvent.change(screen.getByLabelText(/bunny name/i), { target: { value: "Fluffball" } });
-    fireEvent.change(screen.getByLabelText(/human name/i), { target: { value: "Alice" } });
+    fireEvent.change(screen.getByLabelText("Bunny Name:"), { target: { value: "Fluffball" } });
+    fireEvent.change(screen.getByLabelText("Human Name:"), { target: { value: "Alice" } });
     fireEvent.click(screen.getByRole("button", { name: "Save bunny name" }));
 
     await waitFor(() =>
@@ -115,8 +115,8 @@ describe("BunnyTab", () => {
       expect(screen.getByRole("button", { name: "Save human name" })).not.toBeDisabled()
     );
 
-    fireEvent.change(screen.getByLabelText(/bunny name/i), { target: { value: "Fluffball" } });
-    fireEvent.change(screen.getByLabelText(/human name/i), { target: { value: "Alice" } });
+    fireEvent.change(screen.getByLabelText("Bunny Name:"), { target: { value: "Fluffball" } });
+    fireEvent.change(screen.getByLabelText("Human Name:"), { target: { value: "Alice" } });
     fireEvent.click(screen.getByRole("button", { name: "Save human name" }));
 
     await waitFor(() =>
@@ -177,7 +177,7 @@ describe("BunnyTab", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Save bunny name" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Saving…" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Saving bunny name…" })).toBeInTheDocument());
 
     // The human name button must still read its own idle label, not "Saving...", while the bunny
     // name save is still in flight.
@@ -189,7 +189,7 @@ describe("BunnyTab", () => {
     // The human name save resolved and shows "Saved." (its button is idle again) while the bunny
     // name save is still pending - the bunny button must still read "Saving...", unaffected by the
     // human name save completing.
-    expect(screen.getByRole("button", { name: "Saving…" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Saving bunny name…" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save human name" })).toBeInTheDocument();
 
     resolveBunnySave({ ok: true });

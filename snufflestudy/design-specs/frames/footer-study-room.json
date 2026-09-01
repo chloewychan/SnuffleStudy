@@ -129,6 +129,19 @@
                   "boundVariables": {}
                 }
               },
+              "interactions": [
+                {
+                  "trigger": "ON_CLICK",
+                  "actions": [
+                    {
+                      "type": "NODE",
+                      "destinationId": "173:2207",
+                      "navigation": "CHANGE_TO",
+                      "transition": null
+                    }
+                  ]
+                }
+              ],
               "children": [
                 {
                   "id": "I178:2731;173:2172",
@@ -170,6 +183,19 @@
                   "boundVariables": {}
                 }
               },
+              "interactions": [
+                {
+                  "trigger": "ON_CLICK",
+                  "actions": [
+                    {
+                      "type": "NODE",
+                      "destinationId": "173:2206",
+                      "navigation": "CHANGE_TO",
+                      "transition": null
+                    }
+                  ]
+                }
+              ],
               "children": [
                 {
                   "id": "I178:2735;173:2174",
@@ -253,6 +279,19 @@
                   "boundVariables": {}
                 }
               },
+              "interactions": [
+                {
+                  "trigger": "ON_HOVER",
+                  "actions": [
+                    {
+                      "type": "NODE",
+                      "destinationId": "168:1419",
+                      "navigation": "CHANGE_TO",
+                      "transition": null
+                    }
+                  ]
+                }
+              ],
               "children": [
                 {
                   "id": "I178:2739;168:1350",
@@ -354,6 +393,19 @@
                   "boundVariables": {}
                 }
               },
+              "interactions": [
+                {
+                  "trigger": "ON_CLICK",
+                  "actions": [
+                    {
+                      "type": "NODE",
+                      "destinationId": "177:2717",
+                      "navigation": "CHANGE_TO",
+                      "transition": null
+                    }
+                  ]
+                }
+              ],
               "children": [
                 {
                   "id": "I177:2720;177:2711",
@@ -495,6 +547,19 @@
                   "boundVariables": {}
                 }
               },
+              "interactions": [
+                {
+                  "trigger": "ON_CLICK",
+                  "actions": [
+                    {
+                      "type": "NODE",
+                      "destinationId": "177:2717",
+                      "navigation": "CHANGE_TO",
+                      "transition": null
+                    }
+                  ]
+                }
+              ],
               "children": [
                 {
                   "id": "I177:2723;177:2711",
@@ -636,6 +701,19 @@
                   "boundVariables": {}
                 }
               },
+              "interactions": [
+                {
+                  "trigger": "ON_CLICK",
+                  "actions": [
+                    {
+                      "type": "NODE",
+                      "destinationId": "177:2717",
+                      "navigation": "CHANGE_TO",
+                      "transition": null
+                    }
+                  ]
+                }
+              ],
               "children": [
                 {
                   "id": "I177:2726;177:2711",
@@ -803,6 +881,19 @@
                   "boundVariables": {}
                 }
               },
+              "interactions": [
+                {
+                  "trigger": "ON_HOVER",
+                  "actions": [
+                    {
+                      "type": "NODE",
+                      "destinationId": "168:1419",
+                      "navigation": "CHANGE_TO",
+                      "transition": null
+                    }
+                  ]
+                }
+              ],
               "children": [
                 {
                   "id": "I173:2620;168:1350",

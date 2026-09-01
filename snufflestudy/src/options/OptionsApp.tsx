@@ -1,10 +1,15 @@
 import { useState } from "react";
 import "../styles/global.css";
+// AccountPage.tsx renders SignInForm, which composes the ui/ primitives from
+// src/sidepanel/components/ui/ (design-specs/) - their styles live in sidepanel.css, same
+// precedent as SettingsPage.tsx being shared across both entrypoints below.
+import "../styles/sidepanel.css";
 import { HistoryPage } from "./pages/HistoryPage";
 import { AccountPage } from "./pages/AccountPage";
 import { FriendsPage } from "./pages/FriendsPage";
 import { PrivacyPolicyPage } from "./pages/PrivacyPolicyPage";
 import { SettingsPage } from "../sidepanel/components/settingsTab/SettingsPage";
+import { ButtonLarge } from "../sidepanel/components/ui/ButtonLarge";
 import { isMediaPermissionError } from "../infrastructure/media/mediaPermissions";
 
 type OptionsView = "settings" | "history" | "account" | "friends" | "privacy";
@@ -108,19 +113,18 @@ export function OptionsApp() {
           <SettingsPage />
 
           <section>
-            <h2>Camera &amp; microphone access</h2>
+            <h2 className="sp-label">Camera &amp; Microphone</h2>
             <p>
               Study Rooms (video/audio) and audio nudges (voice clips) need camera/microphone
               access. The side panel can't show that permission prompt itself — grant it once
               here, in this full tab, and the side panel will be able to use it afterward.
             </p>
-            <button
-              type="button"
+            <ButtonLarge
               onClick={() => void handleGrantMediaAccess()}
               disabled={mediaGrantStatus === "granting"}
             >
-              {mediaGrantStatus === "granting" ? "Requesting…" : "Grant camera & microphone access"}
-            </button>
+              {mediaGrantStatus === "granting" ? "Requesting…" : "Grant Camera & Microphone Access"}
+            </ButtonLarge>
             {mediaGrantStatus === "granted" && (
               <p>Camera and microphone access granted — you can close this tab now.</p>
             )}

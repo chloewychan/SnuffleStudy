@@ -43,8 +43,8 @@ input {
 /* Base button style - replaces the browser's native grey chrome with the app's palette.
    Kept as a single bare-element rule (not a class) so it reaches every plain <button> across
    locked/options/popup/sidepanel via global.css, per the single-consistent-style decision.
-   Class-based buttons like .sp-header__login-button/.sp-tabbar__tab already set their own
-   background/border, so their higher specificity wins over this base rule unchanged.
+   Class-based buttons like .sp-btn-large/.sp-btn-tab already set their own background/border,
+   so their higher specificity wins over this base rule unchanged.
    Fill/stroke use `rgb(from <token> r g b / 0.5)` (relative color syntax) so the 50% versions
    stay derived from the real tokens instead of duplicating their hex values. */
 button {

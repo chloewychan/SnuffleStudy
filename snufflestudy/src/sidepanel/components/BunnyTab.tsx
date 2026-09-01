@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { Profile } from "../../infrastructure/backend/profileApi";
+import { Input } from "./ui/Input";
+import { ButtonBool } from "./ui/ButtonBool";
 
 // v3.3 Task 8: bunnyName/humanName used to be pure local stub state (no persistence, no backend -
 // confirmed directly against the pre-Task-8 repo). Now backed by the real `profiles` table via
@@ -28,9 +30,9 @@ export function BunnyTab() {
   // This component had no persistence trigger at all before this task - there is no natural
   // "field changed" moment to save on (unlike e.g. a checkbox toggle) without either saving on
   // every keystroke (noisy, and racy against itself) or debouncing (more moving parts than this
-  // tab needs). An explicit Save button, matching this codebase's existing convention for
-  // multi-field forms with a deliberate commit step (OptionsApp.tsx's Settings save, AccountPage's
-  // various actions), is the implementer's call the plan explicitly leaves open.
+  // tab needs). design-specs/frames/page-bunny.json's own save trigger is a button-bool "check"
+  // icon per field, matching this codebase's existing convention for multi-field forms with a
+  // deliberate commit step.
   //
   // v4.1 Task 5: split into two independent buttons/state trios so saving one field never shows
   // the other as "Saving..." - both still send { humanName, bunnyName } together via
@@ -43,6 +45,10 @@ export function BunnyTab() {
   const [savingHumanName, setSavingHumanName] = useState(false);
   const [humanNameSaveError, setHumanNameSaveError] = useState<string | null>(null);
   const [humanNameSaved, setHumanNameSaved] = useState(false);
+
+  const idPrefix = useId();
+  const bunnyNameFieldId = `${idPrefix}-bunny-name`;
+  const humanNameFieldId = `${idPrefix}-human-name`;
 
   useEffect(() => {
     sendMessage<{ ok: boolean; profile?: Profile | null; error?: string }>({
@@ -112,54 +118,65 @@ export function BunnyTab() {
 
   return (
     <div className="sp-tab-content sp-bunny-tab">
-      <section className="sp-card sp-bunny-tab__about">
+      <section className="sp-card">
         <h2 className="sp-card__title">About the Bun</h2>
         {loadError && <p role="alert">Couldn't load your saved names: {loadError}.</p>}
-        <div className="sp-field">
-          <label htmlFor="bunny-name">Bunny Name:</label>
-          <input
-            id="bunny-name"
-            value={bunnyName}
-            onChange={(e) => {
-              setBunnyName(e.target.value);
-              setBunnyNameSaved(false);
-            }}
+        <div className="sp-bunny-tab__body">
+          <img
+            className="sp-bunny-tab__portrait"
+            src={chrome.runtime.getURL("sidepanel/bunny.png")}
+            alt=""
           />
-        </div>
-        <button
-          type="button"
-          onClick={handleSaveBunnyName}
-          disabled={savingBunnyName || !loaded}
-        >
-          {savingBunnyName ? "Saving…" : "Save bunny name"}
-        </button>
-        {bunnyNameSaveError && (
-          <p role="alert">Couldn't save your bunny name: {bunnyNameSaveError}.</p>
-        )}
-        {bunnyNameSaved && !bunnyNameSaveError && <p>Saved.</p>}
+          <div className="sp-bunny-tab__fields">
+            <div className="sp-bunny-tab__field">
+              <label htmlFor={bunnyNameFieldId}>Bunny Name:</label>
+              <div className="sp-bunny-tab__field-row">
+                <Input
+                  id={bunnyNameFieldId}
+                  value={bunnyName}
+                  onChange={(e) => {
+                    setBunnyName(e.target.value);
+                    setBunnyNameSaved(false);
+                  }}
+                />
+                <ButtonBool
+                  icon="check"
+                  aria-label={savingBunnyName ? "Saving bunny name…" : "Save bunny name"}
+                  onClick={handleSaveBunnyName}
+                  disabled={savingBunnyName || !loaded}
+                />
+              </div>
+              {bunnyNameSaveError && (
+                <p role="alert">Couldn't save your bunny name: {bunnyNameSaveError}.</p>
+              )}
+              {bunnyNameSaved && !bunnyNameSaveError && <p>Saved.</p>}
+            </div>
 
-        <div className="sp-field">
-          <label htmlFor="human-name">Human Name:</label>
-          <input
-            id="human-name"
-            value={humanName}
-            onChange={(e) => {
-              setHumanName(e.target.value);
-              setHumanNameSaved(false);
-            }}
-          />
+            <div className="sp-bunny-tab__field">
+              <label htmlFor={humanNameFieldId}>Human Name:</label>
+              <div className="sp-bunny-tab__field-row">
+                <Input
+                  id={humanNameFieldId}
+                  value={humanName}
+                  onChange={(e) => {
+                    setHumanName(e.target.value);
+                    setHumanNameSaved(false);
+                  }}
+                />
+                <ButtonBool
+                  icon="check"
+                  aria-label={savingHumanName ? "Saving human name…" : "Save human name"}
+                  onClick={handleSaveHumanName}
+                  disabled={savingHumanName || !loaded}
+                />
+              </div>
+              {humanNameSaveError && (
+                <p role="alert">Couldn't save your human name: {humanNameSaveError}.</p>
+              )}
+              {humanNameSaved && !humanNameSaveError && <p>Saved.</p>}
+            </div>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={handleSaveHumanName}
-          disabled={savingHumanName || !loaded}
-        >
-          {savingHumanName ? "Saving…" : "Save human name"}
-        </button>
-        {humanNameSaveError && (
-          <p role="alert">Couldn't save your human name: {humanNameSaveError}.</p>
-        )}
-        {humanNameSaved && !humanNameSaveError && <p>Saved.</p>}
       </section>
     </div>
   );

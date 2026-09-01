@@ -15,23 +15,26 @@ import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 // ahead of the OTP step, with account creation (AUTH_SET_PASSWORD then PROFILE_SAVE_MINE) now
 // completing automatically the instant the code is verified - no separate password step exists
 // after code verification anymore. The create-account tests below were rewritten for that shape.
+//
+// design-specs/frames/page-sign-in.json (Phase 3): the entry screen's old two-level choice
+// (choice -> signin-choice) is now one screen with three peer buttons - "Sign in" as an
+// intermediate step no longer exists. Every button/field/step-title copy below matches the
+// design-specs frames verbatim (e.g. "Create new account", "Send Sign-In Code", "Your Name").
 
 beforeEach(() => {
   vi.restoreAllMocks();
 });
 
 function goToCreateAccount() {
-  fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+  fireEvent.click(screen.getByRole("button", { name: "Create new account" }));
 }
 
 function goToSignInWithCode() {
-  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-  fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
+  fireEvent.click(screen.getByRole("button", { name: "Sign in (one-time code)" }));
 }
 
 function goToSignInWithPassword() {
-  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-  fireEvent.click(screen.getByRole("button", { name: "Sign in with a password" }));
+  fireEvent.click(screen.getByRole("button", { name: "Sign in (with password)" }));
 }
 
 // v3.4 Task 7: "create-details" requires name/email/password/confirm password before its submit
@@ -39,41 +42,57 @@ function goToSignInWithPassword() {
 // request a sign-in code..." test below, which verifies that omission doesn't block submit).
 async function requestCreateCode(email = "a@example.com", name = "Robin") {
   goToCreateAccount();
-  fireEvent.change(screen.getByLabelText("Name"), { target: { value: name } });
+  fireEvent.change(screen.getByLabelText("Your Name"), { target: { value: name } });
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: email } });
   fireEvent.change(screen.getByLabelText("Password"), {
     target: { value: "correct-horse-battery" },
   });
-  fireEvent.change(screen.getByLabelText("Confirm password"), {
+  fireEvent.change(screen.getByLabelText("Confirm Password"), {
     target: { value: "correct-horse-battery" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+  fireEvent.click(screen.getByRole("button", { name: "Send Sign-In Code" }));
   await screen.findByLabelText("Code");
 }
 
 async function requestSignInCode(email = "a@example.com") {
   goToSignInWithCode();
   fireEvent.change(screen.getByLabelText("Email"), { target: { value: email } });
-  fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+  fireEvent.click(screen.getByRole("button", { name: "Send Sign-In Code" }));
   await screen.findByLabelText("Code");
 }
 
 describe("SignInForm — entry choice", () => {
-  it("shows Create account / Sign in as the entry state, with no email field visible yet", () => {
+  it("shows all three entry options at once, with no email field visible yet", () => {
     render(<SignInForm onSignedIn={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Create account" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create new account" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in (with password)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in (one-time code)" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
   });
 
-  it("Sign in reveals two peer options: password or a code", () => {
+  it("shows no back button on the entry choice when onBack is not provided", () => {
     render(<SignInForm onSignedIn={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+  it("shows a back button on the entry choice when onBack is provided, and calls it", () => {
+    const onBack = vi.fn();
+    render(<SignInForm onSignedIn={vi.fn()} onBack={onBack} />);
 
-    expect(screen.getByRole("button", { name: "Sign in with a password" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Email me a code" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("every non-entry step has its own back button that returns to the entry choice, regardless of onBack", () => {
+    render(<SignInForm onSignedIn={vi.fn()} />);
+    goToCreateAccount();
+
+    expect(screen.getByLabelText("Your Name")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(screen.getByRole("button", { name: "Create new account" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Your Name")).not.toBeInTheDocument();
   });
 });
 
@@ -85,12 +104,12 @@ describe("SignInForm — create-account branch", () => {
     render(<SignInForm onSignedIn={onSignedIn} />);
     goToCreateAccount();
 
-    const submitButton = screen.getByRole("button", { name: "Send sign-in code" });
+    const submitButton = screen.getByRole("button", { name: "Send Sign-In Code" });
 
     // Nothing typed yet: genuinely disabled.
     expect(submitButton).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Robin" } });
+    fireEvent.change(screen.getByLabelText("Your Name"), { target: { value: "Robin" } });
     expect(submitButton).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
@@ -102,14 +121,14 @@ describe("SignInForm — create-account branch", () => {
     // Confirm password not yet entered: still genuinely disabled.
     expect(submitButton).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText("Confirm password"), {
+    fireEvent.change(screen.getByLabelText("Confirm Password"), {
       target: { value: "does-not-match" },
     });
     // Both filled but mismatched: still genuinely disabled.
     expect(submitButton).toBeDisabled();
     expect(onSignedIn).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText("Confirm password"), {
+    fireEvent.change(screen.getByLabelText("Confirm Password"), {
       target: { value: "correct-horse-battery" },
     });
     // Matching, bunny name never touched: now enabled - bunny name is genuinely optional.
@@ -154,7 +173,7 @@ describe("SignInForm — create-account branch", () => {
     await requestCreateCode("new@example.com", "Robin");
 
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
     await waitFor(() =>
       expect(onSignedIn).toHaveBeenCalledWith({
@@ -178,7 +197,7 @@ describe("SignInForm — create-account branch", () => {
     });
   });
 
-  it("surfaces an inline AUTH_SET_PASSWORD failure with a Retry button in place of Verify code, without calling onSignedIn", async () => {
+  it("surfaces an inline AUTH_SET_PASSWORD failure with a Retry button in place of Verify Code, without calling onSignedIn", async () => {
     const onSignedIn = vi.fn();
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
@@ -194,13 +213,13 @@ describe("SignInForm — create-account branch", () => {
     render(<SignInForm onSignedIn={onSignedIn} />);
     await requestCreateCode();
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /password should be at least 6 characters/i
     );
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Verify code" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Verify Code" })).not.toBeInTheDocument();
     expect(onSignedIn).not.toHaveBeenCalled();
   });
 
@@ -231,7 +250,7 @@ describe("SignInForm — create-account branch", () => {
     render(<SignInForm onSignedIn={onSignedIn} />);
     await requestCreateCode();
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
     const retryButton = await screen.findByRole("button", { name: "Retry" });
     expect(onSignedIn).not.toHaveBeenCalled();
@@ -265,11 +284,11 @@ describe("SignInForm — create-account branch", () => {
     await requestCreateCode();
 
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "00000000" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/token has expired or is invalid/i);
     expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Verify code" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Verify Code" })).toBeInTheDocument();
     expect(onSignedIn).not.toHaveBeenCalled();
   });
 
@@ -332,7 +351,7 @@ describe("SignInForm — sign-in branch: password option", () => {
 
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "hunter22-plus" } });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith({
@@ -361,7 +380,7 @@ describe("SignInForm — sign-in branch: password option", () => {
 
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong" } });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign In" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/invalid login credentials/i);
     expect(onSignedIn).not.toHaveBeenCalled();
@@ -371,7 +390,7 @@ describe("SignInForm — sign-in branch: password option", () => {
     render(<SignInForm onSignedIn={vi.fn()} />);
     goToSignInWithPassword();
 
-    const submitButton = screen.getByRole("button", { name: "Sign in" });
+    const submitButton = screen.getByRole("button", { name: "Sign In" });
     expect(submitButton).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
@@ -397,7 +416,7 @@ describe("SignInForm — sign-in branch: code option (unchanged OTP round trip)"
     await requestSignInCode();
 
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
     await waitFor(() =>
       expect(onSignedIn).toHaveBeenCalledWith({
@@ -422,29 +441,29 @@ describe("SignInForm — sign-in branch: code option (unchanged OTP round trip)"
     await requestSignInCode();
 
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "00000000" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/token has expired or is invalid/i);
     expect(screen.getByLabelText("Code")).toBeInTheDocument();
     expect(onSignedIn).not.toHaveBeenCalled();
   });
 
-  it('shows a "Request a new code" button once a code has been requested, not before', async () => {
+  it('shows a "Request a New Code" button once a code has been requested, not before', async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
 
     render(<SignInForm onSignedIn={vi.fn()} />);
     goToSignInWithCode();
 
-    expect(screen.queryByRole("button", { name: "Request a new code" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request a New Code" })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send Sign-In Code" }));
     await screen.findByLabelText("Code");
 
-    expect(screen.getByRole("button", { name: "Request a new code" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Request a New Code" })).toBeInTheDocument();
   });
 
-  it('"Request a new code" re-fires AUTH_REQUEST_OTP for the same email and clears the entered code', async () => {
+  it('"Request a New Code" re-fires AUTH_REQUEST_OTP for the same email and clears the entered code', async () => {
     const sendMessageSpy = vi
       .spyOn(messenger, "sendMessage")
       .mockImplementation(async (message: any) => {
@@ -458,7 +477,7 @@ describe("SignInForm — sign-in branch: code option (unchanged OTP round trip)"
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "11111111" } });
     expect(screen.getByLabelText("Code")).toHaveValue("11111111");
 
-    fireEvent.click(screen.getByRole("button", { name: "Request a new code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Request a New Code" }));
 
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith({
@@ -470,7 +489,7 @@ describe("SignInForm — sign-in branch: code option (unchanged OTP round trip)"
     expect(screen.getByLabelText("Code")).toHaveValue("");
   });
 
-  it('"Request a new code" surfaces an error and leaves the entered code untouched on failure', async () => {
+  it('"Request a New Code" surfaces an error and leaves the entered code untouched on failure', async () => {
     let requestCount = 0;
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "AUTH_REQUEST_OTP") {
@@ -484,10 +503,24 @@ describe("SignInForm — sign-in branch: code option (unchanged OTP round trip)"
     await requestSignInCode("a@example.com");
 
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "22222222" } });
-    fireEvent.click(screen.getByRole("button", { name: "Request a new code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Request a New Code" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/too many requests/i);
     expect(screen.getByLabelText("Code")).toHaveValue("22222222");
+  });
+
+  it("a back button on the code step returns to the email step, not the entry choice", async () => {
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
+    render(<SignInForm onSignedIn={vi.fn()} />);
+    await requestSignInCode("a@example.com");
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Code")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Sign in (one-time code)" })
+    ).not.toBeInTheDocument();
   });
 
   it('"Skip for now" fully skips at every step of the sign-in branch when onSkip is provided', async () => {
@@ -495,7 +528,7 @@ describe("SignInForm — sign-in branch: code option (unchanged OTP round trip)"
 
     const onSkip1 = vi.fn();
     const { unmount: unmount1 } = render(<SignInForm onSignedIn={vi.fn()} onSkip={onSkip1} />);
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign in (one-time code)" }));
     fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
     expect(onSkip1).toHaveBeenCalledTimes(1);
     unmount1();

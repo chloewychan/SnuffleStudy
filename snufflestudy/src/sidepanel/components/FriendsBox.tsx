@@ -10,7 +10,80 @@ import { SignInForm } from "../../shared/ui/SignInForm";
 import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 import { useRegisterRefresh } from "../refresh/RefreshRegistryContext";
 import { useNudgeVaultItems } from "../nudgeVault/useNudgeVaultItems";
-import { FriendSettingsFields } from "../../options/pages/FriendsPage";
+import { TOGGLE_FIELDS } from "../../options/pages/FriendsPage";
+import { Modal } from "./ui/Modal";
+import { ButtonList } from "./ui/ButtonList";
+import { ButtonIcon } from "./ui/ButtonIcon";
+import { ButtonBool } from "./ui/ButtonBool";
+import { ButtonLarge } from "./ui/ButtonLarge";
+import { Input } from "./ui/Input";
+
+// design-specs/frames/popup-friend.json's "Tracking" list groups the first 3 fields (nudge
+// send/receive, distraction attempts) in pink and the last 4 (the v4.1 Task 10 sharing fields) in
+// beige - the daily-digest checkbox the spec still shows is NOT included here: it was
+// deliberately dropped from TOGGLE_FIELDS in v4.1 Task 9 (see that file's own comment), the same
+// "confirmed not to exist in the product, don't rebuild it" precedent as the old plan's "Enter
+// Office Building" button.
+const TRACKING_FIELD_COLOUR: ("pink" | "beige")[] = ["pink", "pink", "pink", "beige", "beige", "beige", "beige"];
+
+function FriendOptionsModal({
+  friendId,
+  name,
+  settings,
+  savingKey,
+  onToggle,
+  onRemove,
+  removing,
+  onClose,
+}: {
+  friendId: string;
+  name: string;
+  settings: FriendshipSettings | undefined;
+  savingKey: string | null;
+  onToggle: (friendId: string, field: keyof FriendshipSettingsPatch, checked: boolean) => void;
+  onRemove: (friendId: string) => void;
+  removing: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Modal title={name} onClose={onClose}>
+      {!settings && (
+        <p>
+          No settings row yet for this friend — you may not have added each other as friends yet,
+          or they joined before this feature existed.
+        </p>
+      )}
+      {settings && (
+        <>
+          <h3 className="friend-options-modal__title">Tracking</h3>
+          <ul className="friend-options-modal__list">
+            {TOGGLE_FIELDS.map(({ key, label }, i) => {
+              const checked = Boolean(settings[key]);
+              const fieldKey = `${friendId}:${key}`;
+              const saving = savingKey === fieldKey;
+              return (
+                <li key={fieldKey} className={saving ? "friend-options-modal__item--saving" : undefined}>
+                  <ButtonList
+                    shape="square"
+                    colour={TRACKING_FIELD_COLOUR[i]}
+                    role="checkbox"
+                    selected={checked}
+                    onClick={saving ? undefined : () => onToggle(friendId, key, !checked)}
+                    aria-label={label}
+                  />
+                  <span>{label}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+      <ButtonLarge onClick={() => onRemove(friendId)} disabled={removing}>
+        {removing ? "Removing…" : "Remove Friend"}
+      </ButtonLarge>
+    </Modal>
+  );
+}
 
 // v4.1 Task 9: replaces FriendGroupPanel.tsx's friend-picker/nudge-send half and the old
 // Settings -> Account "Your friends"/"Add a friend"/"Invite a friend" sections (scope doc's
@@ -399,45 +472,42 @@ export function FriendsBox() {
       {friendIds !== null && friendIds.length > 0 && (
         <ul className="friends-box__list">
           {friendIds.map((friendId) => (
-            <li key={friendId}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={selectedFriendIds.has(friendId)}
-                  onChange={() => toggleFriendSelected(friendId)}
-                />
-                {displayName(friendId)}
-              </label>
-              <button
-                type="button"
-                onClick={() =>
-                  setOpenOptionsForFriendId((prev) => (prev === friendId ? null : friendId))
-                }
-              >
-                {openOptionsForFriendId === friendId ? "Hide options" : "Options"}
-              </button>
-              {openOptionsForFriendId === friendId && (
-                <div className="friends-box__options-popover">
-                  {settingsError && (
-                    <p role="alert">Couldn't load friend settings: {settingsError}.</p>
-                  )}
-                  <FriendSettingsFields
-                    friendId={friendId}
-                    settings={settingsByFriend[friendId]}
-                    savingKey={savingKey}
-                    onToggle={handleToggleSetting}
-                    onRemove={handleRemoveFriend}
-                    removing={removingId === friendId}
-                  />
-                </div>
-              )}
+            <li key={friendId} className="friends-box__friend">
+              <ButtonList
+                shape="square"
+                colour="white"
+                role="checkbox"
+                selected={selectedFriendIds.has(friendId)}
+                onClick={() => toggleFriendSelected(friendId)}
+                aria-label={displayName(friendId)}
+              />
+              <span className="friends-box__friend-name">{displayName(friendId)}</span>
+              <ButtonIcon
+                icon="options"
+                aria-label={`${displayName(friendId)} options`}
+                onClick={() => setOpenOptionsForFriendId(friendId)}
+              />
             </li>
           ))}
         </ul>
       )}
+      {settingsError && <p role="alert">Couldn't load friend settings: {settingsError}.</p>}
       {saveError && <p role="alert">Couldn't save: {saveError}. Please try again.</p>}
       {removeError && (
         <p role="alert">Couldn't remove this friend: {removeError}. Please try again.</p>
+      )}
+
+      {openOptionsForFriendId && (
+        <FriendOptionsModal
+          friendId={openOptionsForFriendId}
+          name={displayName(openOptionsForFriendId)}
+          settings={settingsByFriend[openOptionsForFriendId]}
+          savingKey={savingKey}
+          onToggle={handleToggleSetting}
+          onRemove={handleRemoveFriend}
+          removing={removingId === openOptionsForFriendId}
+          onClose={() => setOpenOptionsForFriendId(null)}
+        />
       )}
 
       <section className="friends-box__nudge">
@@ -447,10 +517,20 @@ export function FriendsBox() {
         {!vaultLoading && vaultItems.length === 0 && !vaultError && (
           <p>No saved nudges yet — add one below in the Nudge Vault.</p>
         )}
-        {vaultItems.length > 0 && (
-          <label>
-            Nudge Vault item
-            <select value={vaultNudgeKey} onChange={(e) => setVaultNudgeKey(e.target.value)}>
+        <div className="friends-box__action-row">
+          <ButtonLarge
+            onClick={handleNudge}
+            disabled={nudging || !vaultNudgeKey || selectedFriendIds.size === 0}
+          >
+            {nudging ? "Sending…" : `Nudge (${selectedFriendIds.size} selected)`}
+          </ButtonLarge>
+          {vaultItems.length > 0 && (
+            <Input
+              variant="dropdown"
+              aria-label="Nudge Vault item"
+              value={vaultNudgeKey}
+              onChange={(e) => setVaultNudgeKey(e.target.value)}
+            >
               <option value="">Choose a saved nudge</option>
               {vaultItems.map((item) => (
                 <option key={`${item.kind}:${item.id}`} value={`${item.kind}:${item.id}`}>
@@ -459,52 +539,68 @@ export function FriendsBox() {
                     : `Audio clip (${Math.round(item.durationMs / 1000)}s)`}
                 </option>
               ))}
-            </select>
-          </label>
-        )}
-        <button
-          type="button"
-          onClick={handleNudge}
-          disabled={nudging || !vaultNudgeKey || selectedFriendIds.size === 0}
-        >
-          {nudging ? "Sending…" : `Nudge (${selectedFriendIds.size} selected)`}
-        </button>
+            </Input>
+          )}
+        </div>
         {nudgeError && <p role="alert">{nudgeError}</p>}
       </section>
 
       <section className="friends-box__add-to-room">
-        <h3>Add to room</h3>
+        <h3>Add to Room</h3>
         {roomsError && <p role="alert">Couldn't load study rooms: {roomsError}.</p>}
         {rooms !== null && rooms.length === 0 && !roomsError && <p>No study rooms yet.</p>}
-        {rooms !== null && rooms.length > 0 && (
-          <label>
-            Study room
-            <select value={roomToAddTo} onChange={(e) => setRoomToAddTo(e.target.value)}>
+        <div className="friends-box__action-row">
+          <ButtonLarge
+            onClick={handleAddToRoom}
+            disabled={addingToRoom || !roomToAddTo || selectedFriendIds.size === 0}
+          >
+            {addingToRoom ? "Adding…" : `Add to Room (${selectedFriendIds.size} selected)`}
+          </ButtonLarge>
+          {rooms !== null && rooms.length > 0 && (
+            <Input
+              variant="dropdown"
+              aria-label="Study room"
+              value={roomToAddTo}
+              onChange={(e) => setRoomToAddTo(e.target.value)}
+            >
               <option value="">Choose a room</option>
               {rooms.map((room) => (
                 <option key={room.id} value={room.id}>
                   {room.name}
                 </option>
               ))}
-            </select>
-          </label>
-        )}
-        <button
-          type="button"
-          onClick={handleAddToRoom}
-          disabled={addingToRoom || !roomToAddTo || selectedFriendIds.size === 0}
-        >
-          {addingToRoom ? "Adding…" : `Add to room (${selectedFriendIds.size} selected)`}
-        </button>
+            </Input>
+          )}
+        </div>
         {addToRoomError && <p role="alert">{addToRoomError}</p>}
       </section>
 
+      <section className="friends-box__add">
+        <h3>Add Friend</h3>
+        <form className="friends-box__add-row" onSubmit={(e) => void handleAddFriend(e)}>
+          <Input
+            aria-label="Invite code"
+            placeholder="Invite code"
+            required
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+          />
+          <ButtonBool
+            icon="check"
+            type="submit"
+            aria-label={joinBusy ? "Adding friend…" : "Add friend"}
+            disabled={joinBusy || !joinCode}
+          />
+        </form>
+        {joinError && <p role="alert">Couldn't add your friend: {joinError}. Please try again.</p>}
+      </section>
+
       <section className="friends-box__invite">
-        <h3>Invite a friend</h3>
+        <h3>Invite Friend</h3>
         <p>Generates a one-time invite code you can share with a friend to connect.</p>
-        <button type="button" onClick={() => void handleInviteAFriend()} disabled={inviteBusy}>
-          {inviteBusy ? "Setting up your invite…" : "Invite a friend"}
-        </button>
+        <ButtonLarge onClick={() => void handleInviteAFriend()} disabled={inviteBusy}>
+          {inviteBusy ? "Setting up your invite…" : "Generate Invite Code"}
+        </ButtonLarge>
         {inviteError && (
           <p role="alert">Couldn't generate an invite code: {inviteError}. Please try again.</p>
         )}
@@ -514,25 +610,6 @@ export function FriendsBox() {
             {new Date(inviteCode.expiresAt).toLocaleString()})
           </p>
         )}
-      </section>
-
-      <section className="friends-box__add">
-        <h3>Add a friend</h3>
-        <form onSubmit={(e) => void handleAddFriend(e)}>
-          <label>
-            Invite code
-            <input
-              type="text"
-              required
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-            />
-          </label>
-          <button type="submit" disabled={joinBusy || !joinCode}>
-            {joinBusy ? "Adding…" : "Add friend"}
-          </button>
-        </form>
-        {joinError && <p role="alert">Couldn't add your friend: {joinError}. Please try again.</p>}
       </section>
     </div>
   );

@@ -118,6 +118,19 @@
                   "boundVariables": {}
                 }
               },
+              "interactions": [
+                {
+                  "trigger": "ON_HOVER",
+                  "actions": [
+                    {
+                      "type": "NODE",
+                      "destinationId": "285:1668",
+                      "navigation": "CHANGE_TO",
+                      "transition": null
+                    }
+                  ]
+                }
+              ],
               "children": [
                 {
                   "id": "I284:583;168:1316",
@@ -218,6 +231,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "168:1435",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1427",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:877;168:1368",
@@ -284,6 +310,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "168:1435",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1427",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:880;168:1368",
@@ -350,6 +389,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "168:1435",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1427",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:883;168:1368",
@@ -416,6 +468,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "168:1435",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1427",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:895;168:1368",
@@ -482,6 +547,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "183:904",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1427",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:899;183:905",
@@ -548,6 +626,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "183:904",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1427",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:910;183:905",
@@ -614,6 +705,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "183:904",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1427",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:914;183:905",
@@ -680,6 +784,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "183:904",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1427",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:918;183:905",
@@ -785,6 +902,19 @@
               "boundVariables": {}
             }
           },
+          "interactions": [
+            {
+              "trigger": "ON_HOVER",
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "168:1419",
+                  "navigation": "CHANGE_TO",
+                  "transition": null
+                }
+              ]
+            }
+          ],
           "children": [
             {
               "id": "I186:412;168:1350",

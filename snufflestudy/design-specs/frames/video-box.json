@@ -56,6 +56,19 @@
       "variantProps": {
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_CLICK",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "177:2717",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "177:2711",
@@ -192,6 +205,19 @@
       "variantProps": {
         "Property": "selected"
       },
+      "interactions": [
+        {
+          "trigger": "ON_CLICK",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "177:2718",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "177:2715",

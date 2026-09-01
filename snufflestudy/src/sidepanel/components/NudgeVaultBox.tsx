@@ -5,6 +5,9 @@ import type { ProducerTag } from "../../domain/rooms/producerTag";
 import type { NudgeVaultText } from "../../infrastructure/backend/nudgeVaultApi";
 import { useRegisterRefresh } from "../refresh/RefreshRegistryContext";
 import { ProducerTagRecorder } from "./ProducerTagRecorder";
+import { ButtonIcon } from "./ui/ButtonIcon";
+import { ButtonBool } from "./ui/ButtonBool";
+import { Input } from "./ui/Input";
 
 // v4.1 Task 9: replaces FriendGroupPanel.tsx's old "Friend activity" panel with the user's own
 // Nudge Vault - a library of saved audio and written nudges, reusable across every "pick a nudge
@@ -46,19 +49,27 @@ function VaultAudioTagRow({
   }
 
   return (
-    <li>
+    <li className="nudge-vault-box__list-item">
       <span>{Math.round(tag.durationMs / 1000)}s clip</span>
-      {playbackUrl ? (
-        // eslint-disable-next-line jsx-a11y/media-has-caption -- a short voice tag, not video
-        <audio src={playbackUrl} controls autoPlay />
-      ) : (
-        <button type="button" onClick={handlePlay} disabled={loading}>
-          {loading ? "Loading…" : "Play"}
-        </button>
-      )}
-      <button type="button" onClick={onDelete} disabled={deleting}>
-        {deleting ? "Deleting…" : "Delete"}
-      </button>
+      <div className="nudge-vault-box__list-item-actions">
+        {playbackUrl ? (
+          // eslint-disable-next-line jsx-a11y/media-has-caption -- a short voice tag, not video
+          <audio src={playbackUrl} controls autoPlay />
+        ) : (
+          <ButtonIcon
+            icon="play-pause"
+            aria-label={loading ? "Loading…" : "Play"}
+            onClick={handlePlay}
+            disabled={loading}
+          />
+        )}
+        <ButtonIcon
+          icon="trash"
+          aria-label={deleting ? "Deleting…" : "Delete"}
+          onClick={onDelete}
+          disabled={deleting}
+        />
+      </div>
       {error && <p role="alert">{error}</p>}
     </li>
   );
@@ -79,6 +90,14 @@ export function NudgeVaultBox() {
   const [saveTextError, setSaveTextError] = useState<string | null>(null);
   const [deletingTextId, setDeletingTextId] = useState<string | null>(null);
   const [deleteTextError, setDeleteTextError] = useState<string | null>(null);
+  // design-specs/frames/page-friends.json's written-nudge list rows each carry their own Edit
+  // icon (button-icon, Type=edit) - there's no NUDGE_VAULT_TEXT_UPDATE backend action, so "edit"
+  // here composes the existing CREATE+DELETE actions: Edit loads the row's text back into the
+  // same add-a-nudge field above, and submitting while `editingTextId` is set deletes the
+  // original row once the edited replacement has actually saved. If that trailing delete fails,
+  // the edited text is already saved (no data loss) - the stale original just needs its own
+  // manual Delete too, same as any other saved nudge.
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
 
   function loadAudioTags() {
     setAudioError(null);
@@ -176,9 +195,10 @@ export function NudgeVaultBox() {
       .finally(() => setDeletingAudioId(null));
   }
 
-  function handleAddText() {
+  function handleSubmitText() {
     const trimmed = newText.trim();
     if (!trimmed) return;
+    const replacingId = editingTextId;
     setSavingText(true);
     setSaveTextError(null);
     sendMessage<{ ok: boolean; text?: NudgeVaultText; error?: string }>({
@@ -191,6 +211,13 @@ export function NudgeVaultBox() {
           return;
         }
         setNewText("");
+        setEditingTextId(null);
+        if (replacingId) {
+          sendMessage<{ ok: boolean; error?: string }>({
+            type: "NUDGE_VAULT_TEXT_DELETE",
+            payload: { id: replacingId },
+          }).catch((err) => console.error("Failed to remove the pre-edit nudge text", err));
+        }
         loadTexts();
       })
       .catch((err) => {
@@ -198,6 +225,18 @@ export function NudgeVaultBox() {
         setSaveTextError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => setSavingText(false));
+  }
+
+  function handleStartEdit(text: NudgeVaultText) {
+    setEditingTextId(text.id);
+    setNewText(text.body);
+    setSaveTextError(null);
+  }
+
+  function handleCancelEdit() {
+    setEditingTextId(null);
+    setNewText("");
+    setSaveTextError(null);
   }
 
   function handleDeleteText(id: string) {
@@ -213,6 +252,7 @@ export function NudgeVaultBox() {
           return;
         }
         setTexts((prev) => (prev ? prev.filter((t) => t.id !== id) : prev));
+        setEditingTextId((prev) => (prev === id ? null : prev));
       })
       .catch((err) => {
         console.error("Failed to delete a saved written nudge", err);
@@ -223,15 +263,18 @@ export function NudgeVaultBox() {
 
   return (
     <div className="nudge-vault-box">
-      <h2>Nudge Vault</h2>
+      <h2 className="sp-card__title">Nudge Vault</h2>
 
-      <section className="nudge-vault-box__audio">
-        <h3>Audio nudges</h3>
-        <ProducerTagRecorder
-          onSend={(blob, durationMs) => void handleRecordAndSave(blob, durationMs)}
-          sending={savingAudio}
-          sendLabel="Save to vault"
-        />
+      <section className="nudge-vault-box__section">
+        <div className="nudge-vault-box__record">
+          <span className="sp-label">Audio Nudges (10s max)</span>
+          <ProducerTagRecorder
+            onSend={(blob, durationMs) => void handleRecordAndSave(blob, durationMs)}
+            sending={savingAudio}
+            sendLabel="Save to vault"
+            idleLabel="Record New Audio Nudge"
+          />
+        </div>
         {saveAudioError && <p role="alert">Couldn't save: {saveAudioError}. Please try again.</p>}
         {audioError && <p role="alert">Couldn't load your saved audio nudges: {audioError}.</p>}
         {audioTags === null && !audioError && <p>Loading…</p>}
@@ -239,7 +282,7 @@ export function NudgeVaultBox() {
           <p>No saved audio nudges yet — record one above.</p>
         )}
         {audioTags !== null && audioTags.length > 0 && (
-          <ul>
+          <ul className="nudge-vault-box__list">
             {audioTags.map((tag) => (
               <VaultAudioTagRow
                 key={tag.id}
@@ -253,27 +296,34 @@ export function NudgeVaultBox() {
         {deleteAudioError && <p role="alert">{deleteAudioError}</p>}
       </section>
 
-      <section className="nudge-vault-box__written">
-        <h3>Written nudges</h3>
-        <label>
-          New nudge
-          <input
-            type="text"
-            value={newText}
-            onChange={(e) => setNewText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleAddText();
-              }
-            }}
-            placeholder="e.g. You've got this!"
-            disabled={savingText}
-          />
-        </label>
-        <button type="button" onClick={handleAddText} disabled={savingText || !newText.trim()}>
-          {savingText ? "Adding…" : "Add"}
-        </button>
+      <section className="nudge-vault-box__section">
+        <div className="nudge-vault-box__record">
+          <span className="sp-label">Written Nudges</span>
+          <div className="nudge-vault-box__input-row">
+            <Input
+              value={newText}
+              onChange={(e) => setNewText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSubmitText();
+                }
+              }}
+              placeholder="New Written Nudge"
+              aria-label="New Written Nudge"
+              disabled={savingText}
+            />
+            {editingTextId && (
+              <ButtonBool icon="x" aria-label="Cancel edit" onClick={handleCancelEdit} disabled={savingText} />
+            )}
+            <ButtonBool
+              icon="check"
+              aria-label={savingText ? "Adding…" : editingTextId ? "Save edit" : "Add"}
+              onClick={handleSubmitText}
+              disabled={savingText || !newText.trim()}
+            />
+          </div>
+        </div>
         {saveTextError && <p role="alert">Couldn't save: {saveTextError}. Please try again.</p>}
         {textsError && <p role="alert">Couldn't load your saved written nudges: {textsError}.</p>}
         {texts === null && !textsError && <p>Loading…</p>}
@@ -281,17 +331,24 @@ export function NudgeVaultBox() {
           <p>No saved written nudges yet — add one above.</p>
         )}
         {texts !== null && texts.length > 0 && (
-          <ul>
+          <ul className="nudge-vault-box__list">
             {texts.map((text) => (
-              <li key={text.id}>
+              <li key={text.id} className="nudge-vault-box__list-item">
                 <span>{text.body}</span>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteText(text.id)}
-                  disabled={deletingTextId === text.id}
-                >
-                  {deletingTextId === text.id ? "Deleting…" : "Delete"}
-                </button>
+                <div className="nudge-vault-box__list-item-actions">
+                  <ButtonIcon
+                    icon="edit"
+                    aria-label={`Edit ${text.body}`}
+                    onClick={() => handleStartEdit(text)}
+                    disabled={deletingTextId === text.id}
+                  />
+                  <ButtonIcon
+                    icon="trash"
+                    aria-label={deletingTextId === text.id ? "Deleting…" : "Delete"}
+                    onClick={() => handleDeleteText(text.id)}
+                    disabled={deletingTextId === text.id}
+                  />
+                </div>
               </li>
             ))}
           </ul>

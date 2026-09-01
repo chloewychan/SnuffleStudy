@@ -10,6 +10,11 @@ import {
   registerOverlayContentScript,
   unregisterOverlayContentScript,
 } from "../../../background/contentScriptRegistration";
+import { ButtonList } from "../ui/ButtonList";
+import { Input } from "../ui/Input";
+import { ButtonBool } from "../ui/ButtonBool";
+import { ButtonIcon } from "../ui/ButtonIcon";
+import { ButtonLarge } from "../ui/ButtonLarge";
 
 // v3.3 Task 7: extracted verbatim from OptionsApp.tsx's inline "settings" view - same state
 // (settings, trackingChanging, passcode/oldPasscode/etc.), same handlers (updateSettings,
@@ -196,10 +201,11 @@ export function SettingsPage({
 
   return (
     <div className="settings-page">
-      <section>
-        <h2>Tracking</h2>
-        <label>
+      <section className="settings-page__section">
+        <h2 className="sp-label">Tracking</h2>
+        <label className="settings-page__list-item">
           <input
+            className="settings-page__marker"
             type="radio"
             checked={settings.trackingTier === "activity-only"}
             onChange={() => handleTrackingTierChange("activity-only")}
@@ -207,8 +213,9 @@ export function SettingsPage({
           />
           Activity-only
         </label>
-        <label>
+        <label className="settings-page__list-item">
           <input
+            className="settings-page__marker"
             type="radio"
             checked={settings.trackingTier === "detailed"}
             onChange={() => handleTrackingTierChange("detailed")}
@@ -216,8 +223,9 @@ export function SettingsPage({
           />
           Detailed site tracking
         </label>
-        <label>
+        <label className="settings-page__list-item">
           <input
+            className="settings-page__marker"
             type="checkbox"
             checked={settings.activityTrackingEnabled}
             disabled={settings.trackingTier !== "activity-only"}
@@ -227,10 +235,11 @@ export function SettingsPage({
         </label>
       </section>
 
-      <section>
-        <h2>Friends</h2>
-        <label>
+      <section className="settings-page__section">
+        <h2 className="sp-label">Friends</h2>
+        <label className="settings-page__list-item">
           <input
+            className="settings-page__marker"
             type="checkbox"
             checked={settings.friendSyncEnabled}
             onChange={(e) => updateSettings({ friendSyncEnabled: e.target.checked })}
@@ -239,10 +248,11 @@ export function SettingsPage({
         </label>
       </section>
 
-      <section>
-        <h2>Notifications</h2>
-        <label>
+      <section className="settings-page__section">
+        <h2 className="sp-label">Notifications</h2>
+        <label className="settings-page__list-item">
           <input
+            className="settings-page__marker"
             type="checkbox"
             checked={settings.liveNudgesNotificationsEnabled}
             onChange={(e) =>
@@ -251,16 +261,18 @@ export function SettingsPage({
           />
           Show a notification when a friend sends me a live nudge
         </label>
-        <label>
+        <label className="settings-page__list-item">
           <input
+            className="settings-page__marker"
             type="checkbox"
             checked={settings.digestNotificationsEnabled}
             onChange={(e) => updateSettings({ digestNotificationsEnabled: e.target.checked })}
           />
           Show a notification for a friend's daily digest
         </label>
-        <label>
+        <label className="settings-page__list-item">
           <input
+            className="settings-page__marker"
             type="checkbox"
             checked={settings.quietHours !== null}
             onChange={(e) =>
@@ -272,73 +284,84 @@ export function SettingsPage({
           Quiet hours (suppress notification toasts during a window)
         </label>
         {settings.quietHours && (
-          <>
-            <label>
-              Quiet hours start (0-23, local time)
-              <input
-                type="number"
-                min={0}
-                max={23}
-                value={settings.quietHours.startHour}
-                onChange={(e) =>
-                  updateSettings({
-                    quietHours: {
-                      ...settings.quietHours!,
-                      startHour: Number(e.target.value),
-                    },
-                  })
-                }
-              />
-            </label>
-            <label>
-              Quiet hours end (0-23, local time)
-              <input
-                type="number"
-                min={0}
-                max={23}
-                value={settings.quietHours.endHour}
-                onChange={(e) =>
-                  updateSettings({
-                    quietHours: { ...settings.quietHours!, endHour: Number(e.target.value) },
-                  })
-                }
-              />
-            </label>
-          </>
+          <div className="settings-page__time-period">
+            <span className="sp-label">Start</span>
+            <Input
+              type="number"
+              min={0}
+              max={23}
+              aria-label="Quiet hours start (0-23, local time)"
+              value={settings.quietHours.startHour}
+              onChange={(e) =>
+                updateSettings({
+                  quietHours: {
+                    ...settings.quietHours!,
+                    startHour: Number(e.target.value),
+                  },
+                })
+              }
+            />
+            <span className="sp-label">to</span>
+            <span className="sp-label">End</span>
+            <Input
+              type="number"
+              min={0}
+              max={23}
+              aria-label="Quiet hours end (0-23, local time)"
+              value={settings.quietHours.endHour}
+              onChange={(e) =>
+                updateSettings({
+                  quietHours: { ...settings.quietHours!, endHour: Number(e.target.value) },
+                })
+              }
+            />
+            {/* No new save semantics - quiet hours already saves reactively on every change
+                above, same as every other field on this page. This just gives
+                frame-time-period's own button-bool a real (if redundant) action: force a fresh
+                save of the current values, rather than rendering it as a dead decoration. */}
+            <ButtonBool
+              icon="check"
+              aria-label="Apply quiet hours"
+              onClick={() => updateSettings({ quietHours: settings.quietHours })}
+            />
+          </div>
         )}
       </section>
 
-      <section>
-        <h2>Default restricted sites</h2>
-        <label>
-          New restricted site
-          <input
-            type="text"
-            value={newRestrictedSite}
-            onChange={(e) => setNewRestrictedSite(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleAddRestrictedSite();
-              }
-            }}
-            placeholder="e.g. youtube.com"
-          />
-        </label>
-        <button
-          type="button"
-          onClick={handleAddRestrictedSite}
-          disabled={!newRestrictedSite.trim()}
-        >
-          Add
-        </button>
-        <ul>
+      <section className="settings-page__section">
+        <h2 className="sp-label">Restricted Sites</h2>
+        <div className="settings-page__add-row">
+          <span className="sp-label">Add Site</span>
+          <div className="settings-page__add-row-fields">
+            <Input
+              value={newRestrictedSite}
+              onChange={(e) => setNewRestrictedSite(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddRestrictedSite();
+                }
+              }}
+              placeholder="E.g., link"
+              aria-label="New restricted site"
+            />
+            <ButtonBool
+              icon="check"
+              aria-label="Add"
+              onClick={handleAddRestrictedSite}
+              disabled={!newRestrictedSite.trim()}
+            />
+          </div>
+        </div>
+        <ul className="settings-page__list">
           {settings.defaultRestrictedSites.map((site) => (
-            <li key={site}>
+            <li key={site} className="settings-page__list-row">
               <span>{site}</span>
-              <button type="button" onClick={() => handleDeleteRestrictedSite(site)}>
-                Delete
-              </button>
+              <ButtonIcon
+                icon="trash"
+                aria-label="Delete"
+                onClick={() => handleDeleteRestrictedSite(site)}
+              />
             </li>
           ))}
         </ul>
@@ -348,35 +371,47 @@ export function SettingsPage({
         <p role="alert">Couldn't save your changes: {saveError}. Please try again.</p>
       )}
 
-      <section>
-        <h2>Hard-block passcode</h2>
-        <input
-          data-testid="old-passcode-input"
-          type="password"
-          placeholder="Current passcode (leave blank if you've never set one)"
-          value={oldPasscode}
-          onChange={(e) => setOldPasscode(e.target.value)}
-        />
-        <input
-          data-testid="passcode-input"
-          type="password"
-          placeholder="Passcode"
-          value={passcode}
-          onChange={(e) => setPasscode(e.target.value)}
-        />
-        <input
-          data-testid="confirm-passcode-input"
-          type="password"
-          placeholder="Confirm new passcode"
-          value={confirmPasscode}
-          onChange={(e) => setConfirmPasscode(e.target.value)}
-        />
-        <button
+      <section className="settings-page__section">
+        <h2 className="sp-label">Hard-Block Passcode</h2>
+        <div className="sp-password-grid">
+          <span className="sp-label">Old Passcode</span>
+          <Input
+            data-testid="old-passcode-input"
+            type="password"
+            placeholder="Old passcode"
+            aria-label="Old passcode (leave blank if you've never set one)"
+            value={oldPasscode}
+            onChange={(e) => setOldPasscode(e.target.value)}
+          />
+          <span className="sp-label">New Passcode</span>
+          <Input
+            data-testid="passcode-input"
+            type="password"
+            placeholder="New passcode"
+            aria-label="New passcode"
+            value={passcode}
+            onChange={(e) => setPasscode(e.target.value)}
+          />
+          <span className="sp-label">Confirm New</span>
+          <Input
+            data-testid="confirm-passcode-input"
+            type="password"
+            placeholder="Confirm new passcode"
+            aria-label="Confirm new passcode"
+            value={confirmPasscode}
+            onChange={(e) => setConfirmPasscode(e.target.value)}
+          />
+        </div>
+        {/* The spec's own button-large instance here reads "Save Password" - a copy-paste slip
+            from frame-account's identically-shaped Account Password section right above it in
+            the same file (every other label in this section says "...Passcode"). Kept as "Save
+            Passcode" to match this section's own subject, not copied verbatim. */}
+        <ButtonLarge
           onClick={handleSavePasscode}
           disabled={passcode.length < 4 || passcode !== confirmPasscode || passcodeSaving}
         >
-          {passcodeSaving ? "Saving…" : "Save passcode"}
-        </button>
+          {passcodeSaving ? "Saving…" : "Save Passcode"}
+        </ButtonLarge>
         {passcodeError && (
           <p role="alert">Couldn't save your passcode: {passcodeError}. Please try again.</p>
         )}

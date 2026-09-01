@@ -5,12 +5,17 @@ import {
   isMediaPermissionError,
   openMediaPermissionTab,
 } from "../../infrastructure/media/mediaPermissions";
+import { ButtonLarge } from "./ui/ButtonLarge";
 
 interface ProducerTagRecorderProps {
   onSend: (blob: Blob, durationMs: number) => void;
   sending: boolean;
   sendLabel: string;
   sendDisabled?: boolean;
+  // design-specs/frames/page-friends.json's button-record-new-audio-nudge reads "Record New Audio
+  // Nudge", not this component's own generic default - callers outside that one spec-driven site
+  // keep the default.
+  idleLabel?: string;
 }
 
 // v2 Task 14: the shared record -> preview -> send widget used by both FriendGroupPanel.tsx and
@@ -27,7 +32,13 @@ interface ProducerTagRecorderProps {
 // audioRecorder.ts's own internal enforcement (see that module's header comment) - this
 // component's countdown/auto-stop threshold is read directly from audioRecorder.MAX_RECORDING_MS
 // so the two can never drift out of sync with each other.
-export function ProducerTagRecorder({ onSend, sending, sendLabel, sendDisabled }: ProducerTagRecorderProps) {
+export function ProducerTagRecorder({
+  onSend,
+  sending,
+  sendLabel,
+  sendDisabled,
+  idleLabel,
+}: ProducerTagRecorderProps) {
   const [recording, setRecording] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [recordError, setRecordError] = useState<string | null>(null);
@@ -105,9 +116,9 @@ export function ProducerTagRecorder({ onSend, sending, sendLabel, sendDisabled }
   return (
     <div className="producer-tag-recorder">
       {!recording && !preview && (
-        <button type="button" onClick={handleStart}>
-          Record a tag ({capSeconds}s max)
-        </button>
+        <ButtonLarge onClick={handleStart}>
+          {idleLabel ?? `Record a tag (${capSeconds}s max)`}
+        </ButtonLarge>
       )}
 
       {recording && (

@@ -13,6 +13,33 @@
   --color-btn-hover: #f6cbc0;
   --color-btn-disabled: #e5dbd2;
 
+  /* design-specs/tokens.json additions - the existing palette above already covers
+     Dark-Grey/Light-Grey/Dark-Beige/Light-Beige/White/Dark-Pink/Pink/Light-Pink by value. */
+  --color-dark-white: #f5f0eb;
+  --color-pink-50: #f6cbc080;
+  --color-light-pink-50: #f7e9dc80;
+  --color-white-50: #fdfbfa80;
+  --color-dark-white-50: #f5f0eb80;
+  --color-light-beige-50: #e5dbd280;
+
+  /* design-specs/tokens.json padding/corner/stroke scale - distinct from the semantic
+     --space and --radius scale above, used verbatim where a design-specs frame's layout
+     gap/padding/cornerRadius matches one of these exact figma values. */
+  --padding-2-5: 2.5px;
+  --padding-5: 5px;
+  --padding-7-5: 7.5px;
+  --padding-10: 10px;
+  --padding-20: 20px;
+  --padding-30: 30px;
+  --padding-50: 50px;
+  --corner-5: 5px;
+  --corner-15: 15px;
+  /* cornerRadius: 3 (button-list square variants) isn't bound to any Figma variable and has
+     no matching entry in design-specs/tokens.json - added as its own token rather than hardcoded. */
+  --corner-3: 3px;
+  --stroke-1-5: 1.5px;
+  --stroke-2: 2px;
+
   --font-display: "Pangolin", cursive;
   --font-body: "Shantell Sans", sans-serif;
 
@@ -22,22 +49,31 @@
   --space-4: 24px;
 
   --size-icon-md: 40px;
-  --size-meter-track-height: 15px;
-  /* Fix 8 (final-review fix wave): the Show Bunny toggle switch's dimensions - previously
-     hardcoded px values in sidepanel.css's .sp-toggle rules, violating this project's tokens-only
-     convention (same category of fix as --size-icon-md/--size-meter-track-height above). */
-  --size-toggle-width: 44px;
-  --size-toggle-height: 24px;
-  --size-toggle-knob-size: 20px;
-  --size-toggle-knob-offset: 2px;
+  /* button-list (design-specs/frames/button-list.json) circle/square markers carry no explicit
+     width/height in the spec (unbound FIXED sizing) - picked to read clearly as a small bullet. */
+  --size-list-marker: 10px;
+  /* button-icon/button-bool (design-specs/frames/button-icon.json, button-bool.json) containers
+     carry no explicit width/height either - sized to comfortably fit their ~9-12px glyphs. */
+  --size-icon-sm: 24px;
+  /* button-large-icon (design-specs/frames/button-large-icon.json) container - same gap, its
+     mic/camera glyphs run ~14-21px. */
+  --size-btn-large-icon: 36px;
 
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 16px;
 
+  --font-size-xs: 10px;
   --font-size-sm: 12px;
   --font-size-md: 14px;
+  --font-size-tab: 15px;
   --font-size-lg: 20px;
+  /* header-bar (design-specs/frames/header-bar.json) "SnuffleStudy" title */
+  --font-size-header-title: 35px;
+  /* Section-card headings (e.g. "About the Bun") - same value as --font-size-tab (15px) but a
+     separate token since the two represent different design roles that just happen to share a
+     size right now. */
+  --font-size-heading-sm: 15px;
 
   --motion-duration-fast: 120ms;
   --motion-duration-normal: 240ms;

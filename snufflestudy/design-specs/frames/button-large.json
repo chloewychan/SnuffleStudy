@@ -60,6 +60,19 @@
       "variantProps": {
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1419",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1350",

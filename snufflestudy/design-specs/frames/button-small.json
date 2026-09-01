@@ -49,6 +49,19 @@
         "Colour": "pink",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1423",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1356",
@@ -114,6 +127,19 @@
         "Colour": "beige",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1422",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1353",
@@ -180,6 +206,19 @@
         "Colour": "white",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "173:2146",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "173:2145",

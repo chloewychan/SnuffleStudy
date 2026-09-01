@@ -15,6 +15,7 @@ beforeEach(() => {
   vi.stubGlobal("chrome", {
     runtime: {
       openOptionsPage: vi.fn(),
+      getURL: vi.fn((path: string) => `/chrome-extension://fake/${path}`),
     },
   });
 });
@@ -38,7 +39,7 @@ describe("SettingsTab", () => {
 
     expect(await screen.findByLabelText("Detailed site tracking")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Account" })).toBeInTheDocument();
-    expect(await screen.findByText("Session history")).toBeInTheDocument();
+    expect(await screen.findByText("Session History")).toBeInTheDocument();
 
     // No sub-nav buttons of the old shape exist anymore.
     expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument();

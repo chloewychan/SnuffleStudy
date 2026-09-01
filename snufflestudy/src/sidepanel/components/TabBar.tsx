@@ -1,3 +1,5 @@
+import { ButtonTab } from "./ui/ButtonTab";
+
 export type SidePanelTab = "bunny" | "study" | "friends" | "settings";
 
 const TABS: { id: SidePanelTab; label: string }[] = [
@@ -12,22 +14,21 @@ interface TabBarProps {
   onSelect: (tab: SidePanelTab) => void;
 }
 
+// design-specs/frames/nagivation-bar.json (component 173:1609) - composes the button-tab
+// primitive built in Phase 1.
 export function TabBar({ active, onSelect }: TabBarProps) {
   return (
     <div className="sp-tabbar" role="tablist">
       {TABS.map(({ id, label }) => (
-        <button
+        <ButtonTab
           key={id}
           id={`sp-tab-${id}`}
-          type="button"
-          role="tab"
-          aria-selected={id === active}
           aria-controls="sp-tabpanel"
-          className={`sp-tabbar__tab${id === active ? " sp-tabbar__tab--active" : ""}`}
+          selected={id === active}
           onClick={() => onSelect(id)}
         >
           {label}
-        </button>
+        </ButtonTab>
       ))}
     </div>
   );

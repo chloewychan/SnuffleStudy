@@ -86,6 +86,30 @@
               "boundVariables": {}
             }
           },
+          "interactions": [
+            {
+              "trigger": "ON_HOVER",
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "285:1686",
+                  "navigation": "CHANGE_TO",
+                  "transition": null
+                }
+              ]
+            },
+            {
+              "trigger": "ON_CLICK",
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "284:421",
+                  "navigation": "NAVIGATE",
+                  "transition": null
+                }
+              ]
+            }
+          ],
           "children": [
             {
               "id": "I286:1759;284:395",
@@ -390,6 +414,19 @@
               "boundVariables": {}
             }
           },
+          "interactions": [
+            {
+              "trigger": "ON_HOVER",
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "168:1419",
+                  "navigation": "CHANGE_TO",
+                  "transition": null
+                }
+              ]
+            }
+          ],
           "children": [
             {
               "id": "I286:1774;168:1350",

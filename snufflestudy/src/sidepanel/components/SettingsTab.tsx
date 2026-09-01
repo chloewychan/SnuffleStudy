@@ -1,6 +1,7 @@
 import { AccountPage } from "../../options/pages/AccountPage";
 import { HistoryPage } from "../../options/pages/HistoryPage";
 import { SettingsPage } from "./settingsTab/SettingsPage";
+import { ButtonLarge } from "./ui/ButtonLarge";
 import type { UserSettings } from "../../domain/settings/userSettings";
 
 interface SettingsTabProps {
@@ -28,22 +29,26 @@ export function SettingsTab({ onSettingsChange }: SettingsTabProps) {
     <div className="sp-tab-content sp-settings-tab">
       <section className="sp-card">
         <SettingsPage onSettingsSaved={onSettingsChange} />
-        <button
-          type="button"
-          className="sp-settings-tab__media-callout"
-          onClick={() => {
-            // Standing convention in this codebase (see Header.tsx's "Fix 6" comment): never
-            // leave an async call triggered from a UI handler unhandled.
-            // chrome.runtime.openOptionsPage() returns a Promise that can reject (e.g.
-            // extension-context-invalidated) - Promise.resolve(...) also normalizes a test
-            // mock's openOptionsPage() returning undefined instead of a real Promise.
-            void Promise.resolve(chrome.runtime.openOptionsPage()).catch((err) =>
-              console.error("Failed to open the options page", err)
-            );
-          }}
-        >
-          Grant camera &amp; microphone access →
-        </button>
+        <div className="settings-page__section">
+          {/* No "Camera & Microphone" heading here on purpose, unlike page-settings.json's own
+              frame-camera-and-microphone - this callout deliberately doesn't duplicate the real
+              section's heading/copy, which lives once, in OptionsApp.tsx's still-inline version
+              (see this component's own header comment on why that section can't move here). */}
+          <ButtonLarge
+            onClick={() => {
+              // Standing convention in this codebase (see Header.tsx's "Fix 6" comment): never
+              // leave an async call triggered from a UI handler unhandled.
+              // chrome.runtime.openOptionsPage() returns a Promise that can reject (e.g.
+              // extension-context-invalidated) - Promise.resolve(...) also normalizes a test
+              // mock's openOptionsPage() returning undefined instead of a real Promise.
+              void Promise.resolve(chrome.runtime.openOptionsPage()).catch((err) =>
+                console.error("Failed to open the options page", err)
+              );
+            }}
+          >
+            Grant Camera &amp; Microphone Access
+          </ButtonLarge>
+        </div>
       </section>
 
       <section className="sp-card">

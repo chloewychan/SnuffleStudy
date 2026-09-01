@@ -118,6 +118,19 @@
                   "boundVariables": {}
                 }
               },
+              "interactions": [
+                {
+                  "trigger": "ON_HOVER",
+                  "actions": [
+                    {
+                      "type": "NODE",
+                      "destinationId": "285:1668",
+                      "navigation": "CHANGE_TO",
+                      "transition": null
+                    }
+                  ]
+                }
+              ],
               "children": [
                 {
                   "id": "I284:564;168:1316",
@@ -227,6 +240,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "285:1677",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:822;183:798",
@@ -307,6 +333,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "285:1677",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:827;183:798",
@@ -387,6 +426,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "285:1677",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:832;183:798",
@@ -474,6 +526,19 @@
               "boundVariables": {}
             }
           },
+          "interactions": [
+            {
+              "trigger": "ON_HOVER",
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "168:1419",
+                  "navigation": "CHANGE_TO",
+                  "transition": null
+                }
+              ]
+            }
+          ],
           "children": [
             {
               "id": "I186:410;168:1350",

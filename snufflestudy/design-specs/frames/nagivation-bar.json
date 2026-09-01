@@ -61,6 +61,19 @@
           "boundVariables": {}
         }
       },
+      "interactions": [
+        {
+          "trigger": "ON_CLICK",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "106:53",
+              "navigation": "NAVIGATE",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "I173:1601;173:1591",
@@ -137,6 +150,19 @@
           "boundVariables": {}
         }
       },
+      "interactions": [
+        {
+          "trigger": "ON_CLICK",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "106:192",
+              "navigation": "NAVIGATE",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "I173:1603;173:1591",
@@ -213,6 +239,19 @@
           "boundVariables": {}
         }
       },
+      "interactions": [
+        {
+          "trigger": "ON_CLICK",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "106:263",
+              "navigation": "NAVIGATE",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "I173:1605;173:1591",
@@ -289,6 +328,19 @@
           "boundVariables": {}
         }
       },
+      "interactions": [
+        {
+          "trigger": "ON_CLICK",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "106:345",
+              "navigation": "NAVIGATE",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "I173:1607;173:1591",

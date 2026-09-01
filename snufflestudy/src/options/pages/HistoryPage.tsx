@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { HistoryQuery, SessionEvent, SessionEventType, StudySession } from "../../domain/session/sessionTypes";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
+import { useRegisterRefresh } from "../../sidepanel/refresh/RefreshRegistryContext";
+import { Input } from "../../sidepanel/components/ui/Input";
+import { ButtonBool } from "../../sidepanel/components/ui/ButtonBool";
+import { ButtonIcon } from "../../sidepanel/components/ui/ButtonIcon";
 
 type ArchivedState = "COMPLETED" | "ABANDONED";
 type StateFilter = ArchivedState | "";
@@ -68,8 +72,13 @@ export function HistoryPage() {
   const [eventsErrorBySession, setEventsErrorBySession] = useState<Record<string, string>>({});
   const [loadingEventsFor, setLoadingEventsFor] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  // v4.1 Task 10: extracted out of its own effect below so frame-time-period's own button-bool
+  // has a real action (force a fresh fetch of the current filters, e.g. to check for a session
+  // that just completed) instead of a dead decoration, and so this page can register with the
+  // refresh registry - unlike every other Refresh-registered panel, this page had never done so
+  // before this task. Safe to call unconditionally even from OptionsApp.tsx's standalone usage
+  // (no RefreshRegistryProvider there) - useRegisterRefresh() itself already no-ops outside one.
+  function loadHistory() {
     setSessions(null);
     setLoadError(null);
 
@@ -83,7 +92,6 @@ export function HistoryPage() {
       payload: query,
     })
       .then((res) => {
-        if (cancelled) return;
         if (!res.ok || !res.sessions) {
           setLoadError(res.error ?? "Could not load session history.");
           return;
@@ -96,12 +104,14 @@ export function HistoryPage() {
         // or extension-context-invalidated. Surface it instead of leaving the page stuck on
         // "Loading…" forever with no signal.
         console.error("Failed to load session history", err);
-        if (!cancelled) setLoadError(err instanceof Error ? err.message : String(err));
+        setLoadError(err instanceof Error ? err.message : String(err));
       });
+  }
+  useRegisterRefresh(loadHistory);
 
-    return () => {
-      cancelled = true;
-    };
+  useEffect(() => {
+    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stateFilter, sinceDate]);
 
   // `until` isn't part of HistoryQuery (v1's listHistory only supports `since`/`state`/`limit`),
@@ -155,39 +165,39 @@ export function HistoryPage() {
 
   return (
     <div className="history-page">
-      <h2>Session history</h2>
+      <h2 className="sp-card__title">History</h2>
+      <h3 className="sp-label">Session History</h3>
 
       <div className="history-page__filters">
-        <label>
-          From
-          <input
-            type="date"
-            aria-label="From date"
-            value={sinceDate}
-            onChange={(e) => setSinceDate(e.target.value)}
-          />
-        </label>
-        <label>
-          To
-          <input
-            type="date"
-            aria-label="To date"
-            value={untilDate}
-            onChange={(e) => setUntilDate(e.target.value)}
-          />
-        </label>
-        <label>
-          Status
-          <select
-            aria-label="Status filter"
-            value={stateFilter}
-            onChange={(e) => setStateFilter(e.target.value as StateFilter)}
-          >
-            <option value="">All</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="ABANDONED">Abandoned</option>
-          </select>
-        </label>
+        <Input
+          type="date"
+          aria-label="From date"
+          value={sinceDate}
+          onChange={(e) => setSinceDate(e.target.value)}
+        />
+        <span className="sp-label">to</span>
+        <Input
+          type="date"
+          aria-label="To date"
+          value={untilDate}
+          onChange={(e) => setUntilDate(e.target.value)}
+        />
+        <Input
+          variant="dropdown"
+          aria-label="Status filter"
+          value={stateFilter}
+          onChange={(e) => setStateFilter(e.target.value as StateFilter)}
+        >
+          <option value="">All</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="ABANDONED">Abandoned</option>
+        </Input>
+        {/* No new save semantics - the filters above already re-query reactively on every
+            change. This just gives frame-time-period's own button-bool a real (if redundant)
+            action: force a fresh fetch of the current filters, rather than rendering it as a
+            dead decoration. Doubles as the Header Refresh button's hookup for this page - see
+            loadHistory()'s own header comment. */}
+        <ButtonBool icon="check" aria-label="Refresh session history" onClick={loadHistory} />
       </div>
 
       {loadError && (
@@ -206,19 +216,29 @@ export function HistoryPage() {
             const expanded = expandedSessionId === session.id;
             return (
               <li key={session.id} className="history-page__session">
-                <button
-                  type="button"
-                  className="history-page__session-summary"
-                  aria-expanded={expanded}
-                  onClick={() => void toggleExpand(session.id)}
-                >
-                  <span className="history-page__session-goal">{session.goal}</span>
-                  <span className="history-page__session-state">{session.state}</span>
-                  <span className="history-page__session-date">{formatTimestamp(session.createdAt)}</span>
-                  <span className="history-page__session-duration">
-                    {formatDuration(session.startedAt, session.endedAt)}
-                  </span>
-                </button>
+                <div className="history-page__session-summary-row">
+                  <button
+                    type="button"
+                    className="history-page__session-summary"
+                    aria-expanded={expanded}
+                    onClick={() => void toggleExpand(session.id)}
+                  >
+                    <span className="history-page__session-goal-date">
+                      <span className="history-page__session-goal">{session.goal}</span>
+                      {" - "}
+                      {formatTimestamp(session.createdAt)}
+                    </span>
+                    <span className="history-page__session-state">{session.state}</span>
+                    <span className="history-page__session-duration">
+                      {formatDuration(session.startedAt, session.endedAt)}
+                    </span>
+                  </button>
+                  <ButtonIcon
+                    icon="options"
+                    aria-label="Session options"
+                    onClick={() => void toggleExpand(session.id)}
+                  />
+                </div>
 
                 {expanded && (
                   <div className="history-page__events">

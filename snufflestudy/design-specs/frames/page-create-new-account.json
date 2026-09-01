@@ -86,6 +86,34 @@
               "boundVariables": {}
             }
           },
+          "interactions": [
+            {
+              "trigger": "ON_HOVER",
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "285:1686",
+                  "navigation": "CHANGE_TO",
+                  "transition": null
+                }
+              ]
+            },
+            {
+              "trigger": "ON_CLICK",
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "279:343",
+                  "navigation": "NAVIGATE",
+                  "transition": null
+                }
+              ]
+            },
+            {
+              "trigger": "ON_CLICK",
+              "actions": []
+            }
+          ],
           "children": [
             {
               "id": "I284:423;284:395",

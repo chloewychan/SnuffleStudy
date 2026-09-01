@@ -7,6 +7,8 @@ import type { FriendNudge } from "../../infrastructure/backend/nudgeApi";
 import type { IncomingProducerTag } from "../../infrastructure/backend/producerTagApi";
 import type { FriendRequest } from "../../domain/accountability/friendRequest";
 import type { IncomingActivity } from "../appFooter/useIncomingActivity";
+import { ButtonBool } from "./ui/ButtonBool";
+import { ButtonSmall } from "./ui/ButtonSmall";
 
 // v4.1 Task 8: the second half of the persistent app-shell footer (stacked beneath
 // StudyRoomFooter.tsx inside AppFooter.tsx - see that file). Relocates logic that already worked -
@@ -69,14 +71,12 @@ function IncomingTagRow({
         // eslint-disable-next-line jsx-a11y/media-has-caption -- a short voice tag, not video
         <audio src={playbackUrl} controls autoPlay />
       ) : (
-        <button type="button" onClick={handlePlay} disabled={loading}>
-          {loading ? "Loading…" : "Play"}
-        </button>
+        <ButtonSmall colour="pink" onClick={handlePlay} disabled={loading}>
+          {loading ? "Loading…" : "Play Nudge"}
+        </ButtonSmall>
       )}
       {error && <p role="alert">{error}</p>}
-      <button type="button" onClick={onDismiss}>
-        Dismiss
-      </button>
+      <ButtonBool icon="x" aria-label="Dismiss" onClick={onDismiss} />
     </li>
   );
 }
@@ -122,7 +122,7 @@ export function NudgesAndRequestsFooter({
     <div className="nudges-and-requests-footer">
       {showNudgeSection && (
         <section className="nudges-and-requests-footer__nudges">
-          <h3>Nudges</h3>
+          <h3>Nudges Sent to You</h3>
           {nudgesError && <p role="alert">Couldn't load incoming nudges: {nudgesError}.</p>}
           {tagsError && <p role="alert">Couldn't load incoming audio nudges: {tagsError}.</p>}
           {nudgeItems.length > 0 && (
@@ -136,9 +136,7 @@ export function NudgesAndRequestsFooter({
                         (item.nudge.messageId ? nudgeMessageText(item.nudge.messageId) : null) ??
                         "sent you a nudge."}
                     </span>
-                    <button type="button" onClick={() => dismissNudge(item.nudge.id)}>
-                      Dismiss
-                    </button>
+                    <ButtonBool icon="x" aria-label="Dismiss" onClick={() => dismissNudge(item.nudge.id)} />
                   </li>
                 ) : (
                   <IncomingTagRow
@@ -156,7 +154,7 @@ export function NudgesAndRequestsFooter({
 
       {showRequestSection && (
         <section className="nudges-and-requests-footer__requests">
-          <h3>Friend requests</h3>
+          <h3>Unlock Requests</h3>
           {requestsError && <p role="alert">Couldn't load friend requests: {requestsError}.</p>}
           {resolveError && <p role="alert">{resolveError}</p>}
           {requests.length > 0 && (
@@ -167,22 +165,20 @@ export function NudgesAndRequestsFooter({
                   {request.message && (
                     <p className="nudges-and-requests-footer__message">"{request.message}"</p>
                   )}
-                  <button
-                    type="button"
-                    aria-label="Deny"
-                    onClick={() => resolveRequest(request, "denied")}
-                    disabled={resolvingRequestId === request.id}
-                  >
-                    ✕
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Approve"
-                    onClick={() => resolveRequest(request, "approved")}
-                    disabled={resolvingRequestId === request.id}
-                  >
-                    ✓
-                  </button>
+                  <div className="nudges-and-requests-footer__resolve">
+                    <ButtonBool
+                      icon="x"
+                      aria-label="Deny"
+                      onClick={() => resolveRequest(request, "denied")}
+                      disabled={resolvingRequestId === request.id}
+                    />
+                    <ButtonBool
+                      icon="check"
+                      aria-label="Approve"
+                      onClick={() => resolveRequest(request, "approved")}
+                      disabled={resolvingRequestId === request.id}
+                    />
+                  </div>
                 </li>
               ))}
             </ul>

@@ -121,6 +121,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "285:1668",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I173:1570;170:1453;168:1316",
@@ -172,6 +185,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "285:1671",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I173:1570;170:1458;168:1321",
@@ -265,6 +291,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1419",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I173:1570;170:1463;168:1350",
@@ -397,6 +436,19 @@
               "boundVariables": {}
             }
           },
+          "interactions": [
+            {
+              "trigger": "ON_CLICK",
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "106:53",
+                  "navigation": "NAVIGATE",
+                  "transition": null
+                }
+              ]
+            }
+          ],
           "children": [
             {
               "id": "I173:1704;173:1601;173:1591",
@@ -473,6 +525,19 @@
               "boundVariables": {}
             }
           },
+          "interactions": [
+            {
+              "trigger": "ON_CLICK",
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "106:192",
+                  "navigation": "NAVIGATE",
+                  "transition": null
+                }
+              ]
+            }
+          ],
           "children": [
             {
               "id": "I173:1704;173:1603;173:1591",
@@ -549,6 +614,19 @@
               "boundVariables": {}
             }
           },
+          "interactions": [
+            {
+              "trigger": "ON_CLICK",
+              "actions": [
+                {
+                  "type": "NODE",
+                  "destinationId": "106:263",
+                  "navigation": "NAVIGATE",
+                  "transition": null
+                }
+              ]
+            }
+          ],
           "children": [
             {
               "id": "I173:1704;173:1605;173:1591",
@@ -867,6 +945,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1419",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I182:590;168:1350",
@@ -953,6 +1044,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1419",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I182:630;168:1350",
@@ -1452,6 +1556,19 @@
                   "boundVariables": {}
                 }
               },
+              "interactions": [
+                {
+                  "trigger": "ON_HOVER",
+                  "actions": [
+                    {
+                      "type": "NODE",
+                      "destinationId": "168:1419",
+                      "navigation": "CHANGE_TO",
+                      "transition": null
+                    }
+                  ]
+                }
+              ],
               "children": [
                 {
                   "id": "I182:586;168:1350",
@@ -1624,6 +1741,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "168:1434",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1430",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I179:2996;168:1360",
@@ -1689,6 +1819,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "168:1436",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1433",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I179:2999;168:1358",
@@ -1754,6 +1897,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "168:1431",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1433",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I179:3002;168:1366",
@@ -1863,6 +2019,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "168:1435",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1427",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I182:341;168:1368",
@@ -1972,6 +2141,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "168:1435",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1427",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I182:355;168:1368",
@@ -2038,6 +2220,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "168:1435",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1427",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I182:358;168:1368",
@@ -2106,6 +2301,19 @@
                   "type": "INSTANCE",
                   "opacity": 0.75,
                   "componentId": "168:1431",
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1433",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I182:361;168:1366",
@@ -2370,6 +2578,19 @@
                           "boundVariables": {}
                         }
                       },
+                      "interactions": [
+                        {
+                          "trigger": "ON_HOVER",
+                          "actions": [
+                            {
+                              "type": "NODE",
+                              "destinationId": "168:1415",
+                              "navigation": "CHANGE_TO",
+                              "transition": null
+                            }
+                          ]
+                        }
+                      ],
                       "children": [
                         {
                           "id": "I182:641;168:1327",
@@ -2603,6 +2824,19 @@
                           "boundVariables": {}
                         }
                       },
+                      "interactions": [
+                        {
+                          "trigger": "ON_HOVER",
+                          "actions": [
+                            {
+                              "type": "NODE",
+                              "destinationId": "168:1415",
+                              "navigation": "CHANGE_TO",
+                              "transition": null
+                            }
+                          ]
+                        }
+                      ],
                       "children": [
                         {
                           "id": "I179:2959;168:1327",
@@ -2685,6 +2919,19 @@
                           "boundVariables": {}
                         }
                       },
+                      "interactions": [
+                        {
+                          "trigger": "ON_HOVER",
+                          "actions": [
+                            {
+                              "type": "NODE",
+                              "destinationId": "285:1677",
+                              "navigation": "CHANGE_TO",
+                              "transition": null
+                            }
+                          ]
+                        }
+                      ],
                       "children": [
                         {
                           "id": "I182:457;183:798",
@@ -2765,6 +3012,19 @@
                           "boundVariables": {}
                         }
                       },
+                      "interactions": [
+                        {
+                          "trigger": "ON_HOVER",
+                          "actions": [
+                            {
+                              "type": "NODE",
+                              "destinationId": "285:1677",
+                              "navigation": "CHANGE_TO",
+                              "transition": null
+                            }
+                          ]
+                        }
+                      ],
                       "children": [
                         {
                           "id": "I182:452;183:798",
@@ -2845,6 +3105,19 @@
                           "boundVariables": {}
                         }
                       },
+                      "interactions": [
+                        {
+                          "trigger": "ON_HOVER",
+                          "actions": [
+                            {
+                              "type": "NODE",
+                              "destinationId": "285:1677",
+                              "navigation": "CHANGE_TO",
+                              "transition": null
+                            }
+                          ]
+                        }
+                      ],
                       "children": [
                         {
                           "id": "I182:447;183:798",
@@ -3343,6 +3616,19 @@
                   "boundVariables": {}
                 }
               },
+              "interactions": [
+                {
+                  "trigger": "ON_HOVER",
+                  "actions": [
+                    {
+                      "type": "NODE",
+                      "destinationId": "168:1419",
+                      "navigation": "CHANGE_TO",
+                      "transition": null
+                    }
+                  ]
+                }
+              ],
               "children": [
                 {
                   "id": "I286:1867;168:1350",
@@ -3486,6 +3772,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1419",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I182:520;168:1350",
@@ -3859,6 +4158,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "168:1415",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I182:756;168:1327",
@@ -4047,6 +4359,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "285:1665",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:773;168:1311",
@@ -4136,6 +4461,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "285:1665",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:776;168:1311",
@@ -4225,6 +4563,19 @@
                       "boundVariables": {}
                     }
                   },
+                  "interactions": [
+                    {
+                      "trigger": "ON_HOVER",
+                      "actions": [
+                        {
+                          "type": "NODE",
+                          "destinationId": "285:1665",
+                          "navigation": "CHANGE_TO",
+                          "transition": null
+                        }
+                      ]
+                    }
+                  ],
                   "children": [
                     {
                       "id": "I183:779;168:1311",

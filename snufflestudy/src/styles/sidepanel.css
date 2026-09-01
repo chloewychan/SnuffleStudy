@@ -31,53 +31,43 @@
   padding-bottom: var(--space-3);
 }
 
+/* header-bar (design-specs/frames/header-bar.json) - a vertical [buttons row, title] stack
+   beside the mascot image, not the previous single horizontal row. */
 .sp-header {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--padding-20);
   padding: var(--space-3) var(--space-4);
   background: var(--color-bg);
   font-family: var(--font-body);
 }
 
+.sp-header__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-10);
+  min-width: 0;
+}
+
+.sp-header__buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-10);
+}
+
 .sp-header__title {
   font-family: var(--font-display);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-header-title);
+  line-height: 1.249;
   color: var(--color-text);
   margin: 0;
 }
 
 .sp-header__mascot {
+  margin-left: auto;
   width: var(--size-icon-md);
   height: var(--size-icon-md);
   object-fit: contain;
-}
-
-.sp-header__login-button {
-  margin-left: auto;
-  font-family: var(--font-body);
-  font-size: var(--font-size-md);
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  padding: var(--space-1) var(--space-3);
-  cursor: pointer;
-}
-
-/* v4.1 Task 2: one Header refresh button replaces every panel's own. Always rendered
-   (unlike the login button, which is conditional), so it - not the login button - is what
-   claims the row's trailing margin-left: auto when both are absent/present together. */
-.sp-header__refresh-button {
-  margin-left: auto;
-  font-family: var(--font-body);
-  font-size: var(--font-size-md);
-  color: var(--color-text);
-  background: var(--color-surface);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-md);
-  padding: var(--space-1) var(--space-3);
-  cursor: pointer;
 }
 
 .sp-tabbar {
@@ -88,22 +78,6 @@
   border-bottom: 1px solid var(--color-accent);
 }
 
-.sp-tabbar__tab {
-  font-family: var(--font-body);
-  font-size: var(--font-size-md);
-  color: var(--color-text-muted);
-  background: transparent;
-  border: none;
-  padding: var(--space-2) var(--space-3);
-  cursor: pointer;
-}
-
-.sp-tabbar__tab--active {
-  color: var(--color-text);
-  font-weight: 600;
-  border-bottom: 2px solid var(--color-primary);
-}
-
 .sp-tab-content {
   padding: var(--space-4);
   display: flex;
@@ -111,18 +85,31 @@
   gap: var(--space-4);
 }
 
+/* Every tab-content card frame checked so far (page-bunny's "About the Bun", page-study's
+   "Study Session"/"Study Rooms"/"Task Vault") shares this exact treatment - promoted to the
+   shared .sp-card class rather than one bespoke class per tab. */
 .sp-card {
-  background: transparent;
-  border: 2px solid rgb(from var(--color-accent) r g b / 0.5);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
+  background: var(--color-dark-white);
+  /* cornerRadius: 30 reuses the Padding-30 variable's value, same as .sp-btn-tab--selected. */
+  border-radius: var(--padding-30);
+  padding: var(--padding-20) var(--padding-30);
 }
 
 .sp-card__title {
   font-family: var(--font-display);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-heading-sm);
   color: var(--color-text);
-  margin: 0 0 var(--space-3);
+  margin: 0 0 var(--padding-20);
+}
+
+/* Shared small muted sub-heading/field-label treatment - recurs across every settings/nudge-vault
+   frame checked so far (page-friends's "Audio Nudges (10s max)"/"Written Nudges", page-settings's
+   "Account Password"/"Old Password"/"Hard-Block Passcode"/etc.) with the exact same Shantell Sans
+   10px, Light-Grey styling. */
+.sp-label {
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
 }
 
 .sp-field {
@@ -142,99 +129,10 @@
   font-family: var(--font-body);
 }
 
-.sp-meter {
-  margin-bottom: var(--space-3);
-}
-
-.sp-meter__label {
-  display: block;
-  color: var(--color-text);
-  font-family: var(--font-body);
-  margin-bottom: var(--space-1);
-}
-
-.sp-meter__track {
-  height: var(--size-meter-track-height);
-  /* .sp-card is now a transparent/outlined container (no --color-surface fill), so the track
-     needs its own visible background rather than relying on contrast against the old card fill. */
-  background: var(--color-accent);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-
-.sp-meter__fill {
-  height: 100%;
-  background: var(--color-surface);
-}
-
-.sp-field--toggle {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.sp-toggle {
-  position: relative;
-  display: inline-block;
-  width: var(--size-toggle-width);
-  height: var(--size-toggle-height);
-}
-
-.sp-toggle__input {
-  position: absolute;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  cursor: pointer;
-  z-index: 1;
-}
-
-.sp-toggle__track {
-  position: absolute;
-  inset: 0;
-  background: var(--color-accent);
-  border-radius: var(--radius-lg);
-  transition: background var(--motion-duration-fast);
-}
-
-.sp-toggle__knob {
-  position: absolute;
-  top: var(--size-toggle-knob-offset);
-  left: var(--size-toggle-knob-offset);
-  width: var(--size-toggle-knob-size);
-  height: var(--size-toggle-knob-size);
-  border-radius: 50%;
-  background: var(--color-bg);
-  transition: transform var(--motion-duration-fast);
-}
-
-.sp-toggle__input:checked ~ .sp-toggle__track {
-  background: var(--color-primary);
-}
-
-.sp-toggle__input:checked ~ .sp-toggle__track .sp-toggle__knob {
-  transform: translateX(
-    calc(var(--size-toggle-width) - var(--size-toggle-knob-size) - (var(--size-toggle-knob-offset) * 2))
-  );
-}
-
-/* Fix 9 (final-review fix wave): .sp-toggle__input is opacity: 0 (correct technique for a custom
-   toggle control), but with no :focus-visible style on the visible track, keyboard users tabbing
-   to the Show Bunny toggle got no visible focus indicator at all. */
-.sp-toggle__input:focus-visible ~ .sp-toggle__track {
-  outline: 2px solid var(--color-text);
-  outline-offset: 2px;
-}
-
-/* Fix 2 (final-review fix wave), updated for the transparent .sp-card treatment: global.css's
-   .timer-ring__track defaults to stroke: var(--color-surface), and ActiveSessionView.tsx nests
-   <TimerRing> inside a .sp-card - which no longer has a fill at all, so any track color that
-   matches the page background behind it (--color-bg) would be just as invisible as the original
-   surface-on-surface bug this fix addressed. --color-accent gives the track real contrast against
-   that transparent backdrop; scoped here (not in global.css/TimerRing.tsx) since other consumers
-   of .timer-ring may rely on the current colors. */
+/* Fix 2 (final-review fix wave): global.css's .timer-ring__track defaults to
+   stroke: var(--color-surface), which would match .sp-card's own background (Dark-White) too
+   closely to read - --color-accent gives the track real contrast; scoped here (not in
+   global.css/TimerRing.tsx) since other consumers of .timer-ring may rely on the current colors. */
 .sp-active-session__progress .timer-ring__track {
   stroke: var(--color-accent);
 }
@@ -250,10 +148,26 @@
   text-align: center;
 }
 
+/* page-study-session (design-specs/frames/page-study-session.json's frame-study-session-in-
+   progress) - this card's own horizontal padding (Padding-10) differs from .sp-card's default
+   (Padding-30), and the timer sits beside its own controls instead of below them. */
+.sp-active-session__progress {
+  padding-left: var(--padding-10);
+  padding-right: var(--padding-10);
+}
+
+.sp-active-session__timer-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--padding-20);
+  padding: 0 var(--padding-50);
+}
+
 .sp-active-session__controls {
   display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
+  flex-direction: column;
+  gap: var(--padding-10);
 }
 
 .sp-active-session__sites {
@@ -291,68 +205,108 @@
 .study-room-panel__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: var(--space-2);
+  gap: var(--padding-5);
 }
 
-.study-room-panel__tile {
-  position: relative;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  border-radius: var(--radius-md);
-  background: var(--color-accent);
-  cursor: pointer;
-}
-
-/* v4.1 Task 7: tiles are now click-to-select (Nudge target picking) - a functional indicator of
-   selection, not new visual design, matching the outline weight .sp-tabbar__tab--active already
-   uses for its own "currently active" state. */
-.study-room-panel__tile--selected {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-/* Your own tile - not a valid nudge target, so no click affordance. */
-.study-room-panel__tile--unselectable {
-  cursor: default;
-}
-
+/* The actual <video>/<audio> element (StudyRoomSessionContext.tsx adds this class straight to
+   the element itself), sized to fill whichever tile container it's appended into - .sp-video-box
+   (video-box, design-specs/frames/video-box.json) for StudyRoomFooter's tiles, currently the only
+   consumer. */
 .study-room-panel__media {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.study-room-panel__tile-label {
-  position: absolute;
-  bottom: var(--space-1);
-  left: var(--space-1);
-  font-size: var(--font-size-sm);
+.study-room-panel__tile-media {
+  width: 100%;
+  height: 100%;
+}
+
+/* footer-study-room (design-specs/frames/footer-study-room.json) - was entirely unstyled before. */
+.study-room-panel--footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--padding-20);
+  padding: var(--padding-30);
+  background: var(--color-bg);
+}
+
+.study-room-panel--footer .study-room-panel__header h2 {
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
   color: var(--color-text);
-  background: rgb(from var(--color-bg) r g b / 0.6);
-  padding: 0 var(--space-1);
-  border-radius: var(--radius-sm);
+  text-align: center;
+  margin: 0;
 }
 
-/* v4.1 Task 7: room list items are now click-to-select (Study tab's Study Rooms box) instead of
-   each carrying its own Join button - same minimal, functional selected-state treatment as the
-   video tiles above. */
+.study-room-panel__call-options {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-10);
+}
+
+.study-room-panel__nudge-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--padding-10);
+  width: 100%;
+}
+
+/* page-study (design-specs/frames/page-study.json's frame-study-rooms) - room list items are now
+   ButtonSmall instances (colour flips pink when selected) with "Manage access" as a sibling
+   control, not the outline treatment the old plain-<li> version used. */
+.study-room-panel__list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
 .study-room-panel__room {
-  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--padding-10);
 }
 
-.study-room-panel__room--selected {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+.study-room-panel__create {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-10);
+}
+
+.study-room-panel__create h3 {
+  font-family: var(--font-display);
+  font-size: var(--font-size-heading-sm);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.study-room-panel__create-row {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-7-5);
+}
+
+.study-room-panel__create-row .sp-input {
+  flex: 1;
+  min-width: 0;
 }
 
 /* v4.1 Task 7: the persistent app-shell footer (AppFooter.tsx) - a sibling of Header.tsx/the tab
    content, stacking the Study Room footer and (Task 8) the Nudges & Unlock Requests footer beneath
    it. Reuses .sp-card's own border/radius/padding treatment rather than inventing a new one. */
+/* footer-default.json/footer-study-room.json each own their own White background and
+   Padding-30 padding (a real visual card), so this outer shell no longer applies its own -
+   just the divider, stacking gap, and sticky-to-bottom positioning. */
 .sp-app-footer {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
   border-top: 2px solid rgb(from var(--color-accent) r g b / 0.5);
   /* Pinned to the bottom of .sidepanel-app's flex column - see that class's own comment. */
   flex-shrink: 0;
@@ -360,4 +314,1040 @@
   bottom: 0;
   z-index: 1;
   background: var(--color-bg);
+}
+
+/* ---- design-specs/ ui primitives (Phase 1 component sets) ---- */
+
+/* button-large (design-specs/frames/button-large.json) */
+.sp-btn-large {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--padding-5);
+  padding: var(--padding-2-5) var(--padding-7-5);
+  border: none;
+  border-radius: var(--corner-5);
+  background: var(--color-light-pink-50);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.sp-btn-large:hover:not(:disabled) {
+  background: var(--color-surface);
+}
+
+.sp-btn-large:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* button-small (design-specs/frames/button-small.json) */
+.sp-btn-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--padding-5);
+  padding: 0 var(--padding-7-5);
+  border: none;
+  border-radius: var(--corner-5);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.sp-btn-small--pink {
+  background: var(--color-light-pink-50);
+}
+
+.sp-btn-small--pink:hover:not(:disabled) {
+  background: var(--color-surface);
+}
+
+.sp-btn-small--beige {
+  background: var(--color-dark-white-50);
+}
+
+.sp-btn-small--beige:hover:not(:disabled) {
+  background: var(--color-dark-white);
+}
+
+.sp-btn-small--white {
+  background: var(--color-white-50);
+  opacity: 0.75;
+}
+
+.sp-btn-small--white:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.sp-btn-small:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* button-tab (design-specs/frames/button-tab.json) */
+.sp-btn-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--padding-5);
+  padding: var(--padding-5) var(--padding-20);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-size: var(--font-size-tab);
+  cursor: pointer;
+}
+
+.sp-btn-tab--selected {
+  /* cornerRadius: 30 isn't a named Corner-* token in design-specs/tokens.json - it reuses the
+     Padding-30 variable's value (30), same as the source Figma file does. */
+  border-radius: var(--padding-30);
+  background: var(--color-light-pink-50);
+  color: var(--color-text);
+}
+
+/* input (design-specs/frames/input.json), Type=textbox variants */
+.sp-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 var(--padding-5);
+  border: none;
+  border-radius: var(--corner-5);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  line-height: 1.34;
+}
+
+.sp-input--white {
+  background: var(--color-white-50);
+}
+
+.sp-input--beige {
+  background: var(--color-dark-white-50);
+}
+
+.sp-input::placeholder {
+  color: var(--color-accent);
+}
+
+.sp-input:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.sp-input--dropdown {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Focus lands on the inner <select>, not this wrapping span. */
+.sp-input--dropdown:focus-within {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.sp-input__select {
+  appearance: none;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding-right: var(--padding-20);
+  color: inherit;
+  font: inherit;
+}
+
+.sp-input__chevron {
+  position: absolute;
+  right: var(--padding-5);
+  width: 8px;
+  height: auto;
+  pointer-events: none;
+}
+
+/* text-small (design-specs/frames/text-small.json) */
+.sp-text-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--padding-5);
+  border-radius: var(--corner-15);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  line-height: 1.34;
+}
+
+.sp-text-small--white {
+  background: var(--color-white-50);
+}
+
+.sp-text-small--pink {
+  background: var(--color-light-pink-50);
+}
+
+/* video-box (design-specs/frames/video-box.json) */
+.sp-video-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  aspect-ratio: 16 / 9;
+  padding: var(--padding-7-5);
+  border-radius: var(--corner-15);
+  background: var(--color-dark-white);
+  overflow: hidden;
+}
+
+/* Only the interactive instances (a real onClick, so role="button" is set) get the pointer
+   affordance - e.g. StudyRoomFooter's own local ("You") tile is deliberately non-interactive. */
+.sp-video-box[role="button"] {
+  cursor: pointer;
+}
+
+.sp-video-box--selected {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.sp-video-box__media {
+  position: absolute;
+  inset: 0;
+}
+
+/* button-list (design-specs/frames/button-list.json) */
+.sp-btn-list {
+  display: inline-block;
+  width: var(--size-list-marker);
+  height: var(--size-list-marker);
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.sp-btn-list:hover {
+  opacity: 1;
+}
+
+.sp-btn-list--circle {
+  border-radius: 50%;
+}
+
+.sp-btn-list--square {
+  border-radius: var(--corner-3);
+}
+
+.sp-btn-list--white {
+  background: var(--color-white-50);
+}
+
+.sp-btn-list--pink {
+  background: var(--color-pink-50);
+}
+
+.sp-btn-list--beige {
+  background: var(--color-light-beige-50);
+}
+
+.sp-btn-list--selected {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* button-icon (design-specs/frames/button-icon.json). Background alpha is applied via the
+   relative-color rgb(from ...) syntax (same technique .sp-card already uses) rather than the
+   opacity property, so it only dims the background rectangle - not the icon glyph on top of it,
+   matching the spec (Rectangle opacity varies per state, Vector's does not). */
+.sp-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  border: none;
+  border-radius: var(--corner-5);
+  background: rgb(from var(--color-dark-white) r g b / 0.75);
+  cursor: pointer;
+}
+
+.sp-btn-icon:hover:not(:disabled) {
+  background: var(--color-dark-white);
+}
+
+.sp-btn-icon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sp-btn-icon__glyph {
+  max-width: 11px;
+  max-height: 11px;
+  width: auto;
+  height: auto;
+}
+
+/* button-bool (design-specs/frames/button-bool.json) - same background-alpha technique as
+   .sp-btn-icon above, over Light-Pink instead of Dark-White. */
+.sp-btn-bool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  border: none;
+  border-radius: var(--corner-5);
+  background: rgb(from var(--color-surface) r g b / 0.5);
+  cursor: pointer;
+}
+
+.sp-btn-bool:hover:not(:disabled) {
+  background: var(--color-surface);
+}
+
+.sp-btn-bool:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sp-btn-bool__glyph {
+  max-width: 9px;
+  max-height: 9px;
+  width: auto;
+  height: auto;
+}
+
+/* button-large-icon (design-specs/frames/button-large-icon.json) */
+.sp-btn-large-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-btn-large-icon);
+  height: var(--size-btn-large-icon);
+  border: none;
+  border-radius: var(--corner-5);
+  background: var(--color-light-pink-50);
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.sp-btn-large-icon--selected {
+  opacity: 1;
+}
+
+.sp-btn-large-icon__glyph {
+  max-width: 20px;
+  max-height: 20px;
+  width: auto;
+  height: auto;
+}
+
+/* ---- design-specs/ Phase 2 components ---- */
+
+/* footer-default (design-specs/frames/footer-default.json) - was entirely unstyled before. */
+.nudges-and-requests-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-20);
+  padding: var(--padding-30);
+  background: var(--color-bg);
+}
+
+.nudges-and-requests-footer__nudges,
+.nudges-and-requests-footer__requests {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
+.nudges-and-requests-footer h3 {
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.nudges-and-requests-footer ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
+.nudges-and-requests-footer li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--padding-20);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+}
+
+.nudges-and-requests-footer__resolve {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-2-5);
+  flex-shrink: 0;
+}
+
+/* onboarding-step (src/app/routes/OnboardingWizard.tsx, WelcomeScreen.tsx) - the full-page shell
+   only the onboarding flow renders; design-specs/frames/page-welcome.json's own White fill +
+   Padding-50. SignInForm.tsx itself carries no page-level chrome, so its other 3 call sites
+   (FriendsBox/StudyRoomsBox inline, AccountPage.tsx) render it compactly inside their own
+   containers instead. */
+.onboarding-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-20);
+  padding: var(--padding-50);
+  background: var(--color-bg);
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.onboarding-step--welcome {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.onboarding-step--welcome h1 {
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.onboarding-step--welcome p {
+  font-family: var(--font-body);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.onboarding-step__error {
+  color: var(--color-warning);
+}
+
+/* sign-in-form (design-specs/frames/page-sign-in*.json, page-create-new-account*.json) */
+.sign-in-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-20);
+  font-family: var(--font-body);
+}
+
+.sign-in-form__error {
+  color: var(--color-warning);
+  margin: 0;
+}
+
+.sign-in-form__step-header {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-20);
+}
+
+.sign-in-form__step-header h2 {
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.sign-in-form__framing {
+  color: var(--color-text);
+  margin: 0;
+}
+
+.sp-form-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--padding-20) var(--padding-10);
+}
+
+.sp-form-fields label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.sign-in-form__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-10);
+  align-items: flex-start;
+}
+
+.sign-in-form__actions--row {
+  flex-direction: row;
+  align-items: center;
+}
+
+.sign-in-form__skip {
+  display: flex;
+}
+
+/* page-bunny (design-specs/frames/page-bunny.json) - was entirely unstyled before. Card chrome
+   itself is the shared .sp-card/.sp-card__title (see that class's own comment). */
+.sp-bunny-tab__body {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-20);
+}
+
+.sp-bunny-tab__portrait {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.sp-bunny-tab__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-10);
+  min-width: 0;
+  flex: 1;
+}
+
+.sp-bunny-tab__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-2-5);
+}
+
+.sp-bunny-tab__field label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-body);
+}
+
+.sp-bunny-tab__field-row {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-7-5);
+}
+
+.sp-bunny-tab__field-row .sp-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* session-setup-form (design-specs/frames/page-study.json's frame-study-session) */
+.session-setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-20);
+}
+
+.session-setup-form__duration {
+  display: flex;
+  gap: var(--padding-10);
+}
+
+.session-setup-form__duration .sp-input {
+  width: 100%;
+  min-width: 0;
+}
+
+/* task-vault-page (design-specs/frames/page-study.json's frame-task-vault) - was entirely
+   unstyled before. */
+.task-vault-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-10);
+}
+
+.task-vault-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.task-vault-page__header h2 {
+  font-family: var(--font-display);
+  font-size: var(--font-size-heading-sm);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.task-vault-page__new-task label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-body);
+}
+
+.task-vault-page__new-task-row {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-7-5);
+  margin-top: var(--padding-2-5);
+}
+
+.task-vault-page__new-task-row .sp-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-vault-page__tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
+.task-vault-page__task-header {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-7-5);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+}
+
+/* Modal (design-specs/frames/popup-*.json) - shared shell for all three popups. The scrim isn't
+   part of the spec (which only shows the card itself), but is standard, expected modal UX. */
+.sp-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(from var(--color-text) r g b / 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-20);
+  z-index: 10;
+}
+
+.sp-modal {
+  background: var(--color-white-50);
+  border-radius: var(--padding-30);
+  padding: var(--padding-20);
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-10);
+  max-width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.sp-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--padding-20);
+}
+
+.sp-modal__header h2 {
+  font-family: var(--font-display);
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+  text-align: center;
+  margin: 0;
+}
+
+.sp-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-10);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+}
+
+/* page-friends (design-specs/frames/page-friends.json's frame-friends) - was entirely unstyled
+   before. */
+.friends-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-10);
+}
+
+.friends-box h3 {
+  font-family: var(--font-display);
+  font-size: var(--font-size-heading-sm);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.friends-box__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
+.friends-box__friend {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-10);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+}
+
+.friends-box__friend-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.friends-box__action-row,
+.friends-box__add-row {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-7-5);
+}
+
+.friends-box__add-row .sp-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Modal (design-specs/frames/popup-friend.json) */
+.friend-options-modal__title {
+  font-family: var(--font-display);
+  font-size: var(--font-size-heading-sm);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.friend-options-modal__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
+.friend-options-modal__list li {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-7-5);
+}
+
+.friend-options-modal__item--saving {
+  opacity: 0.6;
+}
+
+/* Modal (design-specs/frames/popup-study-room.json) */
+.manage-access-modal__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
+.manage-access-modal__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--padding-10);
+}
+
+/* page-friends's frame-nudge-vault (design-specs/frames/page-friends.json) - the card chrome
+   itself is the shared .sp-card/.sp-card__title (applied by FriendsTab.tsx's own wrapping
+   <section>, same as FriendsBox's sibling card), so this box only owns its own internal layout. */
+.nudge-vault-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-20);
+}
+
+.nudge-vault-box__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-10);
+}
+
+/* Groups a section's own [label, record-button] or [label, input-row] pair - frame-nudge-vault's
+   own button-record-new-audio-nudge/input-new-written-nudge each use this tighter gap, distinct
+   from the Padding-10 gap above it to the example list. */
+.nudge-vault-box__record {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
+.nudge-vault-box__input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-10);
+}
+
+.nudge-vault-box__input-row .sp-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.nudge-vault-box__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--padding-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
+.nudge-vault-box__list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--padding-20);
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+}
+
+.nudge-vault-box__list-item-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-5);
+}
+
+/* page-settings's frame-account (design-specs/frames/page-settings.json) - AccountPage.tsx is
+   shared with OptionsApp.tsx's own standalone "Account" tab, which has no surrounding .sp-card
+   (that chrome comes from SettingsTab.tsx's own wrapping <section> in the sidepanel), so this
+   only owns AccountPage's internal layout, not its card background. */
+.account-page__options,
+.account-page__password {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-10);
+}
+
+.account-page__button-row {
+  display: flex;
+  gap: var(--padding-7-5);
+}
+
+.account-page__password-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-10);
+  align-items: flex-start;
+}
+
+/* Shared by AccountPage.tsx's own password-change form and SettingsPage.tsx's Hard-Block
+   Passcode form - both are a [label, input] pair repeated down the page-settings.json spec (frame-
+   account-password / the second frame-account-password nested in frame-general), each pair
+   right-aligning its label against the input column beside it. */
+.sp-password-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--padding-5) var(--padding-10);
+  width: 100%;
+}
+
+.sp-password-grid .sp-label {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* page-settings's frame-general (design-specs/frames/page-settings.json) - SettingsPage.tsx is
+   shared with OptionsApp.tsx's own standalone "Settings" tab, same as AccountPage.tsx above, so
+   this only owns internal layout/typography, not the surrounding card (SettingsTab.tsx's own
+   <section className="sp-card"> in the sidepanel). Its Tracking/Friends/Notifications toggles
+   keep real native <input type="checkbox"/"radio"> elements (not the ButtonList component used
+   for one-off toggles elsewhere) - OptionsApp.test.tsx's existing coverage of this page relies
+   heavily on native form semantics (getByLabelText, toBeChecked, the disabled attribute), and a
+   real form control is strictly more accessible here than re-implementing checkbox/radio
+   semantics on a plain span. .settings-page__marker below reskins the native input to match
+   button-list's own circle/square, pink/white-selected look pixel-for-pixel instead.
+   design-specs/frames/page-settings.json's own list-item labels use a stray "Nunito" text style
+   found nowhere else in this design system (not in tokens.json, not on any other frame) - treated
+   as a one-off authoring artifact rather than a real third font family to newly import; body text
+   here uses --font-body (Shantell Sans) like everywhere else. */
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-20);
+}
+
+.settings-page__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-2-5);
+}
+
+.settings-page__list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-10);
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.settings-page__marker {
+  appearance: none;
+  margin: 0;
+  width: var(--size-list-marker);
+  height: var(--size-list-marker);
+  flex-shrink: 0;
+  background: var(--color-white-50);
+  opacity: 0.75;
+  cursor: pointer;
+}
+
+.settings-page__marker:hover {
+  opacity: 1;
+}
+
+.settings-page__marker:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.settings-page__marker[type="radio"] {
+  border-radius: 50%;
+}
+
+.settings-page__marker[type="checkbox"] {
+  border-radius: var(--corner-3);
+}
+
+.settings-page__marker:checked {
+  background: var(--color-pink-50);
+}
+
+.settings-page__time-period {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-10);
+}
+
+.settings-page__time-period .sp-input {
+  width: 4em;
+}
+
+.settings-page__add-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
+.settings-page__add-row-fields {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-10);
+}
+
+.settings-page__add-row-fields .sp-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-page__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--padding-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
+.settings-page__list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--padding-20);
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+}
+
+/* page-settings's frame-history (design-specs/frames/page-settings.json) - HistoryPage.tsx is
+   shared with OptionsApp.tsx's own standalone "History" tab, same as AccountPage.tsx/
+   SettingsPage.tsx above, so this only owns internal layout, not the surrounding card. */
+.history-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
+.history-page__filters {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--padding-7-5);
+}
+
+.history-page__filters .sp-input {
+  width: 8em;
+}
+
+.history-page__sessions {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--padding-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--padding-5);
+}
+
+.history-page__session-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--padding-20);
+}
+
+.history-page__session-summary {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--padding-10);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+  text-align: left;
+}
+
+.history-page__session-goal-date {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-page__session-state,
+.history-page__session-duration {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.history-page__events {
+  padding-left: var(--padding-10);
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+}
+
+.history-page__event-list {
+  margin: 0;
+  padding-left: var(--padding-10);
 }

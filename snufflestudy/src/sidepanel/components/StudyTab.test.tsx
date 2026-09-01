@@ -29,12 +29,9 @@ describe("StudyTab", () => {
 
     renderStudyTab();
 
-    // SessionSetupForm's real submit button copy (Task 5, already committed) is "Start session" -
-    // the Figma design (nodeId 58:450, confirmed via get_design_context) shows "Start Study
-    // Session", but changing SessionSetupForm's button text is out of this task's scope (composing
-    // existing components only), so this test targets what's actually rendered rather than the
-    // design-intent copy. Flagged in the task report as a known follow-up.
-    expect(screen.getByRole("button", { name: /^start session$/i })).toBeInTheDocument();
+    // design-specs/frames/page-study.json's submit button copy is "Start Study Session" - the
+    // formerly-deferred Figma-vs-implementation gap this comment used to flag is now closed.
+    expect(screen.getByRole("button", { name: "Start Study Session" })).toBeInTheDocument();
     // getByText(/task vault/i) is ambiguous here: it also matches the Goal select's
     // "Choose a task from the Task Vault" placeholder option. The heading is the actual
     // Task Vault card title (TaskVaultPage.tsx renders it as an <h2>).

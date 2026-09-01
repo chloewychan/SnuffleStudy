@@ -42,8 +42,11 @@ describe("SidePanelApp", () => {
 
     render(<SidePanelApp />);
     // A fresh install (onboardingCompleted: false) shows OnboardingWizard's welcome screen
-    // first, before its "name" step ("Meet Snuffles").
-    await waitFor(() => expect(screen.getByText("Welcome to SnuffleStudy")).toBeInTheDocument());
+    // first, before its "name" step ("Meet Snuffles"). "Welcome to" and "SnuffleStudy" are two
+    // separate elements now (design-specs/frames/page-welcome.json: "Welcome to" sits above the
+    // real header-bar, whose own title supplies "SnuffleStudy").
+    await waitFor(() => expect(screen.getByText("Welcome to")).toBeInTheDocument());
+    expect(screen.getByText("SnuffleStudy")).toBeInTheDocument();
   });
 
   it("shows the session setup form when onboarding is complete and there is no active session", async () => {
@@ -64,7 +67,7 @@ describe("SidePanelApp", () => {
     // Goal is a <select> populated from the Task Vault (Task 5), not a free-text input with a
     // placeholder - assert on the labeled control that actually exists now.
     await waitFor(() => expect(screen.getByLabelText(/goal/i)).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Start session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start Study Session" })).toBeInTheDocument();
   });
 
   it("routes each of the four tabs to its own distinct content (Fix 12: only Study was previously tested)", async () => {
@@ -180,10 +183,10 @@ describe("SidePanelApp", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Study" }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Start session" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Start Study Session" })).toBeInTheDocument()
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Start session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Study Session" }));
 
     await waitFor(() => expect(sessionCreatePayloads.length).toBeGreaterThan(0));
     expect(sessionCreatePayloads[0]).toMatchObject({ restrictedSites: ["youtube.com"] });
@@ -206,7 +209,7 @@ describe("SidePanelApp", () => {
     await waitFor(() =>
       expect(screen.getAllByText("Finish 20 chemistry problems").length).toBe(2)
     );
-    expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End Session" })).toBeInTheDocument();
   });
 
   // v4.1 Task 8: replaces the old "replaces ActiveSessionView with RequestUnlockForm+<approver
@@ -240,7 +243,7 @@ describe("SidePanelApp", () => {
     // ActiveSessionView's own content and RequestUnlockForm's are both present at once - not one
     // swapped in place of the other.
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "End Session" })).toBeInTheDocument()
     );
     expect(screen.getByRole("timer")).toBeInTheDocument();
     await waitFor(() =>
@@ -390,9 +393,9 @@ describe("SidePanelApp", () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     render(<SidePanelApp />);
-    await waitFor(() => screen.getByRole("button", { name: "End session" }));
+    await waitFor(() => screen.getByRole("button", { name: "End Session" }));
 
-    screen.getByRole("button", { name: "End session" }).click();
+    screen.getByRole("button", { name: "End Session" }).click();
 
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith(
@@ -402,6 +405,6 @@ describe("SidePanelApp", () => {
     await waitFor(() => expect(consoleErrorSpy).toHaveBeenCalled());
 
     // Component survives the rejection instead of crashing/unmounting.
-    expect(screen.getByRole("button", { name: "End session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End Session" })).toBeInTheDocument();
   });
 });

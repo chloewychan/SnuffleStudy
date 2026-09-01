@@ -16,8 +16,7 @@ beforeEach(() => {
 // level; the account-creation branch is covered end to end from this page's own call site in the
 // "creating a new account" describe block below.
 function goToSignInWithCode() {
-  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-  fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
+  fireEvent.click(screen.getByRole("button", { name: "Sign in (one-time code)" }));
 }
 
 describe("AccountPage — signed out", () => {
@@ -29,11 +28,11 @@ describe("AccountPage — signed out", () => {
     });
 
     render(<AccountPage />);
-    await waitFor(() => screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => screen.getByRole("button", { name: "Create new account" }));
     goToSignInWithCode();
 
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send Sign-In Code" }));
 
     expect(await screen.findByText(/check a@example.com for an 8-digit code/i)).toBeInTheDocument();
     expect(messenger.sendMessage).toHaveBeenCalledWith({
@@ -53,14 +52,14 @@ describe("AccountPage — signed out", () => {
     });
 
     render(<AccountPage />);
-    await waitFor(() => screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => screen.getByRole("button", { name: "Create new account" }));
     goToSignInWithCode();
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send Sign-In Code" }));
     await screen.findByLabelText("Code");
 
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
     expect(await screen.findByText(/signed in as a@example.com/i)).toBeInTheDocument();
     expect(messenger.sendMessage).toHaveBeenCalledWith({
@@ -80,14 +79,14 @@ describe("AccountPage — signed out", () => {
     });
 
     render(<AccountPage />);
-    await waitFor(() => screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => screen.getByRole("button", { name: "Create new account" }));
     goToSignInWithCode();
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send Sign-In Code" }));
     await screen.findByLabelText("Code");
 
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "00000000" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/token has expired or is invalid/i);
   });
@@ -113,22 +112,22 @@ describe("AccountPage — signed out", () => {
       });
 
       render(<AccountPage />);
-      await waitFor(() => screen.getByRole("button", { name: "Create account" }));
-      fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+      await waitFor(() => screen.getByRole("button", { name: "Create new account" }));
+      fireEvent.click(screen.getByRole("button", { name: "Create new account" }));
 
-      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Robin" } });
+      fireEvent.change(screen.getByLabelText("Your Name"), { target: { value: "Robin" } });
       fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new@example.com" } });
       fireEvent.change(screen.getByLabelText("Password"), {
         target: { value: "correct-horse" },
       });
-      fireEvent.change(screen.getByLabelText("Confirm password"), {
+      fireEvent.change(screen.getByLabelText("Confirm Password"), {
         target: { value: "correct-horse" },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Send Sign-In Code" }));
       await screen.findByLabelText("Code");
 
       fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
-      fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
         /password should be at least 6 characters/i
@@ -149,22 +148,22 @@ describe("AccountPage — signed out", () => {
       });
 
       render(<AccountPage />);
-      await waitFor(() => screen.getByRole("button", { name: "Create account" }));
-      fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+      await waitFor(() => screen.getByRole("button", { name: "Create new account" }));
+      fireEvent.click(screen.getByRole("button", { name: "Create new account" }));
 
-      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Robin" } });
+      fireEvent.change(screen.getByLabelText("Your Name"), { target: { value: "Robin" } });
       fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new@example.com" } });
       fireEvent.change(screen.getByLabelText("Password"), {
         target: { value: "correct-horse" },
       });
-      fireEvent.change(screen.getByLabelText("Confirm password"), {
+      fireEvent.change(screen.getByLabelText("Confirm Password"), {
         target: { value: "correct-horse" },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Send Sign-In Code" }));
       await screen.findByLabelText("Code");
 
       fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
-      fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
       expect(await screen.findByText(/signed in as new@example.com/i)).toBeInTheDocument();
     });
@@ -203,15 +202,15 @@ describe("AccountPage — signed in", () => {
   // for a pre-existing no-password account (created before this feature shipped), and the normal
   // way to change a password later.
   describe("password", () => {
-    it("disables Set password until both fields are filled and match (genuinely disabled, not just visual)", async () => {
+    it("disables Save Password until both fields are filled and match (genuinely disabled, not just visual)", async () => {
       mockSignedIn();
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      const submitButton = screen.getByRole("button", { name: "Set password" });
+      const submitButton = screen.getByRole("button", { name: "Save Password" });
       expect(submitButton).toBeDisabled();
 
-      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "new-pw" } });
       expect(submitButton).toBeDisabled();
 
       fireEvent.change(screen.getByLabelText("Confirm new password"), {
@@ -232,11 +231,11 @@ describe("AccountPage — signed in", () => {
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "new-pw" } });
       fireEvent.change(screen.getByLabelText("Confirm new password"), {
         target: { value: "new-pw" },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save Password" }));
 
       await waitFor(() =>
         expect(setPasswordSpy).toHaveBeenCalledWith({
@@ -258,9 +257,9 @@ describe("AccountPage — signed in", () => {
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "x" } });
+      fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "x" } });
       fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "x" } });
-      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save Password" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
         /password should be at least 6 characters/i
@@ -276,7 +275,7 @@ describe("AccountPage — signed in", () => {
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText("Old Password")).not.toBeInTheDocument();
     });
 
     function mockSignedInWithExistingPassword(
@@ -302,17 +301,17 @@ describe("AccountPage — signed in", () => {
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      expect(await screen.findByLabelText("Current password")).toBeInTheDocument();
+      expect(await screen.findByLabelText("Old Password")).toBeInTheDocument();
 
-      const submitButton = screen.getByRole("button", { name: "Set password" });
-      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
+      const submitButton = screen.getByRole("button", { name: "Save Password" });
+      fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "new-pw" } });
       fireEvent.change(screen.getByLabelText("Confirm new password"), {
         target: { value: "new-pw" },
       });
       // New/confirm match, but Current password is still empty - stays disabled.
       expect(submitButton).toBeDisabled();
 
-      fireEvent.change(screen.getByLabelText("Current password"), { target: { value: "old-pw" } });
+      fireEvent.change(screen.getByLabelText("Old Password"), { target: { value: "old-pw" } });
       expect(submitButton).not.toBeDisabled();
     });
 
@@ -322,14 +321,14 @@ describe("AccountPage — signed in", () => {
 
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
-      await screen.findByLabelText("Current password");
+      await screen.findByLabelText("Old Password");
 
-      fireEvent.change(screen.getByLabelText("Current password"), { target: { value: "old-pw" } });
-      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("Old Password"), { target: { value: "old-pw" } });
+      fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "new-pw" } });
       fireEvent.change(screen.getByLabelText("Confirm new password"), {
         target: { value: "new-pw" },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save Password" }));
 
       await waitFor(() =>
         expect(setPasswordSpy).toHaveBeenCalledWith({
@@ -338,7 +337,7 @@ describe("AccountPage — signed in", () => {
         })
       );
       // Success clears currentPassword alongside the other two fields.
-      await waitFor(() => expect(screen.getByLabelText("Current password")).toHaveValue(""));
+      await waitFor(() => expect(screen.getByLabelText("Old Password")).toHaveValue(""));
     });
 
     it("surfaces 'Current password is incorrect' without clearing the current password field", async () => {
@@ -348,18 +347,18 @@ describe("AccountPage — signed in", () => {
 
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
-      await screen.findByLabelText("Current password");
+      await screen.findByLabelText("Old Password");
 
-      fireEvent.change(screen.getByLabelText("Current password"), { target: { value: "wrong-pw" } });
-      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "new-pw" } });
+      fireEvent.change(screen.getByLabelText("Old Password"), { target: { value: "wrong-pw" } });
+      fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "new-pw" } });
       fireEvent.change(screen.getByLabelText("Confirm new password"), {
         target: { value: "new-pw" },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save Password" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(/current password is incorrect/i);
       // "Don't wipe input on a failed attempt" - the field the user needs to look at again.
-      expect(screen.getByLabelText("Current password")).toHaveValue("wrong-pw");
+      expect(screen.getByLabelText("Old Password")).toHaveValue("wrong-pw");
     });
   });
 
@@ -377,26 +376,25 @@ describe("AccountPage — signed in", () => {
     });
 
     render(<AccountPage />);
-    await waitFor(() => screen.getByRole("button", { name: "Sign in" }));
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
+    await waitFor(() => screen.getByRole("button", { name: "Create new account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign in (one-time code)" }));
 
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "legacy@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send Sign-In Code" }));
     await screen.findByLabelText("Code");
 
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
-    fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
     // Signed in via code alone - no password step tacked on for the sign-in branch.
     expect(await screen.findByText(/signed in as legacy@example.com/i)).toBeInTheDocument();
 
     // The recovery path: set a password now, from AccountPage's own "Password" section.
-    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "fresh-pw" } });
+    fireEvent.change(screen.getByLabelText("New Password"), { target: { value: "fresh-pw" } });
     fireEvent.change(screen.getByLabelText("Confirm new password"), {
       target: { value: "fresh-pw" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Set password" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Password" }));
 
     expect(await screen.findByText("Password updated.")).toBeInTheDocument();
     expect(messenger.sendMessage).toHaveBeenCalledWith({
@@ -413,12 +411,12 @@ describe("AccountPage — signed in", () => {
     render(<AccountPage />);
     await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign Out" }));
 
     // v3.3 Task 14: the signed-out view is now SignInForm's entry choice, not a bare email
     // field - see SignInForm.test.tsx for full coverage of the Create account/Sign in split.
-    expect(await screen.findByRole("button", { name: "Create account" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Create new account" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in (with password)" })).toBeInTheDocument();
   });
 
   // v3.2 Task 8: account/data deletion, gated behind a confirmation step - same convention as
@@ -433,13 +431,13 @@ describe("AccountPage — signed in", () => {
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
-      fireEvent.click(await screen.findByRole("button", { name: /yes, permanently delete/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Delete Account" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Yes, delete my account" }));
 
       await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith({ type: "AUTH_DELETE_ACCOUNT" }));
       // v3.3 Task 14: the signed-out view is now SignInForm's entry choice, not a bare email
       // field.
-      expect(await screen.findByRole("button", { name: "Create account" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Create new account" })).toBeInTheDocument();
     });
 
     it("does not send AUTH_DELETE_ACCOUNT when the inline confirmation is cancelled", async () => {
@@ -449,8 +447,8 @@ describe("AccountPage — signed in", () => {
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
-      fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+      fireEvent.click(screen.getByRole("button", { name: "Delete Account" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Go back" }));
 
       // Give any stray microtask a chance to run before asserting the negative.
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -466,8 +464,8 @@ describe("AccountPage — signed in", () => {
       render(<AccountPage />);
       await waitFor(() => screen.getByText(/signed in as a@example.com/i));
 
-      fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
-      fireEvent.click(await screen.findByRole("button", { name: /yes, permanently delete/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Delete Account" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Yes, delete my account" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
         /couldn.t delete your account: failed to delete your account/i

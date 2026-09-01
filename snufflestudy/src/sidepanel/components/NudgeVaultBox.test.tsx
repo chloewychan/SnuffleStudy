@@ -100,7 +100,7 @@ describe("NudgeVaultBox", () => {
       renderBox();
       await waitFor(() => expect(screen.getByText(/no saved audio nudges yet/i)).toBeInTheDocument());
 
-      fireEvent.click(screen.getByText("Record a tag (10s max)"));
+      fireEvent.click(screen.getByText("Record New Audio Nudge"));
       fireEvent.click(screen.getByText("Stop"));
       await waitFor(() => expect(screen.getByText("Save to vault")).toBeInTheDocument());
 
@@ -183,7 +183,7 @@ describe("NudgeVaultBox", () => {
       const addButton = screen.getByRole("button", { name: "Add" });
       expect(addButton).toBeDisabled();
 
-      fireEvent.change(screen.getByLabelText("New nudge"), { target: { value: "Keep going!" } });
+      fireEvent.change(screen.getByLabelText("New Written Nudge"), { target: { value: "Keep going!" } });
       expect(addButton).not.toBeDisabled();
       fireEvent.click(addButton);
 
@@ -195,7 +195,7 @@ describe("NudgeVaultBox", () => {
       );
       expect(await screen.findByText("Keep going!")).toBeInTheDocument();
       // The input clears on success.
-      expect(screen.getByLabelText("New nudge")).toHaveValue("");
+      expect(screen.getByLabelText("New Written Nudge")).toHaveValue("");
     });
 
     it("submits on Enter, same as clicking Add", async () => {
@@ -208,10 +208,10 @@ describe("NudgeVaultBox", () => {
       );
 
       renderBox();
-      await waitFor(() => expect(screen.getByLabelText("New nudge")).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByLabelText("New Written Nudge")).toBeInTheDocument());
 
-      fireEvent.change(screen.getByLabelText("New nudge"), { target: { value: "Keep going!" } });
-      fireEvent.keyDown(screen.getByLabelText("New nudge"), { key: "Enter" });
+      fireEvent.change(screen.getByLabelText("New Written Nudge"), { target: { value: "Keep going!" } });
+      fireEvent.keyDown(screen.getByLabelText("New Written Nudge"), { key: "Enter" });
 
       await waitFor(() => expect(createSpy).toHaveBeenCalled());
     });
@@ -240,6 +240,82 @@ describe("NudgeVaultBox", () => {
         })
       );
       await waitFor(() => expect(screen.queryByText("Keep going!")).not.toBeInTheDocument());
+    });
+
+    // NUDGE_VAULT_TEXT_UPDATE doesn't exist - Edit composes the existing CREATE+DELETE actions
+    // instead (see NudgeVaultBox.tsx's own header comment on `editingTextId`).
+    it("Edit loads the row's text into the field, and saving calls CREATE then DELETE for the original row", async () => {
+      let listCallCount = 0;
+      const createSpy = vi.fn(async () => ({
+        ok: true,
+        text: { id: "text-2", body: "Keep going, you've got this!", createdAt: 3000 },
+      }));
+      const deleteSpy = vi.fn(async () => ({ ok: true }));
+      vi.spyOn(messenger, "sendMessage").mockImplementation(
+        routeSendMessage({
+          NUDGE_VAULT_TEXT_LIST: () => {
+            listCallCount += 1;
+            return {
+              ok: true,
+              texts:
+                listCallCount === 1
+                  ? [{ id: "text-1", body: "Keep going!", createdAt: 2000 }]
+                  : [{ id: "text-2", body: "Keep going, you've got this!", createdAt: 3000 }],
+            };
+          },
+          NUDGE_VAULT_TEXT_CREATE: createSpy,
+          NUDGE_VAULT_TEXT_DELETE: deleteSpy,
+        })
+      );
+
+      renderBox();
+      const row = (await screen.findByText("Keep going!")).closest("li")!;
+
+      fireEvent.click(within(row).getByRole("button", { name: "Edit Keep going!" }));
+
+      const field = screen.getByLabelText("New Written Nudge");
+      expect(field).toHaveValue("Keep going!");
+
+      fireEvent.change(field, { target: { value: "Keep going, you've got this!" } });
+      fireEvent.click(screen.getByRole("button", { name: "Save edit" }));
+
+      await waitFor(() =>
+        expect(createSpy).toHaveBeenCalledWith({
+          type: "NUDGE_VAULT_TEXT_CREATE",
+          payload: { body: "Keep going, you've got this!" },
+        })
+      );
+      await waitFor(() =>
+        expect(deleteSpy).toHaveBeenCalledWith({
+          type: "NUDGE_VAULT_TEXT_DELETE",
+          payload: { id: "text-1" },
+        })
+      );
+      expect(await screen.findByText("Keep going, you've got this!")).toBeInTheDocument();
+      expect(field).toHaveValue("");
+    });
+
+    it("Cancel edit clears the field and drops back to the plain Add flow", async () => {
+      vi.spyOn(messenger, "sendMessage").mockImplementation(
+        routeSendMessage({
+          NUDGE_VAULT_TEXT_LIST: () => ({
+            ok: true,
+            texts: [{ id: "text-1", body: "Keep going!", createdAt: 2000 }],
+          }),
+        })
+      );
+
+      renderBox();
+      const row = (await screen.findByText("Keep going!")).closest("li")!;
+
+      fireEvent.click(within(row).getByRole("button", { name: "Edit Keep going!" }));
+      expect(screen.getByLabelText("New Written Nudge")).toHaveValue("Keep going!");
+
+      fireEvent.click(screen.getByRole("button", { name: "Cancel edit" }));
+
+      expect(screen.getByLabelText("New Written Nudge")).toHaveValue("");
+      expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Cancel edit" })).not.toBeInTheDocument();
     });
   });
 

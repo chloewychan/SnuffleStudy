@@ -1,10 +1,12 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import type { UserSettings } from "../../domain/settings/userSettings";
 import { PRESSURE_PROFILES } from "../../domain/pressure/pressureProfiles";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import { requestHardBlockHostPermission } from "../../infrastructure/browser/permissionsApi";
 import type { Task } from "../../domain/tasks/taskTypes";
 import { sortTasksForDisplay } from "../../domain/tasks/sortTasks";
+import { Input } from "./ui/Input";
+import { ButtonLarge } from "./ui/ButtonLarge";
 
 interface SessionSetupFormProps {
   settings: UserSettings;
@@ -18,6 +20,10 @@ interface SessionSetupFormProps {
   tasks?: Task[];
 }
 
+// design-specs/frames/page-study.json's frame-study-session: Goal/Pressure Style/Restriction Mode
+// are dropdowns, Focus Duration is two textboxes (hours/minutes) - confirmed by matching each
+// label's node id against its nearest-id value widget (each label+input pair was authored
+// together in Figma), not by document order (which interleaves them differently).
 export function SessionSetupForm({ settings, tasks: tasksProp }: SessionSetupFormProps) {
   const [fetchedTasks, setFetchedTasks] = useState<Task[]>([]);
   // v4.1 Task 6: completed tasks sink to the bottom (sortTasksForDisplay), so the first entry
@@ -33,6 +39,12 @@ export function SessionSetupForm({ settings, tasks: tasksProp }: SessionSetupFor
   const [restrictionMode, setRestrictionMode] = useState(settings.defaultRestrictionMode);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const idPrefix = useId();
+  const goalFieldId = `${idPrefix}-goal`;
+  const focusDurationLabelId = `${idPrefix}-focus-duration-label`;
+  const pressureFieldId = `${idPrefix}-pressure`;
+  const restrictionFieldId = `${idPrefix}-restriction`;
 
   useEffect(() => {
     // The parent already owns a task list (see the `tasks` prop comment above) - skip this
@@ -123,9 +135,14 @@ export function SessionSetupForm({ settings, tasks: tasksProp }: SessionSetupFor
 
   return (
     <form className="session-setup-form" onSubmit={handleSubmit}>
-      <label className="sp-field" htmlFor="session-goal">
-        Goal
-        <select id="session-goal" value={goal} onChange={(e) => setGoal(e.target.value)}>
+      <div className="sp-form-fields">
+        <label htmlFor={goalFieldId}>Goal</label>
+        <Input
+          variant="dropdown"
+          id={goalFieldId}
+          value={goal}
+          onChange={(e) => setGoal(e.target.value)}
+        >
           <option value="" disabled>
             Choose a task from the Task Vault
           </option>
@@ -138,58 +155,57 @@ export function SessionSetupForm({ settings, tasks: tasksProp }: SessionSetupFor
               {task.title}
             </option>
           ))}
-        </select>
-      </label>
-      <fieldset className="sp-field">
-        <legend>Focus Duration</legend>
-        <label htmlFor="session-focus-hours">
-          Hours
-          <input
-            id="session-focus-hours"
+        </Input>
+
+        <label id={focusDurationLabelId}>Focus Duration</label>
+        <div className="session-setup-form__duration" role="group" aria-labelledby={focusDurationLabelId}>
+          <Input
             type="number"
             min={0}
             max={3}
+            aria-label="Hours"
             value={focusHours}
             onChange={(e) => setFocusHours(Math.min(3, Math.max(0, Number(e.target.value) || 0)))}
           />
-        </label>
-        <label htmlFor="session-focus-minutes">
-          Minutes
-          <input
-            id="session-focus-minutes"
+          <Input
             type="number"
             min={0}
             max={59}
+            aria-label="Minutes"
             value={focusMinutes}
             onChange={(e) => setFocusMinutes(Math.min(59, Math.max(0, Number(e.target.value) || 0)))}
           />
-        </label>
-      </fieldset>
-      <label className="sp-field">
-        Pressure style
-        <select value={pressureProfileId} onChange={(e) => setPressureProfileId(e.target.value)}>
+        </div>
+
+        <label htmlFor={pressureFieldId}>Pressure Style</label>
+        <Input
+          variant="dropdown"
+          id={pressureFieldId}
+          value={pressureProfileId}
+          onChange={(e) => setPressureProfileId(e.target.value)}
+        >
           {PRESSURE_PROFILES.map((profile) => (
             <option key={profile.id} value={profile.id}>
               {profile.name}
             </option>
           ))}
-        </select>
-      </label>
-      <label className="sp-field" htmlFor="session-restriction-mode">
-        Restriction Mode
-        <select
-          id="session-restriction-mode"
+        </Input>
+
+        <label htmlFor={restrictionFieldId}>Restriction Mode</label>
+        <Input
+          variant="dropdown"
+          id={restrictionFieldId}
           value={restrictionMode}
           onChange={(e) => setRestrictionMode(e.target.value as "soft" | "hard")}
         >
           <option value="soft">Soft</option>
           <option value="hard">Hard</option>
-        </select>
-      </label>
+        </Input>
+      </div>
       {error && <p role="alert">{error}</p>}
-      <button type="submit" disabled={submitting}>
-        {submitting ? "Starting…" : "Start session"}
-      </button>
+      <ButtonLarge type="submit" disabled={submitting}>
+        {submitting ? "Starting…" : "Start Study Session"}
+      </ButtonLarge>
     </form>
   );
 }

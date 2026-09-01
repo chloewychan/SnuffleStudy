@@ -15,6 +15,19 @@
         "Colour": "white",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1433",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1358",
@@ -42,6 +55,19 @@
         "Colour": "pink",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1430",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1360",
@@ -69,6 +95,19 @@
         "Colour": "beige",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1428",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1362",
@@ -96,6 +135,19 @@
         "Colour": "white",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1433",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1366",
@@ -124,6 +176,19 @@
         "Colour": "pink",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1427",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1368",
@@ -152,6 +217,19 @@
         "Colour": "beige",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1427",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "183:905",
@@ -311,6 +389,19 @@
         "Colour": "beige",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1427",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "183:907",

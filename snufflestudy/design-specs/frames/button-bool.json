@@ -13,6 +13,19 @@
         "Type": "check",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1415",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1327",
@@ -46,6 +59,19 @@
         "Type": "x",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1414",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1331",

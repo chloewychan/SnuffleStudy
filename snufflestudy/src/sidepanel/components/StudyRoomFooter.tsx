@@ -5,6 +5,10 @@ import { openMediaPermissionTab } from "../../infrastructure/media/mediaPermissi
 import { useRegisterRefresh } from "../refresh/RefreshRegistryContext";
 import { useStudyRoomSession, type Tile } from "../studyRoom/StudyRoomSessionContext";
 import { useNudgeVaultItems } from "../nudgeVault/useNudgeVaultItems";
+import { VideoBox } from "./ui/VideoBox";
+import { ButtonLargeIcon } from "./ui/ButtonLargeIcon";
+import { ButtonLarge } from "./ui/ButtonLarge";
+import { Input } from "./ui/Input";
 
 // v4.1 Task 7: the persistent, joined-room half of the old StudyRoomPanel.tsx, now reading
 // everything from the shared study-room session (useStudyRoomSession()) instead of local state -
@@ -63,32 +67,15 @@ function StudyRoomVideoTile({
     };
   }, [tile.audioElement]);
 
-  const classNames = ["study-room-panel__tile"];
-  if (selected) classNames.push("study-room-panel__tile--selected");
-  if (!onToggle) classNames.push("study-room-panel__tile--unselectable");
-
   return (
-    <div
-      ref={containerRef}
-      className={classNames.join(" ")}
+    <VideoBox
+      label={label}
+      selected={selected}
+      onClick={onToggle ?? undefined}
       data-participant={tile.participantIdentity}
-      {...(onToggle
-        ? {
-            role: "button" as const,
-            tabIndex: 0,
-            "aria-pressed": selected,
-            onClick: onToggle,
-            onKeyDown: (e: React.KeyboardEvent) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onToggle();
-              }
-            },
-          }
-        : {})}
     >
-      <span className="study-room-panel__tile-label">{label}</span>
-    </div>
+      <div ref={containerRef} className="study-room-panel__tile-media" />
+    </VideoBox>
   );
 }
 
@@ -186,27 +173,22 @@ export function StudyRoomFooter() {
         <h2>{joinedRoom.name}</h2>
       </header>
 
-      <div className="study-room-panel__grid">
-        {tiles.map((tile) => (
-          <StudyRoomVideoTile
-            key={tile.participantIdentity}
-            tile={tile}
-            label={tile.isLocal ? "You" : displayName(tile.participantIdentity)}
-            selected={selectedParticipantIds.has(tile.participantIdentity)}
-            onToggle={
-              tile.isLocal ? null : () => toggleParticipantSelected(tile.participantIdentity)
-            }
-          />
-        ))}
-      </div>
-
-      <div className="study-room-panel__media-toggles">
-        <button type="button" onClick={toggleCamera}>
-          Camera: {cameraOn ? "On" : "Off"}
-        </button>
-        <button type="button" onClick={toggleMic}>
-          Mic: {micOn ? "On" : "Off"}
-        </button>
+      <div className="study-room-panel__call-options">
+        <ButtonLargeIcon
+          icon="microphone"
+          enabled={micOn}
+          onClick={toggleMic}
+          aria-label={micOn ? "Turn mic off" : "Turn mic on"}
+        />
+        <ButtonLargeIcon
+          icon="camera"
+          enabled={cameraOn}
+          onClick={toggleCamera}
+          aria-label={cameraOn ? "Turn camera off" : "Turn camera on"}
+        />
+        <ButtonLarge onClick={() => void leaveRoom()} disabled={leaving}>
+          {leaving ? "Leaving…" : "Leave Study Room"}
+        </ButtonLarge>
       </div>
 
       {mediaError && (
@@ -223,17 +205,40 @@ export function StudyRoomFooter() {
         </p>
       )}
 
+      <div className="study-room-panel__grid">
+        {tiles.map((tile) => (
+          <StudyRoomVideoTile
+            key={tile.participantIdentity}
+            tile={tile}
+            label={tile.isLocal ? "You" : displayName(tile.participantIdentity)}
+            selected={selectedParticipantIds.has(tile.participantIdentity)}
+            onToggle={
+              tile.isLocal ? null : () => toggleParticipantSelected(tile.participantIdentity)
+            }
+          />
+        ))}
+      </div>
+
       <section className="study-room-panel__nudge">
-        <h3>Nudge</h3>
         {vaultError && <p role="alert">Couldn't load your Nudge Vault: {vaultError}.</p>}
         {vaultLoading && vaultItems.length === 0 && !vaultError && <p>Loading…</p>}
         {!vaultLoading && vaultItems.length === 0 && !vaultError && (
           <p>No saved nudges yet — add one from the Nudge Vault on the Friends tab.</p>
         )}
-        {vaultItems.length > 0 && (
-          <label>
-            Nudge Vault item
-            <select value={selectedVaultKey} onChange={(e) => setSelectedVaultKey(e.target.value)}>
+        <div className="study-room-panel__nudge-row">
+          <ButtonLarge
+            onClick={handleNudge}
+            disabled={nudging || !selectedVaultKey || selectedParticipantIds.size === 0}
+          >
+            {nudging ? "Sending…" : `Nudge (${selectedParticipantIds.size} selected)`}
+          </ButtonLarge>
+          {vaultItems.length > 0 && (
+            <Input
+              variant="dropdown"
+              aria-label="Nudge Vault item"
+              value={selectedVaultKey}
+              onChange={(e) => setSelectedVaultKey(e.target.value)}
+            >
               <option value="">Choose a saved nudge</option>
               {vaultItems.map((item) => (
                 <option key={`${item.kind}:${item.id}`} value={`${item.kind}:${item.id}`}>
@@ -242,22 +247,11 @@ export function StudyRoomFooter() {
                     : `Audio clip (${Math.round(item.durationMs / 1000)}s)`}
                 </option>
               ))}
-            </select>
-          </label>
-        )}
-        <button
-          type="button"
-          onClick={handleNudge}
-          disabled={nudging || !selectedVaultKey || selectedParticipantIds.size === 0}
-        >
-          {nudging ? "Sending…" : `Nudge (${selectedParticipantIds.size} selected)`}
-        </button>
+            </Input>
+          )}
+        </div>
         {nudgeError && <p role="alert">{nudgeError}</p>}
       </section>
-
-      <button type="button" onClick={() => void leaveRoom()} disabled={leaving}>
-        {leaving ? "Leaving…" : "Leave room"}
-      </button>
     </div>
   );
 }

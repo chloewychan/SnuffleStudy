@@ -174,8 +174,8 @@ function simplifyNode(node) {
     }
   }
 
-  if (node.reactions && node.reactions.length) {
-    simplified.interactions = node.reactions.map((r) => ({
+  if (node.interactions && node.interactions.length) {
+    simplified.interactions = node.interactions.map((r) => ({
       trigger: r.trigger && r.trigger.type,
       actions: (r.actions || [r.action]).filter(Boolean).map((a) => ({
         type: a.type,

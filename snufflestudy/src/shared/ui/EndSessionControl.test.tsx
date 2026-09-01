@@ -31,7 +31,7 @@ describe("EndSessionControl", () => {
       .mockResolvedValue({ ok: true, session: null });
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
 
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith({
@@ -50,7 +50,7 @@ describe("EndSessionControl", () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
 
     expect(screen.getByPlaceholderText("Passcode")).toBeInTheDocument();
     expect(sendMessageSpy).not.toHaveBeenCalledWith(
@@ -65,7 +65,7 @@ describe("EndSessionControl", () => {
       .mockResolvedValue({ ok: true, session: null });
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
     fireEvent.change(screen.getByPlaceholderText("Passcode"), { target: { value: "1234" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm end session" }));
 
@@ -91,7 +91,7 @@ describe("EndSessionControl", () => {
     }) as never);
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
     fireEvent.change(screen.getByPlaceholderText("Passcode"), { target: { value: "0000" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm end session" }));
 
@@ -114,7 +114,7 @@ describe("EndSessionControl", () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
     fireEvent.change(screen.getByPlaceholderText("Passcode"), { target: { value: "1234" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm end session" }));
 
@@ -132,7 +132,7 @@ describe("EndSessionControl", () => {
     );
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
     fireEvent.change(screen.getByPlaceholderText("Passcode"), { target: { value: "1234" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm end session" }));
 
@@ -203,7 +203,7 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}) as never);
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
 
     expect(screen.getByPlaceholderText("Passcode")).toBeInTheDocument();
     expect(await requestButton()).toBeInTheDocument();
@@ -225,7 +225,7 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
     );
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
     fireEvent.click(await requestButton());
 
     await waitFor(() => expect(screen.getByText("Pending")).toBeInTheDocument());
@@ -257,7 +257,7 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
     );
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
     fireEvent.click(await requestButton());
 
     await waitFor(() => expect(screen.getByRole("button", { name: "End session now" })).toBeInTheDocument());
@@ -281,7 +281,7 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
     );
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
     fireEvent.click(await requestButton());
 
     await waitFor(() => expect(screen.getByText("Denied")).toBeInTheDocument());
@@ -302,7 +302,7 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
     );
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
     fireEvent.click(await requestButton());
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No friends available to ask.");
@@ -322,7 +322,7 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
     );
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
     fireEvent.click(await requestButton());
     await waitFor(() => expect(screen.getByRole("button", { name: "End session now" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "End session now" }));
@@ -340,7 +340,7 @@ describe("EndSessionControl — temporary pass to end a hard-restricted session 
     }) as never);
 
     render(<EndSessionControl session={session} />);
-    fireEvent.click(screen.getByRole("button", { name: "End session" }));
+    fireEvent.click(screen.getByRole("button", { name: "End Session" }));
 
     expect(await screen.findByText("No friends available to ask yet - add a friend first.")).toBeInTheDocument();
     expect(

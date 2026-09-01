@@ -1,5 +1,9 @@
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
+import { ButtonIcon } from "../../sidepanel/components/ui/ButtonIcon";
+import { ButtonLarge } from "../../sidepanel/components/ui/ButtonLarge";
+import { ButtonSmall } from "../../sidepanel/components/ui/ButtonSmall";
+import { Input } from "../../sidepanel/components/ui/Input";
 
 // Minimal shape of what supabase-js's Session/User actually returns - only the fields this
 // form ever hands back to its caller after a successful sign-in. Mirrors the shape
@@ -28,6 +32,11 @@ interface SignInFormProps {
   // (including the initial Create account/Sign in choice) when provided. Omitted entirely on
   // AccountPage, where there's nothing to skip to.
   onSkip?: () => void;
+  // Present only in the onboarding context: design-specs/frames/page-sign-in.json's back button
+  // on the entry "choice" step goes back to page-welcome (WelcomeScreen), which only
+  // OnboardingWizard.tsx can wire up. Every other step's own back button (choice, not welcome)
+  // works everywhere regardless of this prop - see handleBack.
+  onBack?: () => void;
 }
 
 // v3.3 Task 14 (Decision 6): the Create-account/Sign-in choice lives inside this component, not
@@ -35,7 +44,11 @@ interface SignInFormProps {
 // future one) gets both flows automatically, with no risk of a call site being wired to the
 // wrong mode.
 //
-// - "choice": entry state - Create account / Sign in.
+// design-specs/frames/page-sign-in.json merges what used to be two nested choice screens
+// ("choice" -> "signin-choice") into one: Create account / Sign in with password / Sign in with
+// a one-time code, all three peers on the entry screen. signin-choice no longer exists as a mode.
+//
+// - "choice": entry state - Create account / Sign in with password / Sign in with a code.
 // - "create-details" -> "create-code": v3.4 Task 7 consolidated account creation onto one screen
 //   ahead of the OTP step - name/bunny name/email/password/confirm password are all collected
 //   together on "create-details", then "create-code"'s verified OTP completes account creation
@@ -44,8 +57,6 @@ interface SignInFormProps {
 //   branch's own code round trip below (only one branch is ever visible at a time, and both
 //   round trips are functionally identical AUTH_REQUEST_OTP/AUTH_VERIFY_OTP calls against
 //   whatever email is currently entered).
-// - "signin-choice": two peer options, not fallback-primary - "Sign in with a password" and
-//   "Email me a code".
 // - "signin-password": AUTH_SIGN_IN_PASSWORD, its own email/password fields (kept separate from
 //   the create-account email field so switching branches doesn't leak a partially-typed email
 //   between unrelated flows).
@@ -56,12 +67,22 @@ type Mode =
   | "choice"
   | "create-details"
   | "create-code"
-  | "signin-choice"
   | "signin-password"
   | "signin-otp-email"
   | "signin-otp-code";
 
-export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps) {
+// design-specs/frames/page-sign-in*.json / page-create-new-account*.json's per-step Pangolin
+// title, next to the back button.
+const STEP_TITLE: Record<Mode, string> = {
+  choice: "Sign In",
+  "create-details": "Create New Account",
+  "create-code": "Create New Account",
+  "signin-password": "Sign In With Password",
+  "signin-otp-email": "Sign In With One-Time Code",
+  "signin-otp-code": "Sign In With One-Time Code",
+};
+
+export function SignInForm({ framingCopy, onSignedIn, onSkip, onBack }: SignInFormProps) {
   const [mode, setMode] = useState<Mode>("choice");
 
   // Shared by both the create-account branch's mandatory code step and the sign-in branch's
@@ -76,7 +97,7 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
   // the code itself. Distinct in purpose from the old (now-removed) pendingCreateSession, which
   // existed to gate a manual next step the user drove themselves - this exists purely to make
   // automatic completion retryable. Also doubles as the "create-code" step's signal for whether
-  // to render "Verify code" (not yet verified) or "Retry" (verified, completion failed).
+  // to render "Verify Code" (not yet verified) or "Retry" (verified, completion failed).
   const [verifiedSession, setVerifiedSession] = useState<SignInFormSession | null>(null);
 
   // Create-account branch's "create-details" step fields - name/bunny name collected up front,
@@ -94,6 +115,18 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
 
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
+
+  const idPrefix = useId();
+  const nameFieldId = `${idPrefix}-name`;
+  const bunnyNameFieldId = `${idPrefix}-bunny-name`;
+  const createEmailFieldId = `${idPrefix}-create-email`;
+  const createPasswordFieldId = `${idPrefix}-create-password`;
+  const confirmPasswordFieldId = `${idPrefix}-confirm-password`;
+  const createCodeFieldId = `${idPrefix}-create-code`;
+  const signInEmailFieldId = `${idPrefix}-signin-email`;
+  const signInPasswordFieldId = `${idPrefix}-signin-password`;
+  const otpEmailFieldId = `${idPrefix}-otp-email`;
+  const signInCodeFieldId = `${idPrefix}-signin-code`;
 
   // Shared by every "send a code"/"resend a code" action across both branches - just fires
   // AUTH_REQUEST_OTP for the current `email`. otpCode is reset unconditionally on success (v3.2
@@ -196,7 +229,7 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
       });
       if (!res.ok || !res.session) {
         // Wrong/expired code: reset authBusy here too (not just in the catch block below) so
-        // the "Verify code" button doesn't stay stuck disabled/"Verifying…" - there's no shared
+        // the "Verify Code" button doesn't stay stuck disabled/"Verifying…" - there's no shared
         // finally covering this early return, since the success path below deliberately hands
         // authBusy off to completeAccountCreation's own lifecycle instead.
         setAuthError(res.error ?? "Incorrect or expired code.");
@@ -278,15 +311,46 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
     }
   }
 
+  // design-specs/frames/page-sign-in*.json / page-create-new-account*.json each show one back
+  // button per step - "choice"'s goes to page-welcome (only OnboardingWizard.tsx can wire that,
+  // via onBack); every other step's own back button returns to whichever step preceded it, the
+  // same everywhere regardless of onBack.
+  function handleBack() {
+    setAuthError(null);
+    if (mode === "choice") {
+      onBack?.();
+      return;
+    }
+    if (mode === "create-code") {
+      setMode("create-details");
+      return;
+    }
+    if (mode === "signin-otp-code") {
+      setMode("signin-otp-email");
+      return;
+    }
+    setMode("choice");
+  }
+
+  const showBack = mode !== "choice" || Boolean(onBack);
+
+  function StepHeader() {
+    return (
+      <div className="sign-in-form__step-header">
+        {showBack && <ButtonIcon icon="back" aria-label="Back" onClick={handleBack} disabled={authBusy} />}
+        <h2>{STEP_TITLE[mode]}</h2>
+      </div>
+    );
+  }
+
   const skipButton = onSkip ? (
-    <button type="button" onClick={onSkip} disabled={authBusy}>
+    <ButtonSmall type="button" colour="beige" onClick={onSkip} disabled={authBusy}>
       Skip for now
-    </button>
+    </ButtonSmall>
   ) : null;
 
   return (
     <div className="sign-in-form">
-      {framingCopy && <p>{framingCopy}</p>}
       {authError && (
         <p role="alert" className="sign-in-form__error">
           Couldn't sign in: {authError}. Please try again.
@@ -294,230 +358,194 @@ export function SignInForm({ framingCopy, onSignedIn, onSkip }: SignInFormProps)
       )}
 
       {mode === "choice" && (
-        <div className="sign-in-form__actions">
-          {skipButton}
-          <button type="button" onClick={() => setMode("create-details")}>
-            Create account
-          </button>
-          <button type="button" onClick={() => setMode("signin-choice")}>
-            Sign in
-          </button>
-        </div>
+        <>
+          <StepHeader />
+          {framingCopy && <p className="sign-in-form__framing">{framingCopy}</p>}
+          <div className="sign-in-form__actions">
+            <ButtonLarge onClick={() => setMode("create-details")}>Create new account</ButtonLarge>
+            <ButtonLarge onClick={() => setMode("signin-password")}>
+              Sign in (with password)
+            </ButtonLarge>
+            <ButtonLarge onClick={() => setMode("signin-otp-email")}>
+              Sign in (one-time code)
+            </ButtonLarge>
+          </div>
+          {skipButton && <div className="sign-in-form__skip">{skipButton}</div>}
+        </>
       )}
 
       {mode === "create-details" && (
         <form onSubmit={handleCreateRequestOtp}>
-          <label>
-            Name
-            <input
+          <StepHeader />
+          <div className="sp-form-fields">
+            <label htmlFor={nameFieldId}>Your Name</label>
+            <Input
+              id={nameFieldId}
               type="text"
               required
               value={humanName}
               onChange={(e) => setHumanName(e.target.value)}
             />
-          </label>
-          <label>
-            Bunny name (optional)
-            <input
+            <label htmlFor={bunnyNameFieldId}>Bunny Name</label>
+            <Input
+              id={bunnyNameFieldId}
               type="text"
               value={bunnyName}
               onChange={(e) => setBunnyName(e.target.value)}
             />
-          </label>
-          <label>
-            Email
-            <input
+            <label htmlFor={createEmailFieldId}>Email</label>
+            <Input
+              id={createEmailFieldId}
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-          </label>
-          <label>
-            Password
-            <input
+            <label htmlFor={createPasswordFieldId}>Password</label>
+            <Input
+              id={createPasswordFieldId}
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-          </label>
-          <label>
-            Confirm password
-            <input
+            <label htmlFor={confirmPasswordFieldId}>Confirm Password</label>
+            <Input
+              id={confirmPasswordFieldId}
               type="password"
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
-          </label>
+          </div>
           <div className="sign-in-form__actions">
-            <button type="button" onClick={() => setMode("choice")} disabled={authBusy}>
-              Back
-            </button>
-            {skipButton}
-            <button
+            <ButtonLarge
               type="submit"
               disabled={authBusy || !humanName || !email || !password || password !== confirmPassword}
             >
-              {authBusy ? "Sending…" : "Send sign-in code"}
-            </button>
+              {authBusy ? "Sending…" : "Send Sign-In Code"}
+            </ButtonLarge>
           </div>
+          {skipButton && <div className="sign-in-form__skip">{skipButton}</div>}
         </form>
       )}
 
       {mode === "create-code" && (
         <form onSubmit={handleCreateVerifyOtp}>
+          <StepHeader />
           <p>Check {email} for an 8-digit code.</p>
-          <label>
-            Code
-            <input
+          <div className="sp-form-fields">
+            <label htmlFor={createCodeFieldId}>Code</label>
+            <Input
+              id={createCodeFieldId}
               type="text"
               inputMode="numeric"
               required
               value={otpCode}
               onChange={(e) => setOtpCode(e.target.value)}
             />
-          </label>
-          <div className="sign-in-form__actions">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("create-details");
-                setOtpCode("");
-                setAuthError(null);
-              }}
-              disabled={authBusy}
-            >
-              Use a different email
-            </button>
-            {skipButton}
+          </div>
+          <div className="sign-in-form__actions sign-in-form__actions--row">
+            <ButtonLarge type="button" onClick={() => requestOtp()} disabled={authBusy}>
+              Request a New Code
+            </ButtonLarge>
             {verifiedSession ? (
               // v3.4 Task 7: the code is already verified - retry ONLY the completion step
               // (password + profile), never AUTH_VERIFY_OTP again (see completeAccountCreation's
               // own comment for why - the code is single-use server-side).
-              <button
+              <ButtonLarge
                 type="button"
                 onClick={() => void completeAccountCreation(verifiedSession)}
                 disabled={authBusy}
               >
                 {authBusy ? "Finishing…" : "Retry"}
-              </button>
+              </ButtonLarge>
             ) : (
-              <button type="submit" disabled={authBusy || otpCode.length === 0}>
-                {authBusy ? "Verifying…" : "Verify code"}
-              </button>
+              <ButtonLarge type="submit" disabled={authBusy || otpCode.length === 0}>
+                {authBusy ? "Verifying…" : "Verify Code"}
+              </ButtonLarge>
             )}
-            <button type="button" onClick={() => requestOtp()} disabled={authBusy}>
-              Request a new code
-            </button>
           </div>
+          {skipButton && <div className="sign-in-form__skip">{skipButton}</div>}
         </form>
-      )}
-
-      {mode === "signin-choice" && (
-        <div className="sign-in-form__actions">
-          <button type="button" onClick={() => setMode("choice")} disabled={authBusy}>
-            Back
-          </button>
-          {skipButton}
-          <button type="button" onClick={() => setMode("signin-password")}>
-            Sign in with a password
-          </button>
-          <button type="button" onClick={() => setMode("signin-otp-email")}>
-            Email me a code
-          </button>
-        </div>
       )}
 
       {mode === "signin-password" && (
         <form onSubmit={handleSignInPassword}>
-          <label>
-            Email
-            <input
+          <StepHeader />
+          <div className="sp-form-fields">
+            <label htmlFor={signInEmailFieldId}>Email</label>
+            <Input
+              id={signInEmailFieldId}
               type="email"
               required
               value={signInEmail}
               onChange={(e) => setSignInEmail(e.target.value)}
             />
-          </label>
-          <label>
-            Password
-            <input
+            <label htmlFor={signInPasswordFieldId}>Password</label>
+            <Input
+              id={signInPasswordFieldId}
               type="password"
               required
               value={signInPassword}
               onChange={(e) => setSignInPassword(e.target.value)}
             />
-          </label>
-          <div className="sign-in-form__actions">
-            <button type="button" onClick={() => setMode("signin-choice")} disabled={authBusy}>
-              Back
-            </button>
-            {skipButton}
-            <button type="submit" disabled={authBusy || !signInEmail || !signInPassword}>
-              {authBusy ? "Signing in…" : "Sign in"}
-            </button>
           </div>
+          <div className="sign-in-form__actions">
+            <ButtonLarge type="submit" disabled={authBusy || !signInEmail || !signInPassword}>
+              {authBusy ? "Signing in…" : "Sign In"}
+            </ButtonLarge>
+          </div>
+          {skipButton && <div className="sign-in-form__skip">{skipButton}</div>}
         </form>
       )}
 
       {mode === "signin-otp-email" && (
         <form onSubmit={handleSignInRequestOtp}>
-          <label>
-            Email
-            <input
+          <StepHeader />
+          <div className="sp-form-fields">
+            <label htmlFor={otpEmailFieldId}>Email</label>
+            <Input
+              id={otpEmailFieldId}
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-          </label>
-          <div className="sign-in-form__actions">
-            <button type="button" onClick={() => setMode("signin-choice")} disabled={authBusy}>
-              Back
-            </button>
-            {skipButton}
-            <button type="submit" disabled={authBusy || !email}>
-              {authBusy ? "Sending…" : "Send sign-in code"}
-            </button>
           </div>
+          <div className="sign-in-form__actions">
+            <ButtonLarge type="submit" disabled={authBusy || !email}>
+              {authBusy ? "Sending…" : "Send Sign-In Code"}
+            </ButtonLarge>
+          </div>
+          {skipButton && <div className="sign-in-form__skip">{skipButton}</div>}
         </form>
       )}
 
       {mode === "signin-otp-code" && (
         <form onSubmit={handleSignInVerifyOtp}>
+          <StepHeader />
           <p>Check {email} for an 8-digit code.</p>
-          <label>
-            Code
-            <input
+          <div className="sp-form-fields">
+            <label htmlFor={signInCodeFieldId}>Code</label>
+            <Input
+              id={signInCodeFieldId}
               type="text"
               inputMode="numeric"
               required
               value={otpCode}
               onChange={(e) => setOtpCode(e.target.value)}
             />
-          </label>
-          <div className="sign-in-form__actions">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("signin-otp-email");
-                setOtpCode("");
-                setAuthError(null);
-              }}
-              disabled={authBusy}
-            >
-              Use a different email
-            </button>
-            {skipButton}
-            <button type="submit" disabled={authBusy || otpCode.length === 0}>
-              {authBusy ? "Verifying…" : "Verify code"}
-            </button>
-            <button type="button" onClick={() => requestOtp()} disabled={authBusy}>
-              Request a new code
-            </button>
           </div>
+          <div className="sign-in-form__actions sign-in-form__actions--row">
+            <ButtonLarge type="button" onClick={() => requestOtp()} disabled={authBusy}>
+              Request a New Code
+            </ButtonLarge>
+            <ButtonLarge type="submit" disabled={authBusy || otpCode.length === 0}>
+              {authBusy ? "Verifying…" : "Verify Code"}
+            </ButtonLarge>
+          </div>
+          {skipButton && <div className="sign-in-form__skip">{skipButton}</div>}
         </form>
       )}
     </div>

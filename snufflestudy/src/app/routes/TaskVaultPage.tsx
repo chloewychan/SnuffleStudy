@@ -1,7 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import type { Task } from "../../domain/tasks/taskTypes";
 import { sortTasksForDisplay } from "../../domain/tasks/sortTasks";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
+import { Input } from "../../sidepanel/components/ui/Input";
+import { ButtonBool } from "../../sidepanel/components/ui/ButtonBool";
+import { ButtonList } from "../../sidepanel/components/ui/ButtonList";
 
 interface TaskVaultPageProps {
   // v3.4 Task 4: optional - this used to be a routed page with somewhere real to close to;
@@ -26,6 +29,8 @@ export function TaskVaultPage({ onClose, onTasksChanged }: TaskVaultPageProps) {
   const [createError, setCreateError] = useState<string | null>(null);
 
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const newTaskFieldId = useId();
 
   useEffect(() => {
     if (tasks !== null) onTasksChanged?.(tasks);
@@ -123,17 +128,21 @@ export function TaskVaultPage({ onClose, onTasksChanged }: TaskVaultPageProps) {
       </div>
 
       <form className="task-vault-page__new-task" onSubmit={handleCreateTask}>
-        <label>
-          New task
-          <input
+        <label htmlFor={newTaskFieldId}>New Task</label>
+        <div className="task-vault-page__new-task-row">
+          <Input
+            id={newTaskFieldId}
             value={newTaskTitle}
             onChange={(e) => setNewTaskTitle(e.target.value)}
             placeholder="STAT231"
           />
-        </label>
-        <button type="submit" disabled={creating || !newTaskTitle.trim()}>
-          {creating ? "Adding…" : "Add task"}
-        </button>
+          <ButtonBool
+            icon="check"
+            type="submit"
+            aria-label={creating ? "Adding task…" : "Add task"}
+            disabled={creating || !newTaskTitle.trim()}
+          />
+        </div>
       </form>
       {createError && <p role="alert">Couldn't create task: {createError}. Please try again.</p>}
 
@@ -148,14 +157,15 @@ export function TaskVaultPage({ onClose, onTasksChanged }: TaskVaultPageProps) {
           {sortTasksForDisplay(tasks).map((task) => (
             <li key={task.id} className="task-vault-page__task">
               <div className="task-vault-page__task-header">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={task.completedAt != null}
-                    onChange={(e) => void handleToggleTaskCompleted(task, e.target.checked)}
-                  />
-                  <span className="task-vault-page__task-title">{task.title}</span>
-                </label>
+                <ButtonList
+                  shape="square"
+                  colour="white"
+                  role="checkbox"
+                  selected={task.completedAt != null}
+                  onClick={() => void handleToggleTaskCompleted(task, task.completedAt == null)}
+                  aria-label={task.title}
+                />
+                <span className="task-vault-page__task-title">{task.title}</span>
               </div>
             </li>
           ))}

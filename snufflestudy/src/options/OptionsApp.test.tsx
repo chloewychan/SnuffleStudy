@@ -159,11 +159,11 @@ describe("OptionsApp", () => {
     // now ambiguously match both - wait on the specific testid instead.
     await waitFor(() => screen.getByTestId("passcode-input"));
 
-    // v4.1 Task 10: "Save passcode" is now also disabled until the new "Confirm new passcode"
+    // v4.1 Task 10: "Save Passcode" is now also disabled until the new "Confirm new passcode"
     // field matches - fill it in alongside the passcode itself.
     fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "1234" } });
     fireEvent.change(screen.getByTestId("confirm-passcode-input"), { target: { value: "1234" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save passcode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Passcode" }));
 
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith({
@@ -183,7 +183,7 @@ describe("OptionsApp", () => {
     fireEvent.change(screen.getByTestId("old-passcode-input"), { target: { value: "1234" } });
     fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "5678" } });
     fireEvent.change(screen.getByTestId("confirm-passcode-input"), { target: { value: "5678" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save passcode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Passcode" }));
 
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith({
@@ -193,13 +193,13 @@ describe("OptionsApp", () => {
     );
   });
 
-  it("disables Save passcode while the confirmation field doesn't match, and enables it once it does", async () => {
+  it("disables Save Passcode while the confirmation field doesn't match, and enables it once it does", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
 
     render(<OptionsApp />);
     await waitFor(() => screen.getByTestId("passcode-input"));
 
-    const saveButton = screen.getByRole("button", { name: "Save passcode" });
+    const saveButton = screen.getByRole("button", { name: "Save Passcode" });
     expect(saveButton).toBeDisabled();
 
     fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "1234" } });
@@ -230,7 +230,7 @@ describe("OptionsApp", () => {
     fireEvent.change(screen.getByTestId("old-passcode-input"), { target: { value: "0000" } });
     fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "5678" } });
     fireEvent.change(screen.getByTestId("confirm-passcode-input"), { target: { value: "5678" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save passcode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Passcode" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/incorrect current passcode/i);
     // The rejected save must not be reported as successful.
@@ -352,17 +352,17 @@ describe("OptionsApp", () => {
 
     fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "1234" } });
     fireEvent.change(screen.getByTestId("confirm-passcode-input"), { target: { value: "1234" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save passcode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Passcode" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/Could not establish connection/);
     expect(consoleErrorSpy).toHaveBeenCalled();
 
     // The passcode was never actually saved, so the inputs must not be silently cleared as if
-    // it succeeded — the user's typed values stay visible, and Save passcode stays enabled since
+    // it succeeded — the user's typed values stay visible, and Save Passcode stays enabled since
     // they still match.
     expect(screen.getByTestId("passcode-input")).toHaveValue("1234");
     expect(screen.getByTestId("confirm-passcode-input")).toHaveValue("1234");
-    expect(screen.getByRole("button", { name: "Save passcode" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save Passcode" })).not.toBeDisabled();
   });
 
   it("defaults to the Settings view and switches to History when its nav button is clicked", async () => {
@@ -376,11 +376,11 @@ describe("OptionsApp", () => {
     await waitFor(() => screen.getByLabelText("Detailed site tracking"));
 
     // Settings content is visible by default, and History's data hasn't been requested yet.
-    expect(screen.queryByText("Session history")).not.toBeInTheDocument();
+    expect(screen.queryByText("Session History")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "History" }));
 
-    expect(await screen.findByText("Session history")).toBeInTheDocument();
+    expect(await screen.findByText("Session History")).toBeInTheDocument();
     expect(screen.queryByLabelText("Detailed site tracking")).not.toBeInTheDocument();
     await waitFor(() =>
       expect(messenger.sendMessage).toHaveBeenCalledWith({
@@ -531,9 +531,9 @@ describe("OptionsApp", () => {
       vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
 
       render(<OptionsApp />);
-      await waitFor(() => screen.getByText("Grant camera & microphone access"));
+      await waitFor(() => screen.getByText("Grant Camera & Microphone Access"));
 
-      fireEvent.click(screen.getByText("Grant camera & microphone access"));
+      fireEvent.click(screen.getByText("Grant Camera & Microphone Access"));
 
       expect(getUserMediaMock).toHaveBeenCalledWith({ audio: true, video: true });
       expect(await screen.findByText(/access granted/i)).toBeInTheDocument();
@@ -545,9 +545,9 @@ describe("OptionsApp", () => {
       vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, settings: DEFAULT_USER_SETTINGS });
 
       render(<OptionsApp />);
-      await waitFor(() => screen.getByText("Grant camera & microphone access"));
+      await waitFor(() => screen.getByText("Grant Camera & Microphone Access"));
 
-      fireEvent.click(screen.getByText("Grant camera & microphone access"));
+      fireEvent.click(screen.getByText("Grant Camera & Microphone Access"));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(/permission was denied/i);
     });

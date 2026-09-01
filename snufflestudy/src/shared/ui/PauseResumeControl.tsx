@@ -1,16 +1,18 @@
 import type { StudySession } from "../../domain/session/sessionTypes";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
+import { ButtonLarge } from "../../sidepanel/components/ui/ButtonLarge";
 
 interface PauseResumeControlProps {
   session: StudySession;
 }
 
-// Shared by PopupApp and SidePanelApp (mirrors the existing EndSessionControl extraction
-// precedent) — previously only PopupApp had these buttons at all.
+// design-specs/frames/page-study-session.json's button-options. Only ActiveSessionView.tsx
+// mounts this now (the standalone browser-action popup entrypoint this comment used to also
+// mention was removed from the manifest before this task).
 export function PauseResumeControl({ session }: PauseResumeControlProps) {
   if (session.state === "FOCUSING") {
     return (
-      <button
+      <ButtonLarge
         onClick={() =>
           sendMessage({ type: "SESSION_PAUSE", payload: { sessionId: session.id } }).catch((err) =>
             console.error("Failed to pause session", err)
@@ -18,13 +20,13 @@ export function PauseResumeControl({ session }: PauseResumeControlProps) {
         }
       >
         Pause
-      </button>
+      </ButtonLarge>
     );
   }
 
   if (session.state === "PAUSED") {
     return (
-      <button
+      <ButtonLarge
         onClick={() =>
           sendMessage({ type: "SESSION_RESUME", payload: { sessionId: session.id } }).catch((err) =>
             console.error("Failed to resume session", err)
@@ -32,7 +34,7 @@ export function PauseResumeControl({ session }: PauseResumeControlProps) {
         }
       >
         Resume
-      </button>
+      </ButtonLarge>
     );
   }
 

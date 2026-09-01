@@ -13,6 +13,19 @@
         "Type": "options",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "285:1665",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1311",
@@ -54,6 +67,19 @@
         "Type": "x",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "285:1668",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1316",
@@ -96,6 +122,19 @@
         "Type": "reload",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "285:1671",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1321",
@@ -137,6 +176,19 @@
         "Type": "info",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "285:1674",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "168:1336",
@@ -178,6 +230,19 @@
         "Type": "trash",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "285:1677",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "183:798",
@@ -210,6 +275,19 @@
         "Type": "play-pause",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "285:1680",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "183:925",
@@ -242,6 +320,19 @@
         "Type": "edit",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "285:1683",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "184:1068",
@@ -274,6 +365,19 @@
         "Type": "back",
         "Property": "default"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "285:1686",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "284:395",
@@ -306,6 +410,19 @@
         "Type": "options",
         "Property": "hover"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1407",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1666",
@@ -346,6 +463,19 @@
         "Type": "x",
         "Property": "hover"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1411",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1669",
@@ -387,6 +517,19 @@
         "Type": "reload",
         "Property": "hover"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1407",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1672",
@@ -427,6 +570,19 @@
         "Type": "info",
         "Property": "hover"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1405",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1675",
@@ -467,6 +623,19 @@
         "Type": "trash",
         "Property": "hover"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1405",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1678",
@@ -498,6 +667,19 @@
         "Type": "play-pause",
         "Property": "hover"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1405",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1681",
@@ -529,6 +711,19 @@
         "Type": "edit",
         "Property": "hover"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1405",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1684",
@@ -560,6 +755,19 @@
         "Type": "back",
         "Property": "hover"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1405",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1687",
@@ -592,6 +800,19 @@
         "Type": "options",
         "Property": "disabled"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1407",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1714",
@@ -633,6 +854,19 @@
         "Type": "x",
         "Property": "disabled"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1411",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1717",
@@ -675,6 +909,19 @@
         "Type": "reload",
         "Property": "disabled"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1407",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1720",
@@ -716,6 +963,19 @@
         "Type": "info",
         "Property": "disabled"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1405",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1723",
@@ -757,6 +1017,19 @@
         "Type": "trash",
         "Property": "disabled"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1405",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1726",
@@ -789,6 +1062,19 @@
         "Type": "play-pause",
         "Property": "disabled"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1405",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1729",
@@ -821,6 +1107,19 @@
         "Type": "edit",
         "Property": "disabled"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1405",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1732",
@@ -853,6 +1152,19 @@
         "Type": "back",
         "Property": "disabled"
       },
+      "interactions": [
+        {
+          "trigger": "ON_HOVER",
+          "actions": [
+            {
+              "type": "NODE",
+              "destinationId": "168:1405",
+              "navigation": "CHANGE_TO",
+              "transition": null
+            }
+          ]
+        }
+      ],
       "children": [
         {
           "id": "285:1735",

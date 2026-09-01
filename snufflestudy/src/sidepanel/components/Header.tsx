@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import { useRefreshAll } from "../refresh/RefreshRegistryContext";
+import { ButtonIcon } from "./ui/ButtonIcon";
+import { ButtonLarge } from "./ui/ButtonLarge";
 
 // Minimal shape of AUTH_GET_SESSION's response this component needs - mirrors the same
 // minimal AuthUser/AuthSession shape duplicated in AccountPage.tsx and FriendGroupPanel.tsx.
@@ -16,6 +18,12 @@ interface HeaderProps {
   // than out to the separate full-tab Options page. SidePanelApp.tsx wires this to its own
   // setActiveTab("settings") - the same activeTab state TabBar already switches on.
   onSignInClick: () => void;
+}
+
+// design-specs/frames/header-bar.json (component 170:1476). Chrome has no chrome.sidePanel.close()
+// API - window.close() is the documented way for a side panel's own page to close itself.
+function handleClose() {
+  window.close();
 }
 
 export function Header({ onSignInClick }: HeaderProps) {
@@ -45,20 +53,19 @@ export function Header({ onSignInClick }: HeaderProps) {
 
   return (
     <header className="sp-header">
+      <div className="sp-header__content">
+        <div className="sp-header__buttons">
+          <ButtonIcon icon="x" aria-label="Close side panel" onClick={handleClose} />
+          <ButtonIcon icon="reload" aria-label="Refresh" onClick={refreshAll} />
+          {loaded && !session && <ButtonLarge onClick={onSignInClick}>Log In</ButtonLarge>}
+        </div>
+        <h1 className="sp-header__title">SnuffleStudy</h1>
+      </div>
       <img
         className="sp-header__mascot"
         src={chrome.runtime.getURL("sidepanel/bunny-and-book.png")}
         alt=""
       />
-      <h1 className="sp-header__title">SnuffleStudy</h1>
-      <button type="button" className="sp-header__refresh-button" onClick={refreshAll}>
-        Refresh
-      </button>
-      {loaded && !session && (
-        <button type="button" className="sp-header__login-button" onClick={onSignInClick}>
-          Log-In
-        </button>
-      )}
     </header>
   );
 }

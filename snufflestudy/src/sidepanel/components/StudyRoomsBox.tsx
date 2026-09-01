@@ -1,17 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { StudyRoom, RoomInvitee } from "../../domain/rooms/studyRoom";
 import { SignInForm } from "../../shared/ui/SignInForm";
 import { useDisplayNames } from "../../shared/ui/useDisplayNames";
 import { useRegisterRefresh } from "../refresh/RefreshRegistryContext";
 import { useStudyRoomSession } from "../studyRoom/StudyRoomSessionContext";
+import { Input } from "./ui/Input";
+import { ButtonBool } from "./ui/ButtonBool";
+import { ButtonSmall } from "./ui/ButtonSmall";
+import { ButtonLarge } from "./ui/ButtonLarge";
+import { ButtonLargeIcon } from "./ui/ButtonLargeIcon";
+import { ButtonIcon } from "./ui/ButtonIcon";
+import { Modal } from "./ui/Modal";
 
 // v4.1 Task 7: the Study tab's list/create/manage-access box - StudyRoomPanel.tsx's entire
 // "not joined" branch, moved here unchanged in behavior except: (1) room list items are now
 // click-to-select (single selection) instead of each carrying its own Join button - one "Join
 // study room" button below the list joins whichever room is currently selected, via
-// useStudyRoomSession().joinRoom(); (2) "Archive this room" moves inside ManageAccessSection's own
-// render, alongside the friend-invite list, instead of sitting beside the "Manage access" toggle.
+// useStudyRoomSession().joinRoom(); (2) "Archive Study Room" moves inside the ManageAccessModal
+// popup (design-specs/frames/popup-study-room.json), opened via each owned room's own "options"
+// icon rather than an inline expand/collapse toggle.
 // The joined-room view that used to live in this same component is now StudyRoomFooter.tsx, a
 // persistent app-shell footer (AppFooter.tsx) that survives a tab switch - this box only ever
 // shows the room list/create/manage-access UI, never a joined room.
@@ -25,60 +33,46 @@ interface StudyRoomsBoxProps {
   onClose?: () => void;
 }
 
-// v3.3 Task 13: the owner-only "Manage access" section for one room - lists the owner's friends
-// with an add/remove toggle against each one, backed by STUDY_ROOM_INVITEE_ADD/REMOVE/
-// STUDY_ROOM_INVITEES_LIST. A separate component (not inlined into the room-list <li> below) so
-// its own friend/invitee fetch only ever runs for the one room currently expanded, not once per
-// owned room on every render.
+// design-specs/frames/popup-study-room.json - a modal, not the inline expand-in-place section
+// this used to be. Remove-only per its own spec (a trash icon per already-invited friend, no
+// "Invite" affordance): inviting now happens exclusively from the Friends tab's own "Add to Room"
+// bulk action (FriendsBox.tsx), which already sends the exact same STUDY_ROOM_INVITEE_ADD message
+// this component used to send itself for the "not yet invited" half of its old toggle list - that
+// half is dropped entirely, not duplicated.
 //
-// v4.1 Task 7: also owns rendering "Archive this room" now (moved in from the parent's room <li> -
+// v4.1 Task 7: also owns rendering "Archive Study Room" (moved in from the parent's room <li> -
 // scope doc: "Move 'Archive this room' inside Manage access, alongside the friend-invite list").
 // Archiving itself (the STUDY_ROOM_ARCHIVE call, the archivingId/archiveError state) still lives in
-// the parent (StudyRoomsBox) - only one room's ManageAccessSection is ever expanded at a time (the
-// existing single-expanded-id pattern), so a single shared archiveError is unambiguous here exactly
-// as it was when rendered beside the list before this task.
-function ManageAccessSection({
+// the parent (StudyRoomsBox) - only one room's modal is ever open at a time (the existing
+// single-expanded-id pattern), so a single shared archiveError is unambiguous here exactly as it
+// was before this task.
+function ManageAccessModal({
   roomId,
+  roomName,
   archiving,
   archiveError,
   onArchive,
+  onClose,
 }: {
   roomId: string;
+  roomName: string;
   archiving: boolean;
   archiveError: string | null;
   onArchive: () => void;
+  onClose: () => void;
 }) {
-  const [friendIds, setFriendIds] = useState<string[] | null>(null);
-  const [friendsError, setFriendsError] = useState<string | null>(null);
-
-  const [inviteeIds, setInviteeIds] = useState<Set<string> | null>(null);
+  const [inviteeIds, setInviteeIds] = useState<string[] | null>(null);
   const [inviteesError, setInviteesError] = useState<string | null>(null);
 
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
-  const [toggleError, setToggleError] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
-  // v3.3 Task 8: resolves each friend's userId to their human_name (falling back to the raw id,
-  // same as before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
-  const displayName = useDisplayNames(friendIds ?? []);
+  // v3.3 Task 8: resolves each invitee's userId to their human_name (falling back to the raw id
+  // when no profile/name exists) - see shared/ui/useDisplayNames.ts.
+  const displayName = useDisplayNames(inviteeIds ?? []);
 
   useEffect(() => {
     let cancelled = false;
-
-    sendMessage<{ ok: boolean; friendIds?: string[]; error?: string }>({
-      type: "FRIENDS_LIST",
-    })
-      .then((res) => {
-        if (cancelled) return;
-        if (!res.ok) {
-          setFriendsError(res.error ?? "Could not load your friends.");
-          return;
-        }
-        setFriendIds(res.friendIds ?? []);
-      })
-      .catch((err) => {
-        console.error("Failed to load friends for the invite picker", err);
-        if (!cancelled) setFriendsError(err instanceof Error ? err.message : String(err));
-      });
 
     sendMessage<{ ok: boolean; invitees?: RoomInvitee[]; error?: string }>({
       type: "STUDY_ROOM_INVITEES_LIST",
@@ -90,7 +84,7 @@ function ManageAccessSection({
           setInviteesError(res.error ?? "Could not load who's currently invited.");
           return;
         }
-        setInviteeIds(new Set(res.invitees.map((i) => i.userId)));
+        setInviteeIds(res.invitees.map((i) => i.userId));
       })
       .catch((err) => {
         console.error("Failed to load room invitees", err);
@@ -102,74 +96,62 @@ function ManageAccessSection({
     };
   }, [roomId]);
 
-  function handleToggleInvite(friendUserId: string, currentlyInvited: boolean) {
+  function handleRemoveInvitee(friendUserId: string) {
     setBusyUserId(friendUserId);
-    setToggleError(null);
+    setRemoveError(null);
     sendMessage<{ ok: boolean; error?: string }>({
-      type: currentlyInvited ? "STUDY_ROOM_INVITEE_REMOVE" : "STUDY_ROOM_INVITEE_ADD",
+      type: "STUDY_ROOM_INVITEE_REMOVE",
       payload: { roomId, userId: friendUserId },
     })
       .then((res) => {
         if (!res.ok) {
-          setToggleError(res.error ?? "Could not update this invite.");
+          setRemoveError(res.error ?? "Could not remove that invite.");
           return;
         }
-        setInviteeIds((prev) => {
-          const next = new Set(prev ?? []);
-          if (currentlyInvited) {
-            next.delete(friendUserId);
-          } else {
-            next.add(friendUserId);
-          }
-          return next;
-        });
+        setInviteeIds((prev) => (prev ? prev.filter((id) => id !== friendUserId) : prev));
       })
       .catch((err) => {
-        console.error("Failed to update a room invite", err);
-        setToggleError(err instanceof Error ? err.message : String(err));
+        console.error("Failed to remove a room invite", err);
+        setRemoveError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => setBusyUserId(null));
   }
 
   return (
-    <div className="study-room-panel__manage-access">
-      {friendsError && <p role="alert">Couldn't load your friends: {friendsError}.</p>}
+    <Modal title={roomName} onClose={onClose}>
       {inviteesError && <p role="alert">Couldn't load invitees: {inviteesError}.</p>}
-      {friendIds === null || inviteeIds === null ? (
-        !friendsError && !inviteesError && <p>Loading…</p>
-      ) : friendIds.length === 0 ? (
-        <p>No friends available to invite yet - add a friend first.</p>
-      ) : (
-        <ul>
-          {friendIds.map((friendId) => {
-            const invited = inviteeIds.has(friendId);
-            return (
-              <li key={friendId}>
-                <span>{displayName(friendId)}</span>
-                <button
-                  type="button"
-                  onClick={() => handleToggleInvite(friendId, invited)}
-                  disabled={busyUserId === friendId}
-                >
-                  {busyUserId === friendId ? "Updating…" : invited ? "Remove access" : "Invite"}
-                </button>
-              </li>
-            );
-          })}
+      {inviteeIds === null && !inviteesError && <p>Loading…</p>}
+      {inviteeIds !== null && inviteeIds.length === 0 && !inviteesError && (
+        <p>Nobody else is invited to this room yet.</p>
+      )}
+      {inviteeIds !== null && inviteeIds.length > 0 && (
+        <ul className="manage-access-modal__list">
+          {inviteeIds.map((friendId) => (
+            <li key={friendId}>
+              <span>{displayName(friendId)}</span>
+              <ButtonIcon
+                icon="trash"
+                aria-label={busyUserId === friendId ? "Removing…" : `Remove ${displayName(friendId)}`}
+                onClick={() => handleRemoveInvitee(friendId)}
+                disabled={busyUserId === friendId}
+              />
+            </li>
+          ))}
         </ul>
       )}
-      {toggleError && <p role="alert">{toggleError}</p>}
+      {removeError && <p role="alert">{removeError}</p>}
 
-      <button type="button" onClick={onArchive} disabled={archiving}>
-        {archiving ? "Archiving…" : "Archive this room"}
-      </button>
+      <ButtonLarge onClick={onArchive} disabled={archiving}>
+        {archiving ? "Archiving…" : "Archive Study Room"}
+      </ButtonLarge>
       {archiveError && <p role="alert">{archiveError}</p>}
-    </div>
+    </Modal>
   );
 }
 
 export function StudyRoomsBox({ onClose }: StudyRoomsBoxProps) {
   const { joining, joinError, joinRoom } = useStudyRoomSession();
+  const newRoomNameFieldId = useId();
 
   // v3.2 Task 2: this box has no auth check at all before this task - mirrors
   // FriendGroupPanel.tsx's loadFriends() auth-check half (AUTH_GET_SESSION -> selfUserId).
@@ -352,86 +334,89 @@ export function StudyRoomsBox({ onClose }: StudyRoomsBoxProps) {
         )}
       </header>
 
-      <section className="study-room-panel__create">
-        <label>
-          New room name
-          <input
-            type="text"
-            value={newRoomName}
-            onChange={(e) => setNewRoomName(e.target.value)}
-            placeholder="e.g. Thursday study session"
-            disabled={creating}
-          />
-        </label>
-        <button type="button" onClick={handleCreateRoom} disabled={creating || !newRoomName.trim()}>
-          {creating ? "Creating…" : "Create room"}
-        </button>
-        {createError && <p role="alert">Could not create room: {createError}</p>}
-      </section>
-
-      <section className="study-room-panel__media-toggles">
-        <label>
-          <input type="checkbox" checked={cameraOn} onChange={(e) => setCameraOn(e.target.checked)} />
-          Join with camera on
-        </label>
-        <label>
-          <input type="checkbox" checked={micOn} onChange={(e) => setMicOn(e.target.checked)} />
-          Join with mic on
-        </label>
-      </section>
-
       <section className="study-room-panel__list">
-        <h3>Rooms among your friends</h3>
         {loadError && <p role="alert">Could not load rooms: {loadError}</p>}
         {rooms === null && !loadError && <p>Loading…</p>}
         {rooms !== null && rooms.length === 0 && <p>No study rooms yet — create one to get started.</p>}
         {rooms !== null && rooms.length > 0 && (
           <ul>
-            {rooms.map((room) => (
-              <li
-                key={room.id}
-                onClick={() => setSelectedRoomId(room.id)}
-                aria-selected={selectedRoomId === room.id}
-                className={
-                  selectedRoomId === room.id
-                    ? "study-room-panel__room study-room-panel__room--selected"
-                    : "study-room-panel__room"
-                }
-              >
-                <span>{room.name}</span>
-                {room.ownerUserId === selfUserId && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setManageAccessRoomId((prev) => (prev === room.id ? null : room.id));
-                    }}
+            {rooms.map((room) => {
+              const selected = selectedRoomId === room.id;
+              return (
+                <li key={room.id} className="study-room-panel__room">
+                  <ButtonSmall
+                    colour={selected ? "pink" : "white"}
+                    aria-pressed={selected}
+                    onClick={() => setSelectedRoomId(room.id)}
                   >
-                    {manageAccessRoomId === room.id ? "Hide manage access" : "Manage access"}
-                  </button>
-                )}
-                {room.ownerUserId === selfUserId && manageAccessRoomId === room.id && (
-                  <ManageAccessSection
-                    roomId={room.id}
-                    archiving={archivingId === room.id}
-                    archiveError={archiveError}
-                    onArchive={() => handleArchiveRoom(room)}
-                  />
-                )}
-              </li>
-            ))}
+                    {room.name}
+                  </ButtonSmall>
+                  {room.ownerUserId === selfUserId && (
+                    <ButtonIcon
+                      icon="options"
+                      aria-label={`${room.name} options`}
+                      onClick={() => setManageAccessRoomId(room.id)}
+                    />
+                  )}
+                  {room.ownerUserId === selfUserId && manageAccessRoomId === room.id && (
+                    <ManageAccessModal
+                      roomId={room.id}
+                      roomName={room.name}
+                      archiving={archivingId === room.id}
+                      archiveError={archiveError}
+                      onArchive={() => handleArchiveRoom(room)}
+                      onClose={() => setManageAccessRoomId(null)}
+                    />
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
 
-      <button
-        type="button"
-        onClick={handleJoinSelectedRoom}
-        disabled={selectedRoomId === null || joining !== null}
-      >
-        {joining !== null ? "Joining…" : "Join study room"}
-      </button>
+      <div className="study-room-panel__call-options">
+        <ButtonLargeIcon
+          icon="microphone"
+          enabled={micOn}
+          onClick={() => setMicOn((prev) => !prev)}
+          aria-label={micOn ? "Join with mic off" : "Join with mic on"}
+        />
+        <ButtonLargeIcon
+          icon="camera"
+          enabled={cameraOn}
+          onClick={() => setCameraOn((prev) => !prev)}
+          aria-label={cameraOn ? "Join with camera off" : "Join with camera on"}
+        />
+        <ButtonLarge
+          onClick={handleJoinSelectedRoom}
+          disabled={selectedRoomId === null || joining !== null}
+        >
+          {joining !== null ? "Joining…" : "Join Study Room"}
+        </ButtonLarge>
+      </div>
       {joinError && <p role="alert">{joinError}</p>}
+
+      <section className="study-room-panel__create">
+        <h3>Create Study Room</h3>
+        <div className="study-room-panel__create-row">
+          <Input
+            id={newRoomNameFieldId}
+            value={newRoomName}
+            onChange={(e) => setNewRoomName(e.target.value)}
+            placeholder="Room Name"
+            aria-label="Room Name"
+            disabled={creating}
+          />
+          <ButtonBool
+            icon="check"
+            aria-label={creating ? "Creating room…" : "Create room"}
+            onClick={handleCreateRoom}
+            disabled={creating || !newRoomName.trim()}
+          />
+        </div>
+        {createError && <p role="alert">Could not create room: {createError}</p>}
+      </section>
     </div>
   );
 }

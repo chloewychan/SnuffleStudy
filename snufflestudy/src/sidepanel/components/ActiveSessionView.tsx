@@ -55,11 +55,13 @@ export function ActiveSessionView({ session }: ActiveSessionViewProps) {
       <h2 className="sp-active-session__goal">{session.goal}</h2>
 
       <section className="sp-card sp-active-session__progress">
-        <TimerRing remainingSeconds={remaining} totalSeconds={totalSeconds} />
         <h3 className="sp-card__title">Study Session in Progress</h3>
-        <div className="sp-active-session__controls">
-          <PauseResumeControl session={session} />
-          <EndSessionControl session={session} />
+        <div className="sp-active-session__timer-row">
+          <TimerRing remainingSeconds={remaining} totalSeconds={totalSeconds} />
+          <div className="sp-active-session__controls">
+            <PauseResumeControl session={session} />
+            <EndSessionControl session={session} />
+          </div>
         </div>
         <SessionStatusCard session={session} />
         {/* Restricted-sites list, lifted from the original inline SidePanelApp.tsx active-session

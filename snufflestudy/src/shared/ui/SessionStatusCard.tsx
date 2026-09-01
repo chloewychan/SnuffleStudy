@@ -29,7 +29,7 @@ const DISTRACTION_TIER: Record<StudySession["interventionLevel"], Tier> = {
 };
 
 const DISTRACTION_LABELS: Record<StudySession["interventionLevel"], string> = {
-  none: "On track",
+  none: "On Track",
   warned: "Warned",
   escalated: "Escalated",
 };
@@ -46,7 +46,7 @@ export function SessionStatusCard({ session }: SessionStatusCardProps) {
             data-tier={ACTIVITY_TIER[session.activityState]}
             aria-hidden="true"
           />
-          Activity: {ACTIVITY_LABELS[session.activityState]}
+          Activity Status: {ACTIVITY_LABELS[session.activityState]}
         </span>
         <span className="session-status-card__indicator">
           <span
@@ -54,7 +54,7 @@ export function SessionStatusCard({ session }: SessionStatusCardProps) {
             data-tier={DISTRACTION_TIER[session.interventionLevel]}
             aria-hidden="true"
           />
-          Focus: {DISTRACTION_LABELS[session.interventionLevel]}
+          Focus Status: {DISTRACTION_LABELS[session.interventionLevel]}
         </span>
       </div>
       {session.distractionAttempts > 0 && (

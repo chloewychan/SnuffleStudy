@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { Profile } from "../../infrastructure/backend/profileApi";
 import { SignInForm, type SignInFormSession } from "../../shared/ui/SignInForm";
+import { Modal } from "../../sidepanel/components/ui/Modal";
+import { ButtonLarge } from "../../sidepanel/components/ui/ButtonLarge";
+import { Input } from "../../sidepanel/components/ui/Input";
 
 // v3.2 Task 1: the OTP email/code sign-in state and AUTH_REQUEST_OTP/AUTH_VERIFY_OTP round trip
 // this page used to own inline now live in the shared SignInForm - this page just holds the
@@ -213,7 +216,7 @@ export function AccountPage() {
 
   return (
     <div className="account-page">
-      <h2>Account</h2>
+      <h2 className="sp-card__title">Account</h2>
 
       {!session && (
         <section>
@@ -227,84 +230,76 @@ export function AccountPage() {
               "Account" heading above (scope doc's Settings section) - previously two separate
               sections, one with its own "Delete account" h3. The deleteConfirming
               confirm-then-delete flow itself (below) is unchanged, just relocated here. */}
-          <section>
-            <p>Signed in as {session.user.email ?? session.user.id}.</p>
-            <div>
-              <button type="button" onClick={() => void handleSignOut()} disabled={authBusy}>
-                {authBusy ? "Signing out…" : "Sign out"}
-              </button>
-              {!deleteConfirming && (
-                <button
-                  type="button"
-                  onClick={() => setDeleteConfirming(true)}
-                  disabled={deleteBusy}
-                >
-                  Delete account
-                </button>
-              )}
+          <section className="account-page__options">
+            <p className="sp-label">Signed in as {session.user.email ?? session.user.id}</p>
+            <div className="account-page__button-row">
+              <ButtonLarge onClick={() => void handleSignOut()} disabled={authBusy}>
+                {authBusy ? "Signing out…" : "Sign Out"}
+              </ButtonLarge>
+              <ButtonLarge onClick={() => setDeleteConfirming(true)} disabled={deleteBusy}>
+                Delete Account
+              </ButtonLarge>
             </div>
             {authError && <p role="alert">Couldn't sign out: {authError}. Please try again.</p>}
             {deleteConfirming && (
-              <div role="alertdialog" aria-label="Confirm account deletion">
+              // design-specs/frames/popup-delete-account.json - shared with the sidepanel's own
+              // Settings tab (SettingsTab.tsx mounts this same AccountPage), not options-page-only.
+              <Modal title="Are you sure?" onClose={() => setDeleteConfirming(false)}>
                 <p>
-                  <strong>Are you sure?</strong> This removes your friend connections (or hands
-                  them off to another friend), study room history, audio nudges, digests, and
-                  every other record tied to your account, everywhere. This cannot be undone.
+                  This removes your friend connections, study room history, audio nudges,
+                  digests, and every other record tied to your account, everywhere. This action
+                  cannot be undone.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteAccount()}
-                  disabled={deleteBusy}
-                >
-                  {deleteBusy ? "Deleting…" : "Yes, permanently delete my account"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteConfirming(false)}
-                  disabled={deleteBusy}
-                >
-                  Cancel
-                </button>
-              </div>
+                <ButtonLarge onClick={() => setDeleteConfirming(false)} disabled={deleteBusy}>
+                  Go back
+                </ButtonLarge>
+                <ButtonLarge onClick={() => void handleDeleteAccount()} disabled={deleteBusy}>
+                  {deleteBusy ? "Deleting…" : "Yes, delete my account"}
+                </ButtonLarge>
+              </Modal>
             )}
             {deleteError && (
               <p role="alert">Couldn't delete your account: {deleteError}. Please try again.</p>
             )}
           </section>
 
-          <section>
-            <h3>Password</h3>
-            <form onSubmit={(e) => void handleSetPassword(e)}>
-              {passwordSetAt !== null && (
-                <label>
-                  Current password
-                  <input
-                    type="password"
-                    required
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                  />
-                </label>
-              )}
-              <label>
-                New password
-                <input
+          <section className="account-page__password">
+            <h3 className="sp-label">Account Password</h3>
+            <form onSubmit={(e) => void handleSetPassword(e)} className="account-page__password-form">
+              <div className="sp-password-grid">
+                {passwordSetAt !== null && (
+                  <>
+                    <span className="sp-label">Old Password</span>
+                    <Input
+                      type="password"
+                      required
+                      aria-label="Old Password"
+                      placeholder="Old Password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                    />
+                  </>
+                )}
+                <span className="sp-label">New Password</span>
+                <Input
                   type="password"
                   required
+                  aria-label="New Password"
+                  placeholder="New Password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                 />
-              </label>
-              <label>
-                Confirm new password
-                <input
+                <span className="sp-label">Confirm New</span>
+                <Input
                   type="password"
                   required
+                  aria-label="Confirm new password"
+                  placeholder="Confirm new password"
                   value={confirmNewPassword}
                   onChange={(e) => setConfirmNewPassword(e.target.value)}
                 />
-              </label>
-              <button
+              </div>
+              <ButtonLarge
                 type="submit"
                 disabled={
                   passwordBusy ||
@@ -313,8 +308,8 @@ export function AccountPage() {
                   (passwordSetAt !== null && !currentPassword)
                 }
               >
-                {passwordBusy ? "Saving…" : "Set password"}
-              </button>
+                {passwordBusy ? "Saving…" : "Save Password"}
+              </ButtonLarge>
             </form>
             {passwordError && (
               <p role="alert">Couldn't set your password: {passwordError}. Please try again.</p>

@@ -104,7 +104,7 @@ describe("FriendsBox", () => {
       renderBox();
       await screen.findByText("user-friend");
 
-      fireEvent.click(screen.getByRole("button", { name: "Options" }));
+      fireEvent.click(screen.getByRole("button", { name: "user-friend options" }));
 
       expect(screen.getByLabelText("I may send this friend a live nudge")).toBeChecked();
       expect(screen.getByLabelText("This friend may send me a live nudge")).toBeChecked();
@@ -116,7 +116,7 @@ describe("FriendsBox", () => {
       expect(screen.getByLabelText("Share my session goal text with this friend")).not.toBeChecked();
       expect(screen.getByLabelText("Share my intervention count with this friend")).not.toBeChecked();
       expect(screen.getByLabelText("Share my full session history with this friend")).not.toBeChecked();
-      expect(screen.getByRole("button", { name: "Remove friend" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Remove Friend" })).toBeInTheDocument();
     });
 
     it("removes a friend via FRIEND_REMOVE and drops them from the list", async () => {
@@ -127,9 +127,9 @@ describe("FriendsBox", () => {
 
       renderBox();
       await screen.findByText("user-friend");
-      fireEvent.click(screen.getByRole("button", { name: "Options" }));
+      fireEvent.click(screen.getByRole("button", { name: "user-friend options" }));
 
-      fireEvent.click(screen.getByRole("button", { name: "Remove friend" }));
+      fireEvent.click(screen.getByRole("button", { name: "Remove Friend" }));
 
       await waitFor(() =>
         expect(removeSpy).toHaveBeenCalledWith({
@@ -225,8 +225,8 @@ describe("FriendsBox", () => {
       );
 
       renderBox();
-      await waitFor(() => screen.getByRole("button", { name: "Invite a friend" }));
-      fireEvent.click(screen.getByRole("button", { name: "Invite a friend" }));
+      await waitFor(() => screen.getByRole("button", { name: "Generate Invite Code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Generate Invite Code" }));
 
       expect(await screen.findByText("ABCD1234")).toBeInTheDocument();
     });

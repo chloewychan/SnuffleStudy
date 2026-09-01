@@ -75,7 +75,7 @@ function renderFooter() {
 
 async function joinSampleRoom() {
   fireEvent.click(screen.getByText("Join (test harness)"));
-  await screen.findByText("Leave room");
+  await screen.findByText("Leave Study Room");
 }
 
 beforeEach(() => {
@@ -93,7 +93,7 @@ describe("StudyRoomFooter", () => {
   it("renders nothing when no room is joined", () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));
     renderFooter();
-    expect(screen.queryByText("Leave room")).not.toBeInTheDocument();
+    expect(screen.queryByText("Leave Study Room")).not.toBeInTheDocument();
   });
 
   it("shows the joined room's name and no participant-name list once joined", async () => {
@@ -242,11 +242,11 @@ describe("StudyRoomFooter", () => {
     renderFooter();
     await joinSampleRoom();
 
-    expect(screen.getByText("Camera: On")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Camera: On"));
+    expect(screen.getByRole("button", { name: "Turn camera off" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Turn camera off" }));
 
     expect(videoCallClient.setCameraEnabled).toHaveBeenCalledWith(false);
-    expect(await screen.findByText("Camera: Off")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Turn camera on" })).toBeInTheDocument();
   });
 
   it("leaves a room: unsubscribes presence, ends the video call, and sends STUDY_ROOM_LEAVE", async () => {
@@ -257,7 +257,7 @@ describe("StudyRoomFooter", () => {
     renderFooter();
     await joinSampleRoom();
 
-    fireEvent.click(screen.getByText("Leave room"));
+    fireEvent.click(screen.getByText("Leave Study Room"));
 
     await waitFor(() =>
       expect(sendMessageSpy).toHaveBeenCalledWith({
@@ -267,7 +267,7 @@ describe("StudyRoomFooter", () => {
     );
     expect(unsubscribe).toHaveBeenCalled();
     expect(videoCallClient.leaveCall).toHaveBeenCalled();
-    await waitFor(() => expect(screen.queryByText("Leave room")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("Leave Study Room")).not.toBeInTheDocument());
   });
 
   describe("Nudge Vault picker and sending (v4.1 Task 7, Decision 8)", () => {
@@ -461,8 +461,8 @@ describe("StudyRoomFooter — stale tile cleanup across leave/rejoin (v3.3 QA pa
     expect(firstSessionVideo.isConnected).toBe(true);
     expect(screen.getByText("You")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Leave room"));
-    await waitFor(() => expect(screen.queryByText("Leave room")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByText("Leave Study Room"));
+    await waitFor(() => expect(screen.queryByText("Leave Study Room")).not.toBeInTheDocument());
 
     vi.mocked(videoCallClient.joinCall).mockImplementationOnce(async () => {});
     await joinSampleRoom();

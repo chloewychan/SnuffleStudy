@@ -27,7 +27,7 @@ describe("Header", () => {
   it("shows a Log-In button when signed out", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, session: null });
     renderHeader();
-    expect(await screen.findByRole("button", { name: /log-in/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /log in/i })).toBeInTheDocument();
   });
 
   it("hides the Log-In button when signed in", async () => {
@@ -37,7 +37,7 @@ describe("Header", () => {
     });
     renderHeader();
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: /log-in/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: /log in/i })).not.toBeInTheDocument()
     );
   });
 
@@ -45,7 +45,7 @@ describe("Header", () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, session: null });
     const onSignInClick = vi.fn();
     renderHeader(onSignInClick);
-    const button = await screen.findByRole("button", { name: /log-in/i });
+    const button = await screen.findByRole("button", { name: /log in/i });
     button.click();
     expect(onSignInClick).toHaveBeenCalledOnce();
   });
@@ -53,7 +53,7 @@ describe("Header", () => {
   it("renders exactly one Refresh button", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, session: null });
     renderHeader();
-    await screen.findByRole("button", { name: /log-in/i });
+    await screen.findByRole("button", { name: /log in/i });
     expect(screen.getAllByRole("button", { name: "Refresh" })).toHaveLength(1);
   });
 

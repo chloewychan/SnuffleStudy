@@ -25,7 +25,7 @@ interface AuthSession {
 // pre-existing nudge-axis columns first (familiar from Task 7), then the five Task 10 fields, so a
 // user already familiar with the nudge toggles sees the new ones as a clearly-separate, additional
 // group rather than interleaved.
-const TOGGLE_FIELDS: { key: keyof FriendshipSettingsPatch; label: string }[] = [
+export const TOGGLE_FIELDS: { key: keyof FriendshipSettingsPatch; label: string }[] = [
   { key: "sendLiveNudges", label: "I may send this friend a live nudge" },
   { key: "receiveLiveNudges", label: "This friend may send me a live nudge" },
   { key: "shareDistractionAttempts", label: "Share my distraction attempts with this friend" },

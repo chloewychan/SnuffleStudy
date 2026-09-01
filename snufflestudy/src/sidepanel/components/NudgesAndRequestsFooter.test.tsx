@@ -113,7 +113,7 @@ describe("NudgesAndRequestsFooter", () => {
     await waitFor(() => expect(screen.getByText(/4s audio nudge/)).toBeInTheDocument());
     expect(producerTagApi.downloadTagAudio).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Play" }));
+    fireEvent.click(screen.getByRole("button", { name: "Play Nudge" }));
     await waitFor(() =>
       expect(producerTagApi.downloadTagAudio).toHaveBeenCalledWith("tag-1/clip.webm")
     );

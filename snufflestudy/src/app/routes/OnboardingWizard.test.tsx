@@ -1,14 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { OnboardingWizard } from "./OnboardingWizard";
+import { RefreshRegistryProvider } from "../../sidepanel/refresh/RefreshRegistryContext";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  // design-specs/frames/page-welcome.json: WelcomeScreen now renders the real Header, which
+  // needs chrome.runtime.getURL (mascot image, ButtonIcon glyphs) and an AUTH_GET_SESSION
+  // response - every test below sets its own sendMessage mock afterward, all of which fall
+  // through to { ok: true } for unlisted message types, satisfying this the same way.
+  vi.stubGlobal("chrome", {
+    runtime: {
+      getURL: vi.fn((path: string) => `/chrome-extension://fake/${path}`),
+    },
+  });
 });
 
+function renderWizard(onComplete: () => void = () => {}) {
+  return render(
+    <RefreshRegistryProvider>
+      <OnboardingWizard onComplete={onComplete} />
+    </RefreshRegistryProvider>
+  );
+}
+
 function dismissWelcome() {
-  fireEvent.click(screen.getByRole("button", { name: "Get started" }));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 }
 
 // The account (sign-in) step is the first (and, as of v4.1 Task 3, only) step after Welcome;
@@ -19,7 +37,8 @@ function skipAccountStep() {
 
 describe("OnboardingWizard", () => {
   it("shows the welcome screen before the first onboarding step", () => {
-    render(<OnboardingWizard onComplete={vi.fn()} />);
+    vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, session: null });
+    renderWizard();
 
     expect(screen.getByText(/consensual peer pressure/i)).toBeInTheDocument();
     expect(
@@ -40,7 +59,7 @@ describe("OnboardingWizard", () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
     const onComplete = vi.fn();
 
-    render(<OnboardingWizard onComplete={onComplete} />);
+    renderWizard(onComplete);
 
     dismissWelcome();
     skipAccountStep();
@@ -77,7 +96,7 @@ describe("OnboardingWizard", () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
     const onComplete = vi.fn();
 
-    render(<OnboardingWizard onComplete={onComplete} />);
+    renderWizard(onComplete);
 
     dismissWelcome();
     skipAccountStep();
@@ -113,7 +132,7 @@ describe("OnboardingWizard", () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const onComplete = vi.fn();
 
-    render(<OnboardingWizard onComplete={onComplete} />);
+    renderWizard(onComplete);
 
     dismissWelcome();
     skipAccountStep();
@@ -132,7 +151,7 @@ describe("OnboardingWizard", () => {
     const onComplete = vi.fn();
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    render(<OnboardingWizard onComplete={onComplete} />);
+    renderWizard(onComplete);
 
     dismissWelcome();
     skipAccountStep();
@@ -156,10 +175,11 @@ describe("OnboardingWizard", () => {
   // other steps below are already covered.
   describe("account (sign-in) step", () => {
     it("renders the exact framing copy", () => {
-      render(<OnboardingWizard onComplete={vi.fn()} />);
+      vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, session: null });
+      renderWizard();
       dismissWelcome();
 
-      expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Sign In" })).toBeInTheDocument();
       expect(
         screen.getByText(
           "Sign in to use friends, rooms, nudges, approvals, and synced accountability features."
@@ -167,19 +187,26 @@ describe("OnboardingWizard", () => {
       ).toBeInTheDocument();
     });
 
-    it('finishes onboarding via "Skip for now" without calling any AUTH_* message', async () => {
+    it('finishes onboarding via "Skip for now" without calling any auth-flow message', async () => {
       const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
       const onComplete = vi.fn();
 
-      render(<OnboardingWizard onComplete={onComplete} />);
+      renderWizard(onComplete);
       dismissWelcome();
 
       skipAccountStep();
 
       await waitFor(() => expect(onComplete).toHaveBeenCalled());
+      // AUTH_GET_SESSION is excluded here - it's Header.tsx's own passive on-mount check
+      // (design-specs/frames/page-welcome.json now renders the real header-bar), not part of a
+      // sign-in flow. The flow-driving AUTH_* messages (request/verify OTP, sign in, set
+      // password) are what this assertion cares about never firing on a skip.
       expect(
         sendMessageSpy.mock.calls.some(
-          ([message]) => typeof message?.type === "string" && message.type.startsWith("AUTH_")
+          ([message]) =>
+            typeof message?.type === "string" &&
+            message.type.startsWith("AUTH_") &&
+            message.type !== "AUTH_GET_SESSION"
         )
       ).toBe(false);
     });
@@ -190,7 +217,7 @@ describe("OnboardingWizard", () => {
     // closest analog to what they covered before the split. SignInForm.test.tsx and
     // AccountPage.test.tsx's "creating a new account" block cover the create-account branch's
     // mandatory password step directly.
-    it('finishes onboarding after a successful AUTH_REQUEST_OTP -> AUTH_VERIFY_OTP round trip via "Email me a code"', async () => {
+    it('finishes onboarding after a successful AUTH_REQUEST_OTP -> AUTH_VERIFY_OTP round trip via "Sign in (one-time code)"', async () => {
       const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
         async (message: any) => {
           if (message.type === "AUTH_REQUEST_OTP") return { ok: true };
@@ -202,18 +229,17 @@ describe("OnboardingWizard", () => {
       );
       const onComplete = vi.fn();
 
-      render(<OnboardingWizard onComplete={onComplete} />);
+      renderWizard(onComplete);
       dismissWelcome();
 
-      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-      fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Sign in (one-time code)" }));
 
       fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
-      fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Send Sign-In Code" }));
 
       await screen.findByLabelText("Code");
       fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
-      fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
       await waitFor(() => expect(onComplete).toHaveBeenCalled());
       expect(sendMessageSpy).toHaveBeenCalledWith({
@@ -238,21 +264,20 @@ describe("OnboardingWizard", () => {
         return { ok: true };
       });
 
-      render(<OnboardingWizard onComplete={vi.fn()} />);
+      renderWizard();
       dismissWelcome();
 
-      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-      fireEvent.click(screen.getByRole("button", { name: "Email me a code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Sign in (one-time code)" }));
 
       fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
-      fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Send Sign-In Code" }));
 
       await screen.findByLabelText("Code");
       fireEvent.change(screen.getByLabelText("Code"), { target: { value: "00000000" } });
-      fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(/token has expired or is invalid/i);
-      expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Sign In With One-Time Code" })).toBeInTheDocument();
     });
 
     // v3.3 Task 14 DoD: "'Skip for now' in onboarding still fully skips, at any point in either
@@ -283,25 +308,25 @@ describe("OnboardingWizard", () => {
       );
       const onComplete = vi.fn();
 
-      render(<OnboardingWizard onComplete={onComplete} />);
+      renderWizard(onComplete);
       dismissWelcome();
 
-      fireEvent.click(screen.getByRole("button", { name: "Create account" }));
-      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Robin" } });
+      fireEvent.click(screen.getByRole("button", { name: "Create new account" }));
+      fireEvent.change(screen.getByLabelText("Your Name"), { target: { value: "Robin" } });
       fireEvent.change(screen.getByLabelText("Email"), { target: { value: "a@example.com" } });
       fireEvent.change(screen.getByLabelText("Password"), {
         target: { value: "correct-horse" },
       });
-      fireEvent.change(screen.getByLabelText("Confirm password"), {
+      fireEvent.change(screen.getByLabelText("Confirm Password"), {
         target: { value: "correct-horse" },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Send Sign-In Code" }));
       await screen.findByLabelText("Code");
       fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
-      fireEvent.click(screen.getByRole("button", { name: "Verify code" }));
+      fireEvent.click(screen.getByRole("button", { name: "Verify Code" }));
 
       // Completion failed automatically after verification - a Retry button is showing in place
-      // of a fresh "Verify code" submit. Skip must still work from here.
+      // of a fresh "Verify Code" submit. Skip must still work from here.
       await screen.findByRole("button", { name: "Retry" });
       expect(sendMessageSpy).toHaveBeenCalledWith(
         expect.objectContaining({ type: "AUTH_SET_PASSWORD" })

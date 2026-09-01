@@ -70,11 +70,11 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
 
   return (
     <div className="onboarding-step">
-      <h2>Sign in</h2>
       <SignInForm
         framingCopy="Sign in to use friends, rooms, nudges, approvals, and synced accountability features."
         onSignedIn={() => void finishOnboarding()}
         onSkip={() => void finishOnboarding()}
+        onBack={() => setShowWelcome(true)}
       />
       {finishError && (
         <p role="alert" className="onboarding-step__error">

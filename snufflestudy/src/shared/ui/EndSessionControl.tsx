@@ -3,6 +3,7 @@ import type { StudySession } from "../../domain/session/sessionTypes";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { FriendRequest } from "../../domain/accountability/friendRequest";
 import { useDisplayNames } from "./useDisplayNames";
+import { ButtonLarge } from "../../sidepanel/components/ui/ButtonLarge";
 
 interface EndSessionControlProps {
   session: StudySession;
@@ -15,8 +16,10 @@ const END_REQUEST_STATUS_LABEL: Record<FriendRequest["status"], string> = {
   denied: "Denied",
 };
 
-// Shared by PopupApp and SidePanelApp (mirrors the existing TimerRing/SessionStatusCard
-// extraction precedent). For non-hard sessions, "End session" fires SESSION_END
+// design-specs/frames/page-study-session.json's button-options ("End Session"). Only
+// ActiveSessionView.tsx mounts this now (the standalone browser-action popup entrypoint this
+// comment used to also mention was removed from the manifest before this task). For non-hard
+// sessions, "End session" fires SESSION_END
 // immediately, same as before this fix. For hard-restricted sessions it instead reveals
 // an inline passcode prompt — mirroring `LockedPage.tsx`'s "submit a passcode, show an
 // error on failure" shape (password input + submit, role="alert" error, disabled/loading
@@ -335,5 +338,5 @@ export function EndSessionControl({ session }: EndSessionControlProps) {
     );
   }
 
-  return <button onClick={handleEndClick}>End session</button>;
+  return <ButtonLarge onClick={handleEndClick}>End Session</ButtonLarge>;
 }
