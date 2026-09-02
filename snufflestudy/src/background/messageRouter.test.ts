@@ -97,7 +97,7 @@ describe("messageRouter — full session lifecycle", () => {
       payload: { ...createInput, goal: "" },
     })) as { ok: boolean; errors: string[] };
     expect(result.ok).toBe(false);
-    expect(result.errors).toContain("Goal cannot be empty.");
+    expect(result.errors).toContain("Goal cannot be empty");
   });
 
   it("records a distraction attempt and updates the active session", async () => {

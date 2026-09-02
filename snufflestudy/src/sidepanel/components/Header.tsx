@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
-import { useRefreshAll } from "../refresh/RefreshRegistryContext";
+import { useRefreshAll, useRegisterRefresh } from "../refresh/RefreshRegistryContext";
 import { ButtonIcon } from "./ui/ButtonIcon";
 import { ButtonLarge } from "./ui/ButtonLarge";
 
@@ -33,22 +33,26 @@ export function Header({ onSignInClick }: HeaderProps) {
   // currently-mounted panel's own fetch via the app-shell-level RefreshRegistryProvider.
   const refreshAll = useRefreshAll();
 
-  useEffect(() => {
-    let cancelled = false;
+  // Registered with the refresh registry (not just called once on mount) so a sign-in/sign-out/
+  // delete-account elsewhere in the panel (AccountPage.tsx, via useRefreshAllSafe()) updates the
+  // Log-In button here too - Header stays mounted across a tab switch (it's outside the
+  // activeTab-conditional branches in SidePanelApp.tsx), so without this its own session state
+  // would otherwise only ever reflect whatever was true the moment the panel first opened.
+  function loadSession() {
     sendMessage<{ ok: boolean; session: AuthSession | null; error?: string }>({
       type: "AUTH_GET_SESSION",
     })
       .then((res) => {
-        if (cancelled) return;
         if (res.ok) setSession(res.session);
         setLoaded(true);
       })
-      .catch(() => {
-        if (!cancelled) setLoaded(true);
-      });
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => setLoaded(true));
+  }
+  useRegisterRefresh(loadSession);
+
+  useEffect(() => {
+    loadSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

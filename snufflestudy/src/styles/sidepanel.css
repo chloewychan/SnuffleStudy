@@ -57,7 +57,7 @@
 
 .sp-header__title {
   font-family: var(--font-display);
-  font-size: var(--font-size-header-title);
+  font-size: var(--font-size-heading-1);
   line-height: 1.249;
   color: var(--color-text);
   margin: 0;
@@ -97,19 +97,25 @@
 
 .sp-card__title {
   font-family: var(--font-display);
-  font-size: var(--font-size-heading-sm);
+  font-size: var(--font-size-heading-2);
   color: var(--color-text);
   margin: 0 0 var(--padding-20);
 }
 
 /* Shared small muted sub-heading/field-label treatment - recurs across every settings/nudge-vault
    frame checked so far (page-friends's "Audio Nudges (10s max)"/"Written Nudges", page-settings's
-   "Account Password"/"Old Password"/"Hard-Block Passcode"/etc.) with the exact same Shantell Sans
-   10px, Light-Grey styling. */
+   "Account Password"/"Old Password"/"Hard-Block Passcode"/etc.) with the exact same Shantell Sans,
+   Light-Grey styling. */
 .sp-label {
   font-family: var(--font-body);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-text-3);
   color: var(--color-text-muted);
+}
+
+/* Plain smaller body text (empty-state messages, inline validation errors) - same size as
+   .sp-label but keeps the normal (non-muted) text color, unlike a field label. */
+.sp-text-3 {
+  font-size: var(--font-size-text-3);
 }
 
 .sp-field {
@@ -143,7 +149,7 @@
 
 .sp-active-session__goal {
   font-family: var(--font-display);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-heading-2);
   color: var(--color-text);
   text-align: center;
 }
@@ -179,7 +185,7 @@
   gap: var(--space-1);
   color: var(--color-text-muted);
   font-family: var(--font-body);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-text-2);
 }
 
 .sp-active-session__friend-list {
@@ -235,7 +241,7 @@
 
 .study-room-panel--footer .study-room-panel__header h2 {
   font-family: var(--font-display);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-heading-2);
   color: var(--color-text);
   text-align: center;
   margin: 0;
@@ -279,9 +285,9 @@
   gap: var(--padding-10);
 }
 
-.study-room-panel__create h3 {
-  font-family: var(--font-display);
-  font-size: var(--font-size-heading-sm);
+.study-room-panel__create-title {
+  font-family: var(--font-body);
+  font-size: var(--font-size-text-1);
   color: var(--color-text);
   margin: 0;
 }
@@ -330,7 +336,7 @@
   background: var(--color-light-pink-50);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-text-2);
   cursor: pointer;
 }
 
@@ -354,7 +360,7 @@
   border-radius: var(--corner-5);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-text-2);
   cursor: pointer;
 }
 
@@ -399,13 +405,15 @@
   background: transparent;
   color: var(--color-text-muted);
   font-family: var(--font-display);
-  font-size: var(--font-size-tab);
+  font-size: var(--font-size-text-1);
   cursor: pointer;
 }
 
-.sp-btn-tab--selected {
+.sp-btn-tab--selected,
+.sp-btn-tab:hover {
   /* cornerRadius: 30 isn't a named Corner-* token in design-specs/tokens.json - it reuses the
-     Padding-30 variable's value (30), same as the source Figma file does. */
+     Padding-30 variable's value (30), same as the source Figma file does. Hover uses the exact
+     same treatment as selected, not its own separate one. */
   border-radius: var(--padding-30);
   background: var(--color-light-pink-50);
   color: var(--color-text);
@@ -421,7 +429,7 @@
   border-radius: var(--corner-5);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-text-3);
   line-height: 1.34;
 }
 
@@ -464,6 +472,17 @@
   font: inherit;
 }
 
+/* The closed <select> itself keeps Shantell Sans (inherited from .sp-input above) - only the
+   popped-open option list switches to Nunito (same one-off font page-settings.json's own
+   list-item labels use - see .settings-page__list-item's own comment further down). Referenced
+   by name only, not self-hosted like --font-display/--font-body: falls back to a generic
+   sans-serif wherever Nunito isn't already installed, rather than bundling a third webfont for
+   one narrow spot. */
+.sp-input__select option {
+  font-family: "Nunito", sans-serif;
+  color: var(--color-text);
+}
+
 .sp-input__chevron {
   position: absolute;
   right: var(--padding-5);
@@ -481,7 +500,7 @@
   border-radius: var(--corner-15);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-text-3);
   line-height: 1.34;
 }
 
@@ -667,7 +686,7 @@
 
 .nudges-and-requests-footer h3 {
   font-family: var(--font-body);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-text-2);
   font-weight: 400;
   color: var(--color-text-muted);
   margin: 0;
@@ -689,7 +708,7 @@
   gap: var(--padding-20);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-text-2);
 }
 
 .nudges-and-requests-footer__resolve {
@@ -722,7 +741,7 @@
 
 .onboarding-step--welcome h1 {
   font-family: var(--font-display);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-heading-2);
   color: var(--color-text);
   margin: 0;
 }
@@ -758,7 +777,7 @@
 
 .sign-in-form__step-header h2 {
   font-family: var(--font-display);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-heading-2);
   color: var(--color-text);
   margin: 0;
 }
@@ -777,7 +796,7 @@
 
 .sp-form-fields label {
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-text-3);
 }
 
 .sign-in-form__actions {
@@ -827,7 +846,7 @@
 
 .sp-bunny-tab__field label {
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-text-3);
   font-family: var(--font-body);
 }
 
@@ -875,14 +894,14 @@
 
 .task-vault-page__header h2 {
   font-family: var(--font-display);
-  font-size: var(--font-size-heading-sm);
+  font-size: var(--font-size-heading-2);
   color: var(--color-text);
   margin: 0;
 }
 
 .task-vault-page__new-task label {
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-text-3);
   font-family: var(--font-body);
 }
 
@@ -913,7 +932,7 @@
   gap: var(--padding-7-5);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-text-2);
 }
 
 /* Modal (design-specs/frames/popup-*.json) - shared shell for all three popups. The scrim isn't
@@ -951,7 +970,7 @@
 
 .sp-modal__header h2 {
   font-family: var(--font-display);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-heading-2);
   color: var(--color-text);
   text-align: center;
   margin: 0;
@@ -963,7 +982,7 @@
   gap: var(--padding-10);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-text-2);
 }
 
 /* page-friends (design-specs/frames/page-friends.json's frame-friends) - was entirely unstyled
@@ -972,13 +991,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--padding-10);
-}
-
-.friends-box h3 {
-  font-family: var(--font-display);
-  font-size: var(--font-size-heading-sm);
-  color: var(--color-text);
-  margin: 0;
 }
 
 .friends-box__list {
@@ -996,7 +1008,7 @@
   gap: var(--padding-10);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-text-2);
 }
 
 .friends-box__friend-name {
@@ -1019,7 +1031,7 @@
 /* Modal (design-specs/frames/popup-friend.json) */
 .friend-options-modal__title {
   font-family: var(--font-display);
-  font-size: var(--font-size-heading-sm);
+  font-size: var(--font-size-heading-2);
   color: var(--color-text);
   margin: 0;
 }
@@ -1110,7 +1122,7 @@
   justify-content: space-between;
   gap: var(--padding-20);
   font-family: var(--font-body);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-text-3);
   color: var(--color-text);
 }
 
@@ -1191,7 +1203,7 @@
   align-items: center;
   gap: var(--padding-10);
   font-family: var(--font-body);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-text-3);
   color: var(--color-text);
   cursor: pointer;
 }
@@ -1270,7 +1282,7 @@
   justify-content: space-between;
   gap: var(--padding-20);
   font-family: var(--font-body);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-text-3);
   color: var(--color-text);
 }
 
@@ -1321,7 +1333,7 @@
   padding: 0;
   cursor: pointer;
   font-family: var(--font-body);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-text-3);
   color: var(--color-text);
   text-align: left;
 }
@@ -1343,7 +1355,7 @@
 .history-page__events {
   padding-left: var(--padding-10);
   font-family: var(--font-body);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-text-3);
   color: var(--color-text);
 }
 

@@ -201,6 +201,10 @@ export function SettingsPage({
 
   return (
     <div className="settings-page">
+      {/* design-specs/frames/page-settings.json's frame-general's own leading "General" text
+          node - the card title for this whole box (Tracking through Hard-Block Passcode, plus
+          SettingsTab.tsx's own Camera & Microphone callout right after it). */}
+      <h2 className="sp-card__title">General</h2>
       <section className="settings-page__section">
         <h2 className="sp-label">Tracking</h2>
         <label className="settings-page__list-item">

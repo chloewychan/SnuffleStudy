@@ -16,7 +16,7 @@ body {
      is a global default (with the same system-ui/sans-serif fallback chain preserved for when the
      self-hosted @font-face hasn't loaded yet). */
   font-family: var(--font-body), system-ui, sans-serif;
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-text-1);
 }
 
 /* Fix 3 (final-review fix wave): form controls don't inherit font-family from ancestors under most
@@ -121,7 +121,7 @@ button:focus-visible {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-heading-2);
   font-weight: 600;
 }
 
@@ -134,7 +134,7 @@ button:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-text-2);
   color: var(--color-text-muted);
 }
 

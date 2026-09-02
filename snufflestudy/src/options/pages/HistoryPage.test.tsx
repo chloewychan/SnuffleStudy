@@ -68,7 +68,7 @@ describe("HistoryPage", () => {
 
     render(<HistoryPage />);
 
-    expect(await screen.findByText("No sessions match these filters.")).toBeInTheDocument();
+    expect(await screen.findByText("No sessions match these filters")).toBeInTheDocument();
   });
 
   it("surfaces an error instead of hanging when SESSION_LIST_HISTORY fails", async () => {

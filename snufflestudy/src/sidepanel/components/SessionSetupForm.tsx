@@ -202,7 +202,11 @@ export function SessionSetupForm({ settings, tasks: tasksProp }: SessionSetupFor
           <option value="hard">Hard</option>
         </Input>
       </div>
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p role="alert" className="sp-text-3">
+          {error}
+        </p>
+      )}
       <ButtonLarge type="submit" disabled={submitting}>
         {submitting ? "Starting…" : "Start Study Session"}
       </ButtonLarge>

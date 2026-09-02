@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { Header } from "./Header";
-import { RefreshRegistryProvider } from "../refresh/RefreshRegistryContext";
+import { RefreshRegistryProvider, useRefreshAll } from "../refresh/RefreshRegistryContext";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 
 // v4.1 Task 2: Header now reads useRefreshAll(), which throws outside a
@@ -62,5 +62,40 @@ describe("Header", () => {
     renderHeader();
     const button = await screen.findByRole("button", { name: "Refresh" });
     expect(() => button.click()).not.toThrow();
+  });
+
+  // Header stays mounted across a tab switch (SidePanelApp.tsx renders it outside the
+  // activeTab-conditional branches), so a sign-in that happens elsewhere (AccountPage.tsx, on the
+  // Settings tab) never remounts it - without registering its own session check with the refresh
+  // registry, the Log-In button would keep showing until the whole panel reopens.
+  it("re-checks its session (and hides Log-In) when something else calls refreshAll, without a remount", async () => {
+    const sendMessageSpy = vi
+      .spyOn(messenger, "sendMessage")
+      .mockResolvedValue({ ok: true, session: null });
+
+    function RefreshTrigger() {
+      const refreshAll = useRefreshAll();
+      return (
+        <button type="button" onClick={refreshAll}>
+          Trigger refresh
+        </button>
+      );
+    }
+
+    render(
+      <RefreshRegistryProvider>
+        <Header onSignInClick={() => {}} />
+        <RefreshTrigger />
+      </RefreshRegistryProvider>
+    );
+
+    expect(await screen.findByRole("button", { name: /log in/i })).toBeInTheDocument();
+
+    sendMessageSpy.mockResolvedValue({ ok: true, session: { user: { id: "user-1" } } });
+    fireEvent.click(screen.getByRole("button", { name: "Trigger refresh" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /log in/i })).not.toBeInTheDocument()
+    );
   });
 });

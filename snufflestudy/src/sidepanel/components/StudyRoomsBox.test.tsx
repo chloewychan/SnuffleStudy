@@ -103,7 +103,7 @@ describe("StudyRoomsBox", () => {
     );
 
     renderBox();
-    await screen.findByText("No study rooms yet — create one to get started.");
+    await screen.findByText("No study rooms yet");
 
     fireEvent.change(screen.getByLabelText("Room Name"), {
       target: { value: "Thursday study group" },
@@ -457,7 +457,7 @@ describe("StudyRoomsBox — signed-out gate (v3.2 Task 2)", () => {
 
     renderBox();
 
-    await screen.findByText("No study rooms yet — create one to get started.");
+    await screen.findByText("No study rooms yet");
     expect(
       screen.queryByText("Sign in to create or join a study room with your friends.")
     ).not.toBeInTheDocument();

@@ -511,11 +511,12 @@ export function FriendsBox() {
       )}
 
       <section className="friends-box__nudge">
-        <h3>Nudge</h3>
+        {/* No heading here on purpose - the ButtonLarge below already reads "Nudge (N
+            selected)", so a separate "Nudge" label directly above it would just repeat itself. */}
         {vaultError && <p role="alert">Couldn't load your Nudge Vault: {vaultError}.</p>}
         {vaultLoading && vaultItems.length === 0 && !vaultError && <p>Loading…</p>}
         {!vaultLoading && vaultItems.length === 0 && !vaultError && (
-          <p>No saved nudges yet — add one below in the Nudge Vault.</p>
+          <p className="sp-text-3">No saved nudges yet</p>
         )}
         <div className="friends-box__action-row">
           <ButtonLarge
@@ -546,9 +547,12 @@ export function FriendsBox() {
       </section>
 
       <section className="friends-box__add-to-room">
-        <h3>Add to Room</h3>
+        {/* No heading here either, same reason as the Nudge section above - the ButtonLarge
+            already reads "Add to Room (N selected)". */}
         {roomsError && <p role="alert">Couldn't load study rooms: {roomsError}.</p>}
-        {rooms !== null && rooms.length === 0 && !roomsError && <p>No study rooms yet.</p>}
+        {rooms !== null && rooms.length === 0 && !roomsError && (
+          <p className="sp-text-3">No study rooms yet</p>
+        )}
         <div className="friends-box__action-row">
           <ButtonLarge
             onClick={handleAddToRoom}
@@ -576,7 +580,7 @@ export function FriendsBox() {
       </section>
 
       <section className="friends-box__add">
-        <h3>Add Friend</h3>
+        <span className="sp-label">Add Friend</span>
         <form className="friends-box__add-row" onSubmit={(e) => void handleAddFriend(e)}>
           <Input
             aria-label="Invite code"
@@ -596,8 +600,7 @@ export function FriendsBox() {
       </section>
 
       <section className="friends-box__invite">
-        <h3>Invite Friend</h3>
-        <p>Generates a one-time invite code you can share with a friend to connect.</p>
+        <span className="sp-label">Invite Friend</span>
         <ButtonLarge onClick={() => void handleInviteAFriend()} disabled={inviteBusy}>
           {inviteBusy ? "Setting up your invite…" : "Generate Invite Code"}
         </ButtonLarge>

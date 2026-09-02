@@ -63,17 +63,23 @@
   --radius-md: 8px;
   --radius-lg: 16px;
 
-  --font-size-xs: 10px;
-  --font-size-sm: 12px;
-  --font-size-md: 14px;
-  --font-size-tab: 15px;
-  --font-size-lg: 20px;
-  /* header-bar (design-specs/frames/header-bar.json) "SnuffleStudy" title */
-  --font-size-header-title: 35px;
-  /* Section-card headings (e.g. "About the Bun") - same value as --font-size-tab (15px) but a
-     separate token since the two represent different design roles that just happen to share a
-     size right now. */
-  --font-size-heading-sm: 15px;
+  /* Font sizes are in rem, not px, on purpose: 1rem always resolves to the browser's own
+     current default font size, so this whole scale tracks both page zoom (already worked before
+     this) AND chrome://settings/fonts' "Font size" control (which only ever affected relative
+     units - every size here used to be a fixed px, so that setting did nothing before). Anchored
+     so --font-size-text-1 (this app's base body-text size) equals exactly 1rem - the browser's
+     own default paragraph size - and --font-size-heading-1/2 land on the browser's own default
+     <h1>/<h2> sizes (2rem/1.5rem), rather than on arbitrary custom values, per this app's
+     previous px scale having drifted noticeably smaller than default browser text.
+     Old xs(10px)/sm(12px)/md(14px)/tab(15px)/lg(20px)/heading-sm(15px)/header-title(35px) are
+     retired - tab folded into text-1 (nav labels are UI chrome, not headings, and 15px was
+     already close to the new 16px text-1) and heading-sm folded into heading-2 (both were
+     already literal <h2>/<h3> section headings, just at two different sizes for no real reason). */
+  --font-size-text-3: 0.75rem; /* was --font-size-xs, 10px -> 12px */
+  --font-size-text-2: 0.875rem; /* was --font-size-sm, 12px -> 14px */
+  --font-size-text-1: 1rem; /* was --font-size-md/--font-size-tab, 14px/15px -> 16px (browser default) */
+  --font-size-heading-2: 1.5rem; /* was --font-size-lg/--font-size-heading-sm, 20px/15px -> 24px (browser default h2) */
+  --font-size-heading-1: 2rem; /* was --font-size-header-title, 35px -> 32px (browser default h1) */
 
   --motion-duration-fast: 120ms;
   --motion-duration-normal: 240ms;

@@ -44,14 +44,14 @@ describe("SessionSetupForm", () => {
   it("shows validation errors instead of starting a session", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "TASK_LIST") return { ok: true, tasks: [] };
-      if (message.type === "SESSION_CREATE") return { ok: false, errors: ["Goal cannot be empty."] };
+      if (message.type === "SESSION_CREATE") return { ok: false, errors: ["Goal cannot be empty"] };
       return { ok: true };
     });
 
     render(<SessionSetupForm settings={DEFAULT_USER_SETTINGS} />);
     fireEvent.click(screen.getByRole("button", { name: "Start Study Session" }));
 
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Goal cannot be empty."));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Goal cannot be empty"));
   });
 
   it("surfaces an error and does not crash when sendMessage rejects", async () => {

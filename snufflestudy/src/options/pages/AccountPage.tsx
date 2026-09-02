@@ -5,6 +5,7 @@ import { SignInForm, type SignInFormSession } from "../../shared/ui/SignInForm";
 import { Modal } from "../../sidepanel/components/ui/Modal";
 import { ButtonLarge } from "../../sidepanel/components/ui/ButtonLarge";
 import { Input } from "../../sidepanel/components/ui/Input";
+import { useRefreshAllSafe } from "../../sidepanel/refresh/RefreshRegistryContext";
 
 // v3.2 Task 1: the OTP email/code sign-in state and AUTH_REQUEST_OTP/AUTH_VERIFY_OTP round trip
 // this page used to own inline now live in the shared SignInForm - this page just holds the
@@ -12,6 +13,13 @@ import { Input } from "../../sidepanel/components/ui/Input";
 type AuthSession = SignInFormSession;
 
 export function AccountPage() {
+  // Header.tsx (a sibling, not an ancestor/descendant of this page) registers its own auth-
+  // session check as a refresh function - this tells it (and anything else that cares) to
+  // re-check right after sign-in/sign-out/delete-account, since Header would otherwise never
+  // learn a sign-in that happened here actually happened. No-ops when there's no
+  // RefreshRegistryProvider ancestor (OptionsApp.tsx's own standalone usage of this page).
+  const refreshAllSafe = useRefreshAllSafe();
+
   const [session, setSession] = useState<AuthSession | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
@@ -100,6 +108,7 @@ export function AccountPage() {
 
   function handleSignedIn(newSession: SignInFormSession) {
     setSession(newSession);
+    refreshAllSafe();
   }
 
   async function handleSignOut() {
@@ -116,6 +125,7 @@ export function AccountPage() {
       setConfirmNewPassword("");
       setCurrentPassword("");
       setPasswordSetAt(null);
+      refreshAllSafe();
     } catch (err) {
       console.error("Failed to sign out", err);
       setAuthError(err instanceof Error ? err.message : String(err));
@@ -190,6 +200,7 @@ export function AccountPage() {
       setConfirmNewPassword("");
       setCurrentPassword("");
       setPasswordSetAt(null);
+      refreshAllSafe();
     } catch (err) {
       console.error("Failed to delete account", err);
       setDeleteError(err instanceof Error ? err.message : String(err));
@@ -314,7 +325,6 @@ export function AccountPage() {
             {passwordError && (
               <p role="alert">Couldn't set your password: {passwordError}. Please try again.</p>
             )}
-            {passwordSetAt !== null && !passwordError && <p>Password updated.</p>}
           </section>
         </>
       )}

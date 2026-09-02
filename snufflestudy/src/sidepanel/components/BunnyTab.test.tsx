@@ -35,19 +35,14 @@ describe("BunnyTab", () => {
   it("renders editable name fields with the stub defaults when no profile row exists yet", async () => {
     mockMessages();
     render(<BunnyTab />);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Save bunny name" })).not.toBeDisabled()
-    );
-    expect(screen.getByLabelText("Bunny Name:")).toHaveValue("Snuffles");
+    await waitFor(() => expect(screen.getByLabelText("Bunny Name:")).toHaveValue("Snuffles"));
     expect(screen.getByLabelText("Human Name:")).toHaveValue("Hooman");
   });
 
   it("updates name fields when typed", async () => {
     mockMessages();
     render(<BunnyTab />);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Save bunny name" })).not.toBeDisabled()
-    );
+    await waitFor(() => expect(screen.getByLabelText("Bunny Name:")).toHaveValue("Snuffles"));
     const bunnyInput = screen.getByLabelText("Bunny Name:");
     const humanInput = screen.getByLabelText("Human Name:");
 
@@ -61,13 +56,59 @@ describe("BunnyTab", () => {
   it("has no Show Bunny toggle or Status meters (removed in v4.1 Task 5)", async () => {
     mockMessages();
     render(<BunnyTab />);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Save bunny name" })).not.toBeDisabled()
-    );
+    await waitFor(() => expect(screen.getByLabelText("Bunny Name:")).toHaveValue("Snuffles"));
     expect(screen.queryByRole("checkbox", { name: /show bunny/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/happiness/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/productivity/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/friendliness/i)).not.toBeInTheDocument();
+  });
+
+  // design-specs/frames/page-bunny.json's own button-bool starts on Property=disabled - there's
+  // nothing to save until a field is actually edited, and it's disabled again the moment a save
+  // succeeds (see BunnyTab.tsx's own header comment on bunnyNameSavedValue/humanNameSavedValue).
+  it("keeps each Save button disabled until its own field is edited, then re-disables it once the save succeeds", async () => {
+    mockMessages();
+    render(<BunnyTab />);
+
+    const saveBunny = await screen.findByRole("button", { name: "Save bunny name" });
+    const saveHuman = screen.getByRole("button", { name: "Save human name" });
+    expect(saveBunny).toBeDisabled();
+    expect(saveHuman).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Bunny Name:"), { target: { value: "Fluffball" } });
+    expect(saveBunny).not.toBeDisabled();
+    expect(saveHuman).toBeDisabled();
+
+    fireEvent.click(saveBunny);
+    await waitFor(() => expect(saveBunny).toBeDisabled());
+  });
+
+  it("does not re-enable the Save button when a save fails - the field is still unsaved", async () => {
+    mockMessages({ PROFILE_SAVE_MINE: () => ({ ok: false, error: "Not signed in." }) });
+    render(<BunnyTab />);
+
+    const saveBunny = await screen.findByRole("button", { name: "Save bunny name" });
+    fireEvent.change(screen.getByLabelText("Bunny Name:"), { target: { value: "Fluffball" } });
+    fireEvent.click(saveBunny);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Not signed in."));
+    expect(saveBunny).not.toBeDisabled();
+  });
+
+  it("starts with the Save button disabled when a previously saved name is loaded (nothing new to save)", async () => {
+    const savedProfile: Profile = {
+      userId: "user-a",
+      bunnyName: "Fluffball",
+      humanName: "Alice",
+      updatedAt: "2026-01-01T00:00:00Z",
+      passwordSetAt: null,
+    };
+    mockMessages({ PROFILE_GET_MINE: () => ({ ok: true, profile: savedProfile }) });
+    render(<BunnyTab />);
+
+    await waitFor(() => expect(screen.getByLabelText("Bunny Name:")).toHaveValue("Fluffball"));
+    expect(screen.getByRole("button", { name: "Save bunny name" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save human name" })).toBeDisabled();
   });
 
   // v3.3 Task 8: the DoD's "reloading shows the saved name, not reset to the stub default" -
@@ -91,9 +132,7 @@ describe("BunnyTab", () => {
   it("saves the current field values via PROFILE_SAVE_MINE when Save bunny name is clicked", async () => {
     const sendMessageSpy = mockMessages();
     render(<BunnyTab />);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Save bunny name" })).not.toBeDisabled()
-    );
+    await waitFor(() => expect(screen.getByLabelText("Bunny Name:")).toHaveValue("Snuffles"));
 
     fireEvent.change(screen.getByLabelText("Bunny Name:"), { target: { value: "Fluffball" } });
     fireEvent.change(screen.getByLabelText("Human Name:"), { target: { value: "Alice" } });
@@ -105,15 +144,15 @@ describe("BunnyTab", () => {
         payload: { humanName: "Alice", bunnyName: "Fluffball" },
       })
     );
-    await waitFor(() => expect(screen.getAllByText("Saved.")).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Save bunny name" })).toBeDisabled()
+    );
   });
 
   it("saves the current field values via PROFILE_SAVE_MINE when Save human name is clicked", async () => {
     const sendMessageSpy = mockMessages();
     render(<BunnyTab />);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Save human name" })).not.toBeDisabled()
-    );
+    await waitFor(() => expect(screen.getByLabelText("Bunny Name:")).toHaveValue("Snuffles"));
 
     fireEvent.change(screen.getByLabelText("Bunny Name:"), { target: { value: "Fluffball" } });
     fireEvent.change(screen.getByLabelText("Human Name:"), { target: { value: "Alice" } });
@@ -125,15 +164,16 @@ describe("BunnyTab", () => {
         payload: { humanName: "Alice", bunnyName: "Fluffball" },
       })
     );
-    await waitFor(() => expect(screen.getAllByText("Saved.")).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Save human name" })).toBeDisabled()
+    );
   });
 
   it("shows an error inline when PROFILE_SAVE_MINE fails for Save bunny name, without crashing", async () => {
     mockMessages({ PROFILE_SAVE_MINE: () => ({ ok: false, error: "Not signed in." }) });
     render(<BunnyTab />);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Save bunny name" })).not.toBeDisabled()
-    );
+    await waitFor(() => expect(screen.getByLabelText("Bunny Name:")).toHaveValue("Snuffles"));
+    fireEvent.change(screen.getByLabelText("Bunny Name:"), { target: { value: "Fluffball" } });
 
     fireEvent.click(screen.getByRole("button", { name: "Save bunny name" }));
 
@@ -143,9 +183,8 @@ describe("BunnyTab", () => {
   it("shows an error inline when PROFILE_SAVE_MINE fails for Save human name, without crashing", async () => {
     mockMessages({ PROFILE_SAVE_MINE: () => ({ ok: false, error: "Not signed in." }) });
     render(<BunnyTab />);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Save human name" })).not.toBeDisabled()
-    );
+    await waitFor(() => expect(screen.getByLabelText("Human Name:")).toHaveValue("Hooman"));
+    fireEvent.change(screen.getByLabelText("Human Name:"), { target: { value: "Alice" } });
 
     fireEvent.click(screen.getByRole("button", { name: "Save human name" }));
 
@@ -172,9 +211,10 @@ describe("BunnyTab", () => {
     });
 
     render(<BunnyTab />);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Save bunny name" })).not.toBeDisabled()
-    );
+    await waitFor(() => expect(screen.getByLabelText("Bunny Name:")).toHaveValue("Snuffles"));
+
+    fireEvent.change(screen.getByLabelText("Bunny Name:"), { target: { value: "Fluffball" } });
+    fireEvent.change(screen.getByLabelText("Human Name:"), { target: { value: "Alice" } });
 
     fireEvent.click(screen.getByRole("button", { name: "Save bunny name" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Saving bunny name…" })).toBeInTheDocument());
@@ -184,16 +224,18 @@ describe("BunnyTab", () => {
     expect(screen.getByRole("button", { name: "Save human name" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Save human name" }));
-    await waitFor(() => expect(screen.getByText("Saved.")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Save human name" })).toBeDisabled()
+    );
 
-    // The human name save resolved and shows "Saved." (its button is idle again) while the bunny
-    // name save is still pending - the bunny button must still read "Saving...", unaffected by the
-    // human name save completing.
+    // The human name save resolved (its button is idle and disabled again, nothing new to save)
+    // while the bunny name save is still pending - the bunny button must still read "Saving...",
+    // unaffected by the human name save completing.
     expect(screen.getByRole("button", { name: "Saving bunny name…" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save human name" })).toBeInTheDocument();
 
     resolveBunnySave({ ok: true });
-    await waitFor(() => expect(screen.getAllByText("Saved.")).toHaveLength(2));
-    expect(screen.getByRole("button", { name: "Save bunny name" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Save bunny name" })).toBeDisabled()
+    );
   });
 });

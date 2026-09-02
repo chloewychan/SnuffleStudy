@@ -49,3 +49,15 @@ export function useRefreshAll(): () => void {
   if (!ctx) throw new Error("useRefreshAll must be used within a RefreshRegistryProvider");
   return ctx.refreshAll;
 }
+
+// Same "no-op outside a provider" contract as useRegisterRefresh, for callers that are mounted
+// both inside SidePanelApp's provider AND standalone elsewhere with no provider at all
+// (AccountPage.tsx, shared with OptionsApp.tsx's own full-tab usage) - there's nothing to
+// refresh in that second context anyway. AccountPage.tsx uses this to tell Header.tsx (which
+// registers its own auth-session check as a refresh function) to re-check right after a
+// sign-in/sign-out/delete-account completes, since Header's own session state is otherwise only
+// ever fetched once on mount and would otherwise go stale for the rest of that panel's lifetime.
+export function useRefreshAllSafe(): () => void {
+  const ctx = useContext(RefreshRegistryContext);
+  return ctx?.refreshAll ?? (() => {});
+}

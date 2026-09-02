@@ -224,7 +224,7 @@ describe("AccountPage — signed in", () => {
       expect(submitButton).not.toBeDisabled();
     });
 
-    it("sets a password via AUTH_SET_PASSWORD and shows confirmation", async () => {
+    it("sets a password via AUTH_SET_PASSWORD and clears the fields on success", async () => {
       const setPasswordSpy = vi.fn(async () => ({ ok: true }));
       mockSignedIn({ AUTH_SET_PASSWORD: setPasswordSpy });
 
@@ -243,7 +243,8 @@ describe("AccountPage — signed in", () => {
           payload: { password: "new-pw" },
         })
       );
-      expect(await screen.findByText("Password updated.")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByLabelText("New Password")).toHaveValue(""));
+      expect(screen.getByLabelText("Confirm new password")).toHaveValue("");
     });
 
     it("surfaces a server-side failure as an error", async () => {
@@ -264,7 +265,8 @@ describe("AccountPage — signed in", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(
         /password should be at least 6 characters/i
       );
-      expect(screen.queryByText("Password updated.")).not.toBeInTheDocument();
+      // Fields aren't wiped on a failed attempt - the user needs them there to retry.
+      expect(screen.getByLabelText("New Password")).toHaveValue("x");
     });
 
     // v3.4 Task 6: `passwordSetAt` (loaded via PROFILE_GET_MINE) gates whether a "Current
@@ -396,11 +398,13 @@ describe("AccountPage — signed in", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Save Password" }));
 
-    expect(await screen.findByText("Password updated.")).toBeInTheDocument();
-    expect(messenger.sendMessage).toHaveBeenCalledWith({
-      type: "AUTH_SET_PASSWORD",
-      payload: { password: "fresh-pw" },
-    });
+    await waitFor(() =>
+      expect(messenger.sendMessage).toHaveBeenCalledWith({
+        type: "AUTH_SET_PASSWORD",
+        payload: { password: "fresh-pw" },
+      })
+    );
+    await waitFor(() => expect(screen.getByLabelText("New Password")).toHaveValue(""));
   });
 
   it("signs out and returns to the signed-out view", async () => {

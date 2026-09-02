@@ -279,7 +279,7 @@ export function NudgeVaultBox() {
         {audioError && <p role="alert">Couldn't load your saved audio nudges: {audioError}.</p>}
         {audioTags === null && !audioError && <p>Loading…</p>}
         {audioTags !== null && audioTags.length === 0 && !audioError && (
-          <p>No saved audio nudges yet — record one above.</p>
+          <p className="sp-text-3">No saved audio nudges yet</p>
         )}
         {audioTags !== null && audioTags.length > 0 && (
           <ul className="nudge-vault-box__list">
@@ -328,7 +328,7 @@ export function NudgeVaultBox() {
         {textsError && <p role="alert">Couldn't load your saved written nudges: {textsError}.</p>}
         {texts === null && !textsError && <p>Loading…</p>}
         {texts !== null && texts.length === 0 && !textsError && (
-          <p>No saved written nudges yet — add one above.</p>
+          <p className="sp-text-3">No saved written nudges yet</p>
         )}
         {texts !== null && texts.length > 0 && (
           <ul className="nudge-vault-box__list">

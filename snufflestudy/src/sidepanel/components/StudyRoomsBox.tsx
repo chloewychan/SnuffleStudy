@@ -337,7 +337,7 @@ export function StudyRoomsBox({ onClose }: StudyRoomsBoxProps) {
       <section className="study-room-panel__list">
         {loadError && <p role="alert">Could not load rooms: {loadError}</p>}
         {rooms === null && !loadError && <p>Loading…</p>}
-        {rooms !== null && rooms.length === 0 && <p>No study rooms yet — create one to get started.</p>}
+        {rooms !== null && rooms.length === 0 && <p className="sp-text-3">No study rooms yet</p>}
         {rooms !== null && rooms.length > 0 && (
           <ul>
             {rooms.map((room) => {
@@ -398,7 +398,7 @@ export function StudyRoomsBox({ onClose }: StudyRoomsBoxProps) {
       {joinError && <p role="alert">{joinError}</p>}
 
       <section className="study-room-panel__create">
-        <h3>Create Study Room</h3>
+        <p className="study-room-panel__create-title">Create Study Room</p>
         <div className="study-room-panel__create-row">
           <Input
             id={newRoomNameFieldId}

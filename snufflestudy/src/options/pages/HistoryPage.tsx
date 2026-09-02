@@ -207,7 +207,7 @@ export function HistoryPage() {
       {!loadError && visibleSessions === null && <p>Loading…</p>}
 
       {!loadError && visibleSessions !== null && visibleSessions.length === 0 && (
-        <p>No sessions match these filters.</p>
+        <p className="sp-text-3">No sessions match these filters</p>
       )}
 
       {!loadError && visibleSessions !== null && visibleSessions.length > 0 && (

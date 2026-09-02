@@ -21,6 +21,14 @@ export function BunnyTab() {
   const [bunnyName, setBunnyName] = useState(DEFAULT_BUNNY_NAME);
   const [humanName, setHumanName] = useState(DEFAULT_HUMAN_NAME);
 
+  // Tracks the last-persisted (or last-loaded) value for each field, so each field's own Save
+  // button can tell "nothing new to save" (disabled) apart from "there's an edit pending"
+  // (enabled) - design-specs/frames/page-bunny.json's own button-bool starts on its Property=
+  // disabled variant, only switches to Property=default once the field is actually dirty, and
+  // goes back to disabled the moment a save succeeds (there's nothing new again at that point).
+  const [bunnyNameSavedValue, setBunnyNameSavedValue] = useState(DEFAULT_BUNNY_NAME);
+  const [humanNameSavedValue, setHumanNameSavedValue] = useState(DEFAULT_HUMAN_NAME);
+
   // Distinguishes "PROFILE_GET_MINE hasn't resolved yet" from "resolved, no row" - both Save
   // buttons below are disabled until this is true, so a fast click can't overwrite a real saved
   // name with the stub defaults this component initializes state to before the fetch returns.
@@ -40,11 +48,9 @@ export function BunnyTab() {
   // error state is now per-field.
   const [savingBunnyName, setSavingBunnyName] = useState(false);
   const [bunnyNameSaveError, setBunnyNameSaveError] = useState<string | null>(null);
-  const [bunnyNameSaved, setBunnyNameSaved] = useState(false);
 
   const [savingHumanName, setSavingHumanName] = useState(false);
   const [humanNameSaveError, setHumanNameSaveError] = useState<string | null>(null);
-  const [humanNameSaved, setHumanNameSaved] = useState(false);
 
   const idPrefix = useId();
   const bunnyNameFieldId = `${idPrefix}-bunny-name`;
@@ -62,8 +68,14 @@ export function BunnyTab() {
         // No profiles row yet - the stub defaults this component's state already starts with are
         // exactly the intended fallback, so there's nothing further to apply.
         if (!res.profile) return;
-        if (res.profile.bunnyName) setBunnyName(res.profile.bunnyName);
-        if (res.profile.humanName) setHumanName(res.profile.humanName);
+        if (res.profile.bunnyName) {
+          setBunnyName(res.profile.bunnyName);
+          setBunnyNameSavedValue(res.profile.bunnyName);
+        }
+        if (res.profile.humanName) {
+          setHumanName(res.profile.humanName);
+          setHumanNameSavedValue(res.profile.humanName);
+        }
       })
       .catch((err) => {
         console.error("Failed to load bunny/human names", err);
@@ -75,7 +87,6 @@ export function BunnyTab() {
   function handleSaveBunnyName() {
     setSavingBunnyName(true);
     setBunnyNameSaveError(null);
-    setBunnyNameSaved(false);
     sendMessage<{ ok: boolean; profile?: Profile; error?: string }>({
       type: "PROFILE_SAVE_MINE",
       payload: { humanName, bunnyName },
@@ -85,7 +96,11 @@ export function BunnyTab() {
           setBunnyNameSaveError(res.error ?? "Could not save your bunny name.");
           return;
         }
-        setBunnyNameSaved(true);
+        // Marks this exact value as the new clean baseline - the Save button goes back to
+        // disabled (nothing new to save) until the field is edited again. Left untouched on
+        // failure, on purpose: the field is still dirty relative to what's actually persisted,
+        // so the button stays enabled for a retry.
+        setBunnyNameSavedValue(bunnyName);
       })
       .catch((err) => {
         console.error("Failed to save bunny name", err);
@@ -97,7 +112,6 @@ export function BunnyTab() {
   function handleSaveHumanName() {
     setSavingHumanName(true);
     setHumanNameSaveError(null);
-    setHumanNameSaved(false);
     sendMessage<{ ok: boolean; profile?: Profile; error?: string }>({
       type: "PROFILE_SAVE_MINE",
       payload: { humanName, bunnyName },
@@ -107,7 +121,7 @@ export function BunnyTab() {
           setHumanNameSaveError(res.error ?? "Could not save your human name.");
           return;
         }
-        setHumanNameSaved(true);
+        setHumanNameSavedValue(humanName);
       })
       .catch((err) => {
         console.error("Failed to save human name", err);
@@ -134,22 +148,18 @@ export function BunnyTab() {
                 <Input
                   id={bunnyNameFieldId}
                   value={bunnyName}
-                  onChange={(e) => {
-                    setBunnyName(e.target.value);
-                    setBunnyNameSaved(false);
-                  }}
+                  onChange={(e) => setBunnyName(e.target.value)}
                 />
                 <ButtonBool
                   icon="check"
                   aria-label={savingBunnyName ? "Saving bunny name…" : "Save bunny name"}
                   onClick={handleSaveBunnyName}
-                  disabled={savingBunnyName || !loaded}
+                  disabled={savingBunnyName || !loaded || bunnyName === bunnyNameSavedValue}
                 />
               </div>
               {bunnyNameSaveError && (
                 <p role="alert">Couldn't save your bunny name: {bunnyNameSaveError}.</p>
               )}
-              {bunnyNameSaved && !bunnyNameSaveError && <p>Saved.</p>}
             </div>
 
             <div className="sp-bunny-tab__field">
@@ -158,22 +168,18 @@ export function BunnyTab() {
                 <Input
                   id={humanNameFieldId}
                   value={humanName}
-                  onChange={(e) => {
-                    setHumanName(e.target.value);
-                    setHumanNameSaved(false);
-                  }}
+                  onChange={(e) => setHumanName(e.target.value)}
                 />
                 <ButtonBool
                   icon="check"
                   aria-label={savingHumanName ? "Saving human name…" : "Save human name"}
                   onClick={handleSaveHumanName}
-                  disabled={savingHumanName || !loaded}
+                  disabled={savingHumanName || !loaded || humanName === humanNameSavedValue}
                 />
               </div>
               {humanNameSaveError && (
                 <p role="alert">Couldn't save your human name: {humanNameSaveError}.</p>
               )}
-              {humanNameSaved && !humanNameSaveError && <p>Saved.</p>}
             </div>
           </div>
         </div>

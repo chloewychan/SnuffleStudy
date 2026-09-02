@@ -20,7 +20,7 @@ describe("validateCreateSessionInput", () => {
   it("rejects an empty goal", () => {
     const result = validateCreateSessionInput({ ...validInput, goal: "   " });
     expect(result.valid).toBe(false);
-    expect(result.errors).toContain("Goal cannot be empty.");
+    expect(result.errors).toContain("Goal cannot be empty");
   });
 
   it("rejects a zero focus duration", () => {
