@@ -2,7 +2,7 @@
   "name": "snufflestudy",
   "description": "A consensual peer-pressure study accountability companion.",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",

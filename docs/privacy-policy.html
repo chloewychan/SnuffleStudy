@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SnuffleStudy — Privacy Policy</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #fdf8f0;
+    --fg: #2b2420;
+    --muted: #5a5048;
+    --accent: #c77b4a;
+    --card: #ffffff;
+    --border: #e8ddcc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.6;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+  h1 {
+    font-size: 1.9rem;
+    margin-bottom: 4px;
+  }
+  .updated {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 32px;
+  }
+  .lede {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 32px;
+    font-style: italic;
+  }
+  section {
+    margin-bottom: 32px;
+  }
+  h2 {
+    font-size: 1.2rem;
+    border-bottom: 2px solid var(--accent);
+    display: inline-block;
+    padding-bottom: 2px;
+    margin-bottom: 12px;
+  }
+  ul {
+    padding-left: 1.2em;
+  }
+  li {
+    margin-bottom: 10px;
+  }
+  strong {
+    color: var(--accent);
+  }
+  footer {
+    color: var(--muted);
+    font-size: 0.85rem;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+    margin-top: 48px;
+  }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>SnuffleStudy Privacy Policy</h1>
+  <p class="updated">Last updated: October 6, 2026</p>
+
+  <p class="lede">
+    This page describes what SnuffleStudy actually does with your data, in plain terms.
+    Inside the extension, the Account page's "Delete account" action removes everything
+    listed here as belonging to your account.
+  </p>
+
+  <section>
+    <h2>On this device</h2>
+    <ul>
+      <li>
+        <strong>chrome.storage.local</strong> — your extension settings, a snapshot of your
+        currently active study session, your hard-block passcode (stored as a hash, not
+        plaintext), and small timestamps the extension uses to know when it last checked for
+        friend activity.
+      </li>
+      <li>
+        <strong>IndexedDB</strong> — your full session history and per-session events (one
+        local database), and your tasks (a second local database).
+      </li>
+    </ul>
+    <p>
+      None of this leaves your device unless a specific feature below sends it somewhere —
+      most of it never does. Uninstalling the extension removes it.
+    </p>
+  </section>
+
+  <section>
+    <h2>Supabase (our backend)</h2>
+    <p>
+      SnuffleStudy uses Supabase for accounts, the social/accountability features, and file
+      storage. You only send data here at all if you sign in.
+    </p>
+    <ul>
+      <li><strong>Auth</strong> — your email address, used only for email one-time-code sign-in and password-based sign-in.</li>
+      <li>
+        <strong>Postgres (database)</strong> — if you add friends, use study rooms, or
+        audio nudges: your friend connections, invite codes, per-friend privacy
+        toggles, generic session-status events (session started/paused/distracted/completed,
+        etc. — never a site name or your goal text, and only synced at all if you turn on
+        "Share session activity" in Settings), unlock requests and temporary-passcode
+        requests you send or receive, study rooms and who's in them, audio nudge metadata and
+        who you sent one to, your daily digest numbers, nudges, and a short-lived rate-limit
+        timestamp for the AI coaching feature.
+      </li>
+      <li><strong>Storage</strong> — audio nudge recordings: short voice clips you record and send to friends or into a study room.</li>
+      <li><strong>Realtime</strong> — used to deliver live presence and audio nudge broadcasts inside a study room while you're in it; not separately persisted beyond the Postgres rows above.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Anthropic (Claude), server-side only</h2>
+    <p>
+      If you're signed in and get distracted during a focus session, SnuffleStudy can ask an
+      Anthropic model to generate a short, in-character coaching line. The request (handled
+      entirely on our server — your device never talks to Anthropic directly) sends Anthropic
+      your study goal's text and the hostname of the site you got distracted on, purely to
+      generate that one sentence. SnuffleStudy does not store this text beyond a short
+      per-request rate-limit timestamp; handling of the request itself is subject to
+      Anthropic's own API data-use terms.
+    </p>
+  </section>
+
+  <section>
+    <h2>Resend (email), server-side only</h2>
+    <p>
+      If you request a temporary passcode from a friend to unlock a site during a locked
+      session, SnuffleStudy emails that friend (via Resend) to let them know, including the
+      hostname you're asking to unlock. This only happens when you initiate that request.
+    </p>
+  </section>
+
+  <section>
+    <h2>LiveKit (video/audio calls)</h2>
+    <p>
+      Joining a Study Room mints a short-lived (one hour), single-use access token scoped to
+      your identity and that specific room. Your camera and microphone connect directly to
+      LiveKit's video infrastructure for the call itself — SnuffleStudy's own servers never
+      see or store your audio/video stream.
+    </p>
+  </section>
+
+  <section>
+    <h2>What we don't do</h2>
+    <p>
+      No analytics or advertising trackers, no selling your data, no browsing history sent
+      anywhere unless you explicitly opt into "Share session activity" with your own friends —
+      and even then, only generic event types, never site names or your goal text.
+    </p>
+  </section>
+
+  <section>
+    <h2>Deleting your data</h2>
+    <p>
+      The Account page's "Delete account" action permanently removes every row across every
+      table above tied to your account, your audio nudge recordings from Storage, and your
+      account itself — irreversibly. On-device data (chrome.storage.local, IndexedDB) is
+      separate and local; uninstalling the extension removes that.
+    </p>
+  </section>
+
+  <section>
+    <h2>Contact</h2>
+    <p>
+      Questions about this policy or your data can be filed as an issue at
+      <a href="https://github.com/chloewychan/SnuffleStudy/issues">github.com/chloewychan/SnuffleStudy/issues</a>.
+    </p>
+  </section>
+
+  <footer>
+    SnuffleStudy — a consensual peer-pressure study accountability companion.
+  </footer>
+</main>
+</body>
+</html>
