@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_USER_SETTINGS, isWithinQuietHours } from "./userSettings";
 
-describe("DEFAULT_USER_SETTINGS — v2 Task 10 Part C notification-preference fields", () => {
+describe("DEFAULT_USER_SETTINGS notification-preference fields", () => {
   it("defaults live-nudge and digest notifications to enabled, and quiet hours to unconfigured", () => {
     expect(DEFAULT_USER_SETTINGS.liveNudgesNotificationsEnabled).toBe(true);
     expect(DEFAULT_USER_SETTINGS.digestNotificationsEnabled).toBe(true);

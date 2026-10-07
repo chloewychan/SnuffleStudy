@@ -6,10 +6,10 @@ import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  // design-specs/frames/page-welcome.json: WelcomeScreen now renders the real Header, which
-  // needs chrome.runtime.getURL (mascot image, ButtonIcon glyphs) and an AUTH_GET_SESSION
-  // response - every test below sets its own sendMessage mock afterward, all of which fall
-  // through to { ok: true } for unlisted message types, satisfying this the same way.
+  // WelcomeScreen renders the real Header, which needs chrome.runtime.getURL (mascot image,
+  // ButtonIcon glyphs) and an AUTH_GET_SESSION response - every test below sets its own
+  // sendMessage mock afterward, all of which fall through to { ok: true } for unlisted message
+  // types, satisfying this the same way.
   vi.stubGlobal("chrome", {
     runtime: {
       getURL: vi.fn((path: string) => `/chrome-extension://fake/${path}`),
@@ -29,8 +29,8 @@ function dismissWelcome() {
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 }
 
-// The account (sign-in) step is the first (and, as of v4.1 Task 3, only) step after Welcome;
-// tests that don't care about sign-in itself skip it the same way a signed-out user would.
+// The account (sign-in) step is the only step after Welcome; tests that don't care about
+// sign-in itself skip it the same way a signed-out user would.
 function skipAccountStep() {
   fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
 }
@@ -52,9 +52,8 @@ describe("OnboardingWizard", () => {
     ).toBeInTheDocument();
   });
 
-  // v4.1 Task 3: onboarding no longer collects pressure style/duration/tracking tier/restricted
-  // sites/passcode - "Skip for now" on the account step now finishes onboarding directly with
-  // fixed defaults instead of advancing to another step.
+  // "Skip for now" on the account step finishes onboarding directly with fixed defaults - there's
+  // no further step to advance to.
   it("finishes onboarding with fixed defaults after 'Skip for now'", async () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
     const onComplete = vi.fn();
@@ -91,7 +90,6 @@ describe("OnboardingWizard", () => {
     );
   });
 
-  // v4.1 Task 3 DoD: "TASK_LIST shows one task titled 'Study with Snuffles'."
   it("finishing onboarding creates the default 'Study with Snuffles' task", async () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
     const onComplete = vi.fn();
@@ -170,9 +168,6 @@ describe("OnboardingWizard", () => {
     consoleErrorSpy.mockRestore();
   });
 
-  // v3.2 Task 3: the account (sign-in) step was added in v3.1 without test coverage — these
-  // cases exercise it directly against the shared SignInForm (v3.2 Task 1), the same way the
-  // other steps below are already covered.
   describe("account (sign-in) step", () => {
     it("renders the exact framing copy", () => {
       vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true, session: null });
@@ -197,10 +192,9 @@ describe("OnboardingWizard", () => {
       skipAccountStep();
 
       await waitFor(() => expect(onComplete).toHaveBeenCalled());
-      // AUTH_GET_SESSION is excluded here - it's Header.tsx's own passive on-mount check
-      // (design-specs/frames/page-welcome.json now renders the real header-bar), not part of a
-      // sign-in flow. The flow-driving AUTH_* messages (request/verify OTP, sign in, set
-      // password) are what this assertion cares about never firing on a skip.
+      // AUTH_GET_SESSION is excluded here - it's Header.tsx's own passive on-mount check, not
+      // part of a sign-in flow. The flow-driving AUTH_* messages (request/verify OTP, sign in,
+      // set password) are what this assertion cares about never firing on a skip.
       expect(
         sendMessageSpy.mock.calls.some(
           ([message]) =>
@@ -211,10 +205,8 @@ describe("OnboardingWizard", () => {
       ).toBe(false);
     });
 
-    // v3.3 Task 14: SignInForm now splits into a top-level Create account/Sign in choice
-    // (Decision 6). These two tests route through the Sign in branch's "Email me a code" option
-    // - the unchanged round trip that still calls onSignedIn directly with no password step, the
-    // closest analog to what they covered before the split. SignInForm.test.tsx and
+    // These two tests route through the Sign in branch's "Email me a code" option - the round
+    // trip that calls onSignedIn directly with no password step. SignInForm.test.tsx and
     // AccountPage.test.tsx's "creating a new account" block cover the create-account branch's
     // mandatory password step directly.
     it('finishes onboarding after a successful AUTH_REQUEST_OTP -> AUTH_VERIFY_OTP round trip via "Sign in (one-time code)"', async () => {
@@ -280,19 +272,13 @@ describe("OnboardingWizard", () => {
       expect(screen.getByRole("heading", { name: "Sign In With One-Time Code" })).toBeInTheDocument();
     });
 
-    // v3.3 Task 14 DoD: "'Skip for now' in onboarding still fully skips, at any point in either
-    // branch, with no partial state blocking a later attempt." — covered in depth at the
-    // component level by SignInForm.test.tsx; this is the one end-to-end check from the actual
-    // OnboardingWizard call site.
-    //
-    // v3.4 Task 7 rewrote this test: the create-account branch's separate "set a password after
-    // verification" step is gone - AUTH_SET_PASSWORD now fires automatically the instant
+    // "Skip for now" must fully skip at any point in either branch, with no partial state
+    // blocking a later attempt. AUTH_SET_PASSWORD fires automatically the instant
     // AUTH_VERIFY_OTP succeeds (see SignInForm.tsx's completeAccountCreation), so there's no
-    // longer a manual post-verification step for Skip to escape from before AUTH_SET_PASSWORD
-    // sends. The equivalent "most at risk of trapping onSkip" moment in the new flow is a
-    // *completion failure* (AUTH_SET_PASSWORD rejected) leaving the user on "create-code" with a
-    // Retry button instead of advancing automatically - Skip must still cleanly escape from
-    // there too.
+    // manual post-verification step for Skip to escape from before AUTH_SET_PASSWORD sends. The
+    // moment most at risk of trapping onSkip is a *completion failure* (AUTH_SET_PASSWORD
+    // rejected) leaving the user on "create-code" with a Retry button instead of advancing
+    // automatically - Skip must still cleanly escape from there too.
     it('"Skip for now" still escapes the create-account branch after a completion failure leaves a Retry button showing', async () => {
       const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockImplementation(
         async (message: any) => {

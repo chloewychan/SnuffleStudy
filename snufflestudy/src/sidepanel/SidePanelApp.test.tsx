@@ -22,11 +22,9 @@ beforeEach(() => {
     ...globalThis.chrome,
     storage: {
       onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
-      // v4.1 Task 8: AppFooter now mounts useIncomingActivity() on every render branch below
-      // (via NudgesAndRequestsFooter's dismissed-item set, nudgeDismissalState.ts) - a minimal
-      // chrome.storage.local stub keeps that read a clean, empty-set no-op instead of throwing
-      // on `.local` being undefined (this file already replaces the rest of `chrome.storage`
-      // wholesale, above, for useActiveSession's onChanged listener).
+      // AppFooter mounts useIncomingActivity() on every render branch below, which reads the
+      // dismissed-item set via chrome.storage.local (nudgeDismissalState.ts). This stub keeps
+      // that read a clean, empty-set no-op instead of throwing on `.local` being undefined.
       local: { get: vi.fn().mockResolvedValue({}), set: vi.fn().mockResolvedValue(undefined) },
     },
   });
@@ -43,8 +41,8 @@ describe("SidePanelApp", () => {
     render(<SidePanelApp />);
     // A fresh install (onboardingCompleted: false) shows OnboardingWizard's welcome screen
     // first, before its "name" step ("Meet Snuffles"). "Welcome to" and "SnuffleStudy" are two
-    // separate elements now (design-specs/frames/page-welcome.json: "Welcome to" sits above the
-    // real header-bar, whose own title supplies "SnuffleStudy").
+    // separate elements: "Welcome to" sits above the real header bar, whose own title supplies
+    // "SnuffleStudy".
     await waitFor(() => expect(screen.getByText("Welcome to")).toBeInTheDocument());
     expect(screen.getByText("SnuffleStudy")).toBeInTheDocument();
   });
@@ -59,18 +57,17 @@ describe("SidePanelApp", () => {
     });
 
     render(<SidePanelApp />);
-    // The tab shell defaults to the "Bunny" tab (Task 3/10) - the session setup form now lives
-    // inside the "Study" tab (Task 6's StudyTab), reached via TabBar rather than shown by default.
+    // The tab shell defaults to the "Bunny" tab - the session setup form lives inside the
+    // "Study" tab, reached via TabBar rather than shown by default.
     await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Study" }));
 
-    // Goal is a <select> populated from the Task Vault (Task 5), not a free-text input with a
-    // placeholder - assert on the labeled control that actually exists now.
+    // Goal is a <select> populated from the Task Vault, not a free-text input.
     await waitFor(() => expect(screen.getByLabelText(/goal/i)).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Start Study Session" })).toBeInTheDocument();
   });
 
-  it("routes each of the four tabs to its own distinct content (Fix 12: only Study was previously tested)", async () => {
+  it("routes each of the four tabs to its own distinct content", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "SETTINGS_GET") {
         return { ok: true, settings: { ...DEFAULT_USER_SETTINGS, onboardingCompleted: true } };
@@ -84,31 +81,18 @@ describe("SidePanelApp", () => {
 
     // One real, source-verified heading per tab's actual content (not guessed): BunnyTab.tsx's
     // <h2>About the Bun</h2>, TaskVaultPage.tsx's <h2>Task Vault</h2> (inside StudyTab),
-    // NudgeVaultBox.tsx's <h2>Nudge Vault</h2> (inside FriendsTab), and (v3.3 Task 7)
-    // SettingsPage.tsx's <h2>Tracking</h2> - the first section of the sidepanel Settings tab's now
-    // real (no longer empty-placeholder) default "settings" sub-view. This is the single most
-    // transposition-prone spot in SidePanelApp.tsx's four-way conditional - would ship green even
-    // with two tabs swapped without a check like this covering all four.
+    // NudgeVaultBox.tsx's <h2>Nudge Vault</h2> (inside FriendsTab), and SettingsPage.tsx's
+    // <h2>Tracking</h2> (the first section of the Settings tab's default "settings" sub-view).
+    // This is the single most transposition-prone spot in SidePanelApp.tsx's four-way
+    // conditional - would ship green even with two tabs swapped without a check like this
+    // covering all four.
     //
-    // v4.1 Task 7: the Friends tab's distinguishing heading changed from StudyRoomPanel.tsx's
-    // <h2>Study Rooms</h2> - StudyRoomPanel is gone, split into StudyRoomsBox.tsx (now mounted on
-    // the Study tab, alongside TaskVaultPage's own "Task Vault" heading) and the persistent
-    // StudyRoomFooter.tsx. "Study Rooms" is deliberately NOT used as any tab's distinguishing
-    // heading here anymore, since it can now legitimately appear on the Study tab too.
-    //
-    // v4.1 Task 9: FriendGroupPanel.tsx (and its <h2>Friend activity</h2>) is gone too, replaced
-    // by FriendsBox.tsx + NudgeVaultBox.tsx. NudgeVaultBox's <h2>Nudge Vault</h2> is used as the
-    // distinguishing heading here rather than FriendsBox's own <h2>Friends</h2> - the latter would
-    // collide with the "Friends" tab button's own accessible name in the "every other tab's
-    // distinguishing heading must be absent" loop below.
-    //
-    // v3.3 Task 1 moved TempPasscodePanel.tsx's <h2>Temporary passcode requests</h2> and
-    // UnlockRequestPanel.tsx's <h2>Unlock requests</h2> from SettingsTab.tsx into FriendsTab.tsx,
-    // leaving SettingsTab.tsx emptied as a placeholder. v3.3 Task 7 then rebuilt that placeholder
-    // into a real Settings/Account/Friends/History sub-nav (SettingsTab.test.tsx covers that
-    // sub-nav's own four-way switch in detail) - this test only needs SettingsTab's default
-    // "settings" sub-view to have its own distinguishing heading again, same as the other three
-    // tabs.
+    // "Study Rooms" is deliberately not used as any tab's distinguishing heading, since
+    // StudyRoomsBox (mounted on the Study tab) and the persistent StudyRoomFooter can both
+    // render it. NudgeVaultBox's <h2>Nudge Vault</h2> is used as the Friends tab's distinguishing
+    // heading rather than FriendsBox's own <h2>Friends</h2>, since the latter would collide with
+    // the "Friends" tab button's own accessible name in the "every other tab's distinguishing
+    // heading must be absent" loop below.
     const tabs = [
       { tabName: "Bunny", heading: /^about the bun$/i },
       { tabName: "Study", heading: /^task vault$/i },
@@ -132,16 +116,11 @@ describe("SidePanelApp", () => {
     }
   });
 
-  // QA-discovered bug (v3.3 QA pass): SidePanelApp.tsx owns its own top-level `settings` state,
-  // fetched once on mount and passed down to StudyTab -> SessionSetupForm. SettingsPage.tsx (Task
-  // 7's new sidepanel Settings tab) fetches and saves its OWN, entirely separate `settings` state -
-  // saving a change there (e.g. adding a restricted site) persists correctly in the background, but
-  // never told SidePanelApp's own copy to refresh. Starting a session immediately afterward, from
-  // the same sidepanel session with no reload, used SidePanelApp's stale settings - a newly-added
-  // restricted site was silently dropped from that session's own restrictedSites (reproduced live:
-  // the site wasn't blocked, and didn't appear in the active-session view's own restricted-sites
-  // list either, since both are built from the session's persisted restrictedSites at creation
-  // time, not the fresh setting).
+  // SidePanelApp.tsx owns its own top-level `settings` state, fetched once on mount and passed
+  // down to StudyTab -> SessionSetupForm. SettingsPage.tsx (the sidepanel Settings tab) fetches
+  // and saves its own, separate `settings` state. Saving a change there (e.g. adding a
+  // restricted site) must flow back into SidePanelApp's copy, or starting a session right after
+  // editing settings would silently use stale restrictedSites.
   it("uses a freshly-saved restricted site when starting a session right after editing it in the Settings tab", async () => {
     const sessionCreatePayloads: unknown[] = [];
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
@@ -203,19 +182,16 @@ describe("SidePanelApp", () => {
     });
 
     render(<SidePanelApp />);
-    // ActiveSessionView (Task 9) shows the goal twice by design - once as its own headline, once
-    // inside the reused SessionStatusCard (see ActiveSessionView.test.tsx for the same assertion
-    // shape and rationale) - so getAllByText/length is used instead of a single getByText.
+    // ActiveSessionView shows the goal twice by design - once as its own headline, once inside
+    // the reused SessionStatusCard (see ActiveSessionView.test.tsx for the same assertion shape
+    // and rationale) - so getAllByText/length is used instead of a single getByText.
     await waitFor(() =>
       expect(screen.getAllByText("Finish 20 chemistry problems").length).toBe(2)
     );
     expect(screen.getByRole("button", { name: "End Session" })).toBeInTheDocument();
   });
 
-  // v4.1 Task 8: replaces the old "replaces ActiveSessionView with RequestUnlockForm+<approver
-  // panel> (not an overlay) when 'Friend requests' is triggered, and restores it on close"
-  // regression guard - that toggle (and the standalone approver-side panel it used to reveal) is
-  // gone. RequestUnlockForm (session-scoped requester form) now renders directly alongside
+  // RequestUnlockForm (session-scoped requester form) renders directly alongside
   // ActiveSessionView, unconditionally, every time there's an active session - not behind any
   // button, and not swapping ActiveSessionView's own content away.
   it("renders RequestUnlockForm directly alongside ActiveSessionView during an active session, with no toggle to reveal it", async () => {
@@ -227,9 +203,9 @@ describe("SidePanelApp", () => {
       if (message.type === "SESSION_GET_ACTIVE") return { ok: true, session };
       // RequestUnlockForm's own fetches on mount (AUTH_GET_SESSION/SESSION_LIST_EVENTS), and
       // useIncomingActivity.ts's own fetches (AUTH_GET_SESSION/NUDGES_FETCH/
-      // PRODUCER_TAG_SENDS_FETCH/FRIEND_REQUESTS_FETCH) - given healthy, empty-but-ok responses so
-      // everything renders cleanly with nothing pending (so AppFooter's own incoming-activity half
-      // stays absent, keeping this test focused on SidePanelApp's own composition).
+      // PRODUCER_TAG_SENDS_FETCH/FRIEND_REQUESTS_FETCH) all get healthy, empty-but-ok responses so
+      // everything renders cleanly with nothing pending (keeping AppFooter's incoming-activity
+      // half absent, so this test stays focused on SidePanelApp's own composition).
       if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
       if (message.type === "FRIEND_REQUESTS_FETCH") return { ok: true, requests: [] };
       if (message.type === "NUDGES_FETCH") return { ok: true, nudges: [] };
@@ -250,16 +226,13 @@ describe("SidePanelApp", () => {
       expect(screen.getByRole("heading", { name: "Request an unlock" })).toBeInTheDocument()
     );
 
-    // No trigger button left to toggle anything - the old approver-side panel this used to reveal
-    // is gone, folded into the always-visible footer instead.
+    // No trigger button to toggle anything - friend requests are always visible in the footer.
     expect(
       screen.queryByRole("button", { name: /friend requests/i })
     ).not.toBeInTheDocument();
   });
 
   it("shows a Pause control while FOCUSING, and a Resume control while PAUSED", async () => {
-    // Regression guard: pause/resume previously only existed in PopupApp, never in
-    // SidePanelApp at all.
     const focusing = machine.startSession(machine.createSession(input, "session_1", 0), 0);
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "SETTINGS_GET") {

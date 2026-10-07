@@ -5,7 +5,7 @@ import { vi } from "vitest";
 // fall through to the scaffold's notMockedFunction() and throw synchronously.
 // Stub a minimal in-memory implementation that tracks dynamic rules across calls,
 // matching the shape syncHardBlockRules/clearHardBlockRules rely on.
-// Same root cause as the chrome.permissions gap Task 12 hand-stubbed.
+// Same root cause as the chrome.permissions gap hand-stubbed elsewhere in this codebase.
 export function createFakeDeclarativeNetRequest() {
   let rules: chrome.declarativeNetRequest.Rule[] = [];
   return {

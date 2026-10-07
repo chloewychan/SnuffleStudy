@@ -2,13 +2,11 @@ import { supabase } from "./supabaseClient";
 import { checkAuth } from "./authHelpers";
 import type { SessionEventType } from "../../domain/session/sessionTypes";
 
-// The minimal event shape a friend is allowed to see, per the architecture overview's privacy
-// example - only the columns session_status_events itself exposes (see
-// supabase/migrations/20260815000001_v2_accountability_schema.sql), camelCased to match this
-// codebase's TS conventions (see friendGroupApi.ts's identical row->interface mapping style).
-// Nothing beyond what the table returns is invented here - richer per-field visibility (goal
-// text, time remaining, current domain, etc. from docs/Draft1_Architecture_Overview.md's
-// "Friend accountability" list) is Task 10's scope, not built yet.
+// The minimal event shape a friend is allowed to see - only the columns session_status_events
+// itself exposes, camelCased to match this codebase's TS conventions (see friendGroupApi.ts's
+// identical row->interface mapping style). Richer per-field visibility (goal text, current
+// domain, intervention count, full history) is handled separately by the dedicated RPCs further
+// below, not by widening this shape.
 export interface FriendEvent {
   id: string;
   userId: string;
@@ -38,14 +36,11 @@ interface SessionStatusEventRow {
 // feature. See sessionStatusSyncApi.test.ts's regression test asserting this exact string.
 const BASELINE_EVENT_COLUMNS = "id, user_id, session_id, type, display_label, occurred_at";
 
-// v2 Task 10: the per-field visibility toggles this schema now supports (goal text, current
-// domain, intervention count, full history - see the migration above). "Time remaining" from the
-// architecture doc's six-field privacy list is deliberately NOT built here or anywhere else in
-// this codebase - controller-approved scope decision, documented in this task's report: it is an
-// inherently live/streaming value, and this product's friend-activity delivery is event-based
-// (Tasks 6-9, docs/Draft1_Architecture_Overview.md's "Friend-event delivery" section), not a
-// streaming architecture a point-in-time "time remaining" value could be read from without a new
-// delivery mechanism this task does not build.
+// The per-field visibility toggles this schema supports: goal text, current domain, intervention
+// count, full history. "Time remaining" is deliberately not built here or anywhere else in this
+// codebase - it's an inherently live/streaming value, and this product's friend-activity delivery
+// is event-based, not a streaming architecture a point-in-time "time remaining" value could be
+// read from without a new delivery mechanism.
 export interface FriendEventDetails {
   id: string;
   hostname: string | null;
@@ -80,26 +75,23 @@ interface FriendFullHistoryRow {
   occurred_at: string;
 }
 
-// Reads the current auth session via supabase.auth.getSession() rather than .getUser()
-// (contrast friendGroupApi.ts's requireUserId(), which uses .getUser() for its explicit,
-// infrequent user-initiated actions). getSession() reads the already-persisted/cached session
-// through chromeStorageAuthAdapter without a dedicated round-trip to Supabase's Auth server in
-// the common case (unlike .getUser(), which always makes one) - deliberate here because both
-// functions below are called from v1's session lifecycle hot path (messageRouter.ts /
-// alarmHandlers.ts, on every start/pause/resume/break/end/complete), where the Task 6 brief
-// requires a signed-out user to pay "zero network cost" rather than merely catching a resulting
-// error.
+// checkAuth() (in authHelpers.ts) reads the current auth session via
+// supabase.auth.getSession() rather than .getUser() (contrast friendGroupApi.ts's
+// requireUserId(), which uses .getUser() for its explicit, infrequent user-initiated actions).
+// getSession() reads the already-persisted/cached session through chromeStorageAuthAdapter
+// without a dedicated round-trip to Supabase's Auth server in the common case (unlike .getUser(),
+// which always makes one) - deliberate here because both functions below are called from the
+// session lifecycle hot path (messageRouter.ts / alarmHandlers.ts, on every
+// start/pause/resume/break/end/complete), where a signed-out user must pay zero network cost
+// rather than merely catching a resulting error.
 //
-// `ok: false` (fix round 1) means the auth check itself failed - getSession() threw or returned
-// an explicit error - as opposed to `ok: true, userId: null`, which means the check ran cleanly
-// and simply found no session (a legitimate, expected "signed out" state). This distinction only
-// matters to queryEventsSince/pollNewEventsForFriends below (which need to tell a real failure
-// apart from "nothing to do" so alarmHandlers.ts's friend-poll alarm doesn't advance its cursor
-// past a failure) - recordStatusEvent/fetchNewEventsForFriends still collapse both into a single
-// no-op via currentUserId() below, since neither has a cursor to protect.
-//
-// checkAuth() itself now lives in authHelpers.ts (imported above) - this file's copy was
-// byte-identical to the other 7 and was consolidated there in v3.4 Task 1.
+// `ok: false` means the auth check itself failed - getSession() threw or returned an explicit
+// error - as opposed to `ok: true, userId: null`, which means the check ran cleanly and simply
+// found no session (a legitimate, expected "signed out" state). This distinction only matters to
+// queryEventsSince/pollNewEventsForFriends below (which need to tell a real failure apart from
+// "nothing to do" so alarmHandlers.ts's friend-poll alarm doesn't advance its cursor past a
+// failure) - recordStatusEvent/fetchNewEventsForFriends still collapse both into a single no-op
+// via currentUserId() below, since neither has a cursor to protect.
 
 // Returns null (never throws) so callers can treat "not signed in" - and, per this function's
 // contract, "the auth check itself failed" too - as a plain no-op. Used by recordStatusEvent and
@@ -121,17 +113,17 @@ function toFriendEvent(row: SessionStatusEventRow): FriendEvent {
   };
 }
 
-// Inserts a session_status_events row for the current user. Never throws - v2's offline-first
-// constraint ("a friend group feature failing to sync should never block starting or running a
-// local session") means every call site in messageRouter.ts/alarmHandlers.ts treats this as
-// fire-and-forget best-effort, but this function is defensive on its own terms too rather than
-// relying purely on callers to catch it correctly.
-// hostname/goalText (v2 Task 10) are optional and additive - display_label stays exactly what it
-// already was (generic, non-identifying). Always written when the caller has the real value in
-// scope at the call site (see friendSync.ts's recordFriendStatusEvent and its two callers in
-// messageRouter.ts that now pass these) - per this task's brief, the read-side RLS/RPC redaction
-// (see the BASELINE_EVENT_COLUMNS comment above and fetchFriendEventDetails below) is the actual
-// enforcement boundary, not a write-time decision about what to send.
+// Inserts a session_status_events row for the current user. Never throws - this codebase's
+// offline-first constraint ("a friend group feature failing to sync should never block starting
+// or running a local session") means every call site in messageRouter.ts/alarmHandlers.ts treats
+// this as fire-and-forget best-effort, but this function is defensive on its own terms too rather
+// than relying purely on callers to catch it correctly.
+// hostname/goalText are optional and additive - display_label stays exactly what it already was
+// (generic, non-identifying). Always written when the caller has the real value in scope at the
+// call site (see friendSync.ts's recordFriendStatusEvent and its two callers in messageRouter.ts
+// that pass these). The read-side RLS/RPC redaction (see the BASELINE_EVENT_COLUMNS comment above
+// and fetchFriendEventDetails below) is the actual enforcement boundary, not a write-time decision
+// about what to send.
 export async function recordStatusEvent(event: {
   type: SessionEventType;
   sessionId: string;
@@ -174,7 +166,7 @@ export async function recordStatusEvent(event: {
 // FriendGroupPanel.tsx), not a failure to retry. An auth check that itself failed (checkAuth's
 // `ok: false`) is treated as a real failure, not "signed out" - collapsing those two would have
 // hidden exactly the class of failure pollNewEventsForFriends's caller (alarmHandlers.ts's
-// friend-poll alarm, fix round 1) needs to notice so it doesn't advance its cursor past it.
+// friend-poll alarm) needs to notice so it doesn't advance its cursor past it.
 async function queryEventsSince(
   sinceTimestamp: number
 ): Promise<{ ok: boolean; events: FriendEvent[] }> {
@@ -183,9 +175,8 @@ async function queryEventsSince(
     if (!auth.ok) return { ok: false, events: [] }; // The auth check itself failed - a real failure.
     if (!auth.userId) return { ok: true, events: [] }; // Cleanly signed out - nothing to fetch, no-op.
 
-    // Explicit narrowed column list (v2 Task 10) - see BASELINE_EVENT_COLUMNS's comment above for
-    // why this must never widen to a bare `.select()` now that hostname/goal_text exist on this
-    // table.
+    // Explicit narrowed column list - see BASELINE_EVENT_COLUMNS's comment above for why this
+    // must never widen to a bare `.select()` now that hostname/goal_text exist on this table.
     const { data, error } = await supabase
       .from("session_status_events")
       .select(BASELINE_EVENT_COLUMNS)
@@ -213,7 +204,7 @@ export async function fetchNewEventsForFriends(sinceTimestamp: number): Promise<
   return result.events;
 }
 
-// Poll-specific variant (v2 Task 6 fix round 1). alarmHandlers.ts's friend-poll alarm persists a
+// Poll-specific variant. alarmHandlers.ts's friend-poll alarm persists a
 // "last checked" cursor (friendPollState.ts) and must only advance it on a *confirmed successful*
 // poll - fetchNewEventsForFriends's plain `[]` return is indistinguishable between "genuinely no
 // new events" and "the fetch itself failed" (network/query/auth error), and advancing the cursor
@@ -227,7 +218,7 @@ export async function pollNewEventsForFriends(
   return queryEventsSince(sinceTimestamp);
 }
 
-// === v2 Task 10: per-field detail RPCs ===
+// === Per-field detail RPCs ===
 //
 // These three functions call supabase.rpc(...) instead of .from().select() - a deliberate
 // deviation from this codebase's usual .select()-only convention (see friendGroupApi.ts/
@@ -236,10 +227,9 @@ export async function pollNewEventsForFriends(
 // make hostname/goal_text differ per viewer on the SAME session_status_events row (one friend
 // opted the subject into share_current_domain, another wasn't - RLS has no mechanism to hide a
 // column from the second viewer while showing it to the first on one shared row). The
-// SECURITY DEFINER RPC functions (supabase/migrations/20260815000012_v2_privacy_controls.sql)
-// compute the redacted value server-side per caller instead - the only way to keep this a real
-// server-side guarantee rather than shipping the real value to every client and trusting it not
-// to render it.
+// SECURITY DEFINER RPC functions compute the redacted value server-side per caller instead - the
+// only way to keep this a real server-side guarantee rather than shipping the real value to every
+// client and trusting it not to render it.
 
 // Looks up hostname/goal_text for event ids the caller already legitimately received from
 // fetchNewEventsForFriends/pollNewEventsForFriends above (those already prove row-visibility via

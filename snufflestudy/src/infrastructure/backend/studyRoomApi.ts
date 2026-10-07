@@ -7,7 +7,7 @@ import type {
   RoomInvitee,
 } from "../../domain/rooms/studyRoom";
 
-// v2 Task 13: Study Rooms.
+// Study Rooms.
 //
 // createRoom/listRooms/leaveRoom/listParticipants are called from src/background/messageRouter.ts
 // via sendMessage() (STUDY_ROOM_CREATE/STUDY_ROOM_LIST/STUDY_ROOM_LEAVE/
@@ -16,17 +16,8 @@ import type {
 // pattern) - these are plain one-shot DB reads/writes with no live-callback or DOM/media coupling,
 // structurally identical to every prior *Api.ts call this codebase already routes that way.
 //
-// Fix round 1 (Important, code review): an earlier version of this file routed ALL SIX exports,
-// including these four, directly from sidepanel/components/StudyRoomPanel.tsx, justified by
-// joinRoom/subscribeToPresence's genuine DOM/live-callback requirements below. That justification
-// does not extend to createRoom/listRooms/leaveRoom/listParticipants - review correctly flagged
-// this as broader than its own reasoning supported (it made this the first UI component in the
-// codebase to bypass message-passing at all, set a precedent other panels could point to, and
-// duplicated error-handling messageRouter.handleMessage already centralizes once). Narrowed here
-// to exactly the two functions that actually need it:
-//
-// joinRoom and subscribeToPresence remain called DIRECTLY from StudyRoomPanel.tsx - not proxied
-// through messageRouter.ts. Two independent, narrower reasons:
+// joinRoom and subscribeToPresence are called DIRECTLY from StudyRoomPanel.tsx instead - not
+// proxied through messageRouter.ts. Two independent reasons:
 //
 // 1. subscribeToPresence's live-callback shape has no fit in this codebase's existing
 //    message-passing surface. Every previous backend integration is either a one-shot
@@ -106,8 +97,8 @@ function toRoomInvitee(row: RoomInviteeRow): RoomInvitee {
 // Inserts a study_rooms row owned by the current user. No pre-generated client-side id needed
 // (contrast friendGroupApi.ts's createGroup(), which has to generate one up front to dodge a
 // chicken-and-egg RLS gap on friend_groups) - study_rooms' SELECT policy already includes a plain
-// `owner_user_id = auth.uid()` clause (supabase/migrations/20260815000002_v2_rls_policies.sql,
-// unchanged by this task's migration), so `.insert(...).select().single()`'s own RETURNING read
+// `owner_user_id = auth.uid()` clause (supabase/migrations/20260815000002_v2_rls_policies.sql),
+// so `.insert(...).select().single()`'s own RETURNING read
 // is satisfied immediately by the just-inserted row, with no second row needed to exist first.
 export async function createRoom(name: string): Promise<StudyRoom> {
   const userId = await requireUserId();
@@ -128,10 +119,9 @@ export async function createRoom(name: string): Promise<StudyRoom> {
 // migrations/20260815000019_v2_study_rooms_group_visibility_and_join_gate.sql): rooms they own,
 // rooms owned by anyone they share a group with, and rooms they're already a participant of. No
 // client-side re-filtering by group membership here (e.g. re-deriving via friendGroupApi.ts's
-// listMyGroups + a manual owner_user_id-in-that-set filter) - this codebase's own constraint is
-// visibility "enforced with Postgres Row Level Security, not just client-side filtering"
-// (docs/V2_Implementation_Plan.md's Global Constraints), so this trusts whatever RLS returns
-// exactly like tempPasscodeApi.ts's queryRelevantSince already does for its own table.
+// listMyGroups + a manual owner_user_id-in-that-set filter) - visibility is enforced with Postgres
+// Row Level Security, not client-side filtering, so this trusts whatever RLS returns exactly like
+// tempPasscodeApi.ts's queryRelevantSince already does for its own table.
 export async function listRooms(): Promise<StudyRoom[]> {
   await requireUserId();
 
@@ -147,7 +137,7 @@ export async function listRooms(): Promise<StudyRoom[]> {
   return (data ?? []).map((row) => toStudyRoom(row as StudyRoomRow));
 }
 
-// v3.3 Task 6: soft delete. Sets archived_at on a room the caller owns rather than a real DELETE -
+// Soft delete: sets archived_at on a room the caller owns rather than a real DELETE -
 // producer_tag_sends.recipient_room_id references study_rooms(id) with no ON DELETE CASCADE
 // anywhere in this schema, so a hard delete risks either an FK violation or silently erasing real
 // Producer Tag history unrelated to this decision. Both .eq() clauses matter: owner_user_id is
@@ -173,15 +163,9 @@ export async function archiveRoom(roomId: string): Promise<void> {
 // Joins a room: inserts the caller's own study_room_participants row (gated by that table's own
 // INSERT policy - the caller must be the room's owner or share a group with the owner, per
 // migration 20260815000019), then mints a LiveKit access token scoped to this room and the
-// caller's own identity via the generate-livekit-token Edge Function.
-//
-// Return type is NOT literally what the plan's Interfaces line documents (it only writes
-// `joinRoom(roomId)` with no explicit return type) - but the caller (StudyRoomPanel.tsx) needs a
-// LiveKit token to actually join the video call, and generating that token is exactly what
-// generate-livekit-token exists for, so returning it here (rather than a second, separate call)
-// is the natural single round trip. Documented here as the deliberate interpretation, same as
-// tempPasscodeApi.ts's own joinRoom-shaped precedent (approveRequest returning an
-// Edge-Function-derived object beyond the plan's literal signature).
+// caller's own identity via the generate-livekit-token Edge Function, and returns that token - the
+// caller (StudyRoomPanel.tsx) needs it to actually join the video call, so returning it here
+// (rather than a second, separate call) is the natural single round trip.
 //
 // Unlike tempPasscodeApi.ts's fire-and-forget email leg, both steps here are awaited and either
 // can fail the whole call - there is no useful "partial join" (a participant row with no video
@@ -216,7 +200,7 @@ export async function joinRoom(roomId: string): Promise<{ token: string }> {
 // multiple historical rows for the same (roomId, userId) pair, so this updates whichever one(s)
 // currently have left_at is null for this room/user (normally exactly one - the row joinRoom()
 // most recently inserted). Authorized by study_room_participants' "users can update their own
-// participant row" policy (user_id = auth.uid(), unchanged by this task's migration).
+// participant row" policy (user_id = auth.uid()).
 export async function leaveRoom(roomId: string): Promise<void> {
   const userId = await requireUserId();
 
@@ -231,15 +215,12 @@ export async function leaveRoom(roomId: string): Promise<void> {
   }
 }
 
-// Currently-open participant rows (left_at is null) for a room - not named in the plan's literal
-// Interfaces list (createRoom/joinRoom/leaveRoom/subscribeToPresence only), but a real presence UI
-// needs an initial snapshot to render before the first live change event arrives - Supabase
-// Realtime's Postgres Changes stream only ever delivers CHANGES from the moment of subscription
-// onward, never a backfill of current state. Same "additive beyond the plan's literal function
-// list, because the real UI needs it" precedent as friendGroupApi.ts's listMyGroups (Task 7).
+// Currently-open participant rows (left_at is null) for a room - a presence UI needs an initial
+// snapshot to render before the first live change event arrives, since Supabase Realtime's
+// Postgres Changes stream only ever delivers changes from the moment of subscription onward,
+// never a backfill of current state.
 // Only ever meaningfully callable after joinRoom() (or by the room's owner) - study_room_participants'
-// own SELECT policy (unchanged by this task's migration) requires the caller to already have a
-// qualifying row for this room.
+// own SELECT policy requires the caller to already have a qualifying row for this room.
 export async function listParticipants(roomId: string): Promise<RoomParticipant[]> {
   const { data, error } = await supabase
     .from("study_room_participants")
@@ -259,8 +240,7 @@ export async function listParticipants(roomId: string): Promise<RoomParticipant[
 // policy on the table, and a caller only ever calls this after joinRoom() has already given them
 // a qualifying participant row for this room).
 //
-// Returns an unsubscribe function, per the plan's own signature
-// (`subscribeToPresence(roomId, onChange): () => void`). supabase.removeChannel(...) (rather than
+// Returns an unsubscribe function. supabase.removeChannel(...) (rather than
 // just channel.unsubscribe()) is used for cleanup - it's the documented way to fully tear down a
 // channel's WebSocket-level subscription and free it from the client's internal channel registry,
 // not just stop delivering events to this particular callback.
@@ -290,7 +270,7 @@ export function subscribeToPresence(
   };
 }
 
-// v3.3 Task 13: invite-only study rooms. addInvitee/removeInvitee/listInvitees are all thin,
+// Invite-only study rooms: addInvitee/removeInvitee/listInvitees are all thin,
 // message-routed CRUD (see messageRouter.ts's STUDY_ROOM_INVITEE_ADD/REMOVE/STUDY_ROOM_INVITEES_LIST
 // cases) - no live-callback or DOM/media coupling, so unlike joinRoom/subscribeToPresence above
 // there's no reason for these to bypass this codebase's normal message-passing convention.
@@ -317,7 +297,7 @@ export async function addInvitee(roomId: string, userId: string): Promise<void> 
   }
 }
 
-// Deletes a study_room_invitees row. Per the plan's DoD, this is deliberately "future joins only" -
+// Deletes a study_room_invitees row. This is deliberately "future joins only" -
 // it does NOT touch study_room_participants, so an invitee currently mid-call (an existing
 // participant row) is not force-disconnected by having their invite revoked; only their ability to
 // be newly discovered/join again later is removed (study_rooms' SELECT policy and

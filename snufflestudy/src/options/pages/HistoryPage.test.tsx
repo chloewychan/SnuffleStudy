@@ -49,8 +49,8 @@ describe("HistoryPage", () => {
   });
 
   it("bounds the query with a default limit so an unfiltered load doesn't fetch the entire history", async () => {
-    // Regression guard for the review finding: without a "From" date, the query must stay
-    // bounded (HistoryQuery.limit) rather than fetching every archived session on every load.
+    // Without a "From" date, the query must stay bounded (HistoryQuery.limit) rather than
+    // fetching every archived session on every load.
     const sendMessageSpy = vi
       .spyOn(messenger, "sendMessage")
       .mockResolvedValue({ ok: true, sessions: [buildSession()] });
@@ -170,9 +170,9 @@ describe("HistoryPage", () => {
   });
 
   it("renders two consecutive USER_WENT_IDLE events without assuming alternation", async () => {
-    // Carried forward from Task 2's review: an idle -> locked transition (without returning
-    // to active first) can record two consecutive USER_WENT_IDLE events with no
-    // USER_RETURNED_FROM_IDLE in between. The timeline must render both, not pair them up.
+    // An idle -> locked transition (without returning to active first) can record two
+    // consecutive USER_WENT_IDLE events with no USER_RETURNED_FROM_IDLE in between. The
+    // timeline must render both, not pair them up.
     const events: SessionEvent[] = [
       { id: "e1", sessionId: "session_1", type: "USER_WENT_IDLE", occurredAt: 1000 },
       { id: "e2", sessionId: "session_1", type: "USER_WENT_IDLE", occurredAt: 2000 },

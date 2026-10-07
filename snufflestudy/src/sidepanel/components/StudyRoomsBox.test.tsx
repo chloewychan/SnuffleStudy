@@ -8,15 +8,11 @@ import * as studyRoomApi from "../../infrastructure/backend/studyRoomApi";
 import * as videoCallClient from "../../infrastructure/video/videoCallClient";
 import type { ExtensionMessage } from "../../shared/messages";
 
-// v4.1 Task 7: StudyRoomPanel.tsx is deleted and split into this file (the Study tab's
-// list/create/manage-access box) and StudyRoomFooter.tsx (the persistent joined-room view,
-// covered by its own test file). This file's coverage is StudyRoomPanel.test.tsx's old "not
-// joined" branch coverage, adapted for: click-to-select + one "Join Study Room" button (replacing
-// each room's own per-item Join button), and "Archive this room" now rendered inside
-// ManageAccessSection instead of beside it. Join/leave mechanics themselves (the shared session)
-// are exercised here only through this box's own "select a room, click Join" flow - the deeper
-// join/leave/tile/media-event behavior is StudyRoomFooter.test.tsx's concern, since that's what
-// actually renders once joined.
+// This file covers the Study tab's list/create/manage-access box: click-to-select + one "Join
+// Study Room" button, and "Archive this room" rendered inside the Manage access modal.
+// Join/leave mechanics themselves (the shared session) are exercised here only through this
+// box's own "select a room, click Join" flow - the deeper join/leave/tile/media-event behavior
+// is StudyRoomFooter.test.tsx's concern, since that's what actually renders once joined.
 vi.mock("../../infrastructure/backend/studyRoomApi", () => ({
   joinRoom: vi.fn(),
   subscribeToPresence: vi.fn(),
@@ -117,8 +113,6 @@ describe("StudyRoomsBox", () => {
     });
   });
 
-  // v4.1 Task 7: the core behavior change - no per-item Join button; selecting a room then
-  // pressing the one "Join Study Room" button joins it.
   it("has no per-item Join button, and joins the selected room via the single 'Join study room' button", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({
@@ -212,9 +206,9 @@ describe("StudyRoomsBox", () => {
   });
 });
 
-// v3.3 Task 6: archive study rooms (soft delete). "Archive this room" is an owner-only action -
-// v4.1 Task 7: now rendered inside ManageAccessSection, only once "Manage access" is opened.
-describe("StudyRoomsBox — Archive (v3.3 Task 6, relocated into the popup-study-room modal in v4.1 Task 7)", () => {
+// Archive study rooms (soft delete). "Archive this room" is an owner-only action, rendered
+// inside the Manage access modal, only once it's opened.
+describe("StudyRoomsBox — Archive", () => {
   const ownRoom = {
     id: "room-2",
     name: "My own room",
@@ -301,11 +295,11 @@ describe("StudyRoomsBox — Archive (v3.3 Task 6, relocated into the popup-study
   });
 });
 
-// v4.1 Task 7: popup-study-room.json is a remove-only modal - it lists only friends already
-// invited (via STUDY_ROOM_INVITEES_LIST) with a trash icon per invitee, no invite affordance at
-// all. Inviting now happens exclusively from the Friends tab's own "Add to Room" bulk action
-// (FriendsBox.tsx), which is covered by FriendsBox.test.tsx, not here.
-describe("StudyRoomsBox — Manage access modal (v3.3 Task 13, converted to remove-only in v4.1 Task 7)", () => {
+// The Manage access modal is remove-only - it lists only friends already invited (via
+// STUDY_ROOM_INVITEES_LIST) with a trash icon per invitee, no invite affordance at all. Inviting
+// happens exclusively from the Friends tab's own "Add to Room" bulk action (FriendsBox.tsx),
+// which is covered by FriendsBox.test.tsx, not here.
+describe("StudyRoomsBox — Manage access modal", () => {
   const ownRoom = {
     id: "room-2",
     name: "My own room",
@@ -397,10 +391,9 @@ describe("StudyRoomsBox — Manage access modal (v3.3 Task 13, converted to remo
   });
 });
 
-// v3.3 Task 9: pre-join camera/mic checkboxes - mock-verified only (see StudyRoomFooter.test.tsx
-// for mid-room toggle coverage, and StudyRoomPanel.test.tsx's old header comment for why real
-// device/permission behavior is deferred to Task 11's two-account QA pass).
-describe("StudyRoomsBox — pre-join camera/mic toggle (v3.3 Task 9)", () => {
+// Pre-join camera/mic checkboxes - mock-verified only (see StudyRoomFooter.test.tsx for
+// mid-room toggle coverage; real device/permission behavior needs manual verification).
+describe("StudyRoomsBox — pre-join camera/mic toggle", () => {
   it("defaults both pre-join toggles to on, and passes them through to joinRoom's options", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({ STUDY_ROOM_LIST: () => ({ ok: true, rooms: [sampleRoom] }) })
@@ -428,8 +421,8 @@ describe("StudyRoomsBox — pre-join camera/mic toggle (v3.3 Task 9)", () => {
   });
 });
 
-// v3.2 Task 2: signed out, there's nothing this box can show.
-describe("StudyRoomsBox — signed-out gate (v3.2 Task 2)", () => {
+// Signed out, there's nothing this box can show.
+describe("StudyRoomsBox — signed-out gate", () => {
   it("shows an inline sign-in prompt instead of the room list when signed out", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({ AUTH_GET_SESSION: () => ({ ok: true, session: null }) })

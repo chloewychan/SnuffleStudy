@@ -16,26 +16,20 @@ import { ButtonBool } from "../ui/ButtonBool";
 import { ButtonIcon } from "../ui/ButtonIcon";
 import { ButtonLarge } from "../ui/ButtonLarge";
 
-// v3.3 Task 7: extracted verbatim from OptionsApp.tsx's inline "settings" view - same state
-// (settings, trackingChanging, passcode/oldPasscode/etc.), same handlers (updateSettings,
-// handleTrackingTierChange, handleSavePasscode), same messages (SETTINGS_GET/SETTINGS_SAVE/
-// HARD_BLOCK_SET_PASSCODE) - minus the "Camera & microphone access" section, which stays inline in
-// OptionsApp.tsx only: Chrome's getUserMedia permission prompt can't be shown from the sidepanel at
-// all (a documented platform limitation - see OptionsApp.tsx's own mediaGrantStatus header
-// comment), so that section is a full-tab-only affordance. This component is composed by both
-// OptionsApp.tsx (full tab, followed by the still-inline camera/microphone section) and the
-// sidepanel's SettingsTab.tsx (v4.1 Task 10: one scrolling view of stacked boxes, no sub-nav) -
-// one shared source for the Tracking/Friends/Notifications/Default-restricted-sites/Hard-block-
-// passcode UI.
+// Shared Tracking/Friends/Notifications/Default-restricted-sites/Hard-block-passcode UI,
+// composed by both OptionsApp.tsx (the full-tab Options page) and the sidepanel's
+// SettingsTab.tsx. The "Camera & microphone access" section stays inline in OptionsApp.tsx only:
+// Chrome's getUserMedia permission prompt can never be shown from the sidepanel at all (a
+// documented platform limitation), so that section is a full-tab-only affordance.
 //
-// QA-discovered bug (v3.3 QA pass): this component owns its OWN settings state, fetched
-// independently of SidePanelApp.tsx's own top-level `settings` (passed down to StudyTab ->
-// SessionSetupForm, which is what a new session actually gets created with). Saving a change here
-// persists it correctly in the background, but never told SidePanelApp's own copy to refresh -
-// starting a session right after editing something here (e.g. a restricted site), with no reload
-// in between, silently used whatever SidePanelApp had fetched once on mount. `onSettingsSaved` is
-// optional specifically so OptionsApp.tsx's own standalone full-tab usage (no sibling state to
-// keep in sync there) is unaffected - only SettingsTab.tsx (the sidepanel) passes one through.
+// This component owns its own settings state, fetched independently of SidePanelApp.tsx's own
+// top-level `settings` (passed down to StudyTab -> SessionSetupForm, which is what a new session
+// actually gets created with). Saving a change here persists it correctly in the background, but
+// doesn't automatically update SidePanelApp's own copy - starting a session right after editing
+// something here (e.g. a restricted site), with no reload in between, would otherwise silently
+// use whatever SidePanelApp had fetched once on mount. `onSettingsSaved` lets a caller refresh
+// its own copy when that matters; it's optional since OptionsApp.tsx's own standalone full-tab
+// usage has no sibling state to keep in sync.
 export function SettingsPage({
   onSettingsSaved,
 }: {
@@ -52,10 +46,9 @@ export function SettingsPage({
   const [passcodeError, setPasscodeError] = useState<string | null>(null);
   const [passcodeSaving, setPasscodeSaving] = useState(false);
 
-  // v4.1 Task 10: appends one trimmed, non-empty entry to `settings.defaultRestrictedSites` via
-  // the existing `updateSettings` optimistic-save helper below - same convention as every other
-  // field in this file, replacing the old free-text textarea (one line per site) with a text
-  // input + Add button + a deletable list, matching the scope doc's Settings section.
+  // Appends one trimmed, non-empty entry to `settings.defaultRestrictedSites` via the existing
+  // `updateSettings` optimistic-save helper below - same convention as every other field in
+  // this file.
   const [newRestrictedSite, setNewRestrictedSite] = useState("");
 
   useEffect(() => {
@@ -201,8 +194,7 @@ export function SettingsPage({
 
   return (
     <div className="settings-page">
-      {/* design-specs/frames/page-settings.json's frame-general's own leading "General" text
-          node - the card title for this whole box (Tracking through Hard-Block Passcode, plus
+      {/* The card title for this whole box (Tracking through Hard-Block Passcode, plus
           SettingsTab.tsx's own Camera & Microphone callout right after it). */}
       <h2 className="sp-card__title">General</h2>
       <section className="settings-page__section">
@@ -320,9 +312,9 @@ export function SettingsPage({
               }
             />
             {/* No new save semantics - quiet hours already saves reactively on every change
-                above, same as every other field on this page. This just gives
-                frame-time-period's own button-bool a real (if redundant) action: force a fresh
-                save of the current values, rather than rendering it as a dead decoration. */}
+                above, same as every other field on this page. This just gives the button below
+                a real (if redundant) action: force a fresh save of the current values, rather
+                than rendering it as a dead decoration. */}
             <ButtonBool
               icon="check"
               aria-label="Apply quiet hours"
@@ -406,10 +398,6 @@ export function SettingsPage({
             onChange={(e) => setConfirmPasscode(e.target.value)}
           />
         </div>
-        {/* The spec's own button-large instance here reads "Save Password" - a copy-paste slip
-            from frame-account's identically-shaped Account Password section right above it in
-            the same file (every other label in this section says "...Passcode"). Kept as "Save
-            Passcode" to match this section's own subject, not copied verbatim. */}
         <ButtonLarge
           onClick={handleSavePasscode}
           disabled={passcode.length < 4 || passcode !== confirmPasscode || passcodeSaving}

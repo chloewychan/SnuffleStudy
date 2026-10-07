@@ -6,11 +6,10 @@ import { isValidNudgeMessageId } from "../../domain/accountability/nudgeMessages
 // friendGroupApi.ts's row->interface mapping style, even though the underlying Postgres columns
 // are snake_case (see supabase/migrations/20260815000007_v2_nudges.sql).
 //
-// v4.1 Task 1: messageId is now nullable and customBody is new (supabase/migrations/
-// 20260815000046_v4.1_nudge_vault.sql's nudges_exactly_one_body check - exactly one of the two is
-// ever set on a given row). A vault-authored written nudge is copied into custom_body at send
-// time (Decision 1), never a live reference to nudge_vault_texts - see sendNudge()'s "vault"
-// branch below.
+// messageId and customBody are mutually exclusive (the nudges_exactly_one_body check constraint -
+// exactly one of the two is ever set on a given row). A vault-authored written nudge is copied
+// into custom_body at send time, never a live reference to nudge_vault_texts - see sendNudge()'s
+// "vault" branch below.
 export interface FriendNudge {
   id: string;
   senderUserId: string;
@@ -40,18 +39,18 @@ function toFriendNudge(row: NudgeRow): FriendNudge {
   };
 }
 
-// v4.1 Task 1: a caller of sendNudge() picks exactly one source - the existing fixed catalog
-// (Decision 6: kept, not replaced - the scope doc explicitly defers removing NUDGE_MESSAGES to
-// v4.2) or a Nudge Vault written text, copied into custom_body at insert time (Decision 1).
+// A caller of sendNudge() picks exactly one source - the existing fixed catalog (kept alongside
+// the vault, not replaced by it) or a Nudge Vault written text, copied into custom_body at insert
+// time.
 export type NudgeSource = { kind: "catalog"; messageId: string } | { kind: "vault"; vaultTextId: string };
 
 // Sends a nudge (catalog or vault-authored, per NudgeSource) to a friend. The toggle/cooldown
 // gate is entirely server-side (the `nudges` INSERT policy, routed through the can_send_nudge()
 // SECURITY DEFINER function - see supabase/migrations/20260815000007_v2_nudges.sql) - this
-// function never pre-checks friendship_settings or the cooldown client-side, since the plan
-// requires the rejection to be enforceable even against a client that lies about its own state (a
-// malicious client could always bypass a client-side check with a raw REST call; only the
-// server-side gate is load-bearing).
+// function never pre-checks friendship_settings or the cooldown client-side, since the rejection
+// must be enforceable even against a client that lies about its own state (a malicious client
+// could always bypass a client-side check with a raw REST call; only the server-side gate is
+// load-bearing).
 //
 // The catalog branch's only client-side check is messageId validity against the fixed catalog
 // (nudgeMessages.ts) - this is cheap data-integrity validation, not a security boundary: an
@@ -61,7 +60,7 @@ export type NudgeSource = { kind: "catalog"; messageId: string } | { kind: "vaul
 // validate messageId's shape, only who's allowed to send/receive at all - that's fine, an
 // unrecognized messageId is a display concern for the recipient, not a security one).
 //
-// The vault branch (v4.1 Task 1, Decision 1) looks up the vault text's body and copies it into
+// The vault branch looks up the vault text's body and copies it into
 // custom_body at insert time, rather than storing a live reference to nudge_vault_texts - a sent
 // nudge must keep displaying correctly for its recipient even after the sender later deletes that
 // vault text. The lookup select is itself gated by nudge_vault_texts' "owner can manage their own
@@ -136,9 +135,8 @@ export async function sendNudge(
 // for the same reason (see that file's comment): `ok` distinguishes "the query itself failed"
 // from "it ran cleanly and found nothing new", which only matters to the poll-side caller
 // (alarmHandlers.ts's friend-poll alarm, which must not advance its persisted nudge cursor past a
-// failure - Task 6 fix round 1 had to add this distinction after a review caught that collapsing
-// failure into an empty array silently and permanently drops events on a transient outage; built
-// in here from the start rather than reintroducing that bug).
+// failure - collapsing a failure into an empty array would silently and permanently drop nudges
+// that arrived during a transient outage).
 //
 // Deliberately filtered to `recipient_user_id = auth.uid()` (unlike sessionStatusSyncApi's
 // queryEventsSince, which trusts RLS to do all the filtering) - nudges' "sender or recipient can

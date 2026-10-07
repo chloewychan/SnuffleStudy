@@ -44,23 +44,19 @@ import { currentFriendSyncUserId, hasAnyFriend, recordFriendStatusEvent } from "
 const settingsRepo = new ChromeStorageRepository();
 const historyRepo = new IndexedDbSessionRepository();
 
-// A naturally-completing session never routes back through recordFriendStatusEvent's usual
-// caller (messageRouter.ts) - this file's handleAlarm is the only place SESSION_COMPLETED can
-// be recorded from. Look-back window for
-// the very first poll of either stream, before any cursor (getLastFriendPollAt/
-// getLastNudgePollAt) has ever been persisted for it - 5 minutes is comfortably wider than one
-// alarm interval (1 minute) so an event/nudge from just before this device started polling still
-// surfaces once, without dredging up an unbounded historical backlog. Shared between
-// pollSessionEventUpdates and pollNudgeUpdates below since both cursors have the identical
+// Look-back window for the very first poll of either stream, before any cursor
+// (getLastFriendPollAt/getLastNudgePollAt) has been persisted yet - 5 minutes is comfortably
+// wider than one alarm interval (1 minute) so an event/nudge from just before this device started
+// polling still surfaces once, without dredging up an unbounded historical backlog. Shared
+// between pollSessionEventUpdates and pollNudgeUpdates below since both cursors have the same
 // "never persisted yet" bootstrap problem.
 const FIRST_POLL_LOOKBACK_MS = 5 * 60 * 1000;
 
 // Polls session_status_events for new friend activity and shows a chrome.notifications toast for
-// each (per docs/Draft1_Architecture_Overview.md's Phase 1 "polling" friend-event delivery plan).
-// Split out from handleFriendPollAlarm (v2 Task 7) so this stream's own try/catch and cursor
-// (friendPollState.ts's getLastFriendPollAt/setLastFriendPollAt) stay fully independent of
-// pollNudgeUpdates below - the two are logically separate streams delivered by the same alarm
-// tick, and a failure in one must never block or corrupt the other's progress.
+// each. Has its own try/catch and cursor (friendPollState.ts's getLastFriendPollAt/
+// setLastFriendPollAt) kept fully independent of pollNudgeUpdates below - the two are logically
+// separate streams delivered by the same alarm tick, and a failure in one must never block or
+// corrupt the other's progress.
 async function pollSessionEventUpdates(): Promise<void> {
   try {
     const now = Date.now();
@@ -70,9 +66,7 @@ async function pollSessionEventUpdates(): Promise<void> {
       // The fetch itself failed (network/query/auth error - distinct from "genuinely no new
       // events", see pollNewEventsForFriends's own comment). Leave the persisted cursor where it
       // was so the next tick retries this exact window, rather than silently advancing past
-      // friend events that occurred during the outage (fix round 1 - previously this branch
-      // didn't exist, so any silent failure still advanced the cursor to `now`, permanently
-      // losing whatever happened during the outage window).
+      // friend events that occurred during the outage and permanently losing them.
       return;
     }
     for (const event of result.events) {
@@ -85,21 +79,21 @@ async function pollSessionEventUpdates(): Promise<void> {
 }
 
 // Polls nudges for new incoming nudges addressed to the current user, and shows a
-// chrome.notifications toast for each (v2 Task 7, reusing Task 6's alarm/notification path per
-// this task's brief - "not building a parallel one"). Notification content deliberately differs
-// from pollSessionEventUpdates's ("Nudge from a friend" + the actual message text and sender,
-// rather than "Friend activity" + a generic displayLabel) so the two never read as
-// indistinguishable generic copy. Same "only advance the cursor on confirmed success" discipline
-// as pollSessionEventUpdates, using its own independent cursor
+// chrome.notifications toast for each. Notification content deliberately differs from
+// pollSessionEventUpdates's ("Nudge from a friend" + the actual message text and sender, rather
+// than "Friend activity" + a generic displayLabel) so the two never read as indistinguishable
+// generic copy. Same "only advance the cursor on confirmed success" discipline as
+// pollSessionEventUpdates, using its own independent cursor
 // (getLastNudgePollAt/setLastNudgePollAt) so a failure fetching nudges never affects, and is
 // never affected by, the session-events cursor above.
-// v2 Task 10, Part C: `liveNudgesNotificationsEnabled`/quietHours gate ONLY whether a toast is
-// shown - the fetch/cursor-advancement above (and below) runs exactly as before, unaffected,
-// consistent with how this alarm's other streams already separate "did the fetch succeed" from
-// "should the user be shown something" (see pollFriendRequestUpdates' pending-vs-own-request
-// branching for the same kind of separation). Computed once per tick from the current settings
-// snapshot - deliberately NOT a per-nudge check, since quiet-hours status can't meaningfully
-// change within the few milliseconds it takes to loop over one poll's results.
+//
+// `liveNudgesNotificationsEnabled`/quietHours gate ONLY whether a toast is shown - the
+// fetch/cursor-advancement above (and below) runs exactly as before, unaffected, consistent with
+// how this alarm's other streams already separate "did the fetch succeed" from "should the user
+// be shown something" (see pollFriendRequestUpdates' pending-vs-own-request branching for the
+// same kind of separation). Computed once per tick from the current settings snapshot -
+// deliberately NOT a per-nudge check, since quiet-hours status can't meaningfully change within
+// the few milliseconds it takes to loop over one poll's results.
 async function pollNudgeUpdates(): Promise<void> {
   try {
     const now = Date.now();
@@ -116,9 +110,9 @@ async function pollNudgeUpdates(): Promise<void> {
       !settings.liveNudgesNotificationsEnabled || isWithinQuietHours(settings.quietHours);
     for (const nudge of result.nudges) {
       if (suppressToast) continue;
-      // v4.1 Task 1: mirrors IncomingNudgeCard.tsx's identical fallback - a nudge is now either
-      // catalog-authored (messageId) or vault-authored (customBody, copied in at send time), and
-      // messageId is nullable so nudgeMessageText() can no longer be called on it unconditionally.
+      // Mirrors IncomingNudgeCard.tsx's identical fallback - a nudge is either catalog-authored
+      // (messageId) or vault-authored (customBody, copied in at send time), and messageId is
+      // nullable so nudgeMessageText() can't be called on it unconditionally.
       const messageText =
         nudge.customBody ?? (nudge.messageId ? nudgeMessageText(nudge.messageId) : null) ?? "sent you a nudge";
       showNotification(
@@ -133,9 +127,8 @@ async function pollNudgeUpdates(): Promise<void> {
   }
 }
 
-// v3.4 Task 3: applies an approved site_unlock friend request to the affected LOCAL session -
-// renamed from applyApprovedUnlockRequest, same body verbatim (only the request's type changed,
-// from UnlockRequest to FriendRequest). This can only run on the *requester's* device (the
+// Applies an approved site_unlock friend request to the affected LOCAL session. This can only
+// run on the *requester's* device (the
 // resolving friend's device has no access to, and no business mutating, the requester's
 // chrome.storage.local session state) - which is exactly why this is only ever called from
 // pollFriendRequestUpdates below, gated on `req.requesterUserId === userId` (the current device's
@@ -163,12 +156,11 @@ async function applyApprovedFriendRequest(req: FriendRequest): Promise<void> {
   await settingsRepo.saveActiveSession(updated);
 }
 
-// v3.4 Task 3: applies an approved site_temp_pass friend request - renamed from
-// applyApprovedTempPasscodeRequest, same body verbatim. "Silently extend what the user is already
-// allowed to do", safe to run unattended from this background poll (Global Constraints: a
-// background poll never triggers a disruptive UI action on its own; unlocking a single
-// already-approved hostname is exactly the kind of non-disruptive extension that's fine here,
-// unlike ending a session). Works through the DNR rule/relock-alarm mechanism
+// Applies an approved site_temp_pass friend request. "Silently extend what the user is already
+// allowed to do" is safe to run unattended from this background poll - a background poll never
+// triggers a disruptive UI action on its own, and unlocking a single already-approved hostname is
+// exactly the kind of non-disruptive extension that's fine here, unlike ending a session. Works
+// through the DNR rule/relock-alarm mechanism
 // (unlockHardBlockRuleForHostname + scheduleTempUnlockRelockAlarm), same as
 // friendRequestApi.ts's claimApproval does when the user is looking at LockedPage.tsx directly -
 // this means the unlock can happen from the background poll alone, without the user ever
@@ -185,11 +177,9 @@ async function applyApprovedTempPass(req: FriendRequest): Promise<void> {
   }
 }
 
-// v3.4 Task 3: replaces pollUnlockRequestUpdates/pollTempPasscodeUpdates/
-// pollSessionEndRequestUpdates - one stream backing all three kinds now that they're one
-// friend_requests table behind one pollRelevantRequests query (see friendRequestApi.ts's
-// queryRelevantSince comment on why one query covers both directions below). Reuses Task 6's
-// alarm/notification path, not a new one, same as every other stream on this file.
+// One stream backs all three friend_requests kinds (site_unlock, site_temp_pass, session_end)
+// behind a single pollRelevantRequests query (see friendRequestApi.ts's queryRelevantSince
+// comment on why one query covers both directions). Handles two cases per row:
 //
 //   (a) the requester's OWN request just got resolved (approved/denied) - apply the local side
 //       effect on approval (site_unlock's allowedSites mutation; site_temp_pass's DNR-unlock +
@@ -203,16 +193,14 @@ async function applyApprovedTempPass(req: FriendRequest): Promise<void> {
 // cursor on confirmed success" discipline as every other stream, using its own independent
 // cursor (getLastFriendRequestPollAt/setLastFriendRequestPollAt).
 //
-// session_end's branch deliberately does NOT call any apply-side-effect function at all, on
-// purpose - preserved verbatim from pollSessionEndRequestUpdates's own asymmetry. Per the Global
-// Constraints note: unlocking a hostname (site_unlock) or a site (site_temp_pass) is "silently
-// extend what the user is already allowed to do" - safe to run unattended. Ending a session is
-// disruptive - it stops what the user is doing - so an approved session-end request is NEVER
-// auto-applied from this background poll. This function only ever produces a notification for
-// that kind; the actual SESSION_END call still requires the user to return to
-// EndSessionControl.tsx and click "End session now" themselves. Do not "fix" this into
-// auto-ending a session without re-deciding that on purpose, in writing, the way this codebase's
-// plan history already did once (docs/implementation_plans/V3.3_Implementation_Plan.md).
+// session_end's branch deliberately does NOT call any apply-side-effect function. Unlocking a
+// hostname (site_unlock) or a site (site_temp_pass) is "silently extend what the user is already
+// allowed to do" - safe to run unattended. Ending a session is disruptive - it stops what the
+// user is doing - so an approved session-end request is NEVER auto-applied from this background
+// poll. This function only ever produces a notification for that kind; the actual SESSION_END
+// call still requires the user to return to EndSessionControl.tsx and click "End session now"
+// themselves. Do not turn this into auto-ending a session without deliberately deciding to
+// change that behavior.
 async function pollFriendRequestUpdates(userId: string): Promise<void> {
   try {
     const now = Date.now();
@@ -243,7 +231,7 @@ async function pollFriendRequestUpdates(userId: string): Promise<void> {
             );
           } else {
             // session_end: notification only, deliberately no auto-apply - see this function's
-            // own header comment and the Global Constraints note.
+            // own header comment.
             showNotification(
               `friend-request-${req.id}`,
               "Temporary pass approved",
@@ -285,31 +273,29 @@ async function pollFriendRequestUpdates(userId: string): Promise<void> {
   }
 }
 
-// v2 Task 9, Part D: fourth stream on this same alarm - daily digests. Reuses Task 6's
-// alarm/notification path per this task's brief ("Tasks 7, 8, 9, and 14 all share the one
-// alarm"), not a new one. Same "only advance the cursor on confirmed success" discipline as the
-// other three streams, using its own independent cursor (getLastDigestPollAt/setLastDigestPollAt)
-// so a failure here never affects, and is never affected by, the other three cursors.
+// One stream on this same alarm handles daily digests. Same "only advance the cursor on
+// confirmed success" discipline as the other streams, using its own independent cursor
+// (getLastDigestPollAt/setLastDigestPollAt) so a failure here never affects, and is never
+// affected by, the other cursors.
 //
 // Cursor is compared against daily_digests.computed_at (not digest_date) - mirrors how the other
 // streams use occurred_at/sent_at as their timestamp cursor (see friendPollState.ts and
-// digestApi.ts's pollNewDigests). Since compute_daily_digests() (supabase/migrations/
-// 20260815000010_v2_daily_digests.sql) upserts exactly one row per (subject_user_id,
-// digest_date) - never one row per session - this cursor mechanism alone is what satisfies this
-// task's DoD ("a friend ... sees one summary per day, not per session"): a friend's digest row
-// for a given day only ever crosses the cursor once (the first poll tick after it's computed),
+// digestApi.ts's pollNewDigests). compute_daily_digests() upserts exactly one row per
+// (subject_user_id, digest_date) - never one row per session - so this cursor mechanism alone
+// guarantees a friend sees one summary per day, not per session: a friend's digest row for a
+// given day only ever crosses the cursor once (the first poll tick after it's computed),
 // regardless of how many sessions fed into it.
 //
 // The caller's own digest row (digest.friendUserId === userId, i.e. a digest about the current
 // user's own activity, which RLS also legitimately returns) is intentionally skipped here - a
 // user doesn't need a chrome.notifications toast about their own stats; this stream exists to
 // tell a friend about someone ELSE's digest.
-// v2 Task 10, Part C: same "gate only the toast, never the fetch/cursor" discipline as
-// pollNudgeUpdates above, using `digestNotificationsEnabled`/quietHours instead of
-// `liveNudgesNotificationsEnabled`. Deliberately does NOT gate pollSessionEventUpdates or
-// pollFriendRequestUpdates - the brief's Part C is explicit that only "live nudges" and "digest"
-// get a global toggle (plus quiet hours layered on both); friend-activity and friend-request
-// toasts are unaffected by this task, a deliberate scope boundary, not an oversight.
+//
+// `digestNotificationsEnabled`/quietHours gate only the toast, never the fetch/cursor, same
+// discipline as pollNudgeUpdates above. Deliberately does NOT gate pollSessionEventUpdates or
+// pollFriendRequestUpdates - only "live nudges" and "digest" get a global toggle (plus quiet
+// hours layered on both); friend-activity and friend-request toasts are unaffected, a deliberate
+// scope boundary, not an oversight.
 async function pollDigestUpdates(userId: string): Promise<void> {
   try {
     const now = Date.now();
@@ -327,11 +313,10 @@ async function pollDigestUpdates(userId: string): Promise<void> {
     for (const digest of result.digests) {
       if (digest.friendUserId === userId) continue;
       if (suppressToast) continue;
-      // Copy deliberately distinct from the other three streams' notification titles/bodies
-      // ("Friend activity" / "Nudge from a friend" / "Unlock request"...), and echoes the
-      // architecture overview's own example phrasing ("Bob was really locked in today") - no
-      // display-name lookup exists anywhere in this codebase yet (FriendGroupPanel.tsx has the
-      // identical limitation - no `profiles` table), so "A friend" stands in for a real name.
+      // Copy deliberately distinct from the other streams' notification titles/bodies ("Friend
+      // activity" / "Nudge from a friend" / "Unlock request"...). No display-name lookup exists
+      // anywhere in this codebase yet (FriendGroupPanel.tsx has the identical limitation - no
+      // `profiles` table), so "A friend" stands in for a real name.
       showNotification(
         `friend-digest-${digest.friendUserId}-${digest.digestDate}`,
         "Daily digest",
@@ -344,20 +329,16 @@ async function pollDigestUpdates(userId: string): Promise<void> {
   }
 }
 
-// v2 Task 14: third stream on this same alarm - producer tags sent to the current user by a
-// friend (room deliveries are excluded entirely - see producerTagApi.ts's queryIncomingSince -
-// and are instead delivered live via Supabase Realtime broadcast, Part D of this task, which has
-// no cursor/alarm involvement at all). Reuses Task 6's alarm/notification path per this task's
-// brief ("Do NOT add a new alarm"), not a new one. Same "only advance the cursor on confirmed
-// success" discipline as the streams above, using its own independent cursor
-// (getLastProducerTagPollAt/setLastProducerTagPollAt) so a failure here never affects, and is
-// never affected by, the other cursors. (v3.4 Task 3: renumbered from "sixth" - see
-// pollFriendRequestUpdates' own comment for why.)
+// One stream on this same alarm handles producer tags sent to the current user by a friend
+// (room deliveries are excluded entirely - see producerTagApi.ts's queryIncomingSince - and are
+// instead delivered live via Supabase Realtime broadcast, which has no cursor/alarm involvement
+// at all). Same "only advance the cursor on confirmed success" discipline as the streams above,
+// using its own independent cursor (getLastProducerTagPollAt/setLastProducerTagPollAt) so a
+// failure here never affects, and is never affected by, the other cursors.
 //
 // Notification id is synthesized from tagId+sentAt (`producer_tag_sends` has no id/primary key
-// column at all - see the schema migration's own comment on why) rather than a real row
-// identity - unique enough for chrome.notifications' dedupe purposes across this stream's own
-// polls, which is all this id is used for.
+// column at all) rather than a real row identity - unique enough for chrome.notifications'
+// dedupe purposes across this stream's own polls, which is all this id is used for.
 async function pollProducerTagUpdates(): Promise<void> {
   try {
     const now = Date.now();
@@ -382,12 +363,10 @@ async function pollProducerTagUpdates(): Promise<void> {
   }
 }
 
-// v3.4 Task 2: fourth stream on this same alarm - new friend connections. Reuses Task 6's
-// alarm/notification path, not a new one, same as every other stream above. Same "only advance
-// the cursor on confirmed success" discipline as the streams above, using its own independent
-// cursor (getLastFriendConnectionPollAt/setLastFriendConnectionPollAt) so a failure here never
-// affects, and is never affected by, the other cursors. (v3.4 Task 3: renumbered from "eighth" -
-// see pollFriendRequestUpdates' own comment for why.)
+// One stream on this same alarm handles new friend connections. Same "only advance the cursor on
+// confirmed success" discipline as the streams above, using its own independent cursor
+// (getLastFriendConnectionPollAt/setLastFriendConnectionPollAt) so a failure here never affects,
+// and is never affected by, the other cursors.
 //
 // Finds friendships rows THIS user's invite code generated (initiated_by = userId) created since
 // the last poll, and shows one toast per new connection. Uses the same human-name-with-raw-id-
@@ -434,21 +413,18 @@ async function pollFriendConnectionUpdates(userId: string): Promise<void> {
 // pollSessionEventUpdates/pollNudgeUpdates/pollDigestUpdates/pollProducerTagUpdates/
 // pollFriendConnectionUpdates/pollFriendRequestUpdates ever throws (each wraps its own body), but
 // this outer try/catch stays as a last-resort safety net so nothing here can take down the alarm
-// listener. (v3.4 Task 3: was eight streams - unlock_requests/temp_passcode_requests/
-// session_end_requests' three separate poll functions collapsed into one pollFriendRequestUpdates
-// now that they're one friend_requests table, net -2 overall.)
+// listener.
 async function handleFriendPollAlarm(): Promise<void> {
   try {
-    // Re-check eligibility on every tick (fix round 1), not just once at alarm-start time
-    // (messageRouter.ts's maybeStartFriendPoll runs this same pair of checks, but only when the
-    // alarm is first scheduled). friendSyncEnabled can be toggled off, or the user can remove
-    // their last friend, mid-session without anything telling this already-running alarm to stop
-    // - without re-checking here, it would keep polling Supabase every minute regardless,
-    // contradicting the architecture doc's "keep backend load and battery use proportional to
-    // actual usage" directive. Skips every fetch entirely (no network call against any table)
-    // when either check fails now; does not reactively cancel the alarm itself here (that's a
-    // nice-to-have, not required - the alarm's own stop points are still messageRouter.ts's
-    // SESSION_END/SESSION_DISMISS_* and this file's natural-completion path).
+    // Re-checks eligibility on every tick, not just once at alarm-start time (messageRouter.ts's
+    // maybeStartFriendPoll runs this same pair of checks, but only when the alarm is first
+    // scheduled). friendSyncEnabled can be toggled off, or the user can remove their last friend,
+    // mid-session without anything telling this already-running alarm to stop - without
+    // re-checking here, it would keep polling Supabase every minute regardless of whether anyone
+    // still needs it. Skips every fetch entirely (no network call against any table) when either
+    // check fails; does not reactively cancel the alarm itself here (the alarm's own stop points
+    // are still messageRouter.ts's SESSION_END/SESSION_DISMISS_* and this file's
+    // natural-completion path).
     const userId = await currentFriendSyncUserId();
     if (!userId) return;
     if (!(await hasAnyFriend(userId))) return;
@@ -464,23 +440,21 @@ async function handleFriendPollAlarm(): Promise<void> {
   }
 }
 
-// v2 Task 12: re-locks a single hostname after a temp-passcode-unlocked window expires - see
+// Re-locks a single hostname after a temp-passcode-unlocked window expires - see
 // declarativeNetRequestApi.ts's lockHardBlockRuleForHostname (the inverse of
-// unlockHardBlockRuleForHostname, v2 Task 8) and alarmsApi.ts's scheduleTempUnlockRelockAlarm
-// (the alarm that fires this).
+// unlockHardBlockRuleForHostname) and alarmsApi.ts's scheduleTempUnlockRelockAlarm (the alarm
+// that fires this).
 //
 // Guarded against re-locking a session that's no longer around, or no longer hard-restricted for
 // this hostname, by the time this fires - confirmed by checking the active session directly
-// rather than assumed, per this task's brief ("if there's no active session or it's not in a
-// hard-restricted state anymore, the DNR rules were already cleared by clearHardBlockRules()
-// elsewhere, so this is a no-op, but confirm rather than assume"):
+// rather than assumed:
 //   - no active session at all -> clearHardBlockRules() already ran (SESSION_END/natural
 //     completion) - nothing to re-lock.
 //   - session in a terminal state (COMPLETED/ABANDONED) -> same as above.
 //   - session.restrictionMode is no longer "hard" -> can't happen via any existing mutation path
 //     today (restrictionMode is fixed at session creation), but checked anyway as a genuine
-//     guard, not a defensive-programming no-op - if a future task ever adds a way to downgrade a
-//     session out of hard mode mid-session, this guard is what keeps this alarm from
+//     guard, not a defensive-programming no-op - if a future change ever adds a way to downgrade
+//     a session out of hard mode mid-session, this guard is what keeps this alarm from
 //     re-introducing a stale hard-block rule for it.
 //   - hostname isn't part of the CURRENT session's restrictedSites -> the user could have ended
 //     the original hard-mode session and started an entirely different one (possibly hard-mode
@@ -503,17 +477,17 @@ async function handleTempUnlockRelockAlarm(hostname: string): Promise<void> {
 }
 
 export async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
-  // The friend-poll alarm (v2 Task 6) is a completely separate lifecycle from the session-timer
-  // alarm below - handled and returned from here first so it never falls through the
-  // `!isSessionAlarm` guard that every other/unrecognized alarm name hits.
+  // The friend-poll alarm is a completely separate lifecycle from the session-timer alarm below -
+  // handled and returned from here first so it never falls through the `!isSessionAlarm` guard
+  // that every other/unrecognized alarm name hits.
   if (isFriendPollAlarm(alarm)) {
     await handleFriendPollAlarm();
     return;
   }
 
-  // v2 Task 12: same "completely separate lifecycle, handled and returned from here first"
-  // treatment as the friend-poll alarm above - a temp-unlock-relock alarm must never fall through
-  // to the session-alarm logic below, and (unlike the friend-poll alarm) must work regardless of
+  // Same "completely separate lifecycle, handled and returned from here first" treatment as the
+  // friend-poll alarm above - a temp-unlock-relock alarm must never fall through to the
+  // session-alarm logic below, and (unlike the friend-poll alarm) must work regardless of
   // friend-sync/group-membership state, so it's checked independently of that branch too.
   if (isTempUnlockRelockAlarm(alarm)) {
     await handleTempUnlockRelockAlarm(hostnameFromTempUnlockRelockAlarm(alarm));
@@ -529,18 +503,19 @@ export async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
 
   if (session.state === "FOCUSING") {
     const completed = machine.completeSession(session, now);
-    // Archive immediately (history is accurate the instant it happens), but keep the
-    // COMPLETED session as the active session rather than clearing it - previously this
-    // nulled the active session in the same breath, so the UI never got a chance to render
-    // a completion/"victory" screen. It's cleared once the user acknowledges it via
+    // Archive immediately (history is accurate the instant it happens), but keep the COMPLETED
+    // session as the active session rather than clearing it, so the UI has a chance to render a
+    // completion/"victory" screen. It's cleared once the user acknowledges it via
     // SESSION_DISMISS_COMPLETED (messageRouter.ts).
     await historyRepo.archive(completed);
     await settingsRepo.saveActiveSession(completed);
     await clearHardBlockRules();
     // Natural completion is a session-ending transition - stop polling for friend events (same
     // "only run the alarm while there is an active session" rule messageRouter.ts's SESSION_END
-    // abandonment path follows). Recording SESSION_COMPLETED itself is fire-and-forget/gated
-    // (see friendSync.ts) - never blocks the archival/notification above, which have already
+    // abandonment path follows). A naturally-completing session never routes back through
+    // recordFriendStatusEvent's usual caller (messageRouter.ts) - this is the only place
+    // SESSION_COMPLETED can be recorded from. Recording it is fire-and-forget/gated (see
+    // friendSync.ts) - never blocks the archival/notification above, which have already
     // succeeded by this point.
     cancelFriendPollAlarm();
     recordFriendStatusEvent("SESSION_COMPLETED", completed.id, "completed a focus session");

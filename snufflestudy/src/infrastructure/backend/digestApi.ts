@@ -1,13 +1,10 @@
 import { supabase } from "./supabaseClient";
 import { checkAuth } from "./authHelpers";
 
-// The exact shape declared by this task's brief/plan (docs/V2_Implementation_Plan.md's Task 9
-// Interfaces block): `fetchDigestForDate(date: string): Promise<DigestSummary[]>` returning
-// `{ friendUserId, completedSessions, abandonedSessions, distractionCount, recoveryRate }`.
 // subject_user_id (the daily_digests column - see supabase/migrations/
 // 20260815000010_v2_daily_digests.sql) is mapped to friendUserId here, matching this file's own
-// row->interface camelCase convention (sessionStatusSyncApi.ts's FriendEvent, nudgeApi.ts's
-// FriendNudge, unlockRequestApi.ts's UnlockRequest all do the same).
+// row->interface camelCase convention (sessionStatusSyncApi.ts's FriendEvent and nudgeApi.ts's
+// FriendNudge do the same).
 export interface DigestSummary {
   friendUserId: string;
   completedSessions: number;
@@ -17,11 +14,11 @@ export interface DigestSummary {
 }
 
 // Richer than DigestSummary (adds digestDate/computedAt) - needed by alarmHandlers.ts's
-// poll-side delivery (Part D of this task), which must know WHICH digest-day a row is for (to
-// render it in a notification and to key the "already notified for this day" dedupe) and WHEN it
-// was computed (used as this stream's poll cursor, the same way other streams use
-// occurred_at/sent_at - see friendPollState.ts). fetchDigestForDate below intentionally returns
-// the narrower DigestSummary shape only, matching the plan's literal declared signature.
+// poll-side delivery, which must know WHICH digest-day a row is for (to render it in a
+// notification and to key the "already notified for this day" dedupe) and WHEN it was computed
+// (used as this stream's poll cursor, the same way other streams use occurred_at/sent_at - see
+// friendPollState.ts). fetchDigestForDate below intentionally returns the narrower DigestSummary
+// shape only.
 export interface FriendDigest extends DigestSummary {
   digestDate: string; // YYYY-MM-DD
   computedAt: number;
@@ -82,17 +79,13 @@ async function queryDigestsForDate(
 
 // Fetches the digest(s) for a specific calendar date (YYYY-MM-DD) - used by
 // messageRouter.ts's DIGEST_FETCH (FriendGroupPanel.tsx's on-demand display fetch). Never throws,
-// and collapses the ok/digests distinction into a plain array - mirrors
-// fetchNewEventsForFriends/fetchIncomingNudges/fetchRelevantUnlockRequests' identical contract: a
-// UI fetch has no persisted cursor to protect, so there's nothing to do differently on failure vs.
-// "nothing for this date".
+// and collapses the ok/digests distinction into a plain array - a UI fetch has no persisted
+// cursor to protect, so there's nothing to do differently on failure vs. "nothing for this date".
 //
-// Judgment call (documented per this task's instructions): includes the caller's OWN row if RLS
-// returns one for that date, rather than filtering it out here. It genuinely represents the
-// caller's own stats for that date, which is a legitimate, useful thing to hand back - the panel
-// (FriendGroupPanel.tsx) is free to filter it out for a "friends only" view, but this fetch itself
-// makes no such judgment call, matching fetchNewEventsForFriends' "return exactly what RLS allows"
-// convention.
+// Includes the caller's OWN row if RLS returns one for that date, rather than filtering it out
+// here. It genuinely represents the caller's own stats for that date, which is a legitimate,
+// useful thing to hand back - the panel (FriendGroupPanel.tsx) is free to filter it out for a
+// "friends only" view, but this fetch itself returns exactly what RLS allows.
 export async function fetchDigestForDate(date: string): Promise<DigestSummary[]> {
   const result = await queryDigestsForDate(date);
   return result.digests.map((d) => ({
@@ -104,9 +97,8 @@ export async function fetchDigestForDate(date: string): Promise<DigestSummary[]>
   }));
 }
 
-// Poll-specific variant for alarmHandlers.ts's friend-poll alarm (Part D of this task) - mirrors
-// pollNewEventsForFriends/pollIncomingNudges/pollRelevantUnlockRequests' discriminated result
-// exactly, so the alarm only advances its persisted "last checked for digests" cursor
+// Poll-specific variant for alarmHandlers.ts's friend-poll alarm - returns a discriminated result
+// so the alarm only advances its persisted "last checked for digests" cursor
 // (friendPollState.ts) on a confirmed successful poll, leaving it untouched on failure so the next
 // tick retries the same window instead of silently and permanently dropping a digest
 // notification.
@@ -115,9 +107,9 @@ export async function fetchDigestForDate(date: string): Promise<DigestSummary[]>
 // this is the delivery-side query ("what digest rows are new since I last checked"), not a
 // specific-date display query. Since compute_daily_digests() upserts exactly one row per
 // (subject_user_id, digest_date) - see the migration - a friend's digest row is only ever "new"
-// (computed_at advances past the cursor) once per day it's computed, which is what makes "one
-// summary per day, not per session" (this task's DoD) fall out of the cursor mechanism alone,
-// without alarmHandlers.ts needing to separately track which dates it has already shown.
+// (computed_at advances past the cursor) once per day it's computed, which is what keeps delivery
+// to one summary per day per friend, without alarmHandlers.ts needing to separately track which
+// dates it has already shown.
 export async function pollNewDigests(
   sinceTimestamp: number
 ): Promise<{ ok: true; digests: FriendDigest[] } | { ok: false }> {

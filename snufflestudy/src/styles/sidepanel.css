@@ -31,8 +31,6 @@
   padding-bottom: var(--space-3);
 }
 
-/* header-bar (design-specs/frames/header-bar.json) - a vertical [buttons row, title] stack
-   beside the mascot image, not the previous single horizontal row. */
 .sp-header {
   display: flex;
   align-items: center;
@@ -85,12 +83,10 @@
   gap: var(--space-4);
 }
 
-/* Every tab-content card frame checked so far (page-bunny's "About the Bun", page-study's
-   "Study Session"/"Study Rooms"/"Task Vault") shares this exact treatment - promoted to the
-   shared .sp-card class rather than one bespoke class per tab. */
 .sp-card {
   background: var(--color-dark-white);
-  /* cornerRadius: 30 reuses the Padding-30 variable's value, same as .sp-btn-tab--selected. */
+  /* border-radius intentionally reuses --padding-30 rather than a --corner-* token, same as
+     .sp-btn-tab--selected. */
   border-radius: var(--padding-30);
   padding: var(--padding-20) var(--padding-30);
 }
@@ -102,10 +98,6 @@
   margin: 0 0 var(--padding-20);
 }
 
-/* Shared small muted sub-heading/field-label treatment - recurs across every settings/nudge-vault
-   frame checked so far (page-friends's "Audio Nudges (10s max)"/"Written Nudges", page-settings's
-   "Account Password"/"Old Password"/"Hard-Block Passcode"/etc.) with the exact same Shantell Sans,
-   Light-Grey styling. */
 .sp-label {
   font-family: var(--font-body);
   font-size: var(--font-size-text-3);
@@ -135,10 +127,10 @@
   font-family: var(--font-body);
 }
 
-/* Fix 2 (final-review fix wave): global.css's .timer-ring__track defaults to
-   stroke: var(--color-surface), which would match .sp-card's own background (Dark-White) too
-   closely to read - --color-accent gives the track real contrast; scoped here (not in
-   global.css/TimerRing.tsx) since other consumers of .timer-ring may rely on the current colors. */
+/* global.css's .timer-ring__track defaults to stroke: var(--color-surface), which would match
+   .sp-card's own background too closely to read here - --color-accent gives the track real
+   contrast. Scoped to this selector only (not global.css/TimerRing.tsx) since other consumers of
+   .timer-ring may rely on the default color. */
 .sp-active-session__progress .timer-ring__track {
   stroke: var(--color-accent);
 }
@@ -154,9 +146,8 @@
   text-align: center;
 }
 
-/* page-study-session (design-specs/frames/page-study-session.json's frame-study-session-in-
-   progress) - this card's own horizontal padding (Padding-10) differs from .sp-card's default
-   (Padding-30), and the timer sits beside its own controls instead of below them. */
+/* This card's own horizontal padding (--padding-10) differs from .sp-card's default
+   (--padding-30), and the timer sits beside its own controls instead of below them. */
 .sp-active-session__progress {
   padding-left: var(--padding-10);
   padding-right: var(--padding-10);
@@ -203,11 +194,9 @@
   align-items: center;
 }
 
-/* v3.3 Task 3: study-room video tiles had no sizing rules at all before this - every tile
-   rendered at its own native/intrinsic size, so a local camera preview (full native capture
-   resolution) looked larger than a remote peer's tile (subject to LiveKit's adaptiveStream
-   simulcast-layer selection). Applies uniformly to every tile (local and remote) - nothing here
-   is conditioned on isLocal. */
+/* Uniform sizing for every tile (local and remote) - nothing here is conditioned on isLocal.
+   Without this, a local camera preview (full native capture resolution) would render larger than
+   a remote peer's tile, which is subject to LiveKit's adaptiveStream simulcast-layer selection. */
 .study-room-panel__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -216,8 +205,7 @@
 
 /* The actual <video>/<audio> element (StudyRoomSessionContext.tsx adds this class straight to
    the element itself), sized to fill whichever tile container it's appended into - .sp-video-box
-   (video-box, design-specs/frames/video-box.json) for StudyRoomFooter's tiles, currently the only
-   consumer. */
+   for StudyRoomFooter's tiles, currently the only consumer. */
 .study-room-panel__media {
   width: 100%;
   height: 100%;
@@ -229,7 +217,6 @@
   height: 100%;
 }
 
-/* footer-study-room (design-specs/frames/footer-study-room.json) - was entirely unstyled before. */
 .study-room-panel--footer {
   display: flex;
   flex-direction: column;
@@ -261,9 +248,6 @@
   width: 100%;
 }
 
-/* page-study (design-specs/frames/page-study.json's frame-study-rooms) - room list items are now
-   ButtonSmall instances (colour flips pink when selected) with "Manage access" as a sibling
-   control, not the outline treatment the old plain-<li> version used. */
 .study-room-panel__list ul {
   list-style: none;
   margin: 0;
@@ -303,12 +287,9 @@
   min-width: 0;
 }
 
-/* v4.1 Task 7: the persistent app-shell footer (AppFooter.tsx) - a sibling of Header.tsx/the tab
-   content, stacking the Study Room footer and (Task 8) the Nudges & Unlock Requests footer beneath
-   it. Reuses .sp-card's own border/radius/padding treatment rather than inventing a new one. */
-/* footer-default.json/footer-study-room.json each own their own White background and
-   Padding-30 padding (a real visual card), so this outer shell no longer applies its own -
-   just the divider, stacking gap, and sticky-to-bottom positioning. */
+/* .study-room-panel--footer and .nudges-and-requests-footer each supply their own background
+   and padding (a real visual card), so this outer shell doesn't apply its own - just the
+   divider, stacking gap, and sticky-to-bottom positioning. */
 .sp-app-footer {
   display: flex;
   flex-direction: column;
@@ -322,9 +303,8 @@
   background: var(--color-bg);
 }
 
-/* ---- design-specs/ ui primitives (Phase 1 component sets) ---- */
+/* ---- Shared UI primitives ---- */
 
-/* button-large (design-specs/frames/button-large.json) */
 .sp-btn-large {
   display: inline-flex;
   align-items: center;
@@ -349,7 +329,6 @@
   cursor: not-allowed;
 }
 
-/* button-small (design-specs/frames/button-small.json) */
 .sp-btn-small {
   display: inline-flex;
   align-items: center;
@@ -394,7 +373,6 @@
   cursor: not-allowed;
 }
 
-/* button-tab (design-specs/frames/button-tab.json) */
 .sp-btn-tab {
   display: inline-flex;
   align-items: center;
@@ -411,15 +389,14 @@
 
 .sp-btn-tab--selected,
 .sp-btn-tab:hover {
-  /* cornerRadius: 30 isn't a named Corner-* token in design-specs/tokens.json - it reuses the
-     Padding-30 variable's value (30), same as the source Figma file does. Hover uses the exact
-     same treatment as selected, not its own separate one. */
+  /* border-radius intentionally reuses --padding-30 rather than a --corner-* token (30 isn't a
+     named corner size in this scale). Hover gets the exact same treatment as selected, not a
+     separate one. */
   border-radius: var(--padding-30);
   background: var(--color-light-pink-50);
   color: var(--color-text);
 }
 
-/* input (design-specs/frames/input.json), Type=textbox variants */
 .sp-input {
   display: block;
   width: 100%;
@@ -473,11 +450,10 @@
 }
 
 /* The closed <select> itself keeps Shantell Sans (inherited from .sp-input above) - only the
-   popped-open option list switches to Nunito (same one-off font page-settings.json's own
-   list-item labels use - see .settings-page__list-item's own comment further down). Referenced
-   by name only, not self-hosted like --font-display/--font-body: falls back to a generic
-   sans-serif wherever Nunito isn't already installed, rather than bundling a third webfont for
-   one narrow spot. */
+   popped-open option list switches to Nunito, the same one-off font .settings-page__list-item's
+   labels use (see that class's own comment further down). Referenced by name only, not
+   self-hosted like --font-display/--font-body: falls back to a generic sans-serif wherever
+   Nunito isn't already installed, rather than bundling a third webfont for one narrow spot. */
 .sp-input__select option {
   font-family: "Nunito", sans-serif;
   color: var(--color-text);
@@ -491,7 +467,6 @@
   pointer-events: none;
 }
 
-/* text-small (design-specs/frames/text-small.json) */
 .sp-text-small {
   display: inline-flex;
   align-items: center;
@@ -512,7 +487,6 @@
   background: var(--color-light-pink-50);
 }
 
-/* video-box (design-specs/frames/video-box.json) */
 .sp-video-box {
   position: relative;
   display: flex;
@@ -541,7 +515,6 @@
   inset: 0;
 }
 
-/* button-list (design-specs/frames/button-list.json) */
 .sp-btn-list {
   display: inline-block;
   width: var(--size-list-marker);
@@ -579,10 +552,9 @@
   outline-offset: 2px;
 }
 
-/* button-icon (design-specs/frames/button-icon.json). Background alpha is applied via the
-   relative-color rgb(from ...) syntax (same technique .sp-card already uses) rather than the
-   opacity property, so it only dims the background rectangle - not the icon glyph on top of it,
-   matching the spec (Rectangle opacity varies per state, Vector's does not). */
+/* Background alpha is applied via the relative-color rgb(from ...) syntax (same technique
+   .sp-card already uses) rather than the opacity property, so it only dims the background
+   rectangle - not the icon glyph on top of it. */
 .sp-btn-icon {
   display: inline-flex;
   align-items: center;
@@ -611,8 +583,8 @@
   height: auto;
 }
 
-/* button-bool (design-specs/frames/button-bool.json) - same background-alpha technique as
-   .sp-btn-icon above, over Light-Pink instead of Dark-White. */
+/* Same background-alpha technique as .sp-btn-icon above, over the light-pink surface color
+   instead of dark-white. */
 .sp-btn-bool {
   display: inline-flex;
   align-items: center;
@@ -641,7 +613,6 @@
   height: auto;
 }
 
-/* button-large-icon (design-specs/frames/button-large-icon.json) */
 .sp-btn-large-icon {
   display: inline-flex;
   align-items: center;
@@ -666,9 +637,8 @@
   height: auto;
 }
 
-/* ---- design-specs/ Phase 2 components ---- */
+/* ---- Page and feature-specific components ---- */
 
-/* footer-default (design-specs/frames/footer-default.json) - was entirely unstyled before. */
 .nudges-and-requests-footer {
   display: flex;
   flex-direction: column;
@@ -718,11 +688,10 @@
   flex-shrink: 0;
 }
 
-/* onboarding-step (src/app/routes/OnboardingWizard.tsx, WelcomeScreen.tsx) - the full-page shell
-   only the onboarding flow renders; design-specs/frames/page-welcome.json's own White fill +
-   Padding-50. SignInForm.tsx itself carries no page-level chrome, so its other 3 call sites
-   (FriendsBox/StudyRoomsBox inline, AccountPage.tsx) render it compactly inside their own
-   containers instead. */
+/* The full-page shell only the onboarding flow renders (OnboardingWizard.tsx, WelcomeScreen.tsx).
+   SignInForm.tsx itself carries no page-level chrome, so its other call sites (FriendsBox/
+   StudyRoomsBox inline, AccountPage.tsx) render it compactly inside their own containers
+   instead. */
 .onboarding-step {
   display: flex;
   flex-direction: column;
@@ -756,7 +725,6 @@
   color: var(--color-warning);
 }
 
-/* sign-in-form (design-specs/frames/page-sign-in*.json, page-create-new-account*.json) */
 .sign-in-form {
   display: flex;
   flex-direction: column;
@@ -815,8 +783,7 @@
   display: flex;
 }
 
-/* page-bunny (design-specs/frames/page-bunny.json) - was entirely unstyled before. Card chrome
-   itself is the shared .sp-card/.sp-card__title (see that class's own comment). */
+/* Card chrome itself is the shared .sp-card/.sp-card__title (see that class's own comment). */
 .sp-bunny-tab__body {
   display: flex;
   align-items: center;
@@ -861,7 +828,6 @@
   min-width: 0;
 }
 
-/* session-setup-form (design-specs/frames/page-study.json's frame-study-session) */
 .session-setup-form {
   display: flex;
   flex-direction: column;
@@ -878,8 +844,6 @@
   min-width: 0;
 }
 
-/* task-vault-page (design-specs/frames/page-study.json's frame-task-vault) - was entirely
-   unstyled before. */
 .task-vault-page {
   display: flex;
   flex-direction: column;
@@ -935,8 +899,8 @@
   font-size: var(--font-size-text-2);
 }
 
-/* Modal (design-specs/frames/popup-*.json) - shared shell for all three popups. The scrim isn't
-   part of the spec (which only shows the card itself), but is standard, expected modal UX. */
+/* Shared shell for all three popups. The scrim isn't part of the visual design, but is standard,
+   expected modal UX. */
 .sp-modal-overlay {
   position: fixed;
   inset: 0;
@@ -985,8 +949,6 @@
   font-size: var(--font-size-text-2);
 }
 
-/* page-friends (design-specs/frames/page-friends.json's frame-friends) - was entirely unstyled
-   before. */
 .friends-box {
   display: flex;
   flex-direction: column;
@@ -1028,7 +990,6 @@
   min-width: 0;
 }
 
-/* Modal (design-specs/frames/popup-friend.json) */
 .friend-options-modal__title {
   font-family: var(--font-display);
   font-size: var(--font-size-heading-2);
@@ -1055,7 +1016,6 @@
   opacity: 0.6;
 }
 
-/* Modal (design-specs/frames/popup-study-room.json) */
 .manage-access-modal__list {
   list-style: none;
   margin: 0;
@@ -1072,9 +1032,9 @@
   gap: var(--padding-10);
 }
 
-/* page-friends's frame-nudge-vault (design-specs/frames/page-friends.json) - the card chrome
-   itself is the shared .sp-card/.sp-card__title (applied by FriendsTab.tsx's own wrapping
-   <section>, same as FriendsBox's sibling card), so this box only owns its own internal layout. */
+/* The card chrome itself is the shared .sp-card/.sp-card__title (applied by FriendsTab.tsx's own
+   wrapping <section>, same as FriendsBox's sibling card), so this box only owns its own internal
+   layout. */
 .nudge-vault-box {
   display: flex;
   flex-direction: column;
@@ -1087,9 +1047,8 @@
   gap: var(--padding-10);
 }
 
-/* Groups a section's own [label, record-button] or [label, input-row] pair - frame-nudge-vault's
-   own button-record-new-audio-nudge/input-new-written-nudge each use this tighter gap, distinct
-   from the Padding-10 gap above it to the example list. */
+/* Groups a section's own [label, record-button] or [label, input-row] pair with a tighter gap
+   than the --padding-10 gap above it to the example list. */
 .nudge-vault-box__record {
   display: flex;
   flex-direction: column;
@@ -1132,10 +1091,9 @@
   gap: var(--padding-5);
 }
 
-/* page-settings's frame-account (design-specs/frames/page-settings.json) - AccountPage.tsx is
-   shared with OptionsApp.tsx's own standalone "Account" tab, which has no surrounding .sp-card
-   (that chrome comes from SettingsTab.tsx's own wrapping <section> in the sidepanel), so this
-   only owns AccountPage's internal layout, not its card background. */
+/* AccountPage.tsx is shared with OptionsApp.tsx's own standalone "Account" tab, which has no
+   surrounding .sp-card (that chrome comes from SettingsTab.tsx's own wrapping <section> in the
+   sidepanel), so this only owns AccountPage's internal layout, not its card background. */
 .account-page__options,
 .account-page__password {
   display: flex;
@@ -1156,9 +1114,8 @@
 }
 
 /* Shared by AccountPage.tsx's own password-change form and SettingsPage.tsx's Hard-Block
-   Passcode form - both are a [label, input] pair repeated down the page-settings.json spec (frame-
-   account-password / the second frame-account-password nested in frame-general), each pair
-   right-aligning its label against the input column beside it. */
+   Passcode form - both repeat a [label, input] pair down the page, each pair right-aligning its
+   label against the input column beside it. */
 .sp-password-grid {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -1172,20 +1129,19 @@
   white-space: nowrap;
 }
 
-/* page-settings's frame-general (design-specs/frames/page-settings.json) - SettingsPage.tsx is
-   shared with OptionsApp.tsx's own standalone "Settings" tab, same as AccountPage.tsx above, so
-   this only owns internal layout/typography, not the surrounding card (SettingsTab.tsx's own
-   <section className="sp-card"> in the sidepanel). Its Tracking/Friends/Notifications toggles
-   keep real native <input type="checkbox"/"radio"> elements (not the ButtonList component used
-   for one-off toggles elsewhere) - OptionsApp.test.tsx's existing coverage of this page relies
-   heavily on native form semantics (getByLabelText, toBeChecked, the disabled attribute), and a
-   real form control is strictly more accessible here than re-implementing checkbox/radio
-   semantics on a plain span. .settings-page__marker below reskins the native input to match
-   button-list's own circle/square, pink/white-selected look pixel-for-pixel instead.
-   design-specs/frames/page-settings.json's own list-item labels use a stray "Nunito" text style
-   found nowhere else in this design system (not in tokens.json, not on any other frame) - treated
-   as a one-off authoring artifact rather than a real third font family to newly import; body text
-   here uses --font-body (Shantell Sans) like everywhere else. */
+/* SettingsPage.tsx is shared with OptionsApp.tsx's own standalone "Settings" tab, same as
+   AccountPage.tsx above, so this only owns internal layout/typography, not the surrounding card
+   (SettingsTab.tsx's own <section className="sp-card"> in the sidepanel). Its
+   Tracking/Friends/Notifications toggles keep real native <input type="checkbox"/"radio">
+   elements (not the ButtonList component used for one-off toggles elsewhere) -
+   OptionsApp.test.tsx's coverage of this page relies heavily on native form semantics
+   (getByLabelText, toBeChecked, the disabled attribute), and a real form control is strictly
+   more accessible here than re-implementing checkbox/radio semantics on a plain span.
+   .settings-page__marker below reskins the native input to match button-list's own
+   circle/square, pink/white-selected look pixel-for-pixel instead. This page's list-item labels
+   use a stray "Nunito" text style found nowhere else in this app - treated as a one-off artifact
+   rather than a real third font family to import; body text here uses --font-body (Shantell
+   Sans) like everywhere else. */
 .settings-page {
   display: flex;
   flex-direction: column;
@@ -1286,9 +1242,9 @@
   color: var(--color-text);
 }
 
-/* page-settings's frame-history (design-specs/frames/page-settings.json) - HistoryPage.tsx is
-   shared with OptionsApp.tsx's own standalone "History" tab, same as AccountPage.tsx/
-   SettingsPage.tsx above, so this only owns internal layout, not the surrounding card. */
+/* HistoryPage.tsx is shared with OptionsApp.tsx's own standalone "History" tab, same as
+   AccountPage.tsx/SettingsPage.tsx above, so this only owns internal layout, not the surrounding
+   card. */
 .history-page {
   display: flex;
   flex-direction: column;

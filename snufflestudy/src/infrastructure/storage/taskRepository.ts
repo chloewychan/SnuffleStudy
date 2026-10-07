@@ -3,19 +3,18 @@ import type { Task } from "../../domain/tasks/taskTypes";
 
 // A separate database from indexedDbRepository.ts's "snufflestudy" (sessions/events) rather
 // than a new store bolted onto it - that would require bumping DB_VERSION there and keeping
-// two files' version numbers in lockstep, and this task's brief scopes changes to a new
-// taskRepository.ts file only, not edits to indexedDbRepository.ts.
+// two files' version numbers in lockstep.
 const DB_NAME = "snufflestudy-tasks";
-// v2: QA-discovered bug - tasks had no account scoping at all, so every signed-in (or signed-
-// out) identity on a given device saw the exact same shared list, and account deletion could
-// never reach them (this is local IndexedDB, not Supabase - the server has no way to touch it).
-// Adds a "by-userId" index; existing rows are backfilled to userId: null ("created while signed
-// out") rather than left to silently drop out of every future userId-scoped query.
+// Tasks are scoped per account via a "by-userId" index: without it, every signed-in (or
+// signed-out) identity on a given device would see the exact same shared list, and account
+// deletion could never reach them (this is local IndexedDB, not Supabase - the server has no way
+// to touch it). Existing rows are backfilled to userId: null ("created while signed out") rather
+// than left to silently drop out of every future userId-scoped query.
 const DB_VERSION = 2;
 const TASKS_STORE = "tasks";
 
-// IndexedDB constraint (confirmed by a failing test, not assumed): `null` is not a valid
-// IndexedDB key. A record whose indexed property is `null` is silently EXCLUDED from that index
+// IndexedDB constraint: `null` is not a valid IndexedDB key. A record whose indexed property is
+// `null` is silently EXCLUDED from that index
 // entirely (not an error), and passing `null` as a getAllFromIndex/openCursor query means "no
 // filter, return everything" rather than "match the literal null value." Storing Task.userId's
 // `null` ("created while signed out") directly under the by-userId index would therefore make
@@ -42,11 +41,11 @@ export interface TaskRepository {
   // Every task regardless of owner - for internal reconciliation only. Never exposed through a
   // TASK_* message; user-facing reads always go through list().
   listAll(): Promise<Task[]>;
-  // Removes every task belonging to one account - the local-storage half of account deletion
-  // (supabase/migrations/20260815000032_v3.2_account_deletion.sql only ever reaches Supabase
-  // tables; nothing server-side can delete a row that never left this device). userId is
-  // required (not nullable, unlike list()) - there is no legitimate reason to bulk-delete every
-  // signed-out task, only ever a specific deleted account's own.
+  // Removes every task belonging to one account - the local-storage half of account deletion.
+  // The server-side deletion flow only reaches Supabase tables; nothing server-side can delete
+  // a row that never left this device. userId is required (not nullable, unlike list()) - there
+  // is no legitimate reason to bulk-delete every signed-out task, only ever a specific deleted
+  // account's own.
   deleteAllForUser(userId: string): Promise<void>;
 }
 
@@ -118,8 +117,7 @@ export class IndexedDbTaskRepository implements TaskRepository {
       db.close();
     }
     // Newest-first, matching IndexedDbSessionRepository.listHistory's convention. Sorted
-    // explicitly (unlike the old by-createdAt-indexed version) since querying by-userId no
-    // longer returns rows in createdAt order for free.
+    // explicitly since querying by-userId does not return rows in createdAt order for free.
     return tasks.map(fromStorageRecord).sort((a, b) => b.createdAt - a.createdAt);
   }
 

@@ -12,10 +12,8 @@ interface VideoBoxProps
   children?: ReactNode;
 }
 
-// design-specs/frames/video-box.json (component set 177:2719) - Property=default/selected is an
-// ON_CLICK toggle (design-specs/frames/footer-study-room.json), not an ON_HOVER variant swap, so
-// "selected" stays a real prop. The spec captures no visual delta between the two variants beyond
-// the property name, so "selected" reuses this codebase's existing tile-selection treatment
+// The selected/default state is an on-click toggle, not a hover state, so "selected" stays a
+// real prop. It reuses this codebase's existing tile-selection treatment
 // (.study-room-panel__tile--selected in src/styles/sidepanel.css).
 export function VideoBox({ label, selected = false, onClick, children, ...rest }: VideoBoxProps) {
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {

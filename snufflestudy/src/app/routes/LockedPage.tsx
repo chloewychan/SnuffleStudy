@@ -12,12 +12,9 @@ interface AuthSession {
   user: AuthUser;
 }
 
-// v3.4 Task 3: friend_requests' status column is 'pending' | 'approved' | 'denied' only - no
-// 'expired' (temp_passcode_requests' check constraint allowed it, but nothing in this codebase
-// ever actually set it server-side; claimApproval/friendRequestApi.ts's claimApproval already
-// just returned { ok: false } for a genuinely-expired-but-still-'approved' row instead of
-// transitioning its status - the "expired" branch below was dead in practice, not a real state
-// this UI could reach, and is removed along with the type it depended on).
+// friend_requests' status column is only 'pending' | 'approved' | 'denied' - there is no
+// 'expired' status set server-side. A request that is actually expired but still marked
+// 'approved' simply fails to claim instead of transitioning to a different status.
 const STATUS_LABEL: Record<FriendRequest["status"], string> = {
   pending: "Waiting for your friend to respond…",
   approved: "Approved — unlocking…",
@@ -35,42 +32,35 @@ export function LockedPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // v2 Task 12: "request a temporary passcode" action, alongside the existing permanent-passcode
-  // entry above. sessionId is needed for FRIEND_REQUEST_CREATE("site_temp_pass", ...) but this
-  // page never otherwise fetches the active session (HARD_BLOCK_VERIFY_PASSCODE above needs no
-  // sessionId at all), so it's fetched once on mount, best-effort - a failure here only disables
-  // the temp-passcode action, never the existing permanent-passcode flow above.
+  // Session id is needed to request a temporary passcode (FRIEND_REQUEST_CREATE below); the
+  // permanent-passcode flow above needs no session id at all. Fetched once on mount, best-effort -
+  // a failure here only disables the temp-passcode action, never the permanent-passcode flow above.
   const [sessionId, setSessionId] = useState<string | null>(null);
 
-  // v3.4 Task 2: friend picker - one FRIENDS_LIST call, replacing the old GROUP_LIST_MINE ->
-  // GROUP_LIST_MEMBERS fan-out pattern entirely. v3.3 Task 8: friends are now shown by human_name
-  // where one exists (useDisplayNames.ts below), falling back to the raw user id exactly like
-  // before this task for anyone with no profile/name set.
+  // Friend picker, backed by a single FRIENDS_LIST call. Friends are shown by human_name where
+  // one exists (see useDisplayNames below), falling back to the raw user id otherwise.
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
   const [friendIds, setFriendIds] = useState<string[] | null>(null);
   const [friendsError, setFriendsError] = useState<string | null>(null);
   const [selectedFriendId, setSelectedFriendId] = useState("");
 
-  // v3.3 Task 11: optional free-text explanation, next to the friend picker - gives the
-  // approving friend something to judge beyond a bare hostname. maxLength 280 is a judgment call
-  // (not from the plan) - long enough for a real sentence or two of context, short enough to stay
-  // a one-line-ish aside rather than turn into an essay field; matches the "no length constraint
-  // beyond what the UI reasonably enforces" latitude the plan's Deliverables line explicitly
-  // leaves to this task.
+  // Optional free-text explanation, next to the friend picker — gives the approving friend
+  // something to judge beyond a bare hostname. 280 chars is long enough for a sentence or two
+  // without turning into an essay field.
   const [requestMessage, setRequestMessage] = useState("");
 
-  // v3.3 Task 8: resolves each friend id to their human_name (falling back to the raw id, same as
-  // before this task, when no profile/name exists) - see shared/ui/useDisplayNames.ts.
+  // Resolves each friend id to their human_name, falling back to the raw id when no profile/name
+  // exists. See shared/ui/useDisplayNames.ts.
   const displayName = useDisplayNames(friendIds ?? []);
 
   const [tempRequest, setTempRequest] = useState<FriendRequest | null>(null);
   const [tempBusy, setTempBusy] = useState(false);
   const [tempError, setTempError] = useState<string | null>(null);
 
-  // v3.3 Task 10: no code to enter anymore - once tempRequest.status is "approved", an effect
-  // below auto-claims it (v3.4 Task 3: FRIEND_REQUEST_CLAIM_TEMP_PASS) and navigates on success.
-  // claimAttemptedRef makes that claim idempotent per request id (a Set, not a single boolean,
-  // since a denied request can be re-asked, producing a new request id to track independently).
+  // No code to enter: once tempRequest.status is "approved", an effect below auto-claims it and
+  // navigates on success. claimAttemptedRef makes that claim idempotent per request id (a Set,
+  // not a single boolean, since a denied request can be re-asked, producing a new request id to
+  // track independently).
   const claimAttemptedRef = useRef<Set<string>>(new Set());
   const [claimError, setClaimError] = useState<string | null>(null);
 
@@ -167,9 +157,9 @@ export function LockedPage() {
     if (!sessionId || !effectiveFriendId) return;
     setTempBusy(true);
     setTempError(null);
-    // v3.3 Task 11: trimmed, and omitted entirely when empty - an all-whitespace or untouched
-    // input must not send a stray `message: ""`/`message: "   "` through to createRequest, which
-    // reads any truthy `message` (see friendRequestApi.ts) as "the requester provided one."
+    // Trimmed, and omitted entirely when empty - an all-whitespace or untouched input must not
+    // send a stray `message: ""`/`message: "   "` through to createRequest, which reads any
+    // truthy `message` as "the requester provided one."
     const trimmedMessage = requestMessage.trim();
     sendMessage<{ ok: boolean; request?: FriendRequest; error?: string }>({
       type: "FRIEND_REQUEST_CREATE",
@@ -218,14 +208,13 @@ export function LockedPage() {
       .finally(() => setTempBusy(false));
   }
 
-  // v3.3 Task 10: no code to enter anymore - once a friend approves, this auto-claims the request
-  // (v3.4 Task 3: FRIEND_REQUEST_CLAIM_TEMP_PASS) instead of waiting for the user to type
-  // anything. Runs whenever tempRequest's status is (or becomes) "approved", guarded by
-  // claimAttemptedRef so it fires at most once per request id - both
-  // handleRefreshTempRequestStatus's poll above and the background poll's own notification
-  // (alarmHandlers.ts) can independently lead here, and re-renders must not refire an
-  // already-in-flight-or-done claim. On success, navigates exactly like the permanent-passcode
-  // flow above; on failure, this leaves claimError set for the inline error/retry UI below.
+  // No code to enter: once a friend approves, this auto-claims the request instead of waiting
+  // for the user to type anything. Runs whenever tempRequest's status is (or becomes)
+  // "approved", guarded by claimAttemptedRef so it fires at most once per request id - both
+  // handleRefreshTempRequestStatus's poll above and the background poll's own notification can
+  // independently lead here, and re-renders must not refire an already-in-flight-or-done claim.
+  // On success, navigates exactly like the permanent-passcode flow above; on failure, this
+  // leaves claimError set for the inline error/retry UI below.
   useEffect(() => {
     if (!tempRequest || tempRequest.status !== "approved") return;
     if (claimAttemptedRef.current.has(tempRequest.id)) return;

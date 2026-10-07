@@ -17,10 +17,6 @@ beforeEach(() => {
   fakeBrowser.reset();
 });
 
-// Pre-existing (pre-Task-6) coverage for the session-timer alarm functions - restored here after
-// a Task 6 fix-round-1 review caught that this file had been overwritten wholesale rather than
-// extended, silently dropping this describe block. See the "friend-poll alarm is independent of
-// the session-timer alarm" block below for the functions Task 6 actually added.
 describe("alarmsApi", () => {
   it("schedules an alarm at the given timestamp", async () => {
     scheduleSessionAlarm(50_000);
@@ -41,9 +37,6 @@ describe("alarmsApi", () => {
   });
 });
 
-// v2 Task 6: the friend-poll alarm must use a name distinct from the session-timer alarm, and
-// starting/stopping one must never collide with or cancel the other - a hard requirement called
-// out explicitly in the Task 6 brief.
 describe("friend-poll alarm is independent of the session-timer alarm", () => {
   it("scheduleFriendPollAlarm creates an alarm named snufflestudy-friend-poll with a 1-minute period, without touching the session-timer alarm", async () => {
     scheduleFriendPollAlarm();
@@ -84,11 +77,10 @@ describe("friend-poll alarm is independent of the session-timer alarm", () => {
   });
 });
 
-// v2 Task 12: the temp-unlock-relock alarm - deliberately its own name/prefix, independent of
-// both the session-timer and friend-poll alarms (must fire regardless of friend-sync/group
-// eligibility, per this task's brief), and named PER HOSTNAME (a prefix match, not a single fixed
-// name like the other two alarms) since more than one hostname could have an active temp-unlock
-// at once.
+// The temp-unlock-relock alarm is deliberately its own name/prefix, independent of both the
+// session-timer and friend-poll alarms (it must fire regardless of friend-sync/group eligibility),
+// and named PER HOSTNAME (a prefix match, not a single fixed name like the other two alarms) since
+// more than one hostname could have an active temp-unlock at once.
 describe("temp-unlock-relock alarm is independent of, and named differently from, the other two alarms", () => {
   it("scheduleTempUnlockRelockAlarm creates an alarm named with the hostname suffix, at the given timestamp, without touching the other two alarms", async () => {
     scheduleTempUnlockRelockAlarm("youtube.com", 50_000);

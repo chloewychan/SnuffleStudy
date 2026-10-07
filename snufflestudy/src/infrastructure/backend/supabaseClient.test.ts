@@ -50,10 +50,10 @@ describe("supabase client construction is lazy", () => {
   // those static imports and crash the entire background service worker before
   // registerAlarmHandlers/registerTabHandlers/registerIdleHandlers/
   // registerActivityTrackingHandlers ever ran - breaking every local, offline session feature,
-  // not just the backend-dependent auth/group ones. That directly violates the v2 constraint
-  // that a friend-group feature failing to sync must never block starting or running a local
-  // session. This test proves the fix structurally: mock createClient to always throw (standing
-  // in for "misconfigured"), and confirm importing the module never calls it - only reading a
+  // not just the backend-dependent auth/group ones. A friend-group feature failing to sync must
+  // never block starting or running a local session. This test proves that structurally: mock
+  // createClient to always throw (standing in for "misconfigured"), and confirm importing the
+  // module never calls it - only reading a
   // property off the exported client does, which is exactly the point where messageRouter.ts's
   // per-message try/catch contains the failure to that one message instead of the whole worker.
   it("does not call createClient at module-evaluation time - only on first use", async () => {

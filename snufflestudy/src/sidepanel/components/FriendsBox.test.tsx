@@ -164,7 +164,7 @@ describe("FriendsBox", () => {
         })
       );
 
-      // Decision 7's "then deselects them" - the friend checkbox is unchecked again afterward.
+      // Sending a nudge then deselects the targeted friends - the checkbox is unchecked again.
       await waitFor(() => {
         const item = screen.getByText("user-friend").closest("li")!;
         expect(within(item).getByRole("checkbox")).not.toBeChecked();

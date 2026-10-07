@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { supabase } from "./supabaseClient";
 import { generateInviteCode, redeemInviteCode, listMyFriends, removeFriend } from "./friendshipApi";
 
-// v3.4 Task 2: replaces friendGroupApi.test.ts entirely - the group mechanic is gone, replaced by
-// a direct pairwise friendships table (supabase/migrations/20260815000040_v3.4_friendships.sql).
 // Spies on the supabaseClient module's exported singleton (the actual boundary friendshipApi.ts
 // talks to in this codebase - mirrors this repo's existing style of vi.spyOn-ing an imported
 // module's exports rather than vi.mock'ing the module). Nothing here ever lets the real client
@@ -42,7 +40,7 @@ function makeBuilder(result: { data: unknown; error: { message: string } | null 
 }
 
 describe("friendshipApi.generateInviteCode", () => {
-  it("inserts a short alphanumeric code into invite_codes, scoped only to the current user (no groupId - Decision 2), with a future expiry", async () => {
+  it("inserts a short alphanumeric code into invite_codes, scoped only to the current user (not any particular group), with a future expiry", async () => {
     vi.spyOn(supabase.auth, "getUser").mockResolvedValue({
       data: { user: { id: "user-a" } },
       error: null,
@@ -105,9 +103,8 @@ describe("friendshipApi.generateInviteCode", () => {
 
 // redeemInviteCode makes ONE redeem_invite_code RPC call - the lookup/redemption/friendships
 // insert all happen inside that SECURITY DEFINER function as a single transaction (supabase/
-// migrations/20260815000040_v3.4_friendships.sql). Under the pairwise model this creates a
-// friendships row directly between the two users (Decision 1: instant connect, no accept/decline
-// step) instead of a group_memberships row.
+// migrations/20260815000040_v3.4_friendships.sql), creating a friendships row directly between
+// the two users with no accept/decline step.
 describe("friendshipApi.redeemInviteCode", () => {
   it("redeems the code via the redeem_invite_code RPC and never touches invite_codes/friendships directly", async () => {
     // The RPC is `returns friendships` (a single composite row), not `returns setof`/

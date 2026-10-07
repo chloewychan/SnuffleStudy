@@ -6,7 +6,7 @@ import type { StudySession } from "../domain/session/sessionTypes";
 
 export default defineContentScript({
   // Registered dynamically (see src/background/contentScriptRegistration.ts) only after the
-  // user grants the "detailed" tracking tier — per Decision #2, this script is never injected
+  // user grants the "detailed" tracking tier — this script is never injected
   // via a static `matches: ["<all_urls>"]` entry, which would force the broad host-permission
   // prompt on every install regardless of tracking tier.
   //
@@ -24,8 +24,7 @@ export default defineContentScript({
     // user's browser console on every page load if the background service worker is asleep
     // or a message fails to round-trip — worse than the popup/options cases (which are only
     // open when the user opens them). Any failure below should just silently skip mounting
-    // the overlay rather than throw. (Standing project policy: fix bare-async-call-with-no-
-    // error-handling defects proactively rather than leaving them for a review round.)
+    // the overlay rather than throw.
     try {
       const activeResponse = await sendMessage<{ ok: boolean; session: StudySession | null }>({
         type: "SESSION_GET_ACTIVE",

@@ -7,17 +7,16 @@ interface CompletionScreenProps {
   session: StudySession;
 }
 
-// Shared by PopupApp and SidePanelApp. Previously a naturally-completed session was
-// archived and cleared from active storage in the same instant (alarmHandlers.ts), so
-// neither surface ever got a chance to render this — the UI just snapped straight back to
-// idle/setup with no acknowledgment.
+// Shared by PopupApp and SidePanelApp. A naturally-completed session is kept as the active
+// session (alarmHandlers.ts) instead of being archived and cleared immediately, so this gets
+// a chance to render before the UI snaps back to idle/setup.
 export function CompletionScreen({ session }: CompletionScreenProps) {
   const [completedCount, setCompletedCount] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    // Lightweight: a single SESSION_COUNT_BY_STATE call (Task 4 fix round 2), backed by an
+    // Lightweight: a single SESSION_COUNT_BY_STATE call, backed by an
     // indexed count (countByState / the sessions store's "by-state" index) rather than a
     // fetch-everything-and-measure-.length call - this fires on every single session end (not
     // just when a user opens a history page), so an unbounded fetch of the full matching

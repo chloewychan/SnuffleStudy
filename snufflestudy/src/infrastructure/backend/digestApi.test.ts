@@ -3,7 +3,7 @@ import { supabase } from "./supabaseClient";
 import { fetchDigestForDate, pollNewDigests } from "./digestApi";
 
 // Spies on the supabaseClient module's exported singleton, same boundary/style as
-// nudgeApi.test.ts/unlockRequestApi.test.ts/sessionStatusSyncApi.test.ts.
+// nudgeApi.test.ts/sessionStatusSyncApi.test.ts.
 beforeEach(() => {
   vi.restoreAllMocks();
 });
@@ -62,9 +62,9 @@ describe("digestApi.fetchDigestForDate", () => {
 
     const result = await fetchDigestForDate("2026-08-14");
 
-    // v3.2 Task 5: reads from daily_digests_visible (a security_invoker view gating
-    // distraction_count by friendship_settings.share_distraction_attempts), not the raw table -
-    // see supabase/migrations/20260815000030_v3.2_digest_visible_view.sql.
+    // Reads from daily_digests_visible (a security_invoker view gating distraction_count by
+    // friendship_settings.share_distraction_attempts), not the raw table - see
+    // supabase/migrations/20260815000030_v3.2_digest_visible_view.sql.
     expect(fromSpy).toHaveBeenCalledWith("daily_digests_visible");
     expect(builder.eq).toHaveBeenCalledWith("digest_date", "2026-08-14");
     expect(result).toEqual([
@@ -78,10 +78,8 @@ describe("digestApi.fetchDigestForDate", () => {
     ]);
   });
 
-  // Documented judgment call (this task's report): fetchDigestForDate does not filter out the
-  // caller's own row - it returns exactly what RLS allows, same convention as
-  // fetchNewEventsForFriends. FriendGroupPanel.tsx is the layer that filters self out for
-  // display.
+  // fetchDigestForDate does not filter out the caller's own row - it returns exactly what RLS
+  // allows. FriendGroupPanel.tsx is the layer that filters self out for display.
   it("includes the caller's own row when RLS returns one (does not filter it out itself)", async () => {
     mockSignedIn("user-self");
     const ownRow = { ...sampleRow, subject_user_id: "user-self" };
@@ -135,10 +133,9 @@ describe("digestApi.fetchDigestForDate", () => {
   });
 });
 
-// Fix-round-1 discipline from Task 6 (see sessionStatusSyncApi.ts's pollNewEventsForFriends
-// comment), applied here from the start per this task's own brief - alarmHandlers.ts's
-// friend-poll alarm needs to distinguish "the fetch failed" from "genuinely nothing new" so it
-// only advances its persisted digest cursor on confirmed success.
+// alarmHandlers.ts's friend-poll alarm needs to distinguish "the fetch failed" from "genuinely
+// nothing new" so it only advances its persisted digest cursor on confirmed success (see
+// sessionStatusSyncApi.ts's pollNewEventsForFriends comment for the same pattern).
 describe("digestApi.pollNewDigests", () => {
   it("selects daily_digests newer (by computed_at) than sinceTimestamp, mapped with digestDate/computedAt included", async () => {
     mockSignedIn("user-self");
@@ -148,8 +145,7 @@ describe("digestApi.pollNewDigests", () => {
     const since = new Date("2026-08-14T00:00:00.000Z").getTime();
     const result = await pollNewDigests(since);
 
-    // v3.2 Task 5: same daily_digests_visible view - see the comment on the fetchDigestForDate
-    // test above.
+    // Same daily_digests_visible view - see the comment on the fetchDigestForDate test above.
     expect(fromSpy).toHaveBeenCalledWith("daily_digests_visible");
     expect(builder.gt).toHaveBeenCalledWith("computed_at", new Date(since).toISOString());
     expect(result).toEqual({

@@ -1,32 +1,19 @@
-// v3.3 Task 10: Temp-passcode redesign - the friend's "approve" action, with the code entirely
-// removed. Approval alone is, and always was, the actual security boundary: this function already
-// verified the caller IS this request's friend_user_id and that the request is still 'pending'
-// before generating a code - that check is unchanged. What's gone is everything downstream of it
-// (PBKDF2 hashing, salt generation, the plaintext code itself) - there is nothing left to relay
-// out-of-band, so the response carries only what the requester's client needs to know the request
-// is now approved: hostname and expiresAt.
+// Approves a temp-passcode request on behalf of the assigned friend. Approval itself is the
+// security boundary here - there's no code value to protect or relay, just a status transition
+// that the requester's client picks up and uses to unlock the site for a limited time.
 //
-// v3.4 Task 3: temp_passcode_requests -> friend_requests (kind = 'site_temp_pass'). Only the
-// queried/updated table and the added kind filter change - the JWT auth check, the
-// caller-must-be-the-assigned-friend check, the pending-status check, and the TTL_MS=15min
-// generation are all byte-identical to the pre-v3.4 version. This is the ONE friend_requests
-// mutation that does NOT go through the shared plain-client resolveRequest() path (Decision 3,
-// docs/implementation_plans/V3.4_Implementation_Plan.md) - friend_requests' UPDATE policy's WITH
-// CHECK clause explicitly excludes a plain client from setting status='approved' when
-// kind='site_temp_pass', so this service-role Edge Function remains the only way that transition
-// can happen at all.
-//
-// Same structural template as generate-coaching-message/index.ts: CORS headers, json() helper,
-// module-scoped anon/admin clients, Authorization-header JWT auth via anonClient.auth.getUser(jwt).
+// friend_requests' UPDATE policy's WITH CHECK clause excludes a plain client from setting
+// status='approved' when kind='site_temp_pass', so this service-role Edge Function is the only
+// way that transition can happen.
 //
 // Request: { requestId: string } - called by the assigned friend's authenticated client
 // (tempPasscodeApi.ts's approveRequest(), via supabase.functions.invoke, which automatically
 // forwards the caller's bearer token).
 //
-// Verifies (server-side, via the service-role client - never trusts the client's own claim about
-// either): the caller IS this request's friend_user_id, and the request is still 'pending'. Then
-// sets status='approved'/expires_at/resolved_at via the service-role client. Returns
-// { hostname, expiresAt } - no code field.
+// Verifies (server-side, via the service-role client - never trusting the client's own claim
+// about either): that the caller IS this request's friend_user_id, and that the request is still
+// 'pending'. Then sets status='approved'/expires_at/resolved_at via the service-role client.
+// Returns { hostname, expiresAt } - no code field.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -52,12 +39,10 @@ const adminClient =
     ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     : null;
 
-// How long an approved request stays valid - the plan doesn't specify an exact duration
-// ("time-boxed" is the only requirement), unchanged from the pre-redesign value. 15 minutes is
-// long enough for the requester to notice the approval (a background poll tick, or clicking
-// "Check status") and get unlocked, short enough that "temporary" means something concrete rather
-// than an all-session unlock (which is what unlock_requests already covers for a longer-lived
-// grant).
+// How long an approved request stays valid. 15 minutes is long enough for the requester to
+// notice the approval (a background poll tick, or clicking "Check status") and get unlocked,
+// short enough that "temporary" means something concrete rather than an all-session unlock
+// (which is what unlock_requests covers for a longer-lived grant).
 const TTL_MS = 15 * 60 * 1000;
 
 interface RequestBody {

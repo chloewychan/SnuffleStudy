@@ -9,11 +9,9 @@ import * as videoCallClient from "../../infrastructure/video/videoCallClient";
 import type { ExtensionMessage } from "../../shared/messages";
 import type { StudyRoom } from "../../domain/rooms/studyRoom";
 
-// v4.1 Task 7: StudyRoomPanel.tsx is deleted and split into StudyRoomsBox.tsx (its own test file)
-// and this file (its joined-room branch, now the persistent StudyRoomFooter.tsx). This file
-// drives the join through the shared study-room session directly (a tiny harness below), rather
-// than through StudyRoomsBox's own UI, since the footer's own behavior shouldn't depend on how a
-// room was joined.
+// This file drives the join through the shared study-room session directly (a tiny harness
+// below), rather than through StudyRoomsBox's own UI, since the footer's own behavior shouldn't
+// depend on how a room was joined.
 vi.mock("../../infrastructure/backend/studyRoomApi", () => ({
   joinRoom: vi.fn(),
   subscribeToPresence: vi.fn(),
@@ -110,8 +108,7 @@ describe("StudyRoomFooter", () => {
     await joinSampleRoom();
 
     expect(screen.getByRole("heading", { name: "Thursday study group" })).toBeInTheDocument();
-    // v4.1 Task 7: the plain participant-name list is removed entirely - every participant
-    // already has a tile.
+    // No plain participant-name list - every participant already has a tile.
     expect(screen.queryByText("In this room (1)")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 3, name: /in this room/i })).not.toBeInTheDocument();
   });
@@ -270,7 +267,7 @@ describe("StudyRoomFooter", () => {
     await waitFor(() => expect(screen.queryByText("Leave Study Room")).not.toBeInTheDocument());
   });
 
-  describe("Nudge Vault picker and sending (v4.1 Task 7, Decision 8)", () => {
+  describe("Nudge Vault picker and sending", () => {
     it("loads and merges written + audio vault items, sorted by createdAt descending", async () => {
       vi.spyOn(messenger, "sendMessage").mockImplementation(
         routeSendMessage({
@@ -439,9 +436,8 @@ describe("StudyRoomFooter", () => {
   });
 });
 
-// QA-discovered bug precedent (v3.3 QA pass), preserved from StudyRoomPanel.test.tsx: video tiles
-// must not carry over stale media elements from a previous join session.
-describe("StudyRoomFooter — stale tile cleanup across leave/rejoin (v3.3 QA pass precedent)", () => {
+// Video tiles must not carry over stale media elements from a previous join session.
+describe("StudyRoomFooter — stale tile cleanup across leave/rejoin", () => {
   it("does not carry over a stale tile from a previous join when leaving and rejoining", async () => {
     let capturedListener: ((event: videoCallClient.VideoCallEvent) => void) | null = null;
     vi.mocked(videoCallClient.onVideoCallEvent).mockImplementation((listener) => {

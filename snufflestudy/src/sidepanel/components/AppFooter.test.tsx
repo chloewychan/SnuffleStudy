@@ -13,11 +13,6 @@ import type { FriendNudge } from "../../infrastructure/backend/nudgeApi";
 import type { FriendRequest } from "../../domain/accountability/friendRequest";
 import { getDismissedNudgeIds } from "../../infrastructure/storage/nudgeDismissalState";
 
-// v4.1 Task 7: AppFooter.tsx is the shell this task stands up - for now it renders
-// <StudyRoomFooter /> when a room is joined, otherwise null.
-// v4.1 Task 8: the shell now also mounts NudgesAndRequestsFooter (via useIncomingActivity(),
-// called exactly once, here) once its early-return condition widens to account for the Nudges &
-// Unlock Requests half too - see the second describe block below for that coverage.
 vi.mock("../../infrastructure/backend/studyRoomApi", () => ({
   joinRoom: vi.fn(),
   subscribeToPresence: vi.fn(),
@@ -97,12 +92,12 @@ describe("AppFooter", () => {
   });
 });
 
-// v4.1 Task 8: end-to-end coverage of useIncomingActivity() + NudgesAndRequestsFooter, mounted
-// through the one real call site (AppFooter.tsx) rather than a crafted-props unit test (that
-// coverage lives in NudgesAndRequestsFooter.test.tsx instead) - this is specifically the layer
-// where Decision 3 (a persisted dismissed-item id SET, not a single watermark) actually matters:
-// only here does dismissing one nudge while an older one is still undismissed get exercised
-// against the real nudgeDismissalState.ts persistence, not a mocked dismissNudge().
+// End-to-end coverage of useIncomingActivity() + NudgesAndRequestsFooter, mounted through the
+// real call site (AppFooter.tsx) rather than a crafted-props unit test (that coverage lives in
+// NudgesAndRequestsFooter.test.tsx instead). This is the layer where the persisted
+// dismissed-item id set actually matters: only here does dismissing one nudge while an older
+// one is still undismissed get exercised against the real nudgeDismissalState.ts persistence,
+// not a mocked dismissNudge().
 type Handler = (msg: ExtensionMessage) => unknown;
 
 function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
@@ -160,7 +155,7 @@ function renderAppFooter() {
   );
 }
 
-describe("AppFooter — Nudges & Unlock Requests (v4.1 Task 8)", () => {
+describe("AppFooter — Nudges & Unlock Requests", () => {
   it("shows the footer for an undismissed nudge even with no study room joined", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({ NUDGES_FETCH: () => ({ ok: true, nudges: [olderNudge] }) })
@@ -174,7 +169,7 @@ describe("AppFooter — Nudges & Unlock Requests (v4.1 Task 8)", () => {
     expect(screen.queryByRole("button", { name: /^leave room$/i })).not.toBeInTheDocument();
   });
 
-  it("dismissing the newer of two nudges leaves the older, still-undismissed one visible (Decision 3)", async () => {
+  it("dismissing the newer of two nudges leaves the older, still-undismissed one visible", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(
       routeSendMessage({ NUDGES_FETCH: () => ({ ok: true, nudges: [olderNudge, newerNudge] }) })
     );

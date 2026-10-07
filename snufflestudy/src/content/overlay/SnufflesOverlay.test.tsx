@@ -5,7 +5,7 @@ import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 import { generateCoachingMessage } from "../../infrastructure/backend/coachingApi";
 import type { StudySession } from "../../domain/session/sessionTypes";
 
-// v2 Task 11: the network-dependent half of the overlay's coaching-message behavior
+// The network-dependent half of the overlay's coaching-message behavior
 // (generateCoachingMessage's own timeout/fallback logic against supabase.functions.invoke) is
 // covered by coachingApi.test.ts - this file mocks the whole module so SnufflesOverlay's tests
 // only exercise ITS OWN responsibility: rendering the static message immediately, swapping in
@@ -15,11 +15,10 @@ vi.mock("../../infrastructure/backend/coachingApi", () => ({
   generateCoachingMessage: vi.fn(),
 }));
 
-// pickWarningMessage itself is NOT mocked (deliberately) - genuinely exercising the real
-// function (src/domain/pressure/pressureEngine.ts) against the real PRESSURE_PROFILES pool
-// (src/domain/pressure/pressureProfiles.ts) is the whole point of this task's "activate the dead
-// v1 code, don't reinvent it" requirement. Math.random is stubbed instead, to make pool selection
-// deterministic (index 0) without touching pickWarningMessage's own logic at all.
+// pickWarningMessage itself is NOT mocked - these tests genuinely exercise the real function
+// (src/domain/pressure/pressureEngine.ts) against the real PRESSURE_PROFILES pool
+// (src/domain/pressure/pressureProfiles.ts). Math.random is stubbed instead, to make pool
+// selection deterministic (index 0) without touching pickWarningMessage's own logic at all.
 const GENTLE_FIRST_WARNING = "Hey, is this part of the plan?"; // PRESSURE_PROFILES[0].firstWarningMessages[0]
 const GENERIC_FALLBACK_MESSAGE = "You're supposed to be studying right now.";
 
@@ -211,7 +210,7 @@ describe("SnufflesOverlay", () => {
     );
   });
 
-  // === v2 Task 11: dynamic coaching messages ===
+  // === dynamic coaching messages ===
 
   it("renders pickWarningMessage's line immediately once the active session is fetched, with zero wait on generateCoachingMessage", async () => {
     vi.spyOn(messenger, "sendMessage").mockResolvedValue({

@@ -9,36 +9,30 @@ interface EndSessionControlProps {
   session: StudySession;
 }
 
-// v3.3 Task 12: mirrors LockedPage.tsx's STATUS_LABEL const for its temp-passcode status block.
+// Mirrors LockedPage.tsx's STATUS_LABEL const for its temp-passcode status block.
 const END_REQUEST_STATUS_LABEL: Record<FriendRequest["status"], string> = {
   pending: "Pending",
   approved: "Approved",
   denied: "Denied",
 };
 
-// design-specs/frames/page-study-session.json's button-options ("End Session"). Only
-// ActiveSessionView.tsx mounts this now (the standalone browser-action popup entrypoint this
-// comment used to also mention was removed from the manifest before this task). For non-hard
-// sessions, "End session" fires SESSION_END
-// immediately, same as before this fix. For hard-restricted sessions it instead reveals
-// an inline passcode prompt — mirroring `LockedPage.tsx`'s "submit a passcode, show an
-// error on failure" shape (password input + submit, role="alert" error, disabled/loading
-// state while in flight) — since the backend now rejects SESSION_END on a hard session
-// with a configured HardBlockCredential unless a correct passcode is supplied.
+// Only ActiveSessionView.tsx mounts this. For non-hard sessions, "End session" fires
+// SESSION_END immediately. For hard-restricted sessions it instead reveals an inline
+// passcode prompt — mirroring `LockedPage.tsx`'s "submit a passcode, show an error on
+// failure" shape (password input + submit, role="alert" error, disabled/loading state
+// while in flight) — since the backend rejects SESSION_END on a hard session with a
+// configured HardBlockCredential unless a correct passcode is supplied.
 //
-// v3.3 Task 12: alongside that unchanged passcode form, `promptOpen` now also offers "Request a
-// temporary pass from a friend" — mirrors LockedPage.tsx's temp-passcode request/status pattern
-// (v3.4 Task 3: FRIEND_REQUEST_CREATE("session_end", ...), then poll via FRIEND_REQUESTS_FETCH
-// for "Check status", then once approved, an "End session now" button). Deliberately does NOT
-// auto-claim the way LockedPage.tsx's temp-passcode flow does (per the Global Constraints note:
-// ending a session is disruptive, so an approved session-end request is never auto-applied - not
-// even by this component reacting to its own poll result on its own; a human still has to click
-// "End session now").
+// Alongside the passcode form, `promptOpen` also offers "Request a temporary pass from a
+// friend" — mirrors LockedPage.tsx's temp-passcode request/status pattern (FRIEND_REQUEST_CREATE
+// ("session_end", ...), then poll via FRIEND_REQUESTS_FETCH for "Check status", then once
+// approved, an "End session now" button). Deliberately does NOT auto-claim the way
+// LockedPage.tsx's temp-passcode flow does: ending a session is disruptive, so an approved
+// session-end request is never auto-applied - not even by this component reacting to its own
+// poll result on its own; a human still has to click "End session now".
 //
-// v3.4 Task 3: this form gained a friend picker + optional message field, matching
-// LockedPage.tsx's exact pattern - previously a bare button with no target (any friend sharing a
-// group with the requester could resolve it, mirroring unlock_requests' group-wide shape); now
-// the requester picks a specific friend, same as site_temp_pass requests already did.
+// This form has a friend picker + optional message field, matching LockedPage.tsx's exact
+// pattern - the requester picks a specific friend, same as site_temp_pass requests already do.
 export function EndSessionControl({ session }: EndSessionControlProps) {
   const [promptOpen, setPromptOpen] = useState(false);
   const [passcode, setPasscode] = useState("");
@@ -49,7 +43,7 @@ export function EndSessionControl({ session }: EndSessionControlProps) {
   const [endRequestBusy, setEndRequestBusy] = useState(false);
   const [endRequestError, setEndRequestError] = useState<string | null>(null);
 
-  // v3.4 Task 3: friend picker state, mirroring LockedPage.tsx's friendIds/selectedFriendId/
+  // Friend picker state, mirroring LockedPage.tsx's friendIds/selectedFriendId/
   // requestMessage exactly - one FRIENDS_LIST call, same friend-picker pattern
   // RequestUnlockForm.tsx/LockedPage.tsx already use.
   const [friendIds, setFriendIds] = useState<string[] | null>(null);
@@ -57,7 +51,7 @@ export function EndSessionControl({ session }: EndSessionControlProps) {
   const [selectedFriendId, setSelectedFriendId] = useState("");
   const [requestMessage, setRequestMessage] = useState("");
 
-  // v3.3 Task 8: resolves each friend id to their human_name (falling back to the raw id, same
+  // Resolves each friend id to their human_name (falling back to the raw id, same
   // as LockedPage.tsx's identical picker) - see shared/ui/useDisplayNames.ts.
   const displayName = useDisplayNames(friendIds ?? []);
 
@@ -138,9 +132,9 @@ export function EndSessionControl({ session }: EndSessionControlProps) {
     }
   }
 
-  // v3.3 Task 12: requester side - "Request a temporary pass from a friend". Mirrors
+  // Requester side - "Request a temporary pass from a friend". Mirrors
   // LockedPage.tsx's handleRequestTempPasscode shape (sendMessage, store the created request in
-  // state on success, surface an inline error otherwise). v3.4 Task 3: now sends
+  // state on success, surface an inline error otherwise). Sends
   // FRIEND_REQUEST_CREATE("session_end", ...) with the picked friendUserId/optional message,
   // trimmed and omitted entirely when empty - same convention LockedPage.tsx's
   // handleRequestTempPasscode already established.
@@ -171,7 +165,7 @@ export function EndSessionControl({ session }: EndSessionControlProps) {
       .finally(() => setEndRequestBusy(false));
   }
 
-  // v3.3 Task 12: mirrors LockedPage.tsx's handleRefreshTempRequestStatus shape - a fresh
+  // Mirrors LockedPage.tsx's handleRefreshTempRequestStatus shape - a fresh
   // FRIEND_REQUESTS_FETCH, then find this request by id and replace local state with its
   // current (possibly still-pending) status. sinceTimestamp: 0 mirrors LockedPage.tsx's own
   // "check on one specific request by id" usage of this fetch, not a real lookback window.
@@ -198,14 +192,13 @@ export function EndSessionControl({ session }: EndSessionControlProps) {
       .finally(() => setEndRequestBusy(false));
   }
 
-  // v3.3 Task 12: once endRequest.status === "approved", ends the session using the approved
+  // Once endRequest.status === "approved", ends the session using the approved
   // pass instead of the permanent passcode - same success/failure handling handleSubmit above
   // already has for the passcode path (the active-session subscription swaps this view out on
   // success; a failure is surfaced inline rather than left as an unhandled rejection).
   // Deliberately a button click, not an effect that fires automatically the moment endRequest
-  // becomes approved (unlike LockedPage.tsx's temp-passcode auto-claim) - per the Global
-  // Constraints note, ending a session is disruptive, so it always waits for the user to click
-  // this themselves.
+  // becomes approved (unlike LockedPage.tsx's temp-passcode auto-claim): ending a session is
+  // disruptive, so it always waits for the user to click this themselves.
   async function handleEndWithPass() {
     if (!endRequest) return;
     setEndRequestError(null);
@@ -253,7 +246,7 @@ export function EndSessionControl({ session }: EndSessionControlProps) {
           {error && <p role="alert">{error}</p>}
         </form>
 
-        {/* v3.3 Task 12: alongside (never instead of) the passcode form above - a friend-approved
+        {/* Alongside (never instead of) the passcode form above - a friend-approved
             temporary pass to end this session early. */}
         <div className="end-session-control__temp-pass">
           <h3>Or request a temporary pass</h3>

@@ -4,13 +4,9 @@ import type { FriendRequest } from "../../domain/accountability/friendRequest";
 import type { StudySession, SessionEvent } from "../../domain/session/sessionTypes";
 
 interface RequestUnlockFormProps {
-  // Non-null, unlike UnlockRequestPanel.tsx's old `session: StudySession | null` - this
-  // component is only ever rendered when a session exists (Decision 5,
-  // docs/implementation_plans/V3.4_Implementation_Plan.md): SidePanelApp.tsx's active-session
-  // view composes this alongside ActiveSessionView; there is no other mount point (the old
-  // `session={null}` usage - suppressing this section entirely when no session exists - is
-  // simply not applicable anymore, since this component no longer has an approver-side section
-  // to fall back to rendering).
+  // Non-null: this component is only ever rendered when a session exists.
+  // SidePanelApp.tsx's active-session view composes this alongside ActiveSessionView; there is
+  // no other mount point.
   session: StudySession;
 }
 
@@ -20,19 +16,17 @@ const STATUS_LABEL: Record<FriendRequest["status"], string> = {
   denied: "Denied",
 };
 
-// Mirrors FriendGroupPanel.tsx's identical lookback window/rationale - a point-in-time view of
-// recent activity, not itself the delivery mechanism (that's alarmHandlers.ts's friend-poll
-// alarm, which tracks its own separate "last checked" cursor via friendPollState.ts's
-// getLastFriendRequestPollAt/setLastFriendRequestPollAt for chrome.notifications toasts).
+// A point-in-time view of recent activity, not itself the delivery mechanism - that's
+// alarmHandlers.ts's friend-poll alarm, which tracks its own separate "last checked" cursor via
+// friendPollState.ts's getLastFriendRequestPollAt/setLastFriendRequestPollAt for
+// chrome.notifications toasts.
 const LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
 const NON_TERMINAL_STATES = new Set(["FOCUSING", "PAUSED", "BREAK"]);
 
-// Per v2 Task 8's original brief (carried forward verbatim - this section's logic is unchanged
-// by this task, only its home): SESSION_LIST_EVENTS (v1, already exists) already records a
-// hostname on every DISTRACTION_ATTEMPT event for the current session - deriving distinct
-// hostnames from that is cheap (one existing message, no new backend work) and used as quick-fill
-// buttons below, alongside (not instead of) the manual text field.
+// SESSION_LIST_EVENTS already records a hostname on every DISTRACTION_ATTEMPT event for the
+// current session, so deriving distinct hostnames from that is cheap (one existing message, no
+// new backend work) and is used for quick-fill buttons below, alongside the manual text field.
 function distinctBlockedHostnames(events: SessionEvent[]): string[] {
   const seen = new Set<string>();
   for (const event of events) {
@@ -43,20 +37,13 @@ function distinctBlockedHostnames(events: SessionEvent[]): string[] {
   return [...seen];
 }
 
-// v3.4 Task 3, Decision 5: the mid-session "Request an unlock" requester form, relocated here
-// from UnlockRequestPanel.tsx's top half (that component - and TempPasscodePanel.tsx/
-// SessionEndRequestPanel.tsx - are deleted this task, replaced by this component + what was then
-// a standalone approver-side panel). Carries UnlockRequestPanel.tsx's exact requester-side
-// behavior (blocked-hostname suggestion buttons, a hostname text field, "my requests for this
-// session" status list) - only the create call changes, from UNLOCK_REQUEST_CREATE to
+// The mid-session "Request an unlock" requester form: blocked-hostname suggestion buttons, a
+// hostname text field, and a "my requests for this session" status list. Creates requests via
 // FRIEND_REQUEST_CREATE("site_unlock", { sessionId, hostname }). SidePanelApp.tsx's
 // active-session view composes this (session-aware) alongside ActiveSessionView.
 //
-// v4.1 Task 8: the approver-side panel this used to sit beside (behind a toggle) is gone - its
-// content is now always visible in the new, persistent Nudges & Unlock Requests footer instead,
-// so this form now renders directly in the active-session view, unconditionally, rather than
-// behind that toggle. This component itself is otherwise unaffected (Task 8's own Deliverables:
-// "session-scoped, unaffected").
+// The approver side of unlock requests is handled separately, in the persistent Nudges & Unlock
+// Requests footer - this form renders unconditionally, with no approver-side toggle.
 export function RequestUnlockForm({ session }: RequestUnlockFormProps) {
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
 

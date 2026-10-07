@@ -7,9 +7,9 @@ import { ButtonLarge } from "../../sidepanel/components/ui/ButtonLarge";
 import { Input } from "../../sidepanel/components/ui/Input";
 import { useRefreshAllSafe } from "../../sidepanel/refresh/RefreshRegistryContext";
 
-// v3.2 Task 1: the OTP email/code sign-in state and AUTH_REQUEST_OTP/AUTH_VERIFY_OTP round trip
-// this page used to own inline now live in the shared SignInForm - this page just holds the
-// resulting session (still its own concern: initial AUTH_GET_SESSION load, sign-out, etc.).
+// The OTP email/code sign-in state and the AUTH_REQUEST_OTP/AUTH_VERIFY_OTP round trip live in
+// the shared SignInForm - this page just holds the resulting session (its own concern: initial
+// AUTH_GET_SESSION load, sign-out, etc.).
 type AuthSession = SignInFormSession;
 
 export function AccountPage() {
@@ -27,22 +27,18 @@ export function AccountPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
 
-  // v3.2 Task 8: account/data deletion. Same busy/error state shape as every other destructive
-  // action on this page (handleSignOut).
+  // Same busy/error state shape as every other destructive action on this page (handleSignOut).
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteConfirming, setDeleteConfirming] = useState(false);
 
-  // v3.3 Task 14: "set/change your password" for an already-signed-in user - the recovery path
-  // for any account created before this feature shipped (no password yet, since a password used
-  // to be optional), and the normal way to change a password later. No longer the primary way a
-  // password gets set (that's now mandatory at signup, inside SignInForm.tsx's create-account
-  // branch) - this is a secondary action, always available while signed in.
-  // v3.4 Task 6: `passwordSetAt` is now also loaded from the signed-in user's profile
-  // (PROFILE_GET_MINE, below) rather than starting purely local - it's the durable, server-side
-  // signal for whether a "Current password" field needs to be shown/required at all. It's still
-  // updated locally to Date.now() on a successful set (unchanged from before this task), which
-  // both confirms the "Password updated." message and immediately flips a first-time set into
+  // Lets an already-signed-in user set or change their password. This is the recovery path for
+  // an account that has no password yet (e.g. one signed in only via one-time code), and the
+  // normal way to change a password afterward.
+  // `passwordSetAt` is loaded from the signed-in user's profile (PROFILE_GET_MINE, below) as the
+  // durable, server-side signal for whether a "Current password" field needs to be shown/
+  // required at all. It's also updated locally to Date.now() on a successful set, which both
+  // confirms the "Password updated." message and immediately flips a first-time set into
   // "current password now required" for any subsequent change, without waiting on a re-fetch.
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
@@ -81,9 +77,9 @@ export function AccountPage() {
     };
   }, []);
 
-  // v3.4 Task 6: loads `passwordSetAt` from the signed-in user's profile once signed in - the
-  // password section below (rendered further down, once `session` is set) needs this resolved
-  // before it can decide whether to show/require the "Current password" field.
+  // Loads `passwordSetAt` from the signed-in user's profile once signed in - the password
+  // section below (rendered further down, once `session` is set) needs this resolved before it
+  // can decide whether to show/require the "Current password" field.
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
@@ -134,17 +130,17 @@ export function AccountPage() {
     }
   }
 
-  // v3.3 Task 14: sets or changes the signed-in user's password via AUTH_SET_PASSWORD (same
-  // message SignInForm.tsx's create-account step uses). Submit is disabled until both fields are
+  // Sets or changes the signed-in user's password via AUTH_SET_PASSWORD (same message
+  // SignInForm.tsx's create-account step uses). Submit is disabled until both fields are
   // non-empty and match - same "genuinely disabled, not just visually" contract as
   // SignInForm.tsx's own password step.
-  // v3.4 Task 6: `currentPassword` is only sent when `passwordSetAt !== null` - there's nothing
-  // to verify against otherwise (see messageRouter.ts's AUTH_SET_PASSWORD case), and sending an
-  // empty string would read as "verify against an empty password" rather than "nothing to
-  // verify." On success, `currentPassword` is cleared alongside `newPassword`/`confirmNewPassword`
-  // (its job is done). On failure it's left as-is, same "don't wipe input on a failed attempt"
-  // convention this form already follows for the other two fields - the field the user needs to
-  // look at again (e.g. after "Current password is incorrect") is right there.
+  // `currentPassword` is only sent when `passwordSetAt !== null` - there's nothing to verify
+  // against otherwise (see messageRouter.ts's AUTH_SET_PASSWORD case), and sending an empty
+  // string would read as "verify against an empty password" rather than "nothing to verify." On
+  // success, `currentPassword` is cleared alongside `newPassword`/`confirmNewPassword` (its job
+  // is done). On failure it's left as-is, same "don't wipe input on a failed attempt" convention
+  // this form already follows for the other two fields - the field the user needs to look at
+  // again (e.g. after "Current password is incorrect") is right there.
   async function handleSetPassword(e: React.FormEvent) {
     e.preventDefault();
     setPasswordBusy(true);
@@ -173,12 +169,11 @@ export function AccountPage() {
     }
   }
 
-  // v3.2 Task 8: routes to AUTH_DELETE_ACCOUNT -> accountApi.deleteAccount() -> the
-  // delete-account Edge Function. Confirmation step per this task's own DoD ("irreversible"),
-  // rendered inline in this page's own JSX (deleteConfirming) rather than a browser-native
-  // window.confirm() - QA-discovered bug (v3.2 Task 9): Chrome silently suppresses
-  // confirm()/alert()/prompt() with no visible dialog at all when this Options page is shown
-  // embedded inside chrome://extensions, which is its default presentation.
+  // Routes to AUTH_DELETE_ACCOUNT -> accountApi.deleteAccount() -> the delete-account Edge
+  // Function. The confirmation step is rendered inline in this page's own JSX (deleteConfirming)
+  // rather than as a browser-native window.confirm(), because Chrome silently suppresses
+  // window.confirm()/alert()/prompt() with no visible dialog when this Options page is shown
+  // embedded inside chrome://extensions (its default presentation).
   async function handleDeleteAccount() {
     setDeleteConfirming(false);
     setDeleteBusy(true);
@@ -237,10 +232,6 @@ export function AccountPage() {
 
       {session && (
         <>
-          {/* v4.1 Task 10: Sign out and Delete account merged into one row under the single
-              "Account" heading above (scope doc's Settings section) - previously two separate
-              sections, one with its own "Delete account" h3. The deleteConfirming
-              confirm-then-delete flow itself (below) is unchanged, just relocated here. */}
           <section className="account-page__options">
             <p className="sp-label">Signed in as {session.user.email ?? session.user.id}</p>
             <div className="account-page__button-row">
@@ -253,8 +244,8 @@ export function AccountPage() {
             </div>
             {authError && <p role="alert">Couldn't sign out: {authError}. Please try again.</p>}
             {deleteConfirming && (
-              // design-specs/frames/popup-delete-account.json - shared with the sidepanel's own
-              // Settings tab (SettingsTab.tsx mounts this same AccountPage), not options-page-only.
+              // Shared with the sidepanel's own Settings tab (SettingsTab.tsx mounts this same
+              // AccountPage), not options-page-only.
               <Modal title="Are you sure?" onClose={() => setDeleteConfirming(false)}>
                 <p>
                   This removes your friend connections, study room history, audio nudges,

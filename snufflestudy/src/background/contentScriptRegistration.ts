@@ -1,9 +1,9 @@
 const CONTENT_SCRIPT_ID = "snuffles-overlay";
 
-// Per Decision #2 in the architecture overview, the overlay content script (src/content/index.ts)
-// has no static `matches` entry in its manifest declaration — it's registered dynamically here,
-// only once the user has granted the "detailed" tracking tier's broad host permission, so that
-// installing the extension never forces the broad-host-permission prompt up front.
+// The overlay content script (src/content/index.ts) has no static `matches` entry in its
+// manifest declaration — it's registered dynamically here, only once the user has granted the
+// "detailed" tracking tier's broad host permission, so that installing the extension never
+// forces the broad-host-permission prompt up front.
 
 export async function registerOverlayContentScript(): Promise<void> {
   const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [CONTENT_SCRIPT_ID] });

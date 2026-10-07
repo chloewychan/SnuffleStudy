@@ -4,11 +4,9 @@ import type { FriendRequest, FriendRequestKind } from "../../domain/accountabili
 import { unlockHardBlockRuleForHostname } from "../browser/declarativeNetRequestApi";
 import { scheduleTempUnlockRelockAlarm } from "../browser/alarmsApi";
 
-// v3.4 Task 3: replaces unlockRequestApi.ts/tempPasscodeApi.ts/sessionEndRequestApi.ts (all three
-// deleted outright) - one file, parameterized by `kind`, backing friend_requests
-// (supabase/migrations/20260815000041_v3.4_friend_requests.sql). Imports requireUserId/checkAuth
-// from authHelpers.ts (Task 1) from the start, rather than gaining a fresh local copy the way the
-// three files it replaces each independently defined one.
+// Handles all friend-request kinds (site unlock, temporary passcode, session-end approval)
+// through one file parameterized by `kind`, backed by the friend_requests table
+// (supabase/migrations/20260815000041_v3.4_friend_requests.sql).
 const COLUMNS =
   "id, kind, requester_user_id, friend_user_id, message, status, requested_at, resolved_at, resolved_by, hostname, session_id, expires_at";
 
@@ -45,12 +43,9 @@ function toFriendRequest(row: FriendRequestRow): FriendRequest {
 }
 
 // One creation function for all three kinds, parameterized by kind + a context object holding
-// exactly the fields that kind needs - mirrors LockedPage.tsx's/EndSessionControl.tsx's/
-// RequestUnlockForm.tsx's shared call shape (Decision 5 / scope doc's "all three now call the
-// same shared createRequest"). message is omitted from the insert body entirely (not sent as
-// `message: undefined`) when not provided - same convention tempPasscodeApi.ts's createRequest
-// already established, so a request created without one round-trips through the DB's actual NULL
-// default rather than an explicit value.
+// exactly the fields that kind needs. message is omitted from the insert body entirely (not sent
+// as `message: undefined`) when not provided, so a request created without one round-trips
+// through the DB's actual NULL default rather than an explicit value.
 export async function createRequest(
   kind: FriendRequestKind,
   context: { sessionId: string; friendUserId?: string; message?: string; hostname?: string }
@@ -78,12 +73,11 @@ export async function createRequest(
 // Plain client UPDATE - valid for: denying ANY kind, or approving site_unlock/session_end.
 // Approving a site_temp_pass request must go through approveTempPass() below instead - RLS's
 // WITH CHECK clause enforces this server-side regardless of what this function is called with
-// (see the migration's own comment, and this task's own security-critical negative-case test), so
-// this is a client-side guard for a clear error message, not the actual security boundary.
+// (see the migration's own comment), so this is a client-side guard for a clear error message,
+// not the actual security boundary.
 //
-// Deliberately chains .select().single() after the update, for the same "first responder wins"
-// reason unlockRequestApi.ts's/sessionEndRequestApi.ts's identical resolveRequest documented at
-// length: an UPDATE matching zero rows is not itself a Postgres/PostgREST error, which is exactly
+// Deliberately chains .select().single() after the update to catch the "first responder wins"
+// race: an UPDATE matching zero rows is not itself a Postgres/PostgREST error, which is exactly
 // what happens when a second friend attempts to resolve a request another friend already resolved
 // a moment earlier. Without forcing a `.single()` read of the (now zero) affected rows, this
 // function would resolve successfully with no error and no data.
@@ -106,8 +100,8 @@ export async function resolveRequest(
   }
 }
 
-// site_temp_pass approval only - Edge Function invoke, unchanged behavior from
-// tempPasscodeApi.ts's current approveRequest().
+// site_temp_pass approval only - goes through an Edge Function invoke rather than a direct
+// table write.
 export async function approveTempPass(
   requestId: string
 ): Promise<{ hostname: string; expiresAt: number }> {
@@ -122,11 +116,10 @@ export async function approveTempPass(
   return { hostname: data.hostname, expiresAt: data.expiresAt };
 }
 
-// site_temp_pass only - unchanged behavior from tempPasscodeApi.ts's current claimApproval(): a
-// fresh, RLS-gated read of the request row itself rather than trusting anything the client
-// already has cached, then performs the actual local unlock. Never throws (graceful degradation,
-// matching this codebase's established *Api.ts convention) - a network failure, a denied/missing
-// row, or an already-expired window all resolve to `{ ok: false }` rather than rejecting.
+// site_temp_pass only - does a fresh, RLS-gated read of the request row itself rather than
+// trusting anything the client already has cached, then performs the actual local unlock. Never
+// throws - a network failure, a denied/missing row, or an already-expired window all resolve to
+// `{ ok: false }` rather than rejecting.
 export async function claimApproval(requestId: string): Promise<{ ok: boolean }> {
   try {
     const { data, error } = await supabase
@@ -149,12 +142,10 @@ export async function claimApproval(requestId: string): Promise<{ ok: boolean }>
   }
 }
 
-// SECURITY-CRITICAL - generalizes sessionEndRequestApi.ts's isApprovedForSelf exactly (see that
-// function's own comment, reproduced here, for the full reasoning this preserves verbatim): does
-// its own fresh read, never trusts a client-supplied status, and explicitly compares
-// requester_user_id against the CALLER's own freshly-verified identity - RLS's
-// "friend_user_id = auth.uid()" SELECT branch deliberately lets the resolving friend read this
-// row too, which is not the same thing as it being THEIR pass to use. Kind-scoped (only ever
+// SECURITY-CRITICAL: does its own fresh read, never trusts a client-supplied status, and
+// explicitly compares requester_user_id against the CALLER's own freshly-verified identity -
+// RLS's "friend_user_id = auth.uid()" SELECT branch deliberately lets the resolving friend read
+// this row too, which is not the same thing as it being THEIR pass to use. Kind-scoped (only ever
 // called for "session_end" today, but takes kind as a param rather than hardcoding it, in case a
 // future kind needs the same guard).
 export async function isApprovedForSelf(
@@ -177,11 +168,10 @@ export async function isApprovedForSelf(
   );
 }
 
-// Shared implementation behind fetchRelevantRequests/pollRelevantRequests below - same
-// split/rationale as unlockRequestApi.ts's/tempPasscodeApi.ts's/sessionEndRequestApi.ts's
-// identical queryRelevantSince: `ok` distinguishes "the query itself failed" from "it ran cleanly
-// and found nothing new", which only matters to the poll-side caller (alarmHandlers.ts's
-// friend-poll alarm, which must not advance its persisted friend-request cursor past a failure).
+// Shared implementation behind fetchRelevantRequests/pollRelevantRequests below. `ok`
+// distinguishes "the query itself failed" from "it ran cleanly and found nothing new", which
+// only matters to the poll-side caller (alarmHandlers.ts's friend-poll alarm, which must not
+// advance its persisted friend-request cursor past a failure).
 //
 // Deliberately unfiltered beyond the timestamp bound - server-side RLS (this migration's own
 // SELECT policy) already restricts the result to: the caller's own requests (any status),
@@ -213,10 +203,9 @@ async function queryRelevantSince(
   }
 }
 
-// On-demand fetch for useIncomingActivity.ts (v4.1 Task 8)/RequestUnlockForm.tsx/LockedPage.tsx/
+// On-demand fetch for useIncomingActivity.ts/RequestUnlockForm.tsx/LockedPage.tsx/
 // EndSessionControl.tsx (via messageRouter.ts's FRIEND_REQUESTS_FETCH) - collapses the
-// ok/requests distinction into a plain array, mirroring every prior fetchRelevant*'s identical
-// contract.
+// ok/requests distinction into a plain array.
 export async function fetchRelevantRequests(sinceTimestamp: number): Promise<FriendRequest[]> {
   const result = await queryRelevantSince(sinceTimestamp);
   return result.requests;

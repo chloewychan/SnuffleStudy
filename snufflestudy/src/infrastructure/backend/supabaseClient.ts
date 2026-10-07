@@ -16,9 +16,9 @@ interface AsyncStorageAdapter {
 // tries to read/write a session. chrome.storage.local is the MV3-safe equivalent - mirrors
 // ChromeStorageRepository's style of wrapping chrome.storage.local.get/set (see
 // ../storage/chromeStorageRepository.ts). The background service worker is where this session
-// needs to live, since later tasks (6-14) drive backend syncs from background-side
-// alarms/idle listeners, not from UI components - see messageRouter.ts, which imports the
-// `supabase` singleton below rather than each UI surface creating its own client.
+// needs to live, since backend syncs are driven from background-side alarms/idle listeners, not
+// from UI components - see messageRouter.ts, which imports the `supabase` singleton below rather
+// than each UI surface creating its own client.
 export const chromeStorageAuthAdapter: AsyncStorageAdapter = {
   async getItem(key: string): Promise<string | null> {
     const result = await chrome.storage.local.get<Record<string, string>>(key);
@@ -41,9 +41,9 @@ let cachedClient: SupabaseClient | null = null;
 // throw happened at module load, it would propagate through those static imports and take down
 // the *entire* background service worker before registerAlarmHandlers/registerTabHandlers/
 // registerIdleHandlers/registerActivityTrackingHandlers ever ran, breaking all local session
-// functionality, not just the backend-dependent auth/group features. That directly violates the
-// v2 constraint that a friend-group feature failing to sync must never block starting or
-// running a local session. Deferring construction to first actual property access means a
+// functionality, not just the backend-dependent auth/group features. A friend-group feature
+// failing to sync must never block starting or running a local session. Deferring construction
+// to first actual property access means a
 // missing/bad config only fails whichever specific AUTH_*/GROUP_* message tried to use it
 // (caught by messageRouter.ts's top-level try/catch in handleMessage, same as any other thrown
 // error there), never module load.

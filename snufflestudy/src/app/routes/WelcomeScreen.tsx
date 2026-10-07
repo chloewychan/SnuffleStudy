@@ -5,11 +5,11 @@ interface WelcomeScreenProps {
   onContinue: () => void;
 }
 
-// design-specs/frames/page-welcome.json (275:308) - instantiates the real header-bar (Header.tsx)
-// rather than a static mockup of one; only OnboardingWizard.tsx mounts this, so Header's own
-// useRefreshAll()/AUTH_GET_SESSION calls work the same as they do everywhere else in the panel
-// (SidePanelApp.tsx wraps OnboardingWizard in the same RefreshRegistryProvider). "Log In" in the
-// header does the same thing as "Continue" below - both just advance past Welcome.
+// Instantiates the real header-bar (Header.tsx) rather than a static mockup of one. Only
+// OnboardingWizard.tsx mounts this, so Header's own useRefreshAll()/AUTH_GET_SESSION calls work
+// the same as they do everywhere else in the panel (SidePanelApp.tsx wraps OnboardingWizard in
+// the same RefreshRegistryProvider). "Log In" in the header does the same thing as "Continue"
+// below - both just advance past Welcome.
 export function WelcomeScreen({ onContinue }: WelcomeScreenProps) {
   return (
     <div className="onboarding-step onboarding-step--welcome">

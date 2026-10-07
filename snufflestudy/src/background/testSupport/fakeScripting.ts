@@ -5,8 +5,8 @@ import { vi } from "vitest";
 // all fall through to the scaffold's notMockedFunction() and throw synchronously.
 // Stub a minimal in-memory implementation that tracks registered content scripts by id across
 // calls, matching the shape registerOverlayContentScript/unregisterOverlayContentScript rely
-// on. Same root cause as the chrome.permissions gap (Task 12) and chrome.declarativeNetRequest
-// gap (Task 13), both already hand-stubbed in this codebase — see fakeDeclarativeNetRequest.ts.
+// on. Same root cause as the chrome.permissions and chrome.declarativeNetRequest gaps, both
+// already hand-stubbed elsewhere in this codebase — see fakeDeclarativeNetRequest.ts.
 export function createFakeScripting() {
   let registered: chrome.scripting.RegisteredContentScript[] = [];
   return {

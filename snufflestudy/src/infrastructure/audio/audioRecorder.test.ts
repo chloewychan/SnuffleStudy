@@ -134,9 +134,9 @@ describe("audioRecorder.startRecording / stopRecording", () => {
   });
 });
 
-// The core defense-in-depth guarantee this task's brief calls out by name: "enforce the max-length
-// cap inside stopRecording(), not just in the UI" - concretely, startRecording() must schedule its
-// OWN internal auto-stop, independent of whether/when stopRecording() is ever called.
+// The core defense-in-depth guarantee: the max-length cap is enforced inside the recorder itself,
+// not just in the UI - concretely, startRecording() must schedule its OWN internal auto-stop,
+// independent of whether/when stopRecording() is ever called.
 describe("audioRecorder — max-length cap enforcement", () => {
   it("auto-stops the MediaRecorder itself at MAX_RECORDING_MS even if stopRecording() is never called", async () => {
     startRecording();

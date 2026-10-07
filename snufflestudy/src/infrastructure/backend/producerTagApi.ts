@@ -2,30 +2,28 @@ import { supabase } from "./supabaseClient";
 import { requireUserId, checkAuth } from "./authHelpers";
 import type { ProducerTag } from "../../domain/rooms/producerTag";
 
-// v2 Task 14: Producer Tags (Audio Nudges).
+// Producer Tags (Audio Nudges).
 //
-// Message-passing scoping (mirrors Task 13's studyRoomApi.ts fix-round-1 precedent exactly - see
-// that file's own header comment):
+// Message-passing scoping (mirrors studyRoomApi.ts's convention exactly - see that file's own
+// header comment):
 //
 // uploadTag/sendToFriend/sendToRoom are plain CRUD-shaped writes with no DOM/live-callback
-// coupling of their own, so - per this task's brief - they are called ONLY from
-// src/background/messageRouter.ts (PRODUCER_TAG_UPLOAD/PRODUCER_TAG_SEND_TO_FRIEND/
-// PRODUCER_TAG_SEND_TO_ROOM/PRODUCER_TAG_SENDS_FETCH/PRODUCER_TAG_FETCH_BY_ID - see
-// src/shared/messages.ts), never imported directly by FriendGroupPanel.tsx/StudyRoomPanel.tsx -
-// exactly like studyRoomApi.ts's createRoom/listRooms/leaveRoom/listParticipants.
+// coupling of their own, so they are called ONLY from src/background/messageRouter.ts
+// (PRODUCER_TAG_UPLOAD/PRODUCER_TAG_SEND_TO_FRIEND/PRODUCER_TAG_SEND_TO_ROOM/
+// PRODUCER_TAG_SENDS_FETCH/PRODUCER_TAG_FETCH_BY_ID - see src/shared/messages.ts), never imported
+// directly by FriendGroupPanel.tsx/StudyRoomPanel.tsx - exactly like studyRoomApi.ts's
+// createRoom/listRooms/leaveRoom/listParticipants.
 //
 // One genuine wrinkle uploadTag has that those four don't: its real parameter is a recorded audio
 // Blob, and chrome.runtime.sendMessage's DEFAULT message serialization (this codebase has not set
 // `message_serialization: "structured_clone"` in wxt.config.ts's manifest, which is Chrome-148+
-// opt-in only) is plain JSON - it cannot carry a Blob at all. So uploadTag()'s OWN exported
-// signature here still matches the plan's `uploadTag(blob: Blob): Promise<ProducerTag>` (plus a
-// justified `durationMs` addition - see its own comment) and still runs only in the background,
-// called only from messageRouter.ts - but the sidepanel side of that message case can't hand a raw
-// Blob to sendMessage(). blobToBase64/blobFromBase64 below are the (pure, no-Supabase-coupling)
-// serialization shim messageRouter.ts's PRODUCER_TAG_UPLOAD case and the panels use to bridge that
-// gap, confirmed against Chrome's own current messaging docs rather than assumed to "just work"
-// (developer.chrome.com/blog/structured-clone-messaging - Blob support over sendMessage is real,
-// but opt-in and not enabled here).
+// opt-in only) is plain JSON - it cannot carry a Blob at all. So uploadTag() still runs only in
+// the background, called only from messageRouter.ts - but the sidepanel side of that message case
+// can't hand a raw Blob to sendMessage(). blobToBase64/blobFromBase64 below are the (pure,
+// no-Supabase-coupling) serialization shim messageRouter.ts's PRODUCER_TAG_UPLOAD case and the
+// panels use to bridge that gap, confirmed against Chrome's own current messaging docs rather
+// than assumed to "just work" (developer.chrome.com/blog/structured-clone-messaging - Blob
+// support over sendMessage is real, but opt-in and not enabled here).
 //
 // subscribeToRoomProducerTags and downloadTagAudio are the two functions genuinely called DIRECTLY
 // from the sidepanel (StudyRoomPanel.tsx / FriendGroupPanel.tsx), for two independent reasons each
@@ -48,8 +46,8 @@ import type { ProducerTag } from "../../domain/rooms/producerTag";
 
 const PRODUCER_TAGS_BUCKET = "producer-tags";
 
-// Sibling channel to studyRoomApi.ts's `study-room-presence-${roomId}` (Task 13's Postgres-Changes
-// presence channel) - kept as a separate topic rather than reused, since this one is a PRIVATE,
+// Sibling channel to studyRoomApi.ts's `study-room-presence-${roomId}` Postgres-Changes presence
+// channel - kept as a separate topic rather than reused, since this one is a PRIVATE,
 // Broadcast-authorized channel (RLS on realtime.messages - see supabase/migrations/
 // 20260815000021_v2_producer_tags_storage_and_send_floor.sql) and presence's is not; mixing the
 // two authorization mechanisms on one topic is not a combination Supabase's own docs describe.
@@ -84,8 +82,7 @@ interface ProducerTagRow {
   audio_url: string;
   duration_ms: number;
   created_at: string;
-  // v4.1 Task 1 (supabase/migrations/20260815000046_v4.1_nudge_vault.sql): soft-delete marker
-  // (Decision 2). Not surfaced on the ProducerTag domain type - listMine() already filters
+  // Soft-delete marker. Not surfaced on the ProducerTag domain type - listMine() already filters
   // `deleted_at is null` server-side, so a caller of this file never needs to see it.
   deleted_at?: string | null;
 }
@@ -141,13 +138,10 @@ export function blobFromBase64(base64: string, mimeType: string): Blob {
 // the caller to authorize the upload, so the row must be inserted (with a known id) before the
 // object upload is attempted, not after.
 //
-// durationMs is a deliberate, documented addition beyond the plan's literal
-// `uploadTag(blob: Blob): Promise<ProducerTag>` signature (same category of justified deviation as
-// studyRoomApi.ts's joinRoom returning `{ token }` beyond the plan's bare `joinRoom(roomId)`) -
-// per this task's brief, duration_ms must be "derive[d] from the actual recorded blob/timing, not
-// just assume the cap was hit". Decoding an audio Blob's true duration requires the Web Audio
-// API's AudioContext, which does not exist in an MV3 background service worker (where this
-// function runs) - so instead, the CALLER (a sidepanel panel, which has genuine DOM/timing access)
+// durationMs must be derived from the actual recorded blob/timing, not just assumed from the cap
+// being hit. Decoding an audio Blob's true duration requires the Web Audio API's AudioContext,
+// which does not exist in an MV3 background service worker (where this function runs) - so
+// instead, the CALLER (a sidepanel panel, which has genuine DOM/timing access)
 // reads audioRecorder.ts's own getLastRecordingDurationMs() - the actual wall-clock elapsed
 // recording time, already clamped to the cap by that module - immediately after stopRecording()
 // resolves, and passes it through here rather than this function re-deriving (or worse, assuming)
@@ -191,11 +185,10 @@ export async function uploadTag(blob: Blob, durationMs: number): Promise<Produce
 // floor are both enforced entirely server-side by producer_tag_sends' INSERT policy - this
 // function never pre-checks either client-side, consistent with nudgeApi.ts's sendNudge() not
 // pre-checking its own server-side gates (a malicious client could always bypass a client-side
-// check with a raw REST call; only the server-side gate is load-bearing). As of v3.4 Task 8
-// (supabase/migrations/20260815000044_v3.4_nudge_cooldowns_and_producer_tag_rate_limit.sql), the
-// DM branch of that policy also routes through can_send_producer_tag_dm() - the same
-// toggle/cooldown gate can_send_nudge() already enforces for written nudges, extended to audio for
-// the first time.
+// check with a raw REST call; only the server-side gate is load-bearing). The DM branch of that
+// policy also routes through can_send_producer_tag_dm()
+// (supabase/migrations/20260815000044_v3.4_nudge_cooldowns_and_producer_tag_rate_limit.sql) - the
+// same toggle/cooldown gate can_send_nudge() enforces for written nudges, applied here to audio.
 export async function sendToFriend(tagId: string, friendUserId: string): Promise<void> {
   const userId = await requireUserId();
   const { error } = await supabase.from("producer_tag_sends").insert({
@@ -205,16 +198,10 @@ export async function sendToFriend(tagId: string, friendUserId: string): Promise
     recipient_room_id: null,
   });
   if (error) {
-    // QA-discovered bug (v3.4 QA pass): this used to pass the raw Postgres "new row violates row
-    // level security policy for table producer_tag_sends" error straight through to the user -
-    // harmless before Task 8 (the DM branch could realistically only fail here if the client lied
-    // about who its friends are, an edge case a user would never organically hit), but Task 8's
-    // new cooldown gate means a genuinely common case - a user sending audio nudges too quickly -
-    // now hits this exact same generic RLS denial. Mirrors sendNudge()'s own comment/handling
-    // above verbatim: it's inherently a binary allow/deny (are_friends() failing, either toggle
-    // being off, or the cooldown being active all produce the identical error), so this names
-    // every possibility rather than guessing which one - can_send_producer_tag_dm() itself
-    // doesn't surface which check failed either.
+    // The RLS denial here is inherently a binary allow/deny (are_friends() failing, either toggle
+    // being off, or the cooldown being active all produce the identical generic Postgres error),
+    // so - mirroring sendNudge()'s own handling - this names every possibility rather than
+    // guessing which one; can_send_producer_tag_dm() itself doesn't surface which check failed.
     console.error("Failed to send producer tag to friend", error);
     throw new Error(
       "Couldn't send that audio nudge — this friend may have nudges turned off, or you're on cooldown."
@@ -226,12 +213,11 @@ export async function sendToFriend(tagId: string, friendUserId: string): Promise
 // the same policy as sendToFriend - the room-membership floor and tag-ownership floor, see that
 // migration), THEN broadcasts it live over Supabase Realtime so any currently-connected
 // StudyRoomPanel (via subscribeToRoomProducerTags) hears about it within seconds rather than
-// waiting for the next friend-poll alarm tick - per this task's DoD ("broadcast into an active
-// Study Room, all current participants hear it"). The insert is the actual source of truth (any
-// room member, present now or later, can always discover this send through the normal RLS-gated
-// producer_tag_sends query path - there is no other delivery mechanism for room sends, per this
-// task's Part D: friend delivery reuses the poll alarm, room delivery reuses Realtime, and ONLY
-// Realtime); the broadcast is a best-effort, near-real-time enhancement on top of it. A broadcast
+// waiting for the next friend-poll alarm tick. The insert is the actual source of truth (any room
+// member, present now or later, can always discover this send through the normal RLS-gated
+// producer_tag_sends query path - room sends are delivered only through Realtime, never the poll
+// alarm, which is reserved for friend deliveries); the broadcast is a best-effort, near-real-time
+// enhancement on top of it. A broadcast
 // failure (e.g. a transient WebSocket/REST issue) must not surface as sendToRoom() itself having
 // failed - mirrors this codebase's established graceful-degradation posture (e.g. friendSync.ts's
 // recordFriendStatusEvent) for a delivery path that's an enhancement, not the only path to
@@ -333,9 +319,9 @@ export async function fetchProducerTagById(tagId: string): Promise<ProducerTag |
   return data ? toProducerTag(data as ProducerTagRow) : null;
 }
 
-// v4.1 Task 1: "My vault" list - the owner's own non-deleted tags, newest first. Distinct from
+// "My vault" list - the owner's own non-deleted tags, newest first. Distinct from
 // PRODUCER_TAG_SENDS_FETCH (incoming, from friends) and the room-broadcast path - this is
-// specifically "audio I've recorded and kept," per Task 9's Nudge Vault box.
+// specifically "audio I've recorded and kept."
 export async function listMine(): Promise<ProducerTag[]> {
   const userId = await requireUserId();
   const { data, error } = await supabase
@@ -348,7 +334,7 @@ export async function listMine(): Promise<ProducerTag[]> {
   return (data as ProducerTagRow[]).map(toProducerTag);
 }
 
-// v4.1 Task 1: soft delete (Decision 2) - a past send referencing this tag keeps playing for its
+// Soft delete - a past send referencing this tag keeps playing for its
 // recipient (producer_tag_sends.tag_id has no cascade and no on-delete rule to lean on); this only
 // removes it from the owner's own vault list (listMine() above) and from future send dropdowns.
 // The existing "owner can manage their own producer tags" FOR ALL policy (20260815000002) already
@@ -371,9 +357,9 @@ export async function softDelete(tagId: string): Promise<void> {
 // (alarmHandlers.ts's friend-poll alarm, which must not advance its persisted producer-tag cursor
 // past a failure).
 //
-// Filtered to recipient_user_id = auth.uid() - this is deliberately the FRIEND-delivery side only
-// (per this task's Part D: friend delivery reuses the poll alarm, room delivery reuses Realtime,
-// not this poll). A room send always has recipient_user_id null (the exactly-one-recipient CHECK
+// Filtered to recipient_user_id = auth.uid() - this is deliberately the FRIEND-delivery side only;
+// room deliveries are handled by Realtime, not this poll. A room send always has
+// recipient_user_id null (the exactly-one-recipient CHECK
 // constraint, 20260815000021), so this filter alone already excludes every room send with no
 // additional logic needed.
 //

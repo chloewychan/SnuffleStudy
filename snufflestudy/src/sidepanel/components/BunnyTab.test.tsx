@@ -9,11 +9,9 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
-// v3.3 Task 8: mirrors this codebase's established routeSendMessage helper convention
-// (UnlockRequestPanel.test.tsx/TempPasscodePanel.test.tsx/StudyRoomPanel.test.tsx) - lets each
-// test override only the message types it cares about; PROFILE_GET_MINE defaults to "no profile
-// row yet" so every pre-existing (pre-Task-8) test below keeps exercising exactly the stub-default
-// behavior it did before, without each test having to know this component now fetches on mount.
+// Lets each test override only the message types it cares about; PROFILE_GET_MINE defaults to
+// "no profile row yet" so most tests below exercise the stub-default behavior without needing
+// to know this component fetches on mount.
 type Handler = (msg: ExtensionMessage) => unknown;
 
 function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
@@ -53,7 +51,7 @@ describe("BunnyTab", () => {
     expect(humanInput).toHaveValue("Alice");
   });
 
-  it("has no Show Bunny toggle or Status meters (removed in v4.1 Task 5)", async () => {
+  it("has no Show Bunny toggle or Status meters", async () => {
     mockMessages();
     render(<BunnyTab />);
     await waitFor(() => expect(screen.getByLabelText("Bunny Name:")).toHaveValue("Snuffles"));
@@ -63,9 +61,9 @@ describe("BunnyTab", () => {
     expect(screen.queryByText(/friendliness/i)).not.toBeInTheDocument();
   });
 
-  // design-specs/frames/page-bunny.json's own button-bool starts on Property=disabled - there's
-  // nothing to save until a field is actually edited, and it's disabled again the moment a save
-  // succeeds (see BunnyTab.tsx's own header comment on bunnyNameSavedValue/humanNameSavedValue).
+  // There's nothing to save until a field is actually edited, and the button is disabled again
+  // the moment a save succeeds (see BunnyTab.tsx's comment on bunnyNameSavedValue/
+  // humanNameSavedValue).
   it("keeps each Save button disabled until its own field is edited, then re-disables it once the save succeeds", async () => {
     mockMessages();
     render(<BunnyTab />);
@@ -111,9 +109,9 @@ describe("BunnyTab", () => {
     expect(screen.getByRole("button", { name: "Save human name" })).toBeDisabled();
   });
 
-  // v3.3 Task 8: the DoD's "reloading shows the saved name, not reset to the stub default" -
-  // exercised here as "a fresh mount with an existing profiles row shows the saved values", since
-  // a page reload is, from this component's own point of view, just another fresh mount.
+  // A page reload is, from this component's own point of view, just another fresh mount - this
+  // exercises that a fresh mount with an existing profiles row shows the saved values, not reset
+  // to the stub defaults.
   it("loads a previously saved bunny/human name from PROFILE_GET_MINE instead of the stub defaults", async () => {
     const savedProfile: Profile = {
       userId: "user-a",
@@ -191,9 +189,9 @@ describe("BunnyTab", () => {
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Not signed in."));
   });
 
-  // v4.1 Task 5: the two Save buttons must own fully independent saving/success state - clicking
-  // one must never flip the other's button label to "Saving...", and a slow bunny-name save must
-  // not block or delay the human-name save's own success state.
+  // The two Save buttons must own fully independent saving/success state - clicking one must
+  // never flip the other's button label to "Saving...", and a slow bunny-name save must not
+  // block or delay the human-name save's own success state.
   it("keeps the two Save buttons' loading/success state independent", async () => {
     let resolveBunnySave!: (value: { ok: boolean }) => void;
     const bunnySavePromise = new Promise<{ ok: boolean }>((resolve) => {

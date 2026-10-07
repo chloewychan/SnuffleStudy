@@ -7,9 +7,8 @@ interface ModalProps {
   children: ReactNode;
 }
 
-// Shared shell for design-specs/frames/popup-*.json - each popup is the same [title, close] row
-// over a White-50 card, no two of them differing in chrome. The "popup" in these Figma names is a
-// modal/dialog rendered inside the side panel itself, not the WXT browser-action popup entrypoint
+// Shared shell: every modal is the same [title, close] row over a card, no two differing in
+// chrome. This is a dialog rendered inside the side panel itself, not a browser-action popup
 // (this extension has no such entrypoint at all).
 export function Modal({ title, onClose, children }: ModalProps) {
   return (

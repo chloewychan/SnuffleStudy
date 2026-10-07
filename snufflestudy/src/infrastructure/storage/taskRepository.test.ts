@@ -59,8 +59,6 @@ describe("IndexedDbTaskRepository", () => {
     expect(tasks.map((t) => t.id)).toEqual(["task_2"]);
   });
 
-  // QA-discovered bug (v3.2): tasks used to have no account scoping at all - every account (and
-  // signed-out use) shared the exact same list.
   describe("account scoping", () => {
     it("only lists tasks belonging to the requested userId", async () => {
       const repo = new IndexedDbTaskRepository();
@@ -73,9 +71,9 @@ describe("IndexedDbTaskRepository", () => {
       expect((await repo.list(null)).map((t) => t.id)).toEqual(["task_signed_out"]);
     });
 
-    it("backfills a pre-existing (v1 schema) task with no userId field to signed-out, not dropped", async () => {
-      // Simulates a real upgrade: a v1 database (no by-userId index, no userId field on the
-      // stored record at all) that already has data before this migration ever runs.
+    it("backfills a pre-existing (pre-userId-index) task with no userId field to signed-out, not dropped", async () => {
+      // Simulates a real upgrade: a database with no by-userId index and no userId field on the
+      // stored record at all, that already has data before the index-adding migration ever runs.
       const v1Db = await new Promise<IDBDatabase>((resolve, reject) => {
         const req = indexedDB.open("snufflestudy-tasks", 1);
         req.onupgradeneeded = () => {

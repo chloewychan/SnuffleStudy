@@ -19,11 +19,11 @@ import { RefreshRegistryProvider } from "./refresh/RefreshRegistryContext";
 import { StudyRoomSessionProvider } from "./studyRoom/StudyRoomSessionContext";
 import { AppFooter } from "./components/AppFooter";
 
-// v4.1 Task 2/7: RefreshRegistryProvider and StudyRoomSessionProvider both wrap the whole render
-// tree here, above every tab/session branch below, so neither ever remounts on a tab switch or
-// session-state change - any panel mounted in any branch can register its own refresh, and a
-// joined study room survives every branch swap below (Decision 5) with the same provider
-// instance. Order between the two doesn't matter - neither depends on the other.
+// RefreshRegistryProvider and StudyRoomSessionProvider wrap the whole render tree, above every
+// tab/session branch below, so neither ever remounts on a tab switch or session-state change:
+// any panel mounted in any branch can register its own refresh, and a joined study room survives
+// every branch swap below with the same provider instance. The two providers are independent of
+// each other, so their nesting order doesn't matter.
 export function SidePanelApp() {
   return (
     <RefreshRegistryProvider>
@@ -100,11 +100,9 @@ function SidePanelAppInner() {
           <TabBar active={activeTab} onSelect={setActiveTab} />
         </div>
         <div className="sp-scroll-area">
-          {/* Fix 5 (final-review fix wave): TabBar.tsx's tab buttons already had role="tab"/
-              aria-selected but nothing tied them to their content - each tab button's
-              aria-controls="sp-tabpanel" now points at this single shared panel id (only one tab's
-              content is ever mounted at a time, so one id covers all four), and aria-labelledby
-              here points back at whichever tab is currently active. */}
+          {/* Only one tab's content is ever mounted at a time, so a single shared panel id covers
+              all four tabs: each tab button's aria-controls points at "sp-tabpanel", and
+              aria-labelledby here points back at whichever tab is currently active. */}
           <div role="tabpanel" id="sp-tabpanel" aria-labelledby={`sp-tab-${activeTab}`}>
             {activeTab === "bunny" && <BunnyTab />}
             {activeTab === "study" && <StudyTab settings={settings} />}
@@ -139,16 +137,6 @@ function SidePanelAppInner() {
     );
   }
 
-  // v3.4 Task 3 (Decision 5): the requester-side "request an unlock" UI (RequestUnlockForm.tsx,
-  // session-aware) used to be composed alongside a standalone approver-side "review friend
-  // requests" panel (no session prop) only behind a toggle, reachable during an active session
-  // since a friend might be mid-session themselves when asked to approve/deny a request.
-  //
-  // v4.1 Task 8: that toggle (and the standalone approver-side panel it used to reveal) is
-  // removed - its content is now always visible in the new, persistent Nudges & Unlock Requests
-  // footer (NudgesAndRequestsFooter.tsx, via AppFooter.tsx), not something to reveal here.
-  // RequestUnlockForm is session-scoped and unaffected by this task - it renders directly
-  // alongside ActiveSessionView now, instead of behind that toggle.
   return (
     <div className="sidepanel-app">
       <div className="sp-sticky-header">

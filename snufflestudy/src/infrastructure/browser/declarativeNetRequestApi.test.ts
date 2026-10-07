@@ -18,10 +18,9 @@ async function ruleFor(hostname: string) {
   return rules.find((rule) => rule.condition.requestDomains?.includes(hostname));
 }
 
-// v2 Task 12: lockHardBlockRuleForHostname is the inverse of unlockHardBlockRuleForHostname - the
-// mechanism that makes a temp-passcode unlock time-boxed rather than permanent (see
-// alarmHandlers.ts's handleTempUnlockRelockAlarm, which calls this once a temp-passcode's expiry
-// alarm fires).
+// lockHardBlockRuleForHostname is the inverse of unlockHardBlockRuleForHostname - the mechanism
+// that makes a temp-passcode unlock time-boxed rather than permanent (see alarmHandlers.ts's
+// handleTempUnlockRelockAlarm, which calls this once a temp-passcode's expiry alarm fires).
 describe("lockHardBlockRuleForHostname", () => {
   it("adds a redirect-to-locked.html rule for the given hostname when none exists yet", async () => {
     await lockHardBlockRuleForHostname("youtube.com");
@@ -86,7 +85,7 @@ describe("lockHardBlockRuleForHostname", () => {
   });
 });
 
-describe("declarativeNetRequestApi - existing v1/Task 8 functions (regression coverage for this file, which had no dedicated test file before Task 12)", () => {
+describe("declarativeNetRequestApi - syncHardBlockRules, clearHardBlockRules, unlockHardBlockRuleForHostname", () => {
   it("syncHardBlockRules installs one rule per hostname", async () => {
     await syncHardBlockRules(["youtube.com", "reddit.com"]);
     const rules = await chrome.declarativeNetRequest.getDynamicRules();

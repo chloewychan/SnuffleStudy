@@ -10,26 +10,19 @@ import { ButtonLargeIcon } from "./ui/ButtonLargeIcon";
 import { ButtonLarge } from "./ui/ButtonLarge";
 import { Input } from "./ui/Input";
 
-// v4.1 Task 7: the persistent, joined-room half of the old StudyRoomPanel.tsx, now reading
-// everything from the shared study-room session (useStudyRoomSession()) instead of local state -
-// mounted by AppFooter.tsx whenever `joinedRoom` is truthy, so it survives a tab switch (and an
-// active study session) instead of unmounting the moment the Study tab isn't visible.
+// The persistent, joined-room half of the study room UI, reading everything from the shared
+// study-room session (useStudyRoomSession()). Mounted by AppFooter.tsx whenever `joinedRoom` is
+// truthy, so it survives a tab switch (and an active study session) instead of unmounting the
+// moment the Study tab isn't visible.
 //
-// Three changes from the old joined-room branch (scope doc: "Other Pages — Study Session -
-// Study Room footer"):
-// (1) the plain participant-name list (`study-room-panel__presence`) is removed entirely - every
-//     participant already has a tile.
-// (2) each tile is now clickable, toggling selection (a brand-new interaction - tiles used to be
-//     display-only).
-// (3) in-room producer-tag recording is removed entirely (not relocated - Decision 9 leaves the
-//     room-broadcast backend in place, unused). One Nudge button + a Nudge Vault picker replaces
-//     it, sending the chosen vault item to every currently-selected tile.
+// Each tile is clickable, toggling selection. Selected tiles are the Nudge send targets below -
+// there is no in-room producer-tag recording; a Nudge button plus a Nudge Vault picker sends the
+// chosen vault item to every currently-selected tile instead.
 
-// QA-discovered bug precedent (v3.3 QA pass), preserved verbatim from StudyRoomPanel.tsx: video
-// tiles are real React state (not a persistent ref-based DOM Map) so React's own reconciliation
-// (keyed by participantIdentity) decides deterministically when each tile's container actually
-// exists in the DOM - this tile's own effects below are race-free as a result: React never runs an
-// effect before the element it targets has been committed.
+// Video tiles are real React state (not a persistent ref-based DOM Map) so React's own
+// reconciliation (keyed by participantIdentity) decides deterministically when each tile's
+// container actually exists in the DOM - this tile's own effects below are race-free as a
+// result: React never runs an effect before the element it targets has been committed.
 function StudyRoomVideoTile({
   tile,
   label,
@@ -96,34 +89,31 @@ export function StudyRoomFooter() {
     clearParticipantSelection,
   } = useStudyRoomSession();
 
-  // v3.3 Task 8: resolves each participant's userId to their human_name (falling back to the raw
-  // id when no profile/name exists) - see shared/ui/useDisplayNames.ts. Sourced from `participants`
-  // (the authoritative "who's in the room" list), not `tiles` (a best-effort media view that can
-  // briefly lag/differ), same as the pre-split component.
+  // Resolves each participant's userId to their human_name (falling back to the raw id when no
+  // profile/name exists) - see shared/ui/useDisplayNames.ts. Sourced from `participants` (the
+  // authoritative "who's in the room" list), not `tiles` (a best-effort media view that can
+  // briefly lag/differ).
   const displayName = useDisplayNames([...participants.keys()]);
 
-  // v4.1 Task 9: the merge-and-sort this footer used to inline is now the shared
-  // useNudgeVaultItems() hook (also consumed by FriendsBox.tsx/NudgeVaultBox.tsx) - see that
-  // hook's own header comment.
+  // The merge-and-sort of saved nudges is the shared useNudgeVaultItems() hook (also consumed
+  // by FriendsBox.tsx/NudgeVaultBox.tsx) - see that hook's own header comment.
   const { items: vaultItems, loading: vaultLoading, error: vaultError, refresh: refreshVaultItems } =
     useNudgeVaultItems();
   const [selectedVaultKey, setSelectedVaultKey] = useState("");
   const [nudging, setNudging] = useState(false);
   const [nudgeError, setNudgeError] = useState<string | null>(null);
 
-  // v4.1 Task 2: replaces this footer's own Refresh button (it never had one of its own before
-  // Task 7, but the Nudge Vault picker it owns needs one) - the Header's one Refresh button
-  // re-runs this fetch among every other currently-mounted panel's own.
+  // The Header's single Refresh button re-runs this fetch among every other currently-mounted
+  // panel's own, so this footer doesn't render its own Refresh button.
   useRegisterRefresh(refreshVaultItems);
 
-  // Decision 8: targets selected participant tiles individually (NUDGE_SEND/
-  // PRODUCER_TAG_SEND_TO_FRIEND per selected participant's userId), not the room-wide
-  // PRODUCER_TAG_SEND_TO_ROOM broadcast - "sends a nudge to all the friends that were selected" is
-  // a subset of the room, not everyone in it. Decision 7: one existing per-target message per
-  // selection, fired in a loop from the frontend - no new bulk-send message. A participant who
-  // isn't actually a friend of the sender has their send rejected server-side
-  // (can_send_nudge()/producer_tag_sends' RLS) - surfaced here the same way any other failed send
-  // in this codebase is, not specially handled.
+  // Targets selected participant tiles individually (NUDGE_SEND/PRODUCER_TAG_SEND_TO_FRIEND per
+  // selected participant's userId), not the room-wide PRODUCER_TAG_SEND_TO_ROOM broadcast -
+  // sending to "all the friends that were selected" is a subset of the room, not everyone in it.
+  // This fires one existing per-target message per selection in a loop from the frontend, rather
+  // than a new bulk-send message. A participant who isn't actually a friend of the sender has
+  // their send rejected server-side (can_send_nudge()/producer_tag_sends' RLS) - surfaced here
+  // the same way any other failed send in this codebase is, not specially handled.
   function handleNudge() {
     if (!selectedVaultKey || selectedParticipantIds.size === 0) return;
     const [kind, id] = selectedVaultKey.split(":", 2) as ["written" | "audio", string];

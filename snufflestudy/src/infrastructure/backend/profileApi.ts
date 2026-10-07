@@ -1,9 +1,8 @@
 import { supabase } from "./supabaseClient";
 import { requireUserId } from "./authHelpers";
 
-// v3.3 Task 8: bunny/human display names, backed by the new `profiles` table (supabase/
-// migrations/20260815000034_v3.3_profiles.sql). Row shapes returned to callers are camelCase,
-// mirroring this codebase's established row->interface convention (friendGroupApi.ts's
+// Bunny/human display names, backed by the `profiles` table. Row shapes returned to callers are
+// camelCase, mirroring this codebase's established row->interface convention (friendGroupApi.ts's
 // FriendGroup/GroupMembership, friendshipSettingsApi.ts's FriendshipSettings, etc.) even though
 // the underlying Postgres columns are snake_case.
 export interface Profile {
@@ -11,10 +10,9 @@ export interface Profile {
   humanName: string | null;
   bunnyName: string | null;
   updatedAt: string;
-  // v3.4 Task 6: durable, server-side signal for "does this account already have a password to
-  // prove before changing it" - see markPasswordSet()'s own comment below and
-  // background/messageRouter.ts's AUTH_SET_PASSWORD case. null means no password has ever been
-  // set for this account.
+  // Durable, server-side signal for "does this account already have a password to prove before
+  // changing it" - see markPasswordSet()'s own comment below and background/messageRouter.ts's
+  // AUTH_SET_PASSWORD case. null means no password has ever been set for this account.
   passwordSetAt: number | null;
 }
 
@@ -84,20 +82,13 @@ export async function saveMyProfile(patch: {
   return toProfile(data as ProfileRow);
 }
 
-// Never throws - degrades to [] on any failure, same convention as
-// unlockRequestApi.fetchRelevantUnlockRequests. A plain .select().in("user_id", userIds) with no
-// client-side filtering: the "self or group-mate can read a profile" RLS policy already restricts
-// what actually comes back to rows the caller is allowed to see (their own profile, or a
-// group-mate's) - a stranger's id in `userIds` is silently omitted from the result, not an error
-// and not a raw uuid leaking through. Callers (useDisplayNames.ts) are expected to fall back to
-// the raw id for any userId that doesn't come back with a humanName.
-// v3.4 Task 6: separate from saveMyProfile() deliberately - password_set_at must never be
-// client-supplied (it's proof-of-state, not user-editable content like humanName/bunnyName), so it
-// gets its own narrow function rather than an optional field on saveMyProfile()'s patch type, which
-// would invite a caller to pass an arbitrary timestamp. Upserts (not a plain update) for the same
-// reason saveMyProfile() does - a brand-new account's profiles row may not exist yet at the moment
-// AUTH_SET_PASSWORD first fires (Task 7's create-account flow calls AUTH_SET_PASSWORD and
-// PROFILE_SAVE_MINE together, in an order this function must not depend on).
+// Separate from saveMyProfile() deliberately - password_set_at must never be client-supplied
+// (it's proof-of-state, not user-editable content like humanName/bunnyName), so it gets its own
+// narrow function rather than an optional field on saveMyProfile()'s patch type, which would
+// invite a caller to pass an arbitrary timestamp. Upserts (not a plain update) for the same reason
+// saveMyProfile() does - a brand-new account's profiles row may not exist yet at the moment
+// AUTH_SET_PASSWORD first fires (account creation calls AUTH_SET_PASSWORD and PROFILE_SAVE_MINE
+// together, in an order this function must not depend on).
 export async function markPasswordSet(): Promise<void> {
   const userId = await requireUserId();
   const { error } = await supabase
@@ -108,6 +99,13 @@ export async function markPasswordSet(): Promise<void> {
   }
 }
 
+// Never throws - degrades to [] on any failure, same convention as
+// unlockRequestApi.fetchRelevantUnlockRequests. A plain .select().in("user_id", userIds) with no
+// client-side filtering: the "self or group-mate can read a profile" RLS policy already restricts
+// what actually comes back to rows the caller is allowed to see (their own profile, or a
+// group-mate's) - a stranger's id in `userIds` is silently omitted from the result, not an error
+// and not a raw uuid leaking through. Callers (useDisplayNames.ts) are expected to fall back to
+// the raw id for any userId that doesn't come back with a humanName.
 export async function fetchProfilesByIds(userIds: string[]): Promise<Profile[]> {
   if (userIds.length === 0) return [];
   try {

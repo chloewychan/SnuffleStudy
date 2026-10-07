@@ -11,12 +11,9 @@ interface ButtonListProps {
   "aria-label"?: string;
 }
 
-// design-specs/frames/button-list.json (component set 168:1437) - a plain colored marker/bullet
-// shape, no icon or text content. Two of its six ON_HOVER destinations are mismatched in the spec
-// (square/white points at circle/white's hover variant; square/beige points at square/pink's), both
-// clearly Figma authoring slips rather than an intended cross-shape/cross-colour hover - every
-// combination gets the same treatment as its correctly-linked siblings: default's 75% opacity goes
-// to 100% on hover, matching its own shape and colour.
+// A plain colored marker/bullet shape, no icon or text content. Every shape/colour combination
+// gets the same hover treatment: default's 75% opacity goes to 100% on hover, matching its own
+// shape and colour.
 export function ButtonList({
   shape = "circle",
   colour = "white",

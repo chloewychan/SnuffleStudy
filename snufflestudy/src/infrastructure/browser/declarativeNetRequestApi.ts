@@ -45,7 +45,7 @@ export async function unlockHardBlockRuleForHostname(hostname: string): Promise<
   await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: [match.id] });
 }
 
-// v2 Task 12: the inverse of unlockHardBlockRuleForHostname above - re-adds a single hostname's
+// The inverse of unlockHardBlockRuleForHostname above - re-adds a single hostname's
 // redirect rule once a temp-passcode-unlocked window expires (alarmHandlers.ts's
 // handleTempUnlockRelockAlarm, fired by alarmsApi.ts's scheduleTempUnlockRelockAlarm). This is
 // what actually makes a temp-passcode unlock time-boxed rather than permanent: nothing else

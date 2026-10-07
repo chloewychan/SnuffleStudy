@@ -192,10 +192,8 @@ describe("producerTagApi.sendToFriend", () => {
     });
   });
 
-  // QA-discovered bug (v3.4 QA pass): the raw Postgres RLS message used to pass straight through
-  // to the user - harmless before Task 8's cooldown gate, but a real experience gap once "sent
-  // too many audio nudges too fast" became a common way to hit this exact denial. Mirrors
-  // nudgeApi.test.ts's identical assertion for sendNudge()'s own friendly-message translation.
+  // Mirrors nudgeApi.test.ts's identical assertion for sendNudge()'s own friendly-message
+  // translation: the raw Postgres RLS message must never reach the user directly.
   it("throws a friendly cooldown/toggle message, not the raw Postgres RLS error, when the send is denied", async () => {
     mockGetUser("user-a");
     vi.spyOn(supabase, "from").mockReturnValue(

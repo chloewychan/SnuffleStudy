@@ -34,10 +34,9 @@ beforeEach(() => {
   stubFakeDeclarativeNetRequest();
   indexedDB.deleteDatabase("snufflestudy");
   indexedDB.deleteDatabase("snufflestudy-tasks");
-  // Added alongside the friend-poll alarm tests below, which spy on the supabaseClient
-  // singleton - restoring between tests keeps that isolated to the test that set it up rather
-  // than leaking into later tests in this file (mirrors friendGroupApi.test.ts's/
-  // messageRouterAccountability.test.ts's beforeEach convention).
+  // The friend-poll alarm tests below spy on the supabaseClient singleton - restoring between
+  // tests keeps that isolated to the test that set it up rather than leaking into later tests
+  // in this file (mirrors messageRouterAccountability.test.ts's beforeEach convention).
   vi.restoreAllMocks();
 });
 
@@ -129,27 +128,16 @@ describe("handleAlarm", () => {
   });
 });
 
-describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
+describe("handleAlarm — friend-poll alarm", () => {
   const settingsRepo = new ChromeStorageRepository();
 
-  // v2 Task 7: handleFriendPollAlarm now also polls nudges on every tick
-  // (pollNudgeUpdates, alongside the pre-existing pollSessionEventUpdates). Defaulted to a
-  // clean "no new nudges" result here so every pre-existing test in this describe block (which
-  // only cares about the session-events half) never exercises nudgeApi's real
-  // supabase.auth.getSession() call. The dedicated "nudge poll" tests further below override
-  // this per-test.
-  //
-  // v3.4 Task 3: same treatment for the third stream, the consolidated friend-request poll
-  // (pollFriendRequestUpdates - replaces the three separate unlock-request/temp-passcode-request/
-  // session-end-request spies this task retires, now that all three kinds are one friend_requests
-  // table behind one pollRelevantRequests query) - defaulted to a clean "no new/resolved
-  // requests" result for the identical reason. The dedicated "friend-request polling" tests
-  // further below override this per-test.
-  //
-  // v2 Task 9: same treatment for the fourth stream, daily digests (pollDigestUpdates) -
-  // defaulted to a clean "no new digests" result so every pre-existing test in this describe
-  // block (which predates Task 9) never exercises digestApi's real supabase.auth.getSession()
-  // call. The dedicated "digest poll" tests further below override this per-test.
+  // handleFriendPollAlarm polls six independent streams on every tick: session events, nudges
+  // (pollNudgeUpdates), the consolidated friend-request poll (pollFriendRequestUpdates), daily
+  // digests (pollDigestUpdates), producer tags (pollProducerTagUpdates), and new friend
+  // connections (pollFriendConnectionUpdates). Every stream but session-events is defaulted here
+  // to a clean "nothing new" result so tests that only care about one stream don't incidentally
+  // exercise the others' real supabase.auth.getSession()/network calls. The dedicated per-stream
+  // describe blocks further below override these per-test.
   beforeEach(() => {
     vi.spyOn(nudgeApi, "pollIncomingNudges").mockResolvedValue({ ok: true, nudges: [] });
     vi.spyOn(friendRequestApi, "pollRelevantRequests").mockResolvedValue({
@@ -157,21 +145,13 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       requests: [],
     });
     vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({ ok: true, digests: [] });
-    // v2 Task 14: same treatment for the fifth stream, producer tags (pollProducerTagUpdates) -
-    // defaulted to a clean "no new tags" result so every pre-existing test in this describe block
-    // (which predates Task 14) never exercises producerTagApi's real supabase.auth.getSession()
-    // call. The dedicated "producer tag polling" tests further below override this per-test.
     vi.spyOn(producerTagApi, "pollIncomingProducerTagSends").mockResolvedValue({
       ok: true,
       sends: [],
     });
-    // v3.4 Task 2: same treatment for the sixth stream, new friend connections
-    // (pollFriendConnectionUpdates) - this one queries the supabase singleton directly (no
-    // dedicated *Api.ts module - see alarmHandlers.ts's own comment on why), so it's stubbed via
-    // supabase.from rather than vi.spyOn on an Api export, defaulted to "no new connections" so
-    // every pre-existing test in this describe block (which predates Task 2) never exercises a
-    // real network call. The dedicated "friend connection polling" tests further below override
-    // this per-test.
+    // pollFriendConnectionUpdates queries the supabase singleton directly (no dedicated *Api.ts
+    // module - see alarmHandlers.ts's own comment on why), so it's stubbed via supabase.from
+    // rather than vi.spyOn on an Api export.
     vi.spyOn(supabase, "from").mockReturnValue({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
@@ -179,11 +159,11 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     } as never);
   });
 
-  // handleFriendPollAlarm now re-checks friend-sync eligibility on every tick (fix round 1) -
-  // spying directly on friendSync.ts's exports (rather than settings+supabase, like the
-  // natural-completion test further below does) keeps these tests focused on
-  // handleFriendPollAlarm's own branching, independent of currentFriendSyncUserId/hasAnyFriend's
-  // own implementation (covered separately by friendSync.test.ts).
+  // handleFriendPollAlarm re-checks friend-sync eligibility on every tick - spying directly on
+  // friendSync.ts's exports (rather than settings+supabase, like the natural-completion test
+  // further below does) keeps these tests focused on handleFriendPollAlarm's own branching,
+  // independent of currentFriendSyncUserId/hasAnyFriend's own implementation (covered separately
+  // by friendSync.test.ts).
   function mockFriendSyncEligible(userId = "user-a") {
     vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue(userId);
     vi.spyOn(friendSync, "hasAnyFriend").mockResolvedValue(true);
@@ -264,9 +244,9 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     expect(pollSpy).toHaveBeenLastCalledWith(persisted);
   });
 
-  // Fix round 1 (Important #1): a poll tick that fails must not advance the cursor - otherwise
-  // any friend events that occurred during the outage are permanently lost, since the next tick
-  // would start counting from `now` instead of retrying the failed window.
+  // A poll tick that fails must not advance the cursor - otherwise any friend events that
+  // occurred during the outage are permanently lost, since the next tick would start counting
+  // from `now` instead of retrying the failed window.
   it("does NOT advance the persisted cursor when the poll fails (ok: false), so the next tick retries the same window", async () => {
     mockFriendSyncEligible();
     const pollSpy = vi
@@ -299,10 +279,10 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     expect(createNotificationSpy).not.toHaveBeenCalled();
   });
 
-  // Fix round 1 (Important #2): the alarm's own start/stop points only evaluate eligibility once
-  // (SESSION_START/end-of-session) - each recurring tick must independently re-confirm it's still
-  // eligible, so toggling friendSyncEnabled off (or leaving the last group) mid-session actually
-  // stops the polling work rather than continuing until the session ends regardless.
+  // The alarm's own start/stop points only evaluate eligibility once (SESSION_START/
+  // end-of-session) - each recurring tick must independently re-confirm it's still eligible, so
+  // toggling friendSyncEnabled off (or losing the last friend) mid-session actually stops the
+  // polling work rather than continuing until the session ends regardless.
   it("skips the fetch entirely (no call to pollNewEventsForFriends) when friend-sync is no longer enabled/signed-in", async () => {
     vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue(null);
     const pollSpy = vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends");
@@ -330,7 +310,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     expect(pollSpy).not.toHaveBeenCalled();
   });
 
-  describe("nudge polling (v2 Task 7 - reuses this same alarm, not a parallel one)", () => {
+  describe("nudge polling (reuses this same alarm, not a parallel one)", () => {
     it("dispatches to pollIncomingNudges when eligible, in the same tick as the session-events poll", async () => {
       mockFriendSyncEligible();
       const nudgePollSpy = vi
@@ -404,9 +384,9 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       expect(nudgePollSpy).toHaveBeenLastCalledWith(persisted);
     });
 
-    // Mirrors Task 6 fix round 1's session-events guarantee: a failed nudge poll must not
-    // advance the cursor, or nudges sent during the outage would be permanently lost once the
-    // next tick starts counting from `now` instead of retrying the same window.
+    // Mirrors the session-events poll's guarantee: a failed nudge poll must not advance the
+    // cursor, or nudges sent during the outage would be permanently lost once the next tick
+    // starts counting from `now` instead of retrying the same window.
     it("does NOT advance the persisted nudge cursor when the nudge poll fails (ok: false), so the next tick retries the same window", async () => {
       mockFriendSyncEligible();
       vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
@@ -490,7 +470,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       );
     });
 
-    describe("v2 Task 10 Part C: local notification-preference gating (does not affect the fetch/cursor)", () => {
+    describe("local notification-preference gating (does not affect the fetch/cursor)", () => {
       function sampleNudge() {
         return {
           id: "nudge-3",
@@ -553,7 +533,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
         expect(await getLastNudgePollAt()).toEqual(expect.any(Number));
       });
 
-      it("still shows the nudge toast when notifications are enabled and no quiet hours are configured (unaffected by this task)", async () => {
+      it("still shows the nudge toast when notifications are enabled and no quiet hours are configured", async () => {
         await settingsRepo.saveSettings(DEFAULT_USER_SETTINGS);
         mockFriendSyncEligible();
         vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
@@ -576,18 +556,13 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     });
   });
 
-  // v3.4 Task 3: replaces the three separate "unlock-request polling"/"temp passcode request
-  // polling"/"session-end request polling" describe blocks (v2 Task 8/Task 12/v3.3 Task 12) with
-  // one - unlock_requests/temp_passcode_requests/session_end_requests are now one friend_requests
-  // table behind one pollFriendRequestUpdates function/one pollRelevantRequests query, exercised
-  // here with all three kind values. site_unlock's approved case auto-applies the hostname to the
-  // requester's own active session's allowedSites (mirrors the old unlock-request block's own
-  // coverage); site_temp_pass's approved case unlocks the real DNR rule (mirrors the old temp
-  // passcode block's own coverage); session_end's approved case deliberately does NOT touch the
-  // active session at all (mirrors the old session-end block's own coverage of that asymmetry -
-  // see the Global Constraints note: ending a session is disruptive, so it's never auto-applied
-  // from this background poll).
-  describe("friend-request polling (v3.4 Task 3 - reuses this same alarm, not a parallel one)", () => {
+  // site_unlock, site_temp_pass, and session_end requests all live in one friend_requests table
+  // behind one pollFriendRequestUpdates function/one pollRelevantRequests query, exercised here
+  // with all three kind values. site_unlock's approved case auto-applies the hostname to the
+  // requester's own active session's allowedSites; site_temp_pass's approved case unlocks the
+  // real DNR rule; session_end's approved case deliberately does NOT touch the active session at
+  // all - ending a session is disruptive, so it's never auto-applied from this background poll.
+  describe("friend-request polling (reuses this same alarm, not a parallel one)", () => {
     function sampleRequest(overrides: Partial<FriendRequest> = {}): FriendRequest {
       return {
         id: "req-1",
@@ -693,12 +668,10 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       };
       expect(active.session.allowedSites).toContain("youtube.com");
 
-      // The DoD-critical assertion (per v2 Task 8's original brief, preserved by this
-      // consolidation): classifySite must now return ALLOWED for the unlocked hostname on this
-      // session - this is the actual mechanism that makes tabHandlers.ts's warning path never
-      // trigger for it (see that file's early return on anything classifySite doesn't call
-      // BLOCKED), independent of siteRestrictionOverrides (which this task deliberately does not
-      // use).
+      // classifySite must now return ALLOWED for the unlocked hostname on this session - this is
+      // the actual mechanism that makes tabHandlers.ts's warning path never trigger for it (see
+      // that file's early return on anything classifySite doesn't call BLOCKED), independent of
+      // siteRestrictionOverrides.
       const activeSession = (
         (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as { session: StudySession }
       ).session;
@@ -898,7 +871,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       );
     });
 
-    it("session_end: notifies with distinct copy when the current user's own request was approved, and does NOT touch the active session (no auto-apply, per the Global Constraints note)", async () => {
+    it("session_end: notifies with distinct copy when the current user's own request was approved, and does NOT touch the active session (no auto-apply)", async () => {
       mockFriendSyncEligible("user-a");
       const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
         session: { id: string };
@@ -927,9 +900,9 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
         expect.objectContaining({ title: "Temporary pass approved" })
       );
 
-      // The DoD-critical negative-of-a-different-kind: unlike site_unlock's approved case (which
-      // DOES mutate allowedSites), this must never end, abandon, or otherwise mutate the session
-      // on its own - the session is still exactly where it was, still FOCUSING.
+      // Unlike site_unlock's approved case (which DOES mutate allowedSites), this must never end,
+      // abandon, or otherwise mutate the session on its own - the session is still exactly where
+      // it was, still FOCUSING.
       const active = (await handleMessage({ type: "SESSION_GET_ACTIVE" })) as {
         session: { id: string; state: string };
       };
@@ -983,10 +956,10 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       expect(friendRequestPollSpy).toHaveBeenLastCalledWith(persisted);
     });
 
-    // Mirrors Task 6 fix round 1's session-events guarantee (and Task 7's identical nudge
-    // guarantee): a failed friend-request poll must not advance the cursor, or a pending
-    // request/resolution that arrived during the outage would be permanently lost once the next
-    // tick starts counting from `now` instead of retrying the same window.
+    // Mirrors the session-events and nudge streams' identical guarantee: a failed friend-request
+    // poll must not advance the cursor, or a pending request/resolution that arrived during the
+    // outage would be permanently lost once the next tick starts counting from `now` instead of
+    // retrying the same window.
     it("does NOT advance the persisted friend-request cursor when the poll fails (ok: false), so the next tick retries the same window", async () => {
       mockFriendSyncEligible();
       vi.spyOn(sessionStatusSyncApi, "pollNewEventsForFriends").mockResolvedValue({
@@ -1051,7 +1024,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     });
   });
 
-  describe("digest polling (v2 Task 9 - reuses this same alarm, not a parallel one)", () => {
+  describe("digest polling (reuses this same alarm, not a parallel one)", () => {
     function sampleDigest(overrides: Partial<FriendDigest> = {}): FriendDigest {
       return {
         friendUserId: "user-b",
@@ -1107,10 +1080,10 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       );
     });
 
-    // This task's DoD: "a friend who opted into digests ... sees one summary per day, not per
-    // session." The current user's OWN digest row (RLS legitimately returns it too - see
-    // digestApi.ts) must never generate a notification - that stream exists to tell a friend
-    // about someone ELSE's digest, not to tell a user about their own stats.
+    // A friend who opted into digests sees one summary per day, not per session. The current
+    // user's OWN digest row (RLS legitimately returns it too - see digestApi.ts) must never
+    // generate a notification - that stream exists to tell a friend about someone ELSE's digest,
+    // not to tell a user about their own stats.
     it("does NOT notify about the current user's own digest row", async () => {
       mockFriendSyncEligible("user-a");
       vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({
@@ -1150,7 +1123,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       expect(digestPollSpy).toHaveBeenLastCalledWith(persisted);
     });
 
-    // Mirrors Task 6/7/8's identical guarantee: a failed digest poll must not advance the
+    // Mirrors the other streams' identical guarantee: a failed digest poll must not advance the
     // cursor, or a digest computed during the outage would be permanently lost once the next
     // tick starts counting from `now` instead of retrying the same window.
     it("does NOT advance the persisted digest cursor when the poll fails (ok: false), so the next tick retries the same window", async () => {
@@ -1206,7 +1179,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
       expect(digestPollSpy).toHaveBeenLastCalledWith(cursorAfterTick1);
     });
 
-    describe("v2 Task 10 Part C: local notification-preference gating (does not affect the fetch/cursor)", () => {
+    describe("local notification-preference gating (does not affect the fetch/cursor)", () => {
       it("suppresses the digest toast when digestNotificationsEnabled is false, but still advances the cursor", async () => {
         await settingsRepo.saveSettings({
           ...DEFAULT_USER_SETTINGS,
@@ -1248,7 +1221,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
         expect(await getLastDigestPollAt()).toEqual(expect.any(Number));
       });
 
-      it("still shows the digest toast when notifications are enabled and no quiet hours are configured (unaffected by this task)", async () => {
+      it("still shows the digest toast when notifications are enabled and no quiet hours are configured", async () => {
         await settingsRepo.saveSettings(DEFAULT_USER_SETTINGS);
         mockFriendSyncEligible("user-a");
         vi.spyOn(digestApi, "pollNewDigests").mockResolvedValue({
@@ -1267,7 +1240,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     });
   });
 
-  describe("producer tag polling (v2 Task 14 - reuses this same alarm, not a parallel one; friend-delivery side only)", () => {
+  describe("producer tag polling (reuses this same alarm, not a parallel one; friend-delivery side only)", () => {
     function sampleIncomingTag(overrides: Partial<IncomingProducerTag> = {}): IncomingProducerTag {
       return {
         tagId: "tag-1",
@@ -1364,7 +1337,7 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
     });
   });
 
-  describe("friend connection polling (v3.4 Task 2 - reuses this same alarm, not a parallel one)", () => {
+  describe("friend connection polling (reuses this same alarm, not a parallel one)", () => {
     // Query shape mirrors alarmHandlers.ts's pollFriendConnectionUpdates: friendships rows where
     // initiated_by = the current user, created since the last poll. No dedicated *Api.ts module
     // exists for this (see that function's own comment), so it's stubbed via supabase.from
@@ -1526,14 +1499,14 @@ describe("handleAlarm — friend-poll alarm (v2 Task 6)", () => {
   });
 });
 
-// v2 Task 12: the temp-unlock-relock alarm is a completely separate lifecycle from both the
-// session-timer alarm and the friend-poll alarm above - fired by alarmsApi.ts's
-// scheduleTempUnlockRelockAlarm (called from tempPasscodeApi.ts's redeemCode on a successful
-// redemption), and must work regardless of friend-sync/group-membership state. These tests cover
-// handleTempUnlockRelockAlarm's own guard logic directly against handleAlarm's dispatch, per this
-// task's brief ("confirm rather than assume" a session is still around and still hard-restricted
-// for the given hostname before re-adding a DNR rule).
-describe("handleAlarm — temp-unlock-relock alarm (v2 Task 12)", () => {
+// The temp-unlock-relock alarm is a completely separate lifecycle from both the session-timer
+// alarm and the friend-poll alarm above - fired by alarmsApi.ts's scheduleTempUnlockRelockAlarm
+// (called from tempPasscodeApi.ts's redeemCode on a successful redemption), and must work
+// regardless of friend-sync/group-membership state. These tests cover
+// handleTempUnlockRelockAlarm's own guard logic directly against handleAlarm's dispatch -
+// confirming rather than assuming a session is still around and still hard-restricted for the
+// given hostname before re-adding a DNR rule.
+describe("handleAlarm — temp-unlock-relock alarm", () => {
   async function ruleExistsFor(hostname: string): Promise<boolean> {
     const rules = await chrome.declarativeNetRequest.getDynamicRules();
     return rules.some((rule) => rule.condition.requestDomains?.includes(hostname));

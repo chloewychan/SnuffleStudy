@@ -1,33 +1,10 @@
-// v3.2 Task 8: Privacy policy.
-//
-// A static, informational page bundled into the extension's own options surface (no external
-// hosting available/verifiable from this sandbox - see this task's report for the reasoning).
-// Every destination named below was confirmed directly against this codebase's actual code
-// before being written, not assumed from a generic template:
-//   - chrome.storage.local: grepped every call site (chromeStorageRepository.ts, friendPollState.ts,
-//     supabaseClient.ts's own storage adapter) - settings, the active session snapshot, the
-//     hard-block passcode credential, and per-feature poll-cursor timestamps.
-//   - IndexedDB: grepped every `openDB(...)` call - two local databases, "snufflestudy"
-//     (indexedDbRepository.ts: session history + session events) and "snufflestudy-tasks"
-//     (taskRepository.ts: tasks).
-//   - Supabase Postgres table list: the same fourteen-table audit this task's account-deletion
-//     migration documents (supabase/migrations/20260815000032_v3.2_account_deletion.sql).
-//   - Anthropic: read supabase/functions/generate-coaching-message/index.ts in full - confirms the
-//     goal text and distracting hostname are sent, per-request, in the prompt body.
-//   - Resend: read supabase/functions/send-temp-passcode-request/index.ts in full - confirms the
-//     friend's email and the requested hostname are sent.
-//   - LiveKit: read supabase/functions/generate-livekit-token/index.ts in full - confirms only a
-//     short-lived (1 hour) signed token scoped to the caller's own id and room is minted; actual
-//     audio/video streams go directly from the browser to LiveKit's infrastructure, never through
-//     Supabase.
-//
-// This is written as accurate, specific, real content about this app's actual data flows - not
-// exact legal copy. Per this task's own framing (and this project's Implementation Plan
-// Guidelines), privacy-policy wording is a product/legal judgment call; this page should be
-// reviewed by a human with that context before any real Chrome Web Store submission, particularly
-// for exact regulatory phrasing (GDPR/CCPA-style rights language, a real contact
-// address/mechanism, and a genuine "last updated" process) that this implementation session has
-// no authority to originate.
+// A static, informational privacy policy bundled into the extension's own options surface (no
+// external hosting). The content below describes this app's actual data flows, confirmed
+// against this codebase's own storage/backend code, not generic boilerplate - but it is not
+// exact legal copy. Privacy-policy wording is a product/legal judgment call; this page should
+// be reviewed by a human with that context before any real Chrome Web Store submission,
+// particularly for exact regulatory phrasing (GDPR/CCPA-style rights language, a real contact
+// address/mechanism, and a genuine "last updated" process).
 export function PrivacyPolicyPage() {
   return (
     <div className="privacy-policy-page">

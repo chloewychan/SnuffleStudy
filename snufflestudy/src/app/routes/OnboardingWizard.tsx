@@ -19,10 +19,8 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
       await sendMessage({
         type: "SETTINGS_SAVE",
         payload: {
-          // v4.1 Task 3: onboarding no longer collects any of these - they're fixed defaults the
-          // user can change later in Settings. Pressure style changes from the old
-          // DEFAULT_USER_SETTINGS value (strict-coach) to gentle-encouragement (see
-          // domain/settings/userSettings.ts); the rest already matched DEFAULT_USER_SETTINGS.
+          // Onboarding doesn't collect any of these - they're fixed defaults the user can
+          // change later in Settings (see domain/settings/userSettings.ts).
           pressureProfileId: "gentle-encouragement",
           trackingTier: "activity-only",
           activityTrackingEnabled: true,
@@ -32,8 +30,6 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
           defaultRestrictedSites: [],
           defaultRestrictionMode: "soft",
           onboardingCompleted: true,
-          // Carried over unchanged from before this trim - not part of what onboarding used to
-          // collect either; these already matched DEFAULT_USER_SETTINGS.
           friendSyncEnabled: false,
           liveNudgesNotificationsEnabled: true,
           digestNotificationsEnabled: true,

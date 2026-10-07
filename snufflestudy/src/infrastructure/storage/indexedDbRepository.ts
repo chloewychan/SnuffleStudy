@@ -17,14 +17,12 @@ export interface SessionRepository {
   countByState(state: SessionState): Promise<number>;
   recordEvent(event: SessionEvent): Promise<void>;
   listEvents(sessionId: string): Promise<SessionEvent[]>;
-  // QA-discovered bug (v3.4): unlike Task (which has a userId field, scoped by
-  // taskRepository.ts's by-userId index), StudySession/SessionEvent carry no account
-  // identity at all - this store has always been genuinely device-wide, not per-account.
-  // AUTH_DELETE_ACCOUNT's local cleanup (messageRouter.ts) already clears local tasks for
-  // the departing account specifically; history has no equivalent "for this account" concept
-  // to scope by, so clearAll() wipes both stores outright. This is the same class of gap the
-  // v3.2 QA pass already found and fixed for tasks, just never extended to history at the
-  // time - deliberately blunt (whole-device, not per-account) rather than a no-op.
+  // Unlike Task (which has a userId field, scoped by taskRepository.ts's by-userId index),
+  // StudySession/SessionEvent carry no account identity at all - this store is genuinely
+  // device-wide, not per-account. AUTH_DELETE_ACCOUNT's local cleanup (messageRouter.ts) already
+  // clears local tasks for the departing account specifically; history has no equivalent "for
+  // this account" concept to scope by, so clearAll() wipes both stores outright - deliberately
+  // blunt (whole-device, not per-account) rather than a no-op.
   clearAll(): Promise<void>;
 }
 
@@ -76,10 +74,10 @@ export class IndexedDbSessionRepository implements SessionRepository {
     return sessions;
   }
 
-  // Uses the sessions store's existing (previously unused) "by-state" index for an O(matching
-  // rows) IndexedDB count - no full session records are fetched into memory. This backs the
-  // CompletionScreen/AbandonedScreen ordinal counts (Task 4 fix round 2), which fire on every
-  // single session end, not just on-demand history-page opens like listHistory does.
+  // Uses the sessions store's "by-state" index for an O(matching rows) IndexedDB count - no full
+  // session records are fetched into memory. This backs the CompletionScreen/AbandonedScreen
+  // ordinal counts, which fire on every single session end, not just on-demand history-page
+  // opens like listHistory does.
   async countByState(state: SessionState): Promise<number> {
     const db = await getDb();
     try {

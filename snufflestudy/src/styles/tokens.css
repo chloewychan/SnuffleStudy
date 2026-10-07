@@ -13,8 +13,6 @@
   --color-btn-hover: #f6cbc0;
   --color-btn-disabled: #e5dbd2;
 
-  /* design-specs/tokens.json additions - the existing palette above already covers
-     Dark-Grey/Light-Grey/Dark-Beige/Light-Beige/White/Dark-Pink/Pink/Light-Pink by value. */
   --color-dark-white: #f5f0eb;
   --color-pink-50: #f6cbc080;
   --color-light-pink-50: #f7e9dc80;
@@ -22,9 +20,9 @@
   --color-dark-white-50: #f5f0eb80;
   --color-light-beige-50: #e5dbd280;
 
-  /* design-specs/tokens.json padding/corner/stroke scale - distinct from the semantic
-     --space and --radius scale above, used verbatim where a design-specs frame's layout
-     gap/padding/cornerRadius matches one of these exact figma values. */
+  /* A second padding/corner/stroke scale, distinct from the semantic --space and --radius scale
+     above - used verbatim wherever a layout needs one of these exact pixel values instead of a
+     semantic token. */
   --padding-2-5: 2.5px;
   --padding-5: 5px;
   --padding-7-5: 7.5px;
@@ -34,8 +32,6 @@
   --padding-50: 50px;
   --corner-5: 5px;
   --corner-15: 15px;
-  /* cornerRadius: 3 (button-list square variants) isn't bound to any Figma variable and has
-     no matching entry in design-specs/tokens.json - added as its own token rather than hardcoded. */
   --corner-3: 3px;
   --stroke-1-5: 1.5px;
   --stroke-2: 2px;
@@ -49,14 +45,8 @@
   --space-4: 24px;
 
   --size-icon-md: 40px;
-  /* button-list (design-specs/frames/button-list.json) circle/square markers carry no explicit
-     width/height in the spec (unbound FIXED sizing) - picked to read clearly as a small bullet. */
   --size-list-marker: 10px;
-  /* button-icon/button-bool (design-specs/frames/button-icon.json, button-bool.json) containers
-     carry no explicit width/height either - sized to comfortably fit their ~9-12px glyphs. */
   --size-icon-sm: 24px;
-  /* button-large-icon (design-specs/frames/button-large-icon.json) container - same gap, its
-     mic/camera glyphs run ~14-21px. */
   --size-btn-large-icon: 36px;
 
   --radius-sm: 4px;
@@ -64,33 +54,24 @@
   --radius-lg: 16px;
 
   /* Font sizes are in rem, not px, on purpose: 1rem always resolves to the browser's own
-     current default font size, so this whole scale tracks both page zoom (already worked before
-     this) AND chrome://settings/fonts' "Font size" control (which only ever affected relative
-     units - every size here used to be a fixed px, so that setting did nothing before). Anchored
-     so --font-size-text-1 (this app's base body-text size) equals exactly 1rem - the browser's
-     own default paragraph size - and --font-size-heading-1/2 land on the browser's own default
-     <h1>/<h2> sizes (2rem/1.5rem), rather than on arbitrary custom values, per this app's
-     previous px scale having drifted noticeably smaller than default browser text.
-     Old xs(10px)/sm(12px)/md(14px)/tab(15px)/lg(20px)/heading-sm(15px)/header-title(35px) are
-     retired - tab folded into text-1 (nav labels are UI chrome, not headings, and 15px was
-     already close to the new 16px text-1) and heading-sm folded into heading-2 (both were
-     already literal <h2>/<h3> section headings, just at two different sizes for no real reason). */
-  --font-size-text-3: 0.75rem; /* was --font-size-xs, 10px -> 12px */
-  --font-size-text-2: 0.875rem; /* was --font-size-sm, 12px -> 14px */
-  --font-size-text-1: 1rem; /* was --font-size-md/--font-size-tab, 14px/15px -> 16px (browser default) */
-  --font-size-heading-2: 1.5rem; /* was --font-size-lg/--font-size-heading-sm, 20px/15px -> 24px (browser default h2) */
-  --font-size-heading-1: 2rem; /* was --font-size-header-title, 35px -> 32px (browser default h1) */
+     current default font size, so this whole scale tracks both page zoom AND
+     chrome://settings/fonts' "Font size" control (which only ever affects relative units).
+     Anchored so --font-size-text-1 (this app's base body-text size) equals exactly 1rem - the
+     browser's own default paragraph size - and --font-size-heading-1/2 land on the browser's
+     own default <h1>/<h2> sizes (2rem/1.5rem), rather than on arbitrary custom values. */
+  --font-size-text-3: 0.75rem;
+  --font-size-text-2: 0.875rem;
+  --font-size-text-1: 1rem;
+  --font-size-heading-2: 1.5rem;
+  --font-size-heading-1: 2rem;
 
   --motion-duration-fast: 120ms;
   --motion-duration-normal: 240ms;
 }
 
-/* Fix 13 (final-review fix wave): converted from the original self-hosted TTFs to WOFF2 via
-   fontTools (TTFont(...).flavor = "woff2") - same glyph coverage/rendering, ~3.3-3.5x smaller
-   (pangolin-regular: 588,736 -> 177,784 bytes; shantell-sans-regular: 392,708 -> 112,908 bytes).
-   This extension only ever runs in Chrome/Firefox (see wxt.config.ts build targets), both of which
-   have supported WOFF2 for years, so the .ttf files were dropped rather than kept as a fallback
-   that would never actually be fetched but would still ship in the package. */
+/* Self-hosted as WOFF2, not TTF: same glyph coverage/rendering at a fraction of the file size.
+   This extension only ever runs in Chrome/Firefox, both of which have supported WOFF2 for years,
+   so there's no need to also ship a TTF fallback that would never actually be fetched. */
 @font-face {
   font-family: "Pangolin";
   src: local("Pangolin"), url("./fonts/pangolin-regular.woff2") format("woff2");

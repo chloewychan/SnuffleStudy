@@ -18,11 +18,10 @@ interface ButtonLargeIconProps {
   "aria-label": string;
 }
 
-// design-specs/frames/button-large-icon.json (component set 173:2210). Property=default/selected is
-// an ON_CLICK toggle (mic/camera on/off), not ON_HOVER, so it stays a real controlled "enabled" prop
-// rather than CSS :hover. The provided assets include separate on/off glyphs per icon type (instead
-// of one recolorable glyph), which maps naturally onto the same boolean that drives the selected
-// (fully opaque) vs. default (75%-opacity) container styling the spec defines.
+// The selected/default state is an on-click toggle (mic/camera on/off), not a hover state, so
+// it's a real controlled "enabled" prop rather than CSS :hover. Separate on/off glyphs per icon
+// type (rather than one recolorable glyph) map naturally onto the same boolean that drives the
+// selected (fully opaque) vs. default (75%-opacity) container styling.
 export function ButtonLargeIcon({ icon, enabled = false, onClick, "aria-label": ariaLabel }: ButtonLargeIconProps) {
   const src = enabled ? ICON_SRC[icon].on : ICON_SRC[icon].off;
   return (

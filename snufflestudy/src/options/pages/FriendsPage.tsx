@@ -5,10 +5,8 @@ import type {
   FriendshipSettingsPatch,
 } from "../../infrastructure/backend/friendshipSettingsApi";
 
-// v2 Task 10: the Friends section of OptionsApp - per-friend visibility toggles (the three
-// pre-existing friendship_settings booleans from Task 5/7, plus Task 10's five new share_*
-// columns), enforced server-side by the RLS/RPC changes in
-// supabase/migrations/20260815000012_v2_privacy_controls.sql, not just hidden here in the UI.
+// The Friends section of OptionsApp - per-friend visibility toggles, enforced server-side by
+// RLS/RPC, not just hidden here in the UI.
 //
 // Minimal shape of what AUTH_GET_SESSION's response carries that this page actually needs -
 // mirrors AccountPage.tsx's/FriendGroupPanel.tsx's identical minimal AuthUser/AuthSession shapes.
@@ -19,12 +17,9 @@ interface AuthSession {
   user: AuthUser;
 }
 
-// v4.1 Task 9: seven fields, in the order rendered - the daily-digest checkbox (receiveDailyDigest)
-// is dropped here, along with the rest of the digest feature (scope doc's Friends Tab section) -
-// no longer eight fields as it was through v3.4. Deliberately groups the two remaining
-// pre-existing nudge-axis columns first (familiar from Task 7), then the five Task 10 fields, so a
-// user already familiar with the nudge toggles sees the new ones as a clearly-separate, additional
-// group rather than interleaved.
+// Seven fields, in the order rendered. Deliberately groups the two nudge-axis columns first,
+// then the five sharing fields, so a user already familiar with the nudge toggles sees the
+// sharing toggles as a clearly-separate, additional group rather than interleaved.
 export const TOGGLE_FIELDS: { key: keyof FriendshipSettingsPatch; label: string }[] = [
   { key: "sendLiveNudges", label: "I may send this friend a live nudge" },
   { key: "receiveLiveNudges", label: "This friend may send me a live nudge" },
@@ -35,12 +30,11 @@ export const TOGGLE_FIELDS: { key: keyof FriendshipSettingsPatch; label: string 
   { key: "shareFullHistory", label: "Share my full session history with this friend" },
 ];
 
-// v4.1 Task 9: extracted so FriendsBox.tsx (the new sidepanel Friends-tab box) can reuse the exact
-// same seven-checkbox render loop + Remove friend button inside its own per-friend Options
-// popover, rather than duplicating this markup - see that file's own comment for how it wires
-// friendId/settings/savingKey/onToggle/onRemove/removing from its own state, mirroring this page's
-// own handleToggle/handleRemove shape exactly (same optimistic-update convention, same
-// per-(friendId,field) savingKey scoping).
+// Extracted so the sidepanel's FriendsBox.tsx can reuse this exact seven-checkbox render loop +
+// Remove friend button inside its own per-friend Options popover, rather than duplicating this
+// markup - it wires friendId/settings/savingKey/onToggle/onRemove/removing from its own state,
+// mirroring this page's own handleToggle/handleRemove shape exactly (same optimistic-update
+// convention, same per-(friendId,field) savingKey scoping).
 export interface FriendSettingsFieldsProps {
   friendId: string;
   settings: FriendshipSettings | undefined;
@@ -104,19 +98,15 @@ export function FriendsPage({ onSignInClick }: FriendsPageProps) {
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // v4.1 Task 9: "Remove friend" is now triggerable from wherever a friend's settings render, not
-  // just AccountPage.tsx (whose own "Your friends" section this task's sibling deliverable,
-  // FriendsBox.tsx, replaces) - added here so FriendSettingsFields' onRemove has a real handler on
+  // "Remove friend" is triggerable from wherever a friend's settings render (this page and the
+  // sidepanel's FriendsBox.tsx) - this handler is what FriendSettingsFields' onRemove calls on
   // both callers. Same busy/error state shape as AccountPage.tsx's own handleRemoveFriend.
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
-  // v3.4 Task 2: discovers who this page can show settings for - every friend of the current
-  // user, via one FRIENDS_LIST call, replacing the old AUTH_GET_SESSION -> GROUP_LIST_MINE ->
-  // Promise.all(GROUP_LIST_MEMBERS) -> dedupe fan-out entirely, same simplification as
-  // useFriendGroupPanelData.ts's loadFriends()/LockedPage.tsx's/StudyRoomPanel.tsx's identical
-  // fix - "who is a friend" now has the same definition everywhere in this codebase: an actual
-  // pairwise friendships row.
+  // Discovers who this page can show settings for - every friend of the current user, via one
+  // FRIENDS_LIST call. "Who is a friend" has the same definition everywhere in this codebase: an
+  // actual pairwise friendships row.
   function load() {
     setLoading(true);
     setError(null);
@@ -204,9 +194,9 @@ export function FriendsPage({ onSignInClick }: FriendsPageProps) {
       .finally(() => setSavingKey(null));
   }
 
-  // v4.1 Task 9: mirrors AccountPage.tsx's own handleRemoveFriend exactly (either party can
-  // unilaterally end the friendship) - optimistic-on-confirmed-success removal from local
-  // `friendIds` state rather than a full reload.
+  // Mirrors AccountPage.tsx's own handleRemoveFriend exactly (either party can unilaterally end
+  // the friendship) - optimistic-on-confirmed-success removal from local `friendIds` state
+  // rather than a full reload.
   function handleRemove(friendId: string) {
     setRemovingId(friendId);
     setRemoveError(null);

@@ -12,15 +12,12 @@ interface SnufflesOverlayProps {
   reducedMotion: boolean;
 }
 
-// v1's SnufflesOverlay hardcoded this literal string for every BLOCKED render regardless of the
-// active session's pressure profile - v2 Task 11 replaces that with pickWarningMessage() (a real
-// message from the active profile's pool), swapped in the instant SESSION_GET_ACTIVE resolves
-// (near-instant - a local background message round trip, not a network call). This generic line
-// is now reserved for the genuinely degraded case: SESSION_GET_ACTIVE itself fails or returns no
-// session, so there is no pressure profile to pick a voiced line from at all. Per this task's
-// brief ("fall back to a generic message, don't block the warning UI on it"), never blocking the
-// warning UI on that fetch is the requirement - this string is what's shown while/if that fetch
-// hasn't produced a real profile-specific message yet.
+// The warning UI must never block on the SESSION_GET_ACTIVE fetch, so this generic line is
+// shown immediately and swapped for a real message from the active session's pressure profile
+// (via pickWarningMessage()) the instant that fetch resolves (near-instant - a local
+// background message round trip, not a network call). It's also the permanent fallback for
+// the genuinely degraded case: SESSION_GET_ACTIVE fails or returns no session, so there is no
+// pressure profile to pick a voiced line from at all.
 const GENERIC_FALLBACK_MESSAGE = "You're supposed to be studying right now.";
 
 function wellnessStateFor(classification: SnufflesOverlayProps["classification"]): WellnessState {
@@ -58,18 +55,15 @@ export function SnufflesOverlay({
   }
 
   // Fetches the active session (best-effort - SESSION_GET_ACTIVE, the same message
-  // content/index.ts already sends, per messageRouter.ts:236-238) so this overlay can render a
-  // message from the session's actual PressureProfile instead of a single hardcoded literal.
-  // Genuine wiring of two pre-existing-but-dead pieces, not new domain logic: pickWarningMessage()
-  // (src/domain/pressure/pressureEngine.ts) already existed with zero call sites anywhere in the
-  // app, and this SESSION_GET_ACTIVE round trip is the exact mechanism content/index.ts already
-  // uses to decide whether to mount the overlay at all.
+  // content/index.ts already sends to decide whether to mount the overlay at all) so this
+  // overlay can render a message from the session's actual PressureProfile instead of a single
+  // hardcoded literal.
   //
-  // Sequencing matches this task's brief precisely: render the static pickWarningMessage() line
-  // the instant the session is known (zero perceived latency - this is a local background
-  // message round trip, not a network call, so it resolves far faster than any human notices),
-  // never blocking the warning UI on it; only THEN kick off generateCoachingMessage() in the
-  // background and swap its result in if it arrives before the user dismisses the warning.
+  // Renders the static pickWarningMessage() line (src/domain/pressure/pressureEngine.ts) the
+  // instant the session is known - zero perceived latency, since this is a local background
+  // message round trip, not a network call, so it resolves far faster than any human notices -
+  // never blocking the warning UI on it; only THEN kicks off generateCoachingMessage() in the
+  // background and swaps its result in if it arrives before the user dismisses the warning.
   useEffect(() => {
     if (classification !== "BLOCKED") return;
     let cancelled = false;

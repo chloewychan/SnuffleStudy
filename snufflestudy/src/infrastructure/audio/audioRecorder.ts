@@ -1,4 +1,4 @@
-// v2 Task 14: Producer Tags - MediaRecorder-based short-clip audio recording.
+// MediaRecorder-based short-clip audio recording.
 //
 // MUST be called from the sidepanel's real DOM page context, not a content script or the
 // background service worker. navigator.mediaDevices.getUserMedia is a real, user-facing browser
@@ -13,12 +13,11 @@
 //      that page's Permissions-Policy header (which this extension does not control) - `microphone`
 //      is frequently disallowed there, so even where it technically resolves, it can't be relied
 //      on.
-// The sidepanel is a real, persistently-open extension page (exactly like Task 13's video call
-// surface), so it's the only place both exported functions here can safely be called from.
+// The sidepanel is a real, persistently-open extension page, so it's the only place both exported
+// functions here can safely be called from.
 //
-// Max recording length: 10,000ms (10 seconds) - picked as a concrete value rather than left vague
-// ("e.g. 10 seconds" per this task's brief). This is enforced INSIDE this module, not just as a UI
-// countdown/disable-button affordance: startRecording() schedules its own internal `setTimeout`
+// Max recording length: 10,000ms (10 seconds). This is enforced INSIDE this module, not just as a
+// UI countdown/disable-button affordance: startRecording() schedules its own internal `setTimeout`
 // that calls the MediaRecorder's own `.stop()` directly the moment the cap elapses, entirely
 // independent of whether or when the caller ever calls stopRecording() - see MAX_RECORDING_MS and
 // `autoStopTimer` below. stopRecording() itself does not additionally trust that the cap was
@@ -70,9 +69,9 @@ function pickMimeType(): string | undefined {
 
 export function startRecording(): void {
   // A prior recording that was never collected via stopRecording() (e.g. the UI navigated away
-  // mid-recording) is defensively torn down first - mirrors videoCallClient.ts's joinCall() "tear
-  // down a leaked prior connection before starting a new one" convention. Its own auto-stop timer
-  // requestStop() harmlessly no-ops if the recorder already stopped itself.
+  // mid-recording) is defensively torn down first, mirroring videoCallClient.ts's joinCall()
+  // convention of tearing down a leaked prior connection before starting a new one. Its own
+  // auto-stop timer requestStop() harmlessly no-ops if the recorder already stopped itself.
   if (active) {
     active.requestStop();
     active = null;
@@ -171,8 +170,8 @@ export async function stopRecording(): Promise<Blob> {
 // The actual elapsed recording time (wall-clock start -> the MediaRecorder's own "stop" event),
 // clamped to MAX_RECORDING_MS - NOT simply assumed to equal the cap. Read by
 // producerTagApi.uploadTag()'s caller (the sidepanel panels) immediately after stopRecording()
-// resolves, since stopRecording() itself must keep its Promise<Blob> return type exactly matching
-// this task's plan. Returns null before any recording has ever completed.
+// resolves, since stopRecording() itself keeps its return type as Promise<Blob>. Returns null
+// before any recording has ever completed.
 export function getLastRecordingDurationMs(): number | null {
   return lastRecordingDurationMs;
 }

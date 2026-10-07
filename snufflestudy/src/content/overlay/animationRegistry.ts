@@ -23,8 +23,8 @@ function key(mode: AnimationAsset["mode"], wellnessState: WellnessState): string
   return `${mode}:${wellnessState}`;
 }
 
-// v1 ships placeholder art only: one static frame per entry. Hand-drawn
-// frame sequences replace `frames` later without touching this shape.
+// Ships placeholder art only today: one static frame per entry. Hand-drawn
+// frame sequences can replace `frames` later without touching this shape.
 //
 // Paths are resolved via chrome.runtime.getURL rather than root-absolute literals: this registry
 // is consumed inside a content script, where a plain "/sprites/..." string resolves against the

@@ -1,23 +1,15 @@
-// v2 Task 12: Temporary Passcodes for Hard Mode - the email delivery leg.
-//
-// Deno Edge Function, second one this repo deploys (see supabase/functions/
-// generate-coaching-message/index.ts, Task 11, for the structural template this mirrors:
-// CORS headers, json() helper, module-scoped anon/admin clients, Authorization-header JWT auth
-// via anonClient.auth.getUser(jwt) rather than trusting a client-supplied user id).
+// Sends the email delivery leg of a temp-passcode request.
 //
 // Request: { requestId: string } - invoked by tempPasscodeApi.ts's createRequest() immediately
-// after the temp_passcode_requests row is inserted (fire-and-forget from the client's
-// perspective - createRequest never awaits this call before resolving, per this task's brief:
-// "don't block createRequest's resolution on email delivery succeeding").
+// after the friend_requests row is inserted (fire-and-forget from the client's perspective -
+// createRequest never awaits this call before resolving).
 //
-// Per Decision 4 (docs/V2_Implementation_Plan.md) - "one flow, two delivery paths": the in-app
-// leg needs NO separate write from this function at all. The friend_requests row (v3.4 Task 3:
-// was temp_passcode_requests) already exists and is already visible to friend_user_id the
-// instant it's inserted, via that table's "requester assigned friend or pending-friend can read
-// friend requests" RLS policy (supabase/migrations/20260815000041_v3.4_friend_requests.sql) -
-// alarmHandlers.ts's friend-poll alarm (pollFriendRequestUpdates, reusing Task 6's alarm, not a
-// new one) is what turns that visibility into an actual chrome.notifications toast on the
-// friend's device. This function's entire job is the OTHER delivery path: the email.
+// This is one flow with two delivery paths, and the in-app leg needs NO separate write from this
+// function at all: the friend_requests row already exists and is already visible to
+// friend_user_id the instant it's inserted, via that table's RLS policy letting the requester's
+// assigned friend read their own pending friend requests. alarmHandlers.ts's friend-poll alarm is
+// what turns that visibility into an actual chrome.notifications toast on the friend's device.
+// This function's entire job is the OTHER delivery path: the email.
 //
 // Reads RESEND_API_KEY via Deno.env.get(...) only - never logged, never echoed in a response.
 // Uses SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY, auto-injected into every
@@ -37,14 +29,12 @@ function json(body: unknown, status: number): Response {
   });
 }
 
-// v2 final whole-branch review, Important finding I2 (client half): `hostname` reaches this
-// function entirely caller-controlled - messageRouter.ts passes whatever the side panel sent,
-// tempPasscodeApi.ts's createRequest() inserts it verbatim, and temp_passcode_requests.hostname
-// carries no CHECK constraint bounding its shape. It was previously interpolated raw into the
-// outbound email's HTML body, so an authenticated user could have arbitrary attacker-authored
-// markup delivered to another user's real inbox from this product's sending domain. The companion
-// migration (20260815000026_v2_temp_passcode_group_floor.sql) restricts WHO can be targeted; this
-// escaping makes the payload itself inert regardless.
+// `hostname` reaches this function entirely caller-controlled - messageRouter.ts passes whatever
+// the side panel sent, tempPasscodeApi.ts's createRequest() inserts it verbatim, and
+// friend_requests.hostname carries no CHECK constraint bounding its shape. Interpolating it raw
+// into the outbound email's HTML body would let an authenticated user have arbitrary
+// attacker-authored markup delivered to another user's real inbox from this product's sending
+// domain, so it must be escaped before interpolation.
 //
 // A hostname is a plain string rendered as text, never rich content, so full escaping of the five
 // HTML-significant characters is both sufficient and complete - there is deliberately no allowlist
@@ -59,9 +49,8 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-// Hoisted to module scope (mirrors generate-coaching-message's fix-round-1 latency lesson) - a
-// warm Deno isolate reuses the same clients across invocations instead of reconstructing them
-// every request.
+// Hoisted to module scope so a warm Deno isolate reuses the same clients across invocations
+// instead of reconstructing them every request.
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -113,7 +102,6 @@ Deno.serve(async (req: Request) => {
 
     // Re-derived server-side via the service-role client, never trusted from the request body -
     // same discipline approve-temp-passcode/redeem-temp-passcode use for their own row lookups.
-    // v3.4 Task 3: temp_passcode_requests -> friend_requests (kind = 'site_temp_pass').
     const { data: row, error: rowError } = await adminClient
       .from("friend_requests")
       .select("id, hostname, requester_user_id, friend_user_id")

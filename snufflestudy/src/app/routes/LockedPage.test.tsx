@@ -8,16 +8,14 @@ beforeEach(() => {
   window.history.pushState({}, "", "/locked.html?site=youtube.com");
 });
 
-// v2 Task 12: LockedPage.tsx now also fetches the active session (for sessionId) and the current
-// user's friends (for the temp-passcode friend picker) on mount, so a blanket
-// `mockResolvedValue({ok: ...})` (this file's pre-Task-12 convention) would make EVERY message -
-// including AUTH_GET_SESSION - resolve the same way, which spuriously populates friendsError
-// alongside the permanent-passcode error in some tests. A per-message-type dispatcher avoids
-// that, while `defaults` gives every pre-existing test (which only cares about
-// HARD_BLOCK_VERIFY_PASSCODE) a clean, error-free baseline for the new mount-time calls it never
-// used to have to think about.
-// v3.4 Task 2: FRIENDS_LIST replaces GROUP_LIST_MINE/GROUP_LIST_MEMBERS - already excludes self
-// by construction, so the default fixture is just the one other friend.
+// LockedPage.tsx fetches the active session (for sessionId) and the current user's friends (for
+// the temp-passcode friend picker) on mount, so a blanket `mockResolvedValue({ok: ...})` would
+// make EVERY message - including AUTH_GET_SESSION - resolve the same way, which spuriously
+// populates friendsError alongside the permanent-passcode error in some tests. A per-message-type
+// dispatcher avoids that, while `defaults` gives every test that only cares about
+// HARD_BLOCK_VERIFY_PASSCODE a clean, error-free baseline for the other mount-time calls.
+// FRIENDS_LIST already excludes self by construction, so the default fixture is just the one
+// other friend.
 function mockMessages(overrides: Record<string, (payload: any) => unknown> = {}) {
   const defaults: Record<string, (payload: any) => unknown> = {
     SESSION_GET_ACTIVE: () => ({ ok: true, session: { id: "session-1" } }),
@@ -100,8 +98,8 @@ describe("LockedPage", () => {
     });
   });
 
-  // v3.3 Task 11: the optional "why do you need this" input is sent through as `message` when
-  // filled in, trimmed.
+  // The optional "why do you need this" input is sent through as `message` when filled in,
+  // trimmed.
   it("includes a trimmed message in FRIEND_REQUEST_CREATE when the requester fills it in", async () => {
     const createSpy = vi.fn(() => ({
       ok: true,
@@ -139,8 +137,8 @@ describe("LockedPage", () => {
     });
   });
 
-  // v3.3 Task 11 DoD: the field is optional - leaving it blank must not send an empty/whitespace
-  // `message` key at all.
+  // The field is optional - leaving it blank must not send an empty/whitespace `message` key at
+  // all.
   it("omits the message key entirely when the field is left blank", async () => {
     const createSpy = vi.fn(() => ({
       ok: true,
@@ -176,9 +174,8 @@ describe("LockedPage", () => {
     });
   });
 
-  // v3.3 Task 10: no code to enter anymore - once the request's status is "approved", LockedPage
-  // auto-claims it (FRIEND_REQUEST_CLAIM_TEMP_PASS) and navigates on success, with no user action in
-  // between.
+  // No code to enter: once the request's status is "approved", LockedPage auto-claims it
+  // (FRIEND_REQUEST_CLAIM_TEMP_PASS) and navigates on success, with no user action in between.
   it("auto-claims an approved request and navigates to the site, with no code entry anywhere", async () => {
     delete (window as any).location;
     (window as any).location = { href: "" };

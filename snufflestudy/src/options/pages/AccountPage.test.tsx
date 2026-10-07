@@ -7,14 +7,13 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
-// v3.3 Task 14: SignInForm now splits into a top-level Create account/Sign in choice (Decision
-// 6). These "signed out" tests exercise the Sign in branch's "Email me a code" option - the
-// unchanged OTP round trip that still calls onSignedIn directly with no completion step (the
-// account already exists) - since that's the closest analog to what these tests covered before
-// the split. SignInForm.test.tsx has full coverage of both branches (including v3.4 Task 7's
-// single-screen create-account flow and its automatic completion-on-verify) at the component
-// level; the account-creation branch is covered end to end from this page's own call site in the
-// "creating a new account" describe block below.
+// SignInForm splits into a top-level Create account/Sign in choice. These "signed out" tests
+// exercise the Sign in branch's "Email me a code" option - the OTP round trip that calls
+// onSignedIn directly with no completion step, since the account already exists.
+// SignInForm.test.tsx has full coverage of both branches (including the single-screen
+// create-account flow and its automatic completion-on-verify) at the component level; the
+// account-creation branch is covered end to end from this page's own call site in the "creating
+// a new account" describe block below.
 function goToSignInWithCode() {
   fireEvent.click(screen.getByRole("button", { name: "Sign in (one-time code)" }));
 }
@@ -91,12 +90,11 @@ describe("AccountPage — signed out", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/token has expired or is invalid/i);
   });
 
-  // v3.4 Task 7: account creation is now one "create-details" screen (name/bunny name/email/
-  // password x2) ahead of the OTP step, with completion (AUTH_SET_PASSWORD then
-  // PROFILE_SAVE_MINE) firing automatically the instant the code verifies - exercised end to end
-  // from this page's own call site (SignInForm.test.tsx covers the component's internal
-  // mechanics, e.g. the disabled-submit assertion and the Retry-without-re-verifying path, in
-  // more detail).
+  // Account creation is one "create-details" screen (name/bunny name/email/password x2) ahead
+  // of the OTP step, with completion (AUTH_SET_PASSWORD then PROFILE_SAVE_MINE) firing
+  // automatically the instant the code verifies - exercised end to end from this page's own call
+  // site (SignInForm.test.tsx covers the component's internal mechanics, e.g. the
+  // disabled-submit assertion and the Retry-without-re-verifying path, in more detail).
   describe("creating a new account", () => {
     it("does not sign in if account completion (AUTH_SET_PASSWORD) fails after a verified code", async () => {
       vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
@@ -183,10 +181,8 @@ describe("AccountPage — signed out", () => {
 });
 
 describe("AccountPage — signed in", () => {
-  // v4.1 Task 9: "Invite a friend"/"Add a friend"/"Your friends" (and the FRIENDS_LIST fetch that
-  // backed the last of those) have moved out of this page entirely, into the sidepanel's new
-  // FriendsBox.tsx (scope doc's Friends Tab section) - this page no longer sends FRIENDS_LIST at
-  // all, so the override map below only ever needs AUTH_GET_SESSION's default.
+  // This page doesn't manage friends (that lives in the sidepanel's FriendsBox.tsx), so the
+  // override map below only ever needs AUTH_GET_SESSION's default.
   function mockSignedIn(overrides: Record<string, (message: any) => Promise<any>> = {}) {
     return vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       const override = overrides[message.type];
@@ -198,9 +194,8 @@ describe("AccountPage — signed in", () => {
     });
   }
 
-  // v3.3 Task 14: "set/change your password" for an already-signed-in user - the recovery path
-  // for a pre-existing no-password account (created before this feature shipped), and the normal
-  // way to change a password later.
+  // "Set/change your password" for an already-signed-in user - the recovery path for an account
+  // that has no password yet, and the normal way to change a password later.
   describe("password", () => {
     it("disables Save Password until both fields are filled and match (genuinely disabled, not just visual)", async () => {
       mockSignedIn();
@@ -269,9 +264,8 @@ describe("AccountPage — signed in", () => {
       expect(screen.getByLabelText("New Password")).toHaveValue("x");
     });
 
-    // v3.4 Task 6: `passwordSetAt` (loaded via PROFILE_GET_MINE) gates whether a "Current
-    // password" field renders/is required at all - these two states are asserted explicitly here
-    // rather than only via the JSX, per this task's own DoD.
+    // `passwordSetAt` (loaded via PROFILE_GET_MINE) gates whether a "Current password" field
+    // renders/is required at all - both states are asserted explicitly here.
     it("does not render a Current password field for an account that has never had a password", async () => {
       mockSignedIn();
       render(<AccountPage />);
@@ -364,8 +358,6 @@ describe("AccountPage — signed in", () => {
     });
   });
 
-  // v3.3 Task 14 DoD: "An account created before this feature shipped (no password set) can
-  // still sign in via 'Email me a code,' and can set a password afterward from AccountPage.tsx."
   it("a pre-existing no-password account signs in via code, then sets a password afterward", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
@@ -417,16 +409,12 @@ describe("AccountPage — signed in", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign Out" }));
 
-    // v3.3 Task 14: the signed-out view is now SignInForm's entry choice, not a bare email
-    // field - see SignInForm.test.tsx for full coverage of the Create account/Sign in split.
+    // The signed-out view is SignInForm's entry choice, not a bare email field - see
+    // SignInForm.test.tsx for full coverage of the Create account/Sign in split.
     expect(await screen.findByRole("button", { name: "Create new account" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in (with password)" })).toBeInTheDocument();
   });
 
-  // v3.2 Task 8: account/data deletion, gated behind a confirmation step - same convention as
-  // "leaving your friends list" above (see AccountPage.tsx's handleDeleteAccount comment).
-  // QA-discovered bug (v3.2 Task 9): same window.confirm-in-an-embedded-options-page fix as
-  // "leaving your friends list" above.
   describe("deleting the account", () => {
     it("deletes the account after confirming inline, and returns to the signed-out view", async () => {
       const deleteSpy = vi.fn(async () => ({ ok: true }));
@@ -439,8 +427,7 @@ describe("AccountPage — signed in", () => {
       fireEvent.click(await screen.findByRole("button", { name: "Yes, delete my account" }));
 
       await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith({ type: "AUTH_DELETE_ACCOUNT" }));
-      // v3.3 Task 14: the signed-out view is now SignInForm's entry choice, not a bare email
-      // field.
+      // The signed-out view is SignInForm's entry choice, not a bare email field.
       expect(await screen.findByRole("button", { name: "Create new account" })).toBeInTheDocument();
     });
 

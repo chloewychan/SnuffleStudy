@@ -7,13 +7,10 @@ import * as contentScriptRegistration from "../background/contentScriptRegistrat
 import { DEFAULT_USER_SETTINGS } from "../domain/settings/userSettings";
 import { HISTORY_LIST_LIMIT } from "./pages/HistoryPage";
 
-// v3.3 Task 7: the Tracking/Friends/Notifications/Default-restricted-sites/Hard-block-passcode
-// assertions below (everything except the "camera & microphone access" describe block at the
-// bottom) now exercise that behavior indirectly through the extracted
-// sidepanel/components/settingsTab/SettingsPage.tsx, which OptionsApp.tsx's "settings" view
-// renders directly - not duplicated logic. Assertions are unchanged from before the extraction:
-// SettingsPage renders the exact same labels/testids/messages, so OptionsApp's own observable
-// behavior (this file's actual subject) is identical.
+// The Tracking/Friends/Notifications/Default-restricted-sites/Hard-block-passcode assertions
+// below (everything except the "camera & microphone access" describe block at the bottom)
+// exercise that behavior through SettingsPage.tsx, which OptionsApp.tsx's "settings" view
+// renders directly.
 beforeEach(() => {
   vi.restoreAllMocks();
 });
@@ -122,7 +119,7 @@ describe("OptionsApp", () => {
     await waitFor(() => screen.getByLabelText("Share session activity with my friends"));
 
     const toggle = screen.getByLabelText("Share session activity with my friends");
-    // v2 Task 6: friendSyncEnabled defaults to false (unlike activityTrackingEnabled's
+    // friendSyncEnabled defaults to false (unlike activityTrackingEnabled's
     // true-by-default) - it syncs to a remote friend-group backend, the more
     // privacy-sensitive of the two, so it's opt-in.
     expect(toggle).not.toBeChecked();
@@ -154,13 +151,12 @@ describe("OptionsApp", () => {
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage");
 
     render(<OptionsApp />);
-    // Two passcode-related inputs now exist (this one and the new old-passcode-input from B1's
-    // fix), so the placeholder-text lookup this test used to use for "wait until rendered" would
-    // now ambiguously match both - wait on the specific testid instead.
+    // Two passcode-related inputs exist (this one and old-passcode-input), so a placeholder-text
+    // lookup would ambiguously match both - wait on the specific testid instead.
     await waitFor(() => screen.getByTestId("passcode-input"));
 
-    // v4.1 Task 10: "Save Passcode" is now also disabled until the new "Confirm new passcode"
-    // field matches - fill it in alongside the passcode itself.
+    // "Save Passcode" is disabled until the "Confirm new passcode" field matches - fill it in
+    // alongside the passcode itself.
     fireEvent.change(screen.getByTestId("passcode-input"), { target: { value: "1234" } });
     fireEvent.change(screen.getByTestId("confirm-passcode-input"), { target: { value: "1234" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Passcode" }));
@@ -393,7 +389,7 @@ describe("OptionsApp", () => {
     expect(await screen.findByLabelText("Detailed site tracking")).toBeInTheDocument();
   });
 
-  it("switches to the Friends view (v2 Task 10)", async () => {
+  it("switches to the Friends view", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {
       if (message.type === "SETTINGS_GET") return { ok: true, settings: DEFAULT_USER_SETTINGS };
       if (message.type === "AUTH_GET_SESSION") return { ok: true, session: null };
@@ -409,7 +405,7 @@ describe("OptionsApp", () => {
     expect(screen.queryByLabelText("Detailed site tracking")).not.toBeInTheDocument();
   });
 
-  describe("Notifications (v2 Task 10 Part C - local, not server-enforced)", () => {
+  describe("Notifications (local, not server-enforced)", () => {
     it("shows live-nudge and digest notification toggles enabled by default, and saves when turned off", async () => {
       vi.spyOn(messenger, "sendMessage").mockResolvedValue({
         ok: true,
@@ -510,10 +506,9 @@ describe("OptionsApp", () => {
     );
   });
 
-  // QA-discovered bug (v3.2 Task 9): Study Rooms/Producer Tags call getUserMedia() from the
-  // sidepanel, which can never show the permission prompt at all (a Chrome platform limitation -
-  // see mediaPermissions.ts). This page, opened as a full tab, is the one place that CAN show it -
-  // this section is the actual fix action, not just a diagnostic message.
+  // Study Rooms/Producer Tags call getUserMedia() from the sidepanel, which can never show the
+  // permission prompt at all (a Chrome platform limitation - see mediaPermissions.ts). This
+  // page, opened as a full tab, is the one place that CAN show it.
   describe("camera & microphone access", () => {
     let getUserMediaMock: ReturnType<typeof vi.fn>;
 

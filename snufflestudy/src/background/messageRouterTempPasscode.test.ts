@@ -1,15 +1,13 @@
-// Covers messageRouter.ts's v2 Task 12 additions (originally TEMP_PASSCODE_* cases, v3.4 Task 3:
-// consolidated into FRIEND_REQUEST_*/FRIEND_REQUEST_APPROVE_TEMP_PASS/
-// FRIEND_REQUEST_CLAIM_TEMP_PASS, exercised here with kind: "site_temp_pass" - site_unlock
-// coverage lives in messageRouterAccountability.test.ts, session_end in
-// messageRouterSessionEnd.test.ts, retargeted the same way), mirroring
-// messageRouterAccountability.test.ts's own convention exactly: spies on friendRequestApi's
-// exported functions (this repo's established test style) so these cases are verified to route
-// to the right underlying call with the right arguments, entirely offline - no real network call
-// is ever made, and no chrome.declarativeNetRequest/chrome.alarms side effect is exercised here
+// Covers messageRouter.ts's FRIEND_REQUEST_*/FRIEND_REQUEST_APPROVE_TEMP_PASS/
+// FRIEND_REQUEST_CLAIM_TEMP_PASS handlers, exercised here with kind: "site_temp_pass" -
+// site_unlock coverage lives in messageRouterAccountability.test.ts, session_end in
+// messageRouterSessionEnd.test.ts. Mirrors messageRouterAccountability.test.ts's own
+// convention: spies on friendRequestApi's exported functions (this repo's established test
+// style) so these cases are verified to route to the right underlying call with the right
+// arguments, entirely offline - no real network call is ever made, and no
+// chrome.declarativeNetRequest/chrome.alarms side effect is exercised here
 // (friendRequestApi.claimApproval's own unit tests, friendRequestApi.test.ts, already cover that).
-// v3.3 Task 10: approval's response no longer carries a code (approval alone is the security
-// boundary now); the old TEMP_PASSCODE_REDEEM is replaced by FRIEND_REQUEST_CLAIM_TEMP_PASS.
+// Approval's response carries no code - approval alone is the security boundary.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import { handleMessage } from "./messageRouter";
@@ -59,7 +57,7 @@ describe("messageRouter — FRIEND_REQUEST_* (site_temp_pass)", () => {
     expect(result).toEqual({ ok: true, request: sampleRequest });
   });
 
-  // v3.3 Task 11: the optional `message` field is forwarded through to createRequest unchanged.
+  // The optional `message` field is forwarded through to createRequest unchanged.
   it("FRIEND_REQUEST_CREATE forwards an optional message to friendRequestApi.createRequest", async () => {
     const spy = vi
       .spyOn(friendRequestApi, "createRequest")
@@ -130,10 +128,9 @@ describe("messageRouter — FRIEND_REQUEST_* (site_temp_pass)", () => {
     expect(result).toEqual({ ok: false, error: "Not authorized to approve this request" });
   });
 
-  // v3.4 Task 3, Decision 3: denial for site_temp_pass now goes through the shared
-  // FRIEND_REQUEST_RESOLVE path (deny_temp_passcode_request() RPC is dropped) - the old
-  // TEMP_PASSCODE_DENY-specific case no longer exists; FRIEND_REQUEST_RESOLVE's own coverage for
-  // this (any kind) lives in messageRouterAccountability.test.ts.
+  // Denial for site_temp_pass goes through the shared FRIEND_REQUEST_RESOLVE path;
+  // FRIEND_REQUEST_RESOLVE's own coverage for this (any kind) lives in
+  // messageRouterAccountability.test.ts.
   it("FRIEND_REQUEST_RESOLVE(denied) routes to friendRequestApi.resolveRequest for a site_temp_pass request too", async () => {
     const spy = vi.spyOn(friendRequestApi, "resolveRequest").mockResolvedValue(undefined);
 

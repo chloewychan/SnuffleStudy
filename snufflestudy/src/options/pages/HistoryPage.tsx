@@ -72,12 +72,11 @@ export function HistoryPage() {
   const [eventsErrorBySession, setEventsErrorBySession] = useState<Record<string, string>>({});
   const [loadingEventsFor, setLoadingEventsFor] = useState<string | null>(null);
 
-  // v4.1 Task 10: extracted out of its own effect below so frame-time-period's own button-bool
-  // has a real action (force a fresh fetch of the current filters, e.g. to check for a session
-  // that just completed) instead of a dead decoration, and so this page can register with the
-  // refresh registry - unlike every other Refresh-registered panel, this page had never done so
-  // before this task. Safe to call unconditionally even from OptionsApp.tsx's standalone usage
-  // (no RefreshRegistryProvider there) - useRegisterRefresh() itself already no-ops outside one.
+  // Extracted out of its own effect below so the refresh button (below) has a real action
+  // (force a fresh fetch of the current filters, e.g. to check for a session that just
+  // completed) instead of a dead decoration, and so this page can register with the refresh
+  // registry. Safe to call unconditionally even from OptionsApp.tsx's standalone usage (no
+  // RefreshRegistryProvider there) - useRegisterRefresh() itself already no-ops outside one.
   function loadHistory() {
     setSessions(null);
     setLoadError(null);
@@ -114,8 +113,8 @@ export function HistoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stateFilter, sinceDate]);
 
-  // `until` isn't part of HistoryQuery (v1's listHistory only supports `since`/`state`/`limit`),
-  // so the end-of-range bound is applied client-side over whatever `since`/`state` already
+  // `until` isn't part of HistoryQuery (listHistory only supports `since`/`state`/`limit`), so
+  // the end-of-range bound is applied client-side over whatever `since`/`state` already
   // fetched, rather than adding a new query parameter to the repository.
   const visibleSessions = useMemo(() => {
     if (!sessions) return sessions;
@@ -193,10 +192,9 @@ export function HistoryPage() {
           <option value="ABANDONED">Abandoned</option>
         </Input>
         {/* No new save semantics - the filters above already re-query reactively on every
-            change. This just gives frame-time-period's own button-bool a real (if redundant)
-            action: force a fresh fetch of the current filters, rather than rendering it as a
-            dead decoration. Doubles as the Header Refresh button's hookup for this page - see
-            loadHistory()'s own header comment. */}
+            change. This button gives this control a real (if redundant) action: force a fresh
+            fetch of the current filters, rather than rendering it as a dead decoration. Doubles
+            as the Header Refresh button's hookup for this page - see loadHistory() above. */}
         <ButtonBool icon="check" aria-label="Refresh session history" onClick={loadHistory} />
       </div>
 

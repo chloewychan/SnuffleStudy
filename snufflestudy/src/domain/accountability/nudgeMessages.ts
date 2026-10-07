@@ -1,12 +1,11 @@
-// v2 Task 7: the fixed catalog of predefined nudges a friend can send. sendNudge(friendUserId,
-// messageId) takes a messageId rather than free text - the sender picks one of these, they don't
-// write their own - per the plan's "predefined nudges" framing throughout
-// docs/V2_Implementation_Plan.md and docs/Draft1_Architecture_Overview.md.
+// The fixed catalog of predefined nudges a friend can send. sendNudge(friendUserId, messageId)
+// takes a messageId rather than free text - the sender picks one of these, they don't write
+// their own.
 //
 // Tone is deliberately encouraging and non-punitive - this product's stated tone is "consensual
-// peer pressure, not guilt" (docs/Draft1_Architecture_Overview.md), never scold-y, even though a
-// nudge is very likely to arrive while the recipient is mid-distraction (that's exactly when a
-// friend would send one). Contrast with pressureEngine.ts's pickWarningMessage: that pool is the
+// peer pressure, not guilt," never scold-y, even though a nudge is very likely to arrive while
+// the recipient is mid-distraction (that's exactly when a friend would send one). Contrast with
+// pressureEngine.ts's pickWarningMessage: that pool is the
 // *system's own voice* escalating at the session owner about their own distraction (and does get
 // firmer at higher intervention levels); this catalog is always a friend's voice reaching out,
 // and stays warm regardless of how many nudges have already been sent.

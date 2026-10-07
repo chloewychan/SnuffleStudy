@@ -37,8 +37,7 @@ const settingsRepo = new ChromeStorageRepository();
 const historyRepo = new IndexedDbSessionRepository();
 const taskRepo = new IndexedDbTaskRepository();
 
-// QA-discovered bug (v3.2): tasks used to have no account scoping at all - unlike
-// currentFriendSyncUserId() (friendSync.ts), this is NOT gated on any settings toggle, since
+// Unlike currentFriendSyncUserId() (friendSync.ts), this is NOT gated on any settings toggle, since
 // every signed-in user should have their own private task scope regardless of whether they've
 // opted into friend-sync. Mirrors AUTH_GET_SESSION's own supabase.auth.getSession() call exactly
 // - null means signed out, its own persistent task scope (see taskRepository.ts).
@@ -48,10 +47,9 @@ async function currentUserId(): Promise<string | null> {
   return data.session.user.id;
 }
 
-// Starts the friend-poll alarm (v2 Task 6) when a session becomes active, but only if it's
+// Starts the friend-poll alarm when a session becomes active, but only if it's
 // actually worth running: signed in + friend-sync enabled (currentFriendSyncUserId) AND has at
-// least one friend (hasAnyFriend, v3.4 Task 2 - replaces isInAnyGroup()/group_memberships with a
-// direct friendships existence check) - being opted in with no friend yet has nothing to poll
+// least one friend (hasAnyFriend) - being opted in with no friend yet has nothing to poll
 // for. Fire-and-forget/best-effort like recordFriendStatusEvent (see friendSync.ts): the
 // friendship-existence check is a network call, so this must never block SESSION_START's own
 // response on it.
@@ -113,10 +111,10 @@ async function routeMessage(
       if (started.restrictionMode === "hard") {
         await syncHardBlockRules(started.restrictedSites);
       }
-      // v2 Task 10: goalText is StudySession.goal, already a local field on `started` - the
-      // first time it's synced anywhere (session-start time is where the brief calls out goal
-      // text as "available", so this is the one recordFriendStatusEvent call site that passes
-      // it - see friendSync.ts's comment on why every other call site's shape is unchanged).
+      // goalText is StudySession.goal, already a local field on `started` - this is the one
+      // recordFriendStatusEvent call site that passes it, since the goal text is only known
+      // locally and this is the first point it's synced anywhere. See friendSync.ts's comment
+      // on why every other call site's shape is unchanged.
       recordFriendStatusEvent("SESSION_STARTED", started.id, "started a focus session", {
         goalText: started.goal,
       });
@@ -179,7 +177,7 @@ async function routeMessage(
       // there's nothing to verify against, so ending proceeds freely rather than
       // bricking the session until the timer naturally expires.
       if (session.restrictionMode === "hard") {
-        // v3.3 Task 12: an approved temporary pass is an alternative to the permanent passcode,
+        // An approved temporary pass is an alternative to the permanent passcode,
         // never a replacement for it - checked first (and separately) so the passcode branch
         // below stays completely unchanged when endRequestId is absent. isApprovedForSelf does
         // its own fresh server-side read and explicitly checks requester_user_id against the
@@ -189,10 +187,6 @@ async function routeMessage(
         // THEIR pass to use).
         const endRequestId = message.payload.endRequestId;
         if (endRequestId) {
-          // v3.4 Task 3: isApprovedForSelf now lives on friendRequestApi.ts (generalized from
-          // sessionEndRequestApi.ts's identical function) and takes an explicit `kind` param -
-          // everything else about this check (its own fresh server-side read, its explicit
-          // requester_user_id comparison against the caller's own verified identity) is unchanged.
           const approved = await friendRequestApi.isApprovedForSelf(
             endRequestId,
             "session_end",
@@ -292,11 +286,11 @@ async function routeMessage(
       });
       // displayLabel is deliberately generic - never the hostname the distraction event itself
       // carries (see session_status_events' display_label column comment in the schema
-      // migration: "never the raw hostname unless the sender explicitly opted in"). v2 Task 10
-      // builds that opt-in: the REAL hostname is now written to the new, separate `hostname`
-      // column (never into displayLabel) - read-side visibility is gated entirely by
-      // share_current_domain via friend_has_granted_domain_visibility/fetch_friend_event_details
-      // (supabase/migrations/20260815000012_v2_privacy_controls.sql), not by withholding it here.
+      // migration: "never the raw hostname unless the sender explicitly opted in"). The real
+      // hostname is written to the separate `hostname` column instead (never into displayLabel)
+      // - read-side visibility is gated entirely by share_current_domain via
+      // friend_has_granted_domain_visibility/fetch_friend_event_details, not by withholding it
+      // here.
       recordFriendStatusEvent("DISTRACTION_ATTEMPT", session.id, "got distracted", {
         hostname: message.payload.hostname,
       });
@@ -304,15 +298,11 @@ async function routeMessage(
     }
 
     case "MARK_SITE_STUDY_RELATED": {
-      // v2 Task 9, Part B: this is one of the two resolution paths for an active distraction
-      // warning (the other is RETURN_TO_WORK_CLOSE_TAB below) - see SnufflesOverlay.tsx's
-      // handleMarkStudyRelated. sessionMachine.recordRecovery existed since v1 but was never
-      // called from anywhere (verified via grep - zero call sites outside sessionMachine.ts's
-      // own tests), which left RECOVERY permanently unreachable and recoveryRate fabricated
-      // for every user - a real gap this task's DigestSummary.recoveryRate field would
-      // otherwise just report as 0 forever. Only counts as a genuine recovery if there was
-      // actually an active warning to recover from (interventionLevel !== "none" at the time),
-      // so routinely pre-allowlisting a site with no prior warning doesn't inflate the count.
+      // This is one of the two resolution paths for an active distraction warning (the other is
+      // RETURN_TO_WORK_CLOSE_TAB below) - see SnufflesOverlay.tsx's handleMarkStudyRelated.
+      // Only counts as a genuine recovery if there was actually an active warning to recover
+      // from (interventionLevel !== "none" at the time), so routinely pre-allowlisting a site
+      // with no prior warning doesn't inflate the recovery count.
       const session = await requireActiveSession(message.payload.sessionId);
       const hadActiveWarning = session.interventionLevel !== "none";
       const withAllowedSite = {
@@ -351,11 +341,10 @@ async function routeMessage(
       // nothing to navigate back to, so closing it is the only way to actually return the
       // user to their prior context (see SnufflesOverlay.tsx for the referrer branch).
       //
-      // v2 Task 9, Part B: this message carries no sessionId (see shared/messages.ts - its
-      // payload is empty), so recordRecovery below reads the active session directly via
-      // settingsRepo rather than requireActiveSession. Same "only counts if there was an
-      // active warning" guard as MARK_SITE_STUDY_RELATED above - see that case's comment for
-      // the full rationale (recordRecovery was previously wired up nowhere at all).
+      // This message carries no sessionId (see shared/messages.ts - its payload is empty), so
+      // recordRecovery below reads the active session directly via settingsRepo rather than
+      // requireActiveSession. Same "only counts if there was an active warning" guard as
+      // MARK_SITE_STUDY_RELATED above.
       const session = await settingsRepo.getActiveSession();
       if (session && session.interventionLevel !== "none") {
         const updated = machine.recordRecovery(session);
@@ -483,7 +472,7 @@ async function routeMessage(
       return { ok: true, session: data.session };
     }
 
-    // v3.3 Task 14: mandatory create-account password step (SignInForm.tsx, after a verified
+    // Mandatory create-account password step (SignInForm.tsx, after a verified
     // AUTH_VERIFY_OTP) and AccountPage.tsx's "set/change your password" action both route here.
     // updateUser({ password }) requires an existing session - both call sites only ever invoke
     // this while already signed in (a freshly-verified OTP session, or an already-signed-in
@@ -491,12 +480,11 @@ async function routeMessage(
     // @supabase/auth-js 2.112.3 .d.ts: `updateUser(attributes: UserAttributes, options?)` where
     // UserAttributes.password is `string | undefined`, returning `UserResponse` -
     // `{ data: { user }, error: null } | { data: null, error: AuthError }`).
-    // v3.4 Task 6: Verify the CURRENT password before changing it, but only when one already
+    // Verifies the CURRENT password before changing it, but only when one already
     // exists to verify against - profiles.password_set_at is the durable, server-side signal for
     // that (the client can't reliably infer "does this account already have a password" from the
     // Supabase session object alone). getMyProfile() throws if not signed in - both call sites
-    // (this and Task 7's create-account completion step) only ever invoke this while already
-    // signed in, same precondition the pre-existing comment above already documents.
+    // only ever invoke this while already signed in, same precondition as above.
     case "AUTH_SET_PASSWORD": {
       const profile = await profileApi.getMyProfile();
       if (profile?.passwordSetAt) {
@@ -529,7 +517,7 @@ async function routeMessage(
       return { ok: true };
     }
 
-    // v3.3 Task 14: the sign-in branch's "Sign in with a password" peer option (SignInForm.tsx) -
+    // The sign-in branch's "Sign in with a password" peer option (SignInForm.tsx) -
     // confirmed against the installed @supabase/auth-js 2.112.3 .d.ts: `signInWithPassword(
     // credentials: SignInWithPasswordCredentials): Promise<AuthTokenResponsePassword>`, where
     // SignInWithPasswordCredentials accepts `{ email, password }` and AuthTokenResponsePassword
@@ -595,7 +583,7 @@ async function routeMessage(
       // { ok: false, error } - see nudgeApi.ts - never throws for that case, so this stays a
       // thin pass-through like every other case here.
       //
-      // v4.1 Task 1 (Decision 6): the payload union is narrowed into a NudgeSource here, at the
+      // The payload union is narrowed into a NudgeSource here, at the
       // router boundary - "vaultTextId" in message.payload distinguishes the two branches
       // (mirrors this file's other discriminated-payload cases), so nudgeApi.sendNudge() itself
       // never has to inspect the raw wire payload shape.
@@ -617,15 +605,15 @@ async function routeMessage(
     case "FRIEND_REQUEST_CREATE": {
       // createRequest throws (not signed in, insert error) rather than returning ok:false - the
       // outer handleMessage try/catch (top of this file) turns that into { ok: false, error },
-      // same convention as GROUP_CREATE/GROUP_JOIN above. One shared call for all three kinds -
-      // replaces UNLOCK_REQUEST_CREATE/TEMP_PASSCODE_CREATE/SESSION_END_REQUEST_CREATE.
+      // same convention used throughout this file. One shared call handles all three request
+      // kinds (site_unlock, site_temp_pass, session_end).
       const request = await friendRequestApi.createRequest(message.payload.kind, message.payload);
       return { ok: true, request };
     }
 
     case "FRIEND_REQUEST_RESOLVE": {
       // resolveRequest throws on a denied/failed resolve (including the "first responder wins"
-      // race, and Decision 3's RLS-enforced exclusion of plain-client site_temp_pass approval -
+      // race, and the RLS-enforced exclusion of plain-client site_temp_pass approval -
       // see friendRequestApi.ts's own comment) - same outer-catch convention as above.
       // Applying an approved site_unlock/site_temp_pass to the requester's own active
       // session/hard-block rules does NOT happen here: this message runs on the RESOLVING
@@ -638,7 +626,7 @@ async function routeMessage(
 
     case "FRIEND_REQUEST_APPROVE_TEMP_PASS": {
       // approveTempPass throws on failure (not the assigned friend, already resolved, Edge
-      // Function error) - same outer-catch convention as above. Decision 3: the only
+      // Function error) - same outer-catch convention as above. This is the only
       // friend_requests approval path for kind = 'site_temp_pass' - RLS's WITH CHECK excludes
       // this transition from FRIEND_REQUEST_RESOLVE's plain client UPDATE entirely.
       const result = await friendRequestApi.approveTempPass(message.payload.requestId);
@@ -646,7 +634,6 @@ async function routeMessage(
     }
 
     case "FRIEND_REQUEST_CLAIM_TEMP_PASS": {
-      // v3.3 Task 10: replaces TEMP_PASSCODE_REDEEM - there is no code to submit anymore.
       // claimApproval never throws (see friendRequestApi.ts) - it resolves to { ok: false } for
       // every failure path (RLS-denied/missing row, expired, network/invoke error), and on
       // success has already performed the actual local unlock
@@ -658,10 +645,9 @@ async function routeMessage(
 
     case "FRIEND_REQUESTS_FETCH": {
       // fetchRelevantRequests already degrades to [] (never throws) when signed out or on a
-      // transient failure - see friendRequestApi.ts - so useIncomingActivity.ts (v4.1 Task 8)/
+      // transient failure - see friendRequestApi.ts - so useIncomingActivity.ts/
       // RequestUnlockForm.tsx/LockedPage.tsx/EndSessionControl.tsx always get an ok:true
-      // response, even with nothing to show. Replaces UNLOCK_REQUESTS_FETCH/
-      // TEMP_PASSCODE_REQUESTS_FETCH/SESSION_END_REQUESTS_FETCH.
+      // response, even with nothing to show.
       const requests = await friendRequestApi.fetchRelevantRequests(
         message.payload.sinceTimestamp
       );
@@ -679,7 +665,7 @@ async function routeMessage(
     case "FRIENDSHIP_SETTINGS_LIST": {
       // listMyFriendshipSettings throws (not signed in, query error) rather than returning
       // ok:false - the outer handleMessage try/catch turns that into { ok: false, error }, same
-      // convention as GROUP_CREATE/GROUP_JOIN/FRIEND_REQUEST_CREATE above.
+      // convention as FRIEND_REQUEST_CREATE above.
       const settings = await friendshipSettingsApi.listMyFriendshipSettings();
       return { ok: true, settings };
     }
@@ -696,7 +682,7 @@ async function routeMessage(
 
     case "STUDY_ROOM_CREATE": {
       // createRoom throws on failure (not signed in, RLS-denied insert) - outer handleMessage
-      // try/catch turns that into ok:false, same convention as GROUP_CREATE.
+      // try/catch turns that into ok:false, same convention used throughout this file.
       const room = await studyRoomApi.createRoom(message.payload.name);
       return { ok: true, room };
     }
@@ -826,7 +812,7 @@ async function routeMessage(
       // itself, from the request's own bearer token.
       const userId = await currentUserId();
       await accountApi.deleteAccount();
-      // QA-discovered bug (v3.2): tasks live in local IndexedDB, not Supabase - nothing
+      // Tasks live in local IndexedDB, not Supabase - nothing
       // server-side (the delete-account Edge Function/delete_account_data SQL function) can ever
       // reach them, so this device-local cleanup has to happen here. Best-effort: the account is
       // already deleted server-side by this point regardless of whether this succeeds, so a
@@ -838,7 +824,7 @@ async function routeMessage(
           console.error("Failed to clear local tasks after account deletion", err);
         }
       }
-      // QA-discovered bug (v3.4): session history/events carry no account identity at all
+      // Session history/events carry no account identity at all
       // (unlike Task, StudySession/SessionEvent have no userId field - see
       // indexedDbRepository.ts's clearAll() comment), so there's no "for this account" cleanup
       // to scope by the way taskRepo.deleteAllForUser(userId) above does. Wiped outright

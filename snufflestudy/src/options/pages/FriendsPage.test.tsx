@@ -9,10 +9,10 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
-// v3.4 Task 2: mirrors FriendGroupPanel.test.tsx's routeSendMessage helper exactly (same
-// rationale: this page fires several independent sendMessage calls on mount - AUTH_GET_SESSION,
-// FRIENDS_LIST, FRIENDSHIP_SETTINGS_LIST - a single blanket mockResolvedValue can't give each a
-// different shape).
+// Mirrors FriendGroupPanel.test.tsx's routeSendMessage helper (same rationale: this page fires
+// several independent sendMessage calls on mount - AUTH_GET_SESSION, FRIENDS_LIST,
+// FRIENDSHIP_SETTINGS_LIST - a single blanket mockResolvedValue can't give each a different
+// shape).
 type Handler = (msg: ExtensionMessage) => unknown;
 
 function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
@@ -50,32 +50,29 @@ describe("FriendsPage", () => {
     render(<FriendsPage />);
 
     expect(await screen.findByText("user-friend")).toBeInTheDocument();
-    // Two pre-existing (Task 5/7) nudge toggles.
+    // Two nudge toggles.
     expect(screen.getByLabelText("I may send this friend a live nudge")).toBeChecked();
     expect(screen.getByLabelText("This friend may send me a live nudge")).toBeChecked();
-    // v4.1 Task 9: the daily-digest checkbox is dropped along with the rest of the digest
-    // feature - no longer rendered here, even though FriendshipSettings.receiveDailyDigest
-    // still exists server-side (the digest backend itself is out of scope for this release).
+    // The daily-digest checkbox is not rendered here, even though
+    // FriendshipSettings.receiveDailyDigest still exists server-side - it's just not surfaced
+    // on this page.
     expect(
       screen.queryByLabelText("Receive a daily digest about this friend")
     ).not.toBeInTheDocument();
-    // Five new (Task 10) toggles, all off by default per the migration's "most-private-by-
-    // default" column defaults.
+    // Five sharing toggles, all off by default (most-private-by-default).
     expect(screen.getByLabelText("Share my distraction attempts with this friend")).not.toBeChecked();
     expect(screen.getByLabelText("Share my current site with this friend")).not.toBeChecked();
     expect(screen.getByLabelText("Share my session goal text with this friend")).not.toBeChecked();
     expect(screen.getByLabelText("Share my intervention count with this friend")).not.toBeChecked();
     expect(screen.getByLabelText("Share my full session history with this friend")).not.toBeChecked();
-    // v4.1 Task 9: FriendSettingsFields also always renders a "Remove friend" button now, even
-    // on this standalone full-page caller (previously only AccountPage.tsx's "Your friends" had
-    // one).
+    // FriendSettingsFields always renders a "Remove friend" button, even on this standalone
+    // full-page caller.
     expect(screen.getByRole("button", { name: "Remove friend" })).toBeInTheDocument();
   });
 
-  // v4.1 Task 9: "Remove friend" moved here (via the newly-extracted FriendSettingsFields +
-  // this page's own new handleRemove) since removal now needs to be triggerable from wherever a
-  // friend's settings render, not just AccountPage.tsx (whose "Your friends" section is gone -
-  // see FriendsBox.tsx, the new sidepanel home for bulk friend management).
+  // "Remove friend" is triggerable from wherever a friend's settings render (via
+  // FriendSettingsFields + this page's own handleRemove), not just AccountPage.tsx - see
+  // FriendsBox.tsx, the sidepanel's home for bulk friend management.
   describe("removing a friend", () => {
     it("removes a friend via FRIEND_REMOVE and drops them from the rendered list", async () => {
       const removeSpy = vi.fn(async () => ({ ok: true }));

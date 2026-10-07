@@ -9,9 +9,9 @@ beforeEach(() => {
 });
 
 // supabase-js's SupabaseClient.functions is a GETTER that constructs a brand-new FunctionsClient
-// on every access - mirrors tempPasscodeApi.test.ts's/coachingApi.test.ts's identical mockInvoke
-// helper/comment exactly (spying on `supabase.functions.invoke` directly would silently miss the
-// real call, since accountApi.ts reads the getter again and gets a different instance).
+// on every access, so spying on `supabase.functions.invoke` directly would silently miss the
+// real call - accountApi.ts reads the getter again and gets a different instance. Mocking the
+// getter itself (as below) is the only way to intercept it.
 function mockInvoke(impl: (...args: unknown[]) => Promise<unknown>) {
   const invokeMock = vi.fn(impl);
   vi.spyOn(supabase, "functions", "get").mockReturnValue({ invoke: invokeMock } as never);

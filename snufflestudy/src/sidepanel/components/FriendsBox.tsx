@@ -18,12 +18,9 @@ import { ButtonBool } from "./ui/ButtonBool";
 import { ButtonLarge } from "./ui/ButtonLarge";
 import { Input } from "./ui/Input";
 
-// design-specs/frames/popup-friend.json's "Tracking" list groups the first 3 fields (nudge
-// send/receive, distraction attempts) in pink and the last 4 (the v4.1 Task 10 sharing fields) in
-// beige - the daily-digest checkbox the spec still shows is NOT included here: it was
-// deliberately dropped from TOGGLE_FIELDS in v4.1 Task 9 (see that file's own comment), the same
-// "confirmed not to exist in the product, don't rebuild it" precedent as the old plan's "Enter
-// Office Building" button.
+// The "Tracking" list groups the first 3 fields (nudge send/receive, distraction attempts) in
+// pink and the last 4 (sharing fields) in beige. A daily-digest checkbox is deliberately not
+// included here since it isn't part of TOGGLE_FIELDS.
 const TRACKING_FIELD_COLOUR: ("pink" | "beige")[] = ["pink", "pink", "pink", "beige", "beige", "beige", "beige"];
 
 function FriendOptionsModal({
@@ -85,19 +82,15 @@ function FriendOptionsModal({
   );
 }
 
-// v4.1 Task 9: replaces FriendGroupPanel.tsx's friend-picker/nudge-send half and the old
-// Settings -> Account "Your friends"/"Add a friend"/"Invite a friend" sections (scope doc's
-// "Friends Tab") with one multi-select Friends box:
-// - a checklist of friends, each with an "Options" button opening the exact same
-//   FriendSettingsFields component FriendsPage.tsx now exports (see that file's own comment) -
-//   one implementation shared by this popover and the Options page's standalone Friends view;
-// - a bulk Nudge action (Decision 7/8: one existing per-target message per selected friend, fired
-//   in a loop - same shape as StudyRoomFooter.tsx's identical per-selected-participant Nudge
-//   action, and the same useNudgeVaultItems() hook that footer now also uses);
+// A multi-select Friends box:
+// - a checklist of friends, each with an "Options" button opening the same
+//   FriendSettingsFields component the Options page's standalone Friends view uses;
+// - a bulk Nudge action (one existing per-target message per selected friend, fired in a loop -
+//   same shape as StudyRoomFooter.tsx's per-selected-participant Nudge action, and the same
+//   useNudgeVaultItems() hook that footer also uses);
 // - a bulk Add-to-room action (STUDY_ROOM_INVITEE_ADD once per selected friend, the same message
-//   ManageAccessSection already uses one at a time);
-// - "Add a friend"/"Invite a friend", moved verbatim from AccountPage.tsx (FRIEND_REDEEM_CODE/
-//   FRIEND_INVITE_GENERATE_CODE - unchanged messages, unchanged logic).
+//   ManageAccessSection uses one at a time);
+// - "Add a friend"/"Invite a friend" forms (FRIEND_REDEEM_CODE/FRIEND_INVITE_GENERATE_CODE).
 export function FriendsBox() {
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
   const [selfLoaded, setSelfLoaded] = useState(false);
@@ -145,10 +138,8 @@ export function FriendsBox() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinBusy, setJoinBusy] = useState(false);
 
-  // Mirrors StudyRoomsBox.tsx's own loadSelf() shape exactly (same AUTH_GET_SESSION response
-  // type, same ok/error handling) - this box needs its own sign-in gate, since (unlike
-  // FriendGroupPanel.tsx's constituent sections, which each guarded their own friend-picker) it's
-  // the sole home for "Add a friend"/"Invite a friend" now.
+  // This box needs its own sign-in gate, since it's the sole home for "Add a friend"/"Invite a
+  // friend".
   function loadSelf() {
     setSelfError(null);
     sendMessage<{ ok: boolean; session?: { user: { id: string } } | null; error?: string }>({
@@ -233,9 +224,9 @@ export function FriendsBox() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // v4.1 Task 2: replaces every constituent section's own Refresh button with one registration -
-  // the Header's one Refresh button re-runs every fetch this box owns (friends, their settings,
-  // rooms) plus the shared vault-items fetch.
+  // Registers with the Header's shared Refresh button instead of rendering its own - one click
+  // re-runs every fetch this box owns (friends, their settings, rooms) plus the shared
+  // vault-items fetch.
   function refreshOwnFetches() {
     loadFriends();
     loadFriendshipSettings();
@@ -317,8 +308,8 @@ export function FriendsBox() {
       .finally(() => setRemovingId(null));
   }
 
-  // Decision 7/8: one existing per-target message per selected friend, fired in a loop - the same
-  // shape as StudyRoomFooter.tsx's identical per-selected-participant Nudge action.
+  // Sends one existing per-target message per selected friend, fired in a loop - the same shape
+  // as StudyRoomFooter.tsx's per-selected-participant Nudge action.
   function handleNudge() {
     if (!vaultNudgeKey || selectedFriendIds.size === 0) return;
     const [kind, id] = vaultNudgeKey.split(":", 2) as ["written" | "audio", string];
@@ -360,8 +351,8 @@ export function FriendsBox() {
       });
   }
 
-  // Decision 7: one existing STUDY_ROOM_INVITEE_ADD per selected friend, fired in a loop - the
-  // same message ManageAccessSection already sends one at a time.
+  // Sends one existing STUDY_ROOM_INVITEE_ADD message per selected friend, fired in a loop - the
+  // same message ManageAccessSection sends one at a time.
   function handleAddToRoom() {
     if (!roomToAddTo || selectedFriendIds.size === 0) return;
     setAddingToRoom(true);
@@ -391,7 +382,6 @@ export function FriendsBox() {
       });
   }
 
-  // Moved verbatim from AccountPage.tsx.
   async function handleInviteAFriend() {
     setInviteBusy(true);
     setInviteError(null);
@@ -412,7 +402,6 @@ export function FriendsBox() {
     }
   }
 
-  // Moved verbatim from AccountPage.tsx.
   async function handleAddFriend(e: React.FormEvent) {
     e.preventDefault();
     setJoinBusy(true);

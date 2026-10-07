@@ -172,10 +172,9 @@ describe("nudgeApi.fetchIncomingNudges", () => {
   });
 });
 
-// Fix-round-1 discipline from Task 6 (see sessionStatusSyncApi.ts's pollNewEventsForFriends
-// comment), applied here from the start: alarmHandlers.ts's friend-poll alarm needs to
-// distinguish "the fetch failed" from "genuinely no new nudges" so it only advances its
-// persisted nudge cursor on confirmed success.
+// Same discipline as sessionStatusSyncApi.ts's pollNewEventsForFriends (see its comment):
+// alarmHandlers.ts's friend-poll alarm needs to distinguish "the fetch failed" from "genuinely no
+// new nudges" so it only advances its persisted nudge cursor on confirmed success.
 describe("nudgeApi.pollIncomingNudges", () => {
   it("returns ok: true with the mapped nudges on a successful query", async () => {
     mockSignedIn("user-r");

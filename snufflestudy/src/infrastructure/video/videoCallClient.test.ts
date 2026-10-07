@@ -1,18 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Real WebRTC/LiveKit connections aren't testable in this environment (no camera/mic, no actual
-// signaling server) - per this task's brief, this mocks livekit-client entirely and tests only
-// videoCallClient.ts's own connect/disconnect/event-forwarding logic around it. Mirrors this
-// codebase's other vi.mock(...) module-boundary tests (e.g.
-// src/content/overlay/SnufflesOverlay.test.tsx mocking coachingApi.ts).
+// signaling server), so this mocks livekit-client entirely and tests only videoCallClient.ts's own
+// connect/disconnect/event-forwarding logic around it. Mirrors this codebase's other
+// vi.mock(...) module-boundary tests (e.g. src/content/overlay/SnufflesOverlay.test.tsx mocking
+// coachingApi.ts).
 //
 // FakeRoom is a minimal stand-in for livekit-client's real `Room` class: an event emitter
 // (on/off/emit) plus the handful of methods/properties videoCallClient.ts actually calls
 // (connect, disconnect, localParticipant.setCameraEnabled/setMicrophoneEnabled/identity).
 // Instances are tracked on the class itself (FakeRoom.instances) so tests can reach into whichever
 // instance joinCall() constructed internally - videoCallClient.ts never exposes the Room instance
-// itself (per the isolation requirement), so this is test-only reflection, not something the real
-// module surface offers. setCameraEnabled defaults to resolving a fake published track (so the
+// itself, so this is test-only reflection, not something the real module surface offers.
+// setCameraEnabled defaults to resolving a fake published track (so the
 // "local video tile" path is exercised by default, matching the real SDK's normal happy path);
 // individual tests override it per-instance via mockResolvedValueOnce/mockRejectedValueOnce where
 // they need different behavior.
@@ -41,9 +41,9 @@ vi.mock("livekit-client", () => {
     disconnect = vi.fn();
     localParticipant = {
       identity: "local-user",
-      // v3.3 Task 9: mirrors the real SDK's behavior of resolving `undefined` (no publication)
-      // when called with `enabled: false` - needed so a camera-off join/toggle can be asserted to
-      // publish no local video track, not just that the call args were right.
+      // Mirrors the real SDK's behavior of resolving `undefined` (no publication) when called
+      // with `enabled: false` - needed so a camera-off join/toggle can be asserted to publish no
+      // local video track, not just that the call args were right.
       setCameraEnabled: vi.fn().mockImplementation((enabled: boolean) => {
         if (cameraShouldFail) return Promise.reject(cameraFailure);
         if (!enabled) return Promise.resolve(undefined);
@@ -181,11 +181,10 @@ describe("videoCallClient.joinCall", () => {
     expect(room.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
   });
 
-  // QA-discovered bug (v3.2 Task 9): a camera/mic failure used to only console.error, with no
-  // way for StudyRoomPanel.tsx to ever learn it happened - a real join with no local video
-  // published looked identical to one that simply never got a chance to say why. Uses a real
-  // DOMException("...", "NotAllowedError") - the actual shape a Chrome side panel's blocked
-  // permission prompt rejects with (see mediaPermissions.ts) - not a generic Error.
+  // Uses a real DOMException("...", "NotAllowedError") - the actual shape a Chrome side panel's
+  // blocked permission prompt rejects with (see mediaPermissions.ts) - not a generic Error, since
+  // StudyRoomPanel.tsx needs to be able to learn that this specific failure happened rather than
+  // a join with no local video published looking identical to any other failure.
   it("emits an actionable local-media-error when the camera fails with NotAllowedError", async () => {
     FakeRoomClass.setCameraShouldFail(true, new DOMException("Permission dismissed", "NotAllowedError"));
     const events: Array<{ type: string; [k: string]: unknown }> = [];
@@ -212,10 +211,10 @@ describe("videoCallClient.joinCall", () => {
     unsubscribe();
   });
 
-  // v3.3 Task 9: `initial` lets a caller join with camera and/or mic already off. Omitting it
-  // entirely (exercised by every test above this one) must preserve today's "always publish both"
+  // `initial` lets a caller join with camera and/or mic already off. Omitting it entirely
+  // (exercised by every test above this one) must preserve the "always publish both" default
   // behavior exactly - covered separately here so a regression in the defaulting logic doesn't
-  // hide behind the many pre-existing tests that also happen to pass `true` implicitly.
+  // hide behind the many other tests that also happen to pass `true` implicitly.
   it("passes initial.camera/initial.microphone straight through to setCameraEnabled/setMicrophoneEnabled", async () => {
     await joinCall("room-1", "livekit-jwt", { camera: false, microphone: false });
 
@@ -277,7 +276,7 @@ describe("videoCallClient.leaveCall", () => {
   });
 });
 
-// v3.3 Task 9: mid-call camera/mic toggles - StudyRoomPanel.tsx's two in-room toggle buttons call
+// Mid-call camera/mic toggles - StudyRoomPanel.tsx's two in-room toggle buttons call
 // these directly, independent of leaving/rejoining the call.
 describe("videoCallClient.setCameraEnabled / setMicrophoneEnabled", () => {
   it("is a safe no-op when no call is active", async () => {
@@ -302,17 +301,13 @@ describe("videoCallClient.setCameraEnabled / setMicrophoneEnabled", () => {
     expect(room.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
   });
 
-  // QA-discovered bug (v3.3 QA pass): a real two-account test joined with the camera off, then
-  // clicked "Camera: Off" to turn it back on mid-call - the button's label flipped to "On" (pure
-  // local state), but no video ever appeared. Root cause: unlike joinCall's own camera try/catch
-  // (which attaches the resulting LocalTrackPublication's track and emits "track-added" - see
-  // "emits a local track-added event once the camera track publishes" above), this mid-call
-  // setCameraEnabled() only ever called room.localParticipant.setCameraEnabled(enabled) and
-  // discarded whatever it resolved with. A camera-off join never calls getUserMedia at all (see
-  // "a camera-off join publishes no local video track" above), so the FIRST real camera
-  // acquisition for that call is exactly this mid-call re-enable - which is precisely why it needs
-  // the same attach+emit treatment joinCall's initial publish already gets, not just the raw SDK
-  // call.
+  // A camera-off join never calls getUserMedia at all (see "a camera-off join publishes no local
+  // video track" above), so the FIRST real camera acquisition for that call is exactly this
+  // mid-call re-enable - which is why it needs the same attach+emit treatment joinCall's initial
+  // publish gets (attaching the resulting LocalTrackPublication's track and emitting
+  // "track-added" - see "emits a local track-added event once the camera track publishes" above),
+  // not just the raw room.localParticipant.setCameraEnabled(enabled) call with its result
+  // discarded.
   it("attaches the resulting local video track and emits a track-added event when re-enabling the camera mid-call", async () => {
     await joinCall("room-1", "livekit-jwt", { camera: false });
     const room = latestRoom();
@@ -394,14 +389,13 @@ describe("videoCallClient remote-track event forwarding", () => {
     unsubscribe();
   });
 
-  // QA-discovered bug (v3.3 QA pass): a real two-account session produced FOUR media elements
-  // (two video, two audio) stacked inside one remote participant's tile - trackSubscribed had
-  // fired a second time for both kinds (a reconnect/renegotiation, not an app bug) without an
-  // intervening trackUnsubscribed for the first pair ever arriving, and handleTrackSubscribed
-  // unconditionally created and appended a brand-new element every time, with nothing removing
-  // the stale one. The freshly working elements ended up hidden behind the old, unpopulated ones
-  // the DOM happened to stack on top - visually indistinguishable from "no video at all" (the
-  // beige placeholder background showing through).
+  // trackSubscribed can fire a second time for the same participant+kind (a reconnect/
+  // renegotiation, not an app bug) without an intervening trackUnsubscribed for the first pair
+  // ever arriving. Without the stale-element replacement this guards, handleTrackSubscribed
+  // would unconditionally create and append a brand-new element every time, leaving the stale one
+  // in place - the new element ends up hidden behind the old, unpopulated one the DOM happened to
+  // stack on top, visually indistinguishable from "no video at all" (the beige placeholder
+  // background showing through).
   it("replaces a stale element instead of stacking a duplicate when trackSubscribed fires twice for the same participant+kind", async () => {
     await joinCall("room-1", "livekit-jwt");
 

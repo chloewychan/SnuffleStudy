@@ -7,16 +7,14 @@ import { ButtonBool } from "../../sidepanel/components/ui/ButtonBool";
 import { ButtonList } from "../../sidepanel/components/ui/ButtonList";
 
 interface TaskVaultPageProps {
-  // v3.4 Task 4: optional - this used to be a routed page with somewhere real to close to;
-  // permanently embedded in StudyTab.tsx now, with nowhere to go, so StudyTab.tsx no longer
-  // passes a no-op here. The Back button below only renders when a real handler is passed.
+  // Optional - the Back button below only renders when a real handler is passed.
   onClose?: () => void;
-  // Fix 1 (final-review fix wave): fires with this component's own `tasks` list every time it
-  // changes (initial TASK_LIST load, create/delete mutations). StudyTab.tsx uses this to mirror
-  // the list into a prop it hands to SessionSetupForm's Goal select, so a task created here is
-  // immediately selectable there too - without SessionSetupForm issuing its own, separate
-  // TASK_LIST fetch. Optional so this component still works unchanged when mounted standalone
-  // (e.g. this file's own tests, which don't pass it).
+  // Fires with this component's own `tasks` list every time it changes (initial TASK_LIST load,
+  // create/delete mutations). StudyTab.tsx uses this to mirror the list into a prop it hands to
+  // SessionSetupForm's Goal select, so a task created here is immediately selectable there too -
+  // without SessionSetupForm issuing its own, separate TASK_LIST fetch. Optional so this
+  // component still works unchanged when mounted standalone (e.g. this file's own tests, which
+  // don't pass it).
   onTasksChanged?: (tasks: Task[]) => void;
 }
 

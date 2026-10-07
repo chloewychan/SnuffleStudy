@@ -14,20 +14,16 @@ interface SessionSetupFormProps {
   // its own TASK_LIST copy. StudyTab.tsx (which mounts this component right next to TaskVaultPage)
   // passes its own task list here, sourced from TaskVaultPage's onTasksChanged callback - that's
   // what keeps a task created in the Task Vault card immediately selectable in this Goal select
-  // (previously this component's own mount-only fetch never saw tasks created after it mounted -
-  // see Fix 1 in the final-review fix report). When omitted, this component fetches its own copy
+  // (a mount-only fetch here would never see tasks created after mount). When omitted, this
+  // component fetches its own copy
   // so it still works correctly when mounted standalone (e.g. this file's own tests).
   tasks?: Task[];
 }
 
-// design-specs/frames/page-study.json's frame-study-session: Goal/Pressure Style/Restriction Mode
-// are dropdowns, Focus Duration is two textboxes (hours/minutes) - confirmed by matching each
-// label's node id against its nearest-id value widget (each label+input pair was authored
-// together in Figma), not by document order (which interleaves them differently).
 export function SessionSetupForm({ settings, tasks: tasksProp }: SessionSetupFormProps) {
   const [fetchedTasks, setFetchedTasks] = useState<Task[]>([]);
-  // v4.1 Task 6: completed tasks sink to the bottom (sortTasksForDisplay), so the first entry
-  // here is the first uncompleted task - the Goal select's default.
+  // Completed tasks sink to the bottom (sortTasksForDisplay), so the first entry here is the
+  // first uncompleted task - the Goal select's default.
   const tasks = tasksProp ?? fetchedTasks;
   const sortedTasks = sortTasksForDisplay(tasks);
   const [goal, setGoal] = useState(sortedTasks[0]?.title ?? "");

@@ -1,7 +1,7 @@
-// QA-discovered (v3.2 Task 9): Chrome's side panel is a documented platform limitation - it can
-// never show the getUserMedia() permission prompt at all (confirmed against real-world reports,
-// not assumed - see videoCallClient.ts's/audioRecorder.ts's callers, ProducerTagRecorder.tsx and
-// StudyRoomPanel.tsx, for the two places this bites). Every call rejects with a NotAllowedError
+// Chrome's side panel is a documented platform limitation - it can never show the getUserMedia()
+// permission prompt at all (see videoCallClient.ts's/audioRecorder.ts's callers,
+// ProducerTagRecorder.tsx and StudyRoomPanel.tsx, for the two places this bites). Every call
+// rejects with a NotAllowedError
 // (message text like "Permission dismissed"), no dialog ever appears, and no decision is ever
 // recorded - chrome://settings/content/camera|microphone stays empty no matter how many times
 // this happens, so there is nothing there for a user to "reset." This isn't fixable from inside

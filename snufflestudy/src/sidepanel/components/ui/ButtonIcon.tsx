@@ -27,9 +27,8 @@ interface ButtonIconProps
   "aria-label": string;
 }
 
-// design-specs/frames/button-icon.json (component set 168:1413). Property=hover is an ON_HOVER
-// variant swap -> :hover, not a prop. Property=disabled maps onto the native disabled attribute.
-// Icon-only, so aria-label is required rather than optional.
+// Hover is a CSS :hover state, not a prop. The disabled prop maps onto the native disabled
+// attribute. Icon-only, so aria-label is required rather than optional.
 export function ButtonIcon({ icon, "aria-label": ariaLabel, ...rest }: ButtonIconProps) {
   return (
     <button type="button" className="sp-btn-icon" aria-label={ariaLabel} {...rest}>

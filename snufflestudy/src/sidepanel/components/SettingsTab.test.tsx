@@ -5,9 +5,8 @@ import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 import { DEFAULT_USER_SETTINGS } from "../../domain/settings/userSettings";
 import { HISTORY_LIST_LIMIT } from "../../options/pages/HistoryPage";
 
-// v4.1 Task 10: SettingsTab.tsx no longer has a Settings/Account/Friends/History sub-nav - it
-// renders SettingsPage, AccountPage, and HistoryPage as three stacked boxes in one scrolling view
-// (scope doc's Settings section). These cases replace the old nav-switch coverage with assertions
+// SettingsTab.tsx has no Settings/Account/Friends/History sub-nav - it renders SettingsPage,
+// AccountPage, and HistoryPage as three stacked boxes in one scrolling view. These cases assert
 // that all three boxes' own distinguishing content is present simultaneously on a single render,
 // and that there is no Friends destination anywhere in this tab.
 beforeEach(() => {
@@ -41,7 +40,7 @@ describe("SettingsTab", () => {
     expect(await screen.findByRole("heading", { name: "Account" })).toBeInTheDocument();
     expect(await screen.findByText("Session History")).toBeInTheDocument();
 
-    // No sub-nav buttons of the old shape exist anymore.
+    // No sub-nav buttons exist.
     expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "History" })).not.toBeInTheDocument();
   });
@@ -74,10 +73,11 @@ describe("SettingsTab", () => {
     expect(chrome.runtime.openOptionsPage).toHaveBeenCalledOnce();
   });
 
-  // QA-discovered bug (v3.3 QA pass): SettingsPage.tsx owns its own settings state, independent of
-  // SidePanelApp.tsx's own top-level copy (used to start a session) - saving a change here never
-  // told that copy to refresh. onSettingsChange is how SidePanelApp.tsx stays in sync; this proves
-  // SettingsTab actually wires it through to SettingsPage's own onSettingsSaved callback.
+  // SettingsPage.tsx owns its own settings state, independent of SidePanelApp.tsx's top-level
+  // copy (used to start a session) - without a way to notify it, saving a change here would
+  // never tell that copy to refresh. onSettingsChange is how SidePanelApp.tsx stays in sync;
+  // this proves SettingsTab actually wires it through to SettingsPage's own onSettingsSaved
+  // callback.
   it("calls onSettingsChange with the updated settings after a change is saved", async () => {
     mockAllSettled({
       SETTINGS_GET: async () => ({

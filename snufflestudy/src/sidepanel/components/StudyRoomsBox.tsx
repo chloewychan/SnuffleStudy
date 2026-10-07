@@ -13,39 +13,30 @@ import { ButtonLargeIcon } from "./ui/ButtonLargeIcon";
 import { ButtonIcon } from "./ui/ButtonIcon";
 import { Modal } from "./ui/Modal";
 
-// v4.1 Task 7: the Study tab's list/create/manage-access box - StudyRoomPanel.tsx's entire
-// "not joined" branch, moved here unchanged in behavior except: (1) room list items are now
-// click-to-select (single selection) instead of each carrying its own Join button - one "Join
-// study room" button below the list joins whichever room is currently selected, via
-// useStudyRoomSession().joinRoom(); (2) "Archive Study Room" moves inside the ManageAccessModal
-// popup (design-specs/frames/popup-study-room.json), opened via each owned room's own "options"
-// icon rather than an inline expand/collapse toggle.
-// The joined-room view that used to live in this same component is now StudyRoomFooter.tsx, a
-// persistent app-shell footer (AppFooter.tsx) that survives a tab switch - this box only ever
-// shows the room list/create/manage-access UI, never a joined room.
+// The Study tab's list/create/manage-access box. Room list items are click-to-select (single
+// selection) rather than each carrying its own Join button - one "Join study room" button below
+// the list joins whichever room is currently selected, via useStudyRoomSession().joinRoom().
+// "Archive Study Room" lives inside the ManageAccessModal popup, opened via each owned room's
+// own "options" icon.
+//
+// The joined-room view lives separately, in StudyRoomFooter.tsx - a persistent app-shell footer
+// (AppFooter.tsx) that survives a tab switch. This box only ever shows the room
+// list/create/manage-access UI, never a joined room.
 
 interface StudyRoomsBoxProps {
-  // Mirrors StudyRoomPanel.tsx's own optional onClose (v3.4 Task 4 "no dead button" precedent) -
-  // no current caller passes one (StudyTab.tsx mounts this with nowhere to close to), kept
-  // optional rather than removed outright for the same reason that precedent was set: a future
-  // caller with somewhere real to close to can still use it, and omitting it here means no dead
-  // button renders instead of a fake no-op one.
+  // No current caller passes onClose (StudyTab.tsx mounts this with nowhere to close to), kept
+  // optional rather than removed: a future caller with somewhere real to close to can still use
+  // it, and omitting it here means no dead button renders instead of a fake no-op one.
   onClose?: () => void;
 }
 
-// design-specs/frames/popup-study-room.json - a modal, not the inline expand-in-place section
-// this used to be. Remove-only per its own spec (a trash icon per already-invited friend, no
-// "Invite" affordance): inviting now happens exclusively from the Friends tab's own "Add to Room"
-// bulk action (FriendsBox.tsx), which already sends the exact same STUDY_ROOM_INVITEE_ADD message
-// this component used to send itself for the "not yet invited" half of its old toggle list - that
-// half is dropped entirely, not duplicated.
+// A modal, remove-only per its design (a trash icon per already-invited friend, no "Invite"
+// affordance): inviting happens exclusively from the Friends tab's "Add to Room" bulk action
+// (FriendsBox.tsx), which sends the same STUDY_ROOM_INVITEE_ADD message.
 //
-// v4.1 Task 7: also owns rendering "Archive Study Room" (moved in from the parent's room <li> -
-// scope doc: "Move 'Archive this room' inside Manage access, alongside the friend-invite list").
-// Archiving itself (the STUDY_ROOM_ARCHIVE call, the archivingId/archiveError state) still lives in
-// the parent (StudyRoomsBox) - only one room's modal is ever open at a time (the existing
-// single-expanded-id pattern), so a single shared archiveError is unambiguous here exactly as it
-// was before this task.
+// Archiving itself (the STUDY_ROOM_ARCHIVE call, the archivingId/archiveError state) lives in
+// the parent (StudyRoomsBox) - only one room's modal is ever open at a time, so a single shared
+// archiveError is unambiguous.
 function ManageAccessModal({
   roomId,
   roomName,
@@ -67,8 +58,8 @@ function ManageAccessModal({
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
-  // v3.3 Task 8: resolves each invitee's userId to their human_name (falling back to the raw id
-  // when no profile/name exists) - see shared/ui/useDisplayNames.ts.
+  // Resolves each invitee's userId to their human_name (falling back to the raw id when no
+  // profile/name exists) - see shared/ui/useDisplayNames.ts.
   const displayName = useDisplayNames(inviteeIds ?? []);
 
   useEffect(() => {
@@ -153,8 +144,6 @@ export function StudyRoomsBox({ onClose }: StudyRoomsBoxProps) {
   const { joining, joinError, joinRoom } = useStudyRoomSession();
   const newRoomNameFieldId = useId();
 
-  // v3.2 Task 2: this box has no auth check at all before this task - mirrors
-  // FriendGroupPanel.tsx's loadFriends() auth-check half (AUTH_GET_SESSION -> selfUserId).
   // `selfLoaded` gates the signed-out gate below so it only renders once sign-in status is
   // actually known.
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
@@ -168,21 +157,20 @@ export function StudyRoomsBox({ onClose }: StudyRoomsBoxProps) {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  // v4.1 Task 7: single-selection room list (replaces each room's own per-item Join button).
+  // Single-selection room list (rather than each room's own per-item Join button).
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
-  // v3.3 Task 6: archiving is an owner-only action - archivingId tracks in-flight-per-room the
-  // same way `joining` (now on the shared study-room session) does, so archiving one room's
-  // button doesn't disable every other room's own Archive button too.
+  // Archiving is an owner-only action - archivingId tracks in-flight-per-room the same way
+  // `joining` (on the shared study-room session) does, so archiving one room's button doesn't
+  // disable every other room's own Archive button too.
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [archiveError, setArchiveError] = useState<string | null>(null);
 
-  // v3.3 Task 13: at most one room's "Manage access" section is expanded at a time.
+  // At most one room's "Manage access" section is expanded at a time.
   const [manageAccessRoomId, setManageAccessRoomId] = useState<string | null>(null);
 
-  // v3.3 Task 9: pre-join camera/mic checkboxes - default both true, preserving the pre-Task-9
-  // "always publish both" behavior. Read once by handleJoinSelectedRoom below to build
-  // joinRoom()'s `options` param.
+  // Pre-join camera/mic checkboxes, default both true. Read once by handleJoinSelectedRoom
+  // below to build joinRoom()'s `options` param.
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
 
@@ -202,12 +190,9 @@ export function StudyRoomsBox({ onClose }: StudyRoomsBoxProps) {
       });
   }
 
-  // v4.1 Task 2: replaces this box's own Refresh button - the Header's one Refresh button now
-  // re-runs this fetch (among every other currently-mounted panel's own).
+  // Registers with the Header's shared Refresh button instead of rendering its own.
   useRegisterRefresh(loadRooms);
 
-  // v3.2 Task 2: mirrors TempPasscodePanel.tsx's/UnlockRequestPanel.tsx's identical loadSelf()
-  // shape exactly (same AUTH_GET_SESSION response type, same ok/error handling).
   function loadSelf() {
     setSelfError(null);
     sendMessage<{ ok: boolean; session?: { user: { id: string } } | null; error?: string }>({
@@ -257,7 +242,7 @@ export function StudyRoomsBox({ onClose }: StudyRoomsBoxProps) {
       .finally(() => setCreating(false));
   }
 
-  // v3.3 Task 6: archives a room this user owns - removed from every user's STUDY_ROOM_LIST
+  // Archives a room this user owns - removed from every user's STUDY_ROOM_LIST
   // (listRooms()'s .is("archived_at", null) filter) immediately, so this optimistically drops it
   // from the local `rooms` list on success rather than waiting on a full loadRooms() re-fetch.
   function handleArchiveRoom(room: StudyRoom) {
@@ -282,18 +267,18 @@ export function StudyRoomsBox({ onClose }: StudyRoomsBoxProps) {
       .finally(() => setArchivingId(null));
   }
 
-  // v4.1 Task 7: replaces each room's own Join button - joins whichever room is currently
-  // selected via the shared study-room session's joinRoom(). joinRoom() never rejects (every
-  // failure path is caught internally and surfaced via the session's own joinError state), so this
-  // is a safe fire-and-forget from a UI handler, not a bare unhandled-rejection risk.
+  // Joins whichever room is currently selected via the shared study-room session's joinRoom().
+  // joinRoom() never rejects (every failure path is caught internally and surfaced via the
+  // session's own joinError state), so this is a safe fire-and-forget from a UI handler, not a
+  // bare unhandled-rejection risk.
   function handleJoinSelectedRoom() {
     const room = (rooms ?? []).find((r) => r.id === selectedRoomId);
     if (!room) return;
     void joinRoom(room, { camera: cameraOn, microphone: micOn });
   }
 
-  // v3.2 Task 2: signed out, there's nothing this box can show - creating/joining/listing rooms
-  // all require an authenticated user (studyRoomApi.ts's requireUserId()). Gated on `selfLoaded`
+  // Signed out, there's nothing this box can show - creating/joining/listing rooms all require
+  // an authenticated user (studyRoomApi.ts's requireUserId()). Gated on `selfLoaded`
   // (not just `selfUserId === null`) so a signed-in user never sees this prompt flash before the
   // AUTH_GET_SESSION round trip resolves, and on `!selfError` so a failed/rejected AUTH_GET_SESSION
   // call falls through to the normal view's own error handling instead of asserting "sign in" when

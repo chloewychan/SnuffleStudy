@@ -1,13 +1,12 @@
-// Covers messageRouter.ts's v3.3 Task 12 additions (originally SESSION_END_REQUEST_* thin
-// pass-throughs, v3.4 Task 3: consolidated into FRIEND_REQUEST_*, exercised here with
+// Covers messageRouter.ts's FRIEND_REQUEST_* handlers in isolation, exercised here with
 // kind: "session_end" - site_unlock coverage lives in messageRouterAccountability.test.ts,
-// site_temp_pass in messageRouterTempPasscode.test.ts, retargeted the same way) in isolation,
-// mirroring messageRouterTempPasscode.test.ts's own convention exactly: spies on
-// friendRequestApi's exported functions (this repo's established test style) so these cases are
-// verified to route to the right underlying call with the right arguments, entirely offline.
-// SESSION_END's own endRequestId branch (the security-critical half of this task) is covered
-// separately in messageRouter.test.ts's "SESSION_END hard-block enforcement" describe block,
-// alongside the pre-existing passcode-path tests it must not disturb.
+// site_temp_pass in messageRouterTempPasscode.test.ts. Mirrors messageRouterTempPasscode.test.ts's
+// own convention: spies on friendRequestApi's exported functions (this repo's established test
+// style) so these cases are verified to route to the right underlying call with the right
+// arguments, entirely offline. SESSION_END's own endRequestId branch (the security-critical
+// half of this) is covered separately in messageRouter.test.ts's "SESSION_END hard-block
+// enforcement" describe block, alongside the pre-existing passcode-path tests it must not
+// disturb.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import { handleMessage } from "./messageRouter";

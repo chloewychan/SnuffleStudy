@@ -36,7 +36,7 @@ describe("friendPollState", () => {
   });
 });
 
-// v2 Task 7: a second, independent cursor for the nudge stream polled by the same alarm tick -
+// A second, independent cursor for the nudge stream polled by the same alarm tick -
 // see this file's own comment on getLastNudgePollAt/setLastNudgePollAt for why it's separate
 // from getLastFriendPollAt/setLastFriendPollAt above.
 describe("friendPollState — nudge cursor", () => {
@@ -58,11 +58,11 @@ describe("friendPollState — nudge cursor", () => {
   });
 });
 
-// v3.4 Task 3: a third, independent cursor for the consolidated friend-request stream (replaces
-// the unlock-request/temp-passcode-request/session-end-request cursors this task retires, now
-// that all three kinds are one friend_requests table behind one poll query) - see this file's own
-// comment on getLastFriendRequestPollAt/setLastFriendRequestPollAt for why it's separate from
-// both cursors above.
+// A third, independent cursor for the consolidated friend-request stream (unlock requests,
+// temp-passcode requests, and session-end requests are all rows in one friend_requests table
+// behind a single poll query) - see this file's own comment on
+// getLastFriendRequestPollAt/setLastFriendRequestPollAt for why it's separate from both cursors
+// above.
 describe("friendPollState — friend-request cursor", () => {
   it("returns null when no last-checked-for-friend-requests timestamp has ever been persisted", async () => {
     expect(await getLastFriendRequestPollAt()).toBeNull();
@@ -84,7 +84,7 @@ describe("friendPollState — friend-request cursor", () => {
   });
 });
 
-// v2 Task 9: a fourth, independent cursor for the daily-digest stream polled by the same alarm
+// A fourth, independent cursor for the daily-digest stream polled by the same alarm
 // tick - see this file's own comment on getLastDigestPollAt/setLastDigestPollAt for why it's
 // separate from all three cursors above.
 describe("friendPollState — digest cursor", () => {
@@ -110,7 +110,7 @@ describe("friendPollState — digest cursor", () => {
   });
 });
 
-// v2 Task 14: a fifth, independent cursor for the producer-tag (friend-delivery) stream polled by
+// A fifth, independent cursor for the producer-tag (friend-delivery) stream polled by
 // the same alarm tick - see this file's own comment on getLastProducerTagPollAt/
 // setLastProducerTagPollAt for why it's separate from all four cursors above.
 describe("friendPollState — producer-tag cursor", () => {

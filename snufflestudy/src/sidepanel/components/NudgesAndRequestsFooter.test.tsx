@@ -9,12 +9,11 @@ import type { FriendNudge } from "../../infrastructure/backend/nudgeApi";
 import type { IncomingProducerTag } from "../../infrastructure/backend/producerTagApi";
 import type { FriendRequest } from "../../domain/accountability/friendRequest";
 
-// v4.1 Task 8: unit-level coverage for the presentation half of the Nudges & Unlock Requests
-// footer - IncomingActivity's data/handlers are supplied as plain props here (this component
-// itself owns no fetches beyond the lazy per-item audio download), so every case below constructs
-// its own crafted activity object rather than exercising useIncomingActivity.ts's real fetch/poll
-// machinery - that's covered end to end via AppFooter.test.tsx instead (the only real call site,
-// per useIncomingActivity.ts's own "instantiated once, inside AppFooter" contract).
+// Unit-level coverage for the presentation half of the Nudges & Unlock Requests footer -
+// IncomingActivity's data/handlers are supplied as plain props here (this component itself owns
+// no fetches beyond the lazy per-item audio download), so every case below constructs its own
+// crafted activity object rather than exercising useIncomingActivity.ts's real fetch/poll
+// machinery - that's covered end to end via AppFooter.test.tsx instead.
 vi.mock("../../infrastructure/backend/producerTagApi", () => ({
   downloadTagAudio: vi.fn(),
 }));

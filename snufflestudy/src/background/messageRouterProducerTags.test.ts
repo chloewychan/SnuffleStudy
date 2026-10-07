@@ -1,5 +1,5 @@
-// Covers messageRouter.ts's v2 Task 14 additions (PRODUCER_TAG_* cases), mirroring
-// messageRouterStudyRooms.test.ts's own convention exactly: spies on producerTagApi's exported
+// Covers messageRouter.ts's PRODUCER_TAG_* cases, mirroring
+// messageRouterStudyRooms.test.ts's own convention: spies on producerTagApi's exported
 // functions (this repo's established test style) so these cases are verified to route to the
 // right underlying call with the right arguments, entirely offline - no real network call is
 // ever made. PRODUCER_TAG_UPLOAD's Blob<->base64 round trip (see producerTagApi.ts's header

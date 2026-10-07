@@ -4,8 +4,8 @@ import { Header } from "./Header";
 import { RefreshRegistryProvider, useRefreshAll } from "../refresh/RefreshRegistryContext";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 
-// v4.1 Task 2: Header now reads useRefreshAll(), which throws outside a
-// RefreshRegistryProvider - every render() below needs one as an ancestor.
+// Header reads useRefreshAll(), which throws outside a RefreshRegistryProvider - every
+// render() below needs one as an ancestor.
 function renderHeader(onSignInClick: () => void = () => {}) {
   return render(
     <RefreshRegistryProvider>

@@ -1,7 +1,6 @@
-// v2 Task 11: Dynamic Coach Coaching Messages.
-//
-// Deno Edge Function - the first one this codebase deploys. Request shape mirrors
-// infrastructure/backend/coachingApi.ts's generateCoachingMessage() exactly (see that file):
+// Generates a short, in-voice coaching message via Claude when a user gets distracted during a
+// study session. Request shape mirrors infrastructure/backend/coachingApi.ts's
+// generateCoachingMessage() exactly (see that file):
 //   { pressureProfileId: string; goal: string; hostname: string; interventionLevel: InterventionLevel }
 // Response is `{ message: string }` on success, `{ error: string }` (non-2xx) on every failure
 // path - coachingApi.ts treats ANY non-2xx (rate-limited, unauthenticated, upstream model error,
@@ -19,13 +18,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Rate limit: 12 requests per rolling 60-second window, per user. Chosen at the lower end of the
-// brief's suggested 10-20/min range - SnufflesOverlay calls generateCoachingMessage() once per
-// BLOCKED-site mount (content/index.ts / overlayHost.tsx), so even a user rapidly bouncing across
-// several restricted tabs within a minute realistically produces a handful of calls, not dozens.
-// 12/min leaves comfortable headroom for that legitimate burst while still bounding the worst
-// case (a stuck/looping content script re-mounting continuously) to a fixed ~720 Claude calls per
-// user per hour if pinned at the ceiling the whole time - a real but bounded cost, not unbounded.
+// Rate limit: 12 requests per rolling 60-second window, per user. SnufflesOverlay calls
+// generateCoachingMessage() once per BLOCKED-site mount (content/index.ts / overlayHost.tsx), so
+// even a user rapidly bouncing across several restricted tabs within a minute realistically
+// produces a handful of calls, not dozens. 12/min leaves comfortable headroom for that legitimate
+// burst while still bounding the worst case (a stuck/looping content script re-mounting
+// continuously) to a fixed ~720 Claude calls per user per hour if pinned at the ceiling the whole
+// time - a real but bounded cost, not unbounded.
 const RATE_LIMIT_MAX_REQUESTS = 12;
 const RATE_LIMIT_WINDOW_SECONDS = 60;
 
@@ -33,9 +32,8 @@ const RATE_LIMIT_WINDOW_SECONDS = 60;
 // src/domain/pressure/pressureProfiles.ts (name/intensity/description only, never the message
 // pools themselves, which stay client-side as coachingApi.ts's fallback). A Deno Edge Function
 // deploys only this directory's own files (`supabase functions deploy` bundles per-function), so
-// importing app source across that boundary isn't an option - this is the "own small lookup" the
-// task brief anticipated. If PRESSURE_PROFILES in that file ever changes, this table needs a
-// matching update - there is no automated sync between them.
+// importing app source across that boundary isn't an option. If PRESSURE_PROFILES in that file
+// ever changes, this table needs a matching update - there is no automated sync between them.
 const PRESSURE_PROFILE_VOICE: Record<
   string,
   { name: string; intensity: string; description: string }
@@ -86,11 +84,11 @@ function json(body: unknown, status: number): Response {
   });
 }
 
-// Fix round 1 (latency): hoisted to module scope so a warm Deno isolate reuses the same client
-// (and whatever HTTP connection pooling supabase-js/Deno's fetch does underneath it) across
-// invocations, instead of constructing a fresh client object on every single request. Neither
-// client depends on request-specific state - the anon client is always the same
-// project URL + anon key, and the service-role client is only ever used for the rate-limit RPC.
+// Hoisted to module scope so a warm Deno isolate reuses the same client (and whatever HTTP
+// connection pooling supabase-js/Deno's fetch does underneath it) across invocations, instead of
+// constructing a fresh client object on every single request. Neither client depends on
+// request-specific state - the anon client is always the same project URL + anon key, and the
+// service-role client is only ever used for the rate-limit RPC.
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -119,8 +117,8 @@ Deno.serve(async (req: Request) => {
 
     // Identify the caller. supabase.functions.invoke(...) on the client (coachingApi.ts)
     // automatically forwards the caller's bearer token in the Authorization header - verified
-    // here via the anon-key client's auth.getUser(jwt), per this task's brief, rather than
-    // trusting a client-supplied user id in the request body.
+    // here via the anon-key client's auth.getUser(jwt), rather than trusting a client-supplied
+    // user id in the request body.
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return json({ error: "Not authenticated" }, 401);
@@ -143,14 +141,12 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Missing required fields" }, 400);
     }
 
-    // Fix round 1 (latency + atomicity): a single RPC replaces the old two-step SELECT count(...)
-    // then INSERT (two separate round trips to Postgres). See
+    // A single RPC does the count check and the insert inside one PL/pgSQL function call,
+    // serialized per-user via pg_advisory_xact_lock (see
     // supabase/migrations/20260815000015_v2_coaching_message_atomic_rate_limit.sql for the
-    // function body - it does the count check and the insert inside one PL/pgSQL function call,
-    // serialized per-user via pg_advisory_xact_lock so two concurrent requests from the same user
-    // can no longer both read a below-limit count before either has inserted its own row (the
-    // race the old two-step version had). coaching_message_requests has no RLS policies at all
-    // (20260815000014), so only this service-role client can call it.
+    // function body), so two concurrent requests from the same user can't both read a
+    // below-limit count before either has inserted its own row. coaching_message_requests has no
+    // RLS policies at all, so only this service-role client can call it.
     const { data: admitted, error: rpcError } = await adminClient.rpc(
       "check_and_record_coaching_message_request",
       {
@@ -198,14 +194,14 @@ Deno.serve(async (req: Request) => {
       escalationNote;
 
     // Raw fetch to the Messages API (no Anthropic SDK dependency in this Deno function). Model
-    // choice: claude-haiku-4-5 - fastest/cheapest current Anthropic model, the correct fit for
-    // this specific constraint (fix round 1): coachingApi.ts races this whole round trip against
-    // an 800ms client-side timeout, on every single distraction event, to generate one short
-    // sentence with no tool use, no long context, and no complex reasoning - not a task where
-    // Opus-tier's baseline latency or separate (tighter) rate-limit pool make sense. Haiku 4.5
-    // doesn't support `thinking`/`output_config.effort` the way Opus/Sonnet 5 do (effort errors
-    // on this model), so neither field is sent - omitting `thinking` entirely already means "no
-    // thinking" on this model, which is what a single short sentence needs anyway.
+    // choice: claude-haiku-4-5 - the fastest/cheapest current Anthropic model, and the right fit
+    // here: coachingApi.ts races this whole round trip against an 800ms client-side timeout, on
+    // every single distraction event, to generate one short sentence with no tool use, no long
+    // context, and no complex reasoning - not a task where Opus-tier's baseline latency or a
+    // separate (tighter) rate-limit pool make sense. Haiku 4.5 doesn't support `thinking`/
+    // `output_config.effort` the way Opus/Sonnet 5 do (effort errors on this model), so neither
+    // field is sent - omitting `thinking` entirely already means "no thinking" on this model,
+    // which is what a single short sentence needs anyway.
     const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -247,9 +243,8 @@ Deno.serve(async (req: Request) => {
       return json({ error: "No message generated" }, 502);
     }
 
-    // Total elapsed time, server-side, logged (not returned to the client) - the only
-    // observability this function has without a dedicated logs-viewing CLI command in this
-    // environment; harmless (no request content, no secrets).
+    // Total elapsed time, logged server-side only (not returned to the client) - harmless, since
+    // it contains no request content or secrets.
     console.log(`generate-coaching-message ok in ${Date.now() - startedAt}ms`);
     return json({ message }, 200);
   } catch (err) {

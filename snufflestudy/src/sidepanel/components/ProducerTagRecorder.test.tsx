@@ -4,10 +4,9 @@ import { ProducerTagRecorder } from "./ProducerTagRecorder";
 import * as audioRecorder from "../../infrastructure/audio/audioRecorder";
 
 // audioRecorder.ts itself is unit-tested directly (audioRecorder.test.ts) against a fake
-// MediaRecorder/getUserMedia - this component is tested against a MOCKED audioRecorder module
-// instead (same boundary-mocking convention as StudyRoomPanel.test.tsx mocking studyRoomApi/
-// videoCallClient), so these tests are purely about ProducerTagRecorder's own UI wiring: does it
-// call startRecording/stopRecording/getLastRecordingDurationMs correctly, and does it render the
+// MediaRecorder/getUserMedia. This component is tested against a mocked audioRecorder module
+// instead, so these tests are purely about ProducerTagRecorder's own UI wiring: does it call
+// startRecording/stopRecording/getLastRecordingDurationMs correctly, and does it render the
 // right step (record -> recording -> preview) at the right time.
 vi.mock("../../infrastructure/audio/audioRecorder", () => ({
   MAX_RECORDING_MS: 10_000,
@@ -148,10 +147,10 @@ describe("ProducerTagRecorder", () => {
     expect(screen.getByText("Record a tag (10s max)")).toBeInTheDocument();
   });
 
-  // QA-discovered bug (v3.2 Task 9): getUserMedia() rejects with a real but genuinely confusing
-  // browser message ("Permission dismissed") when this panel can't show the permission prompt at
-  // all (a Chrome side-panel limitation - see mediaPermissions.ts). A real DOMException, not a
-  // plain Error - the previous test's plain Error is a different, non-actionable failure.
+  // getUserMedia() rejects with a confusing browser message ("Permission dismissed") when a
+  // Chrome side-panel limitation prevents showing the permission prompt at all (see
+  // mediaPermissions.ts). This uses a real DOMException, not a plain Error - the previous test's
+  // plain Error is a different, non-actionable failure.
   it("replaces the raw browser message with a clear one and offers a fix action for a NotAllowedError", async () => {
     vi.mocked(audioRecorder.stopRecording).mockRejectedValue(
       new DOMException("Permission dismissed", "NotAllowedError")

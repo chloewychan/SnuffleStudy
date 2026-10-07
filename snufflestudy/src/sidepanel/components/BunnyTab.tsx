@@ -4,28 +4,23 @@ import type { Profile } from "../../infrastructure/backend/profileApi";
 import { Input } from "./ui/Input";
 import { ButtonBool } from "./ui/ButtonBool";
 
-// v3.3 Task 8: bunnyName/humanName used to be pure local stub state (no persistence, no backend -
-// confirmed directly against the pre-Task-8 repo). Now backed by the real `profiles` table via
-// PROFILE_GET_MINE/PROFILE_SAVE_MINE (infrastructure/backend/profileApi.ts,
-// background/messageRouter.ts). These two defaults are kept as exactly what a signed-in user with
-// no profiles row yet sees (a brand-new account, or one that's simply never saved from this tab) -
-// not placeholder-only UI anymore, a real fallback state the plan's own DoD calls out ("a user
-// with no profile row yet still renders correctly everywhere").
+// Backed by the real `profiles` table via PROFILE_GET_MINE/PROFILE_SAVE_MINE
+// (infrastructure/backend/profileApi.ts, background/messageRouter.ts). These two defaults are
+// exactly what a signed-in user with no profiles row yet sees (a brand-new account, or one
+// that's simply never saved from this tab) - a real fallback state, not placeholder-only UI.
 const DEFAULT_BUNNY_NAME = "Snuffles";
 const DEFAULT_HUMAN_NAME = "Hooman";
 
-// bunny_name is stored and round-trips through THIS component only, per the plan's own scope -
-// no other call site in this codebase reads it. human_name is the one of these two fields the
-// rest of Task 8 (useDisplayNames.ts and its call sites) actually surfaces elsewhere.
+// bunny_name is stored and round-trips through this component only - no other call site in this
+// codebase reads it. human_name is the one of these two fields that useDisplayNames.ts and its
+// call sites surface elsewhere.
 export function BunnyTab() {
   const [bunnyName, setBunnyName] = useState(DEFAULT_BUNNY_NAME);
   const [humanName, setHumanName] = useState(DEFAULT_HUMAN_NAME);
 
   // Tracks the last-persisted (or last-loaded) value for each field, so each field's own Save
   // button can tell "nothing new to save" (disabled) apart from "there's an edit pending"
-  // (enabled) - design-specs/frames/page-bunny.json's own button-bool starts on its Property=
-  // disabled variant, only switches to Property=default once the field is actually dirty, and
-  // goes back to disabled the moment a save succeeds (there's nothing new again at that point).
+  // (enabled), and goes back to disabled the moment a save succeeds.
   const [bunnyNameSavedValue, setBunnyNameSavedValue] = useState(DEFAULT_BUNNY_NAME);
   const [humanNameSavedValue, setHumanNameSavedValue] = useState(DEFAULT_HUMAN_NAME);
 
@@ -35,17 +30,14 @@ export function BunnyTab() {
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // This component had no persistence trigger at all before this task - there is no natural
-  // "field changed" moment to save on (unlike e.g. a checkbox toggle) without either saving on
-  // every keystroke (noisy, and racy against itself) or debouncing (more moving parts than this
-  // tab needs). design-specs/frames/page-bunny.json's own save trigger is a button-bool "check"
-  // icon per field, matching this codebase's existing convention for multi-field forms with a
-  // deliberate commit step.
+  // A text field has no natural "field changed" moment to save on (unlike e.g. a checkbox
+  // toggle) without either saving on every keystroke (noisy, and racy against itself) or
+  // debouncing (more moving parts than this tab needs), so each field gets its own explicit
+  // Save button instead.
   //
-  // v4.1 Task 5: split into two independent buttons/state trios so saving one field never shows
-  // the other as "Saving..." - both still send { humanName, bunnyName } together via
-  // PROFILE_SAVE_MINE (the message contract is unchanged), only the button-owned loading/success/
-  // error state is now per-field.
+  // The two fields use independent buttons/state trios so saving one field never shows the
+  // other as "Saving...". Both still send { humanName, bunnyName } together via
+  // PROFILE_SAVE_MINE - only the button-owned loading/success/error state is per-field.
   const [savingBunnyName, setSavingBunnyName] = useState(false);
   const [bunnyNameSaveError, setBunnyNameSaveError] = useState<string | null>(null);
 

@@ -17,7 +17,7 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
-// Gives the activity-only tracking tier actual behavior (v2 Decision 3): idle transitions are
+// Gives the activity-only tracking tier actual behavior: idle transitions are
 // recorded as logged SessionEvents, never used to auto-pause - auto-pausing would remove user
 // agency and repeat the "claims to know if you're really studying" mistake the product already
 // avoids. Only records while trackingTier is "activity-only", the activityTrackingEnabled

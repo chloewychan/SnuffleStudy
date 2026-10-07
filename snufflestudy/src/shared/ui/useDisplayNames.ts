@@ -2,18 +2,17 @@ import { useEffect, useState } from "react";
 import { sendMessage } from "../../infrastructure/messaging/extensionMessenger";
 import type { Profile } from "../../infrastructure/backend/profileApi";
 
-// v3.3 Task 8: given a list of user ids, fetches display names once via PROFILES_FETCH_BY_IDS and
-// returns a `(userId) => string` resolver. Every raw-userId display site this task's plan names
+// Given a list of user ids, fetches display names once via PROFILES_FETCH_BY_IDS and
+// returns a `(userId) => string` resolver. Every raw-userId display site
 // (NudgeSendForm's friend picker, StudyRoomPanel's participant list, TempPasscodePanel's/
 // UnlockRequestPanel's requester lines, LockedPage.tsx's friend picker, AccountPage.tsx's friend
-// list) uses this instead of rendering userId text directly. Task 13's room-invitee picker/list is
-// a future call site (that UI doesn't exist yet) - not wired here.
+// list) uses this instead of rendering userId text directly.
 //
 // PROFILES_FETCH_BY_IDS already degrades to [] on any failure (signed out, network error, RLS
 // denying every id - see profileApi.ts's fetchProfilesByIds) - so this hook never throws and never
 // surfaces its own error state; a failure just means every id falls back to its own raw value,
 // exactly the same as "no profile row exists yet for this id" or "this id's profile has no
-// human_name set" already do. bunny_name is deliberately never read here - per the plan, it stays
+// human_name set" already do. bunny_name is deliberately never read here - it stays
 // BunnyTab.tsx's own concern only.
 export function useDisplayNames(userIds: string[]): (userId: string) => string {
   // Joined into a stable, order-independent string so this effect only re-runs when the actual

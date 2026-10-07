@@ -5,8 +5,7 @@ interface ButtonSmallProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>,
   children: ReactNode;
 }
 
-// design-specs/frames/button-small.json (component set 168:1426). Each Colour's Property=hover is
-// an ON_HOVER variant swap -> :hover, not a prop.
+// Hover is a CSS :hover state per colour, not a prop.
 export function ButtonSmall({ colour = "pink", children, ...rest }: ButtonSmallProps) {
   return (
     <button type="button" className={`sp-btn-small sp-btn-small--${colour}`} {...rest}>

@@ -9,19 +9,16 @@ import { ButtonIcon } from "./ui/ButtonIcon";
 import { ButtonBool } from "./ui/ButtonBool";
 import { Input } from "./ui/Input";
 
-// v4.1 Task 9: replaces FriendGroupPanel.tsx's old "Friend activity" panel with the user's own
-// Nudge Vault - a library of saved audio and written nudges, reusable across every "pick a nudge
-// to send" picker in this codebase (FriendsBox.tsx's bulk Nudge action, StudyRoomFooter.tsx's
-// per-selected-participant Nudge action - both via the shared useNudgeVaultItems() hook). This box
-// owns its own two SEPARATE lists (audio tags, written texts) rather than that hook's merged view,
-// since each half needs its own independent Delete action against its own backend
-// (PRODUCER_TAG_DELETE / NUDGE_VAULT_TEXT_DELETE) - see useNudgeVaultItems.ts's own comment on why
-// this box doesn't consume it.
+// The user's own Nudge Vault - a library of saved audio and written nudges, reusable across
+// every "pick a nudge to send" picker in this codebase (FriendsBox.tsx's bulk Nudge action,
+// StudyRoomFooter.tsx's per-selected-participant Nudge action - both via the shared
+// useNudgeVaultItems() hook). This box owns its own two separate lists (audio tags, written
+// texts) rather than that hook's merged view, since each half needs its own independent Delete
+// action against its own backend (PRODUCER_TAG_DELETE / NUDGE_VAULT_TEXT_DELETE).
 
-// Same lazy-download-on-Play pattern as StudyRoomFooter.tsx's/NudgeSendSection.tsx's identical
-// IncomingProducerTagCard - the audio Blob is fetched only once "Play" is pressed, via
-// producerTagApi.downloadTagAudio, called DIRECTLY (not through sendMessage - a Storage-client
-// read, not a plain CRUD backend call; see that function's own header comment).
+// The audio Blob is fetched only once "Play" is pressed, via producerTagApi.downloadTagAudio,
+// called directly rather than through sendMessage - this is a Storage-client read, not a plain
+// CRUD backend call.
 function VaultAudioTagRow({
   tag,
   onDelete,
@@ -90,13 +87,12 @@ export function NudgeVaultBox() {
   const [saveTextError, setSaveTextError] = useState<string | null>(null);
   const [deletingTextId, setDeletingTextId] = useState<string | null>(null);
   const [deleteTextError, setDeleteTextError] = useState<string | null>(null);
-  // design-specs/frames/page-friends.json's written-nudge list rows each carry their own Edit
-  // icon (button-icon, Type=edit) - there's no NUDGE_VAULT_TEXT_UPDATE backend action, so "edit"
-  // here composes the existing CREATE+DELETE actions: Edit loads the row's text back into the
-  // same add-a-nudge field above, and submitting while `editingTextId` is set deletes the
-  // original row once the edited replacement has actually saved. If that trailing delete fails,
-  // the edited text is already saved (no data loss) - the stale original just needs its own
-  // manual Delete too, same as any other saved nudge.
+  // There's no NUDGE_VAULT_TEXT_UPDATE backend action, so "edit" here composes the existing
+  // CREATE+DELETE actions: Edit loads the row's text back into the same add-a-nudge field above,
+  // and submitting while `editingTextId` is set deletes the original row once the edited
+  // replacement has actually saved. If that trailing delete fails, the edited text is already
+  // saved (no data loss) - the stale original just needs its own manual Delete too, same as any
+  // other saved nudge.
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
 
   function loadAudioTags() {
@@ -141,18 +137,17 @@ export function NudgeVaultBox() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // v4.1 Task 2: replaces this box's own Refresh button - the Header's one Refresh button now
-  // re-runs both of this box's fetches (among every other currently-mounted panel's own).
+  // The Header's single Refresh button re-runs both of this box's fetches (among every other
+  // currently-mounted panel's own), so this box doesn't render its own Refresh button.
   function refreshOwnFetches() {
     loadAudioTags();
     loadTexts();
   }
   useRegisterRefresh(refreshOwnFetches);
 
-  // v4.1 Task 1: recording and saving to the vault IS uploading a producer_tags row - unlike
-  // NudgeSendSection.tsx's audio mode (upload then immediately send to a friend), there's no
-  // separate "send" step here. blobToBase64 is called directly, not through sendMessage - a pure
-  // browser-API helper, not a backend call (producerTagApi.ts's own header comment).
+  // Recording and saving to the vault is uploading a producer_tags row directly - there's no
+  // separate "send" step. blobToBase64 is called directly, not through sendMessage, because it's
+  // a pure browser-API helper, not a backend call.
   async function handleRecordAndSave(blob: Blob, durationMs: number) {
     setSavingAudio(true);
     setSaveAudioError(null);

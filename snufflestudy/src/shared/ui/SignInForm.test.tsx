@@ -3,23 +3,13 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SignInForm } from "./SignInForm";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 
-// v3.3 Task 14: SignInForm now splits into a top-level Create account/Sign in choice (Decision
-// 6 - this lives in the component itself, not a caller-supplied prop). This file was rewritten
-// for that branch structure; the pre-Task-14 "one flow does everything" tests it used to have
-// (v3.2 Task 4) are now split across the create-account branch and the sign-in branch's "Email
-// me a code" option (unchanged round trip, still calls onSignedIn directly, still covers
-// wrong/expired code + resend).
-//
-// v3.4 Task 7: the create-account branch's "create-email" -> "create-code" -> "create-password"
-// three-step flow collapsed onto one "create-details" screen (name/bunny name/email/password x2)
-// ahead of the OTP step, with account creation (AUTH_SET_PASSWORD then PROFILE_SAVE_MINE) now
-// completing automatically the instant the code is verified - no separate password step exists
-// after code verification anymore. The create-account tests below were rewritten for that shape.
-//
-// design-specs/frames/page-sign-in.json (Phase 3): the entry screen's old two-level choice
-// (choice -> signin-choice) is now one screen with three peer buttons - "Sign in" as an
-// intermediate step no longer exists. Every button/field/step-title copy below matches the
-// design-specs frames verbatim (e.g. "Create new account", "Send Sign-In Code", "Your Name").
+// SignInForm splits into a top-level Create account/Sign in choice, which lives in the
+// component itself, not a caller-supplied prop. The create-account branch collects name/bunny
+// name/email/password/confirm password together on one "create-details" screen ahead of the
+// OTP step, with account creation (AUTH_SET_PASSWORD then PROFILE_SAVE_MINE) completing
+// automatically the instant the code is verified - no separate password step exists after
+// code verification. The sign-in branch's "Email me a code" option is a separate round trip
+// that still calls onSignedIn directly and covers wrong/expired code + resend.
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -37,7 +27,7 @@ function goToSignInWithPassword() {
   fireEvent.click(screen.getByRole("button", { name: "Sign in (with password)" }));
 }
 
-// v3.4 Task 7: "create-details" requires name/email/password/confirm password before its submit
+// "create-details" requires name/email/password/confirm password before its submit
 // enables - bunny name is deliberately left untouched here since it's optional (see the "cannot
 // request a sign-in code..." test below, which verifies that omission doesn't block submit).
 async function requestCreateCode(email = "a@example.com", name = "Robin") {
@@ -169,7 +159,7 @@ describe("SignInForm — create-account branch", () => {
       });
 
     render(<SignInForm onSignedIn={onSignedIn} />);
-    // Bunny name left blank on purpose - matches the DoD's "bunny name left blank" fresh sign-up.
+    // Bunny name left blank on purpose - it's optional.
     await requestCreateCode("new@example.com", "Robin");
 
     fireEvent.change(screen.getByLabelText("Code"), { target: { value: "12345678" } });
@@ -223,9 +213,9 @@ describe("SignInForm — create-account branch", () => {
     expect(onSignedIn).not.toHaveBeenCalled();
   });
 
-  // Definition of done's explicit negative case: a partial-completion failure must be retryable
-  // WITHOUT re-verifying a fresh OTP code. Confirmed directly here, not just by absence of a
-  // second AUTH_VERIFY_OTP call site in the source - by counting actual sendMessage calls.
+  // A partial-completion failure must be retryable WITHOUT re-verifying a fresh OTP code.
+  // Confirmed directly here, not just by absence of a second AUTH_VERIFY_OTP call site in the
+  // source - by counting actual sendMessage calls.
   it("Retry after a failed AUTH_SET_PASSWORD completes the account and sends AUTH_VERIFY_OTP exactly once total across both attempts", async () => {
     const onSignedIn = vi.fn();
     let setPasswordAttempts = 0;
@@ -401,7 +391,7 @@ describe("SignInForm — sign-in branch: password option", () => {
   });
 });
 
-describe("SignInForm — sign-in branch: code option (unchanged OTP round trip)", () => {
+describe("SignInForm — sign-in branch: code option", () => {
   it("verifying a code calls onSignedIn directly, with no password step tacked on", async () => {
     const onSignedIn = vi.fn();
     vi.spyOn(messenger, "sendMessage").mockImplementation(async (message: any) => {

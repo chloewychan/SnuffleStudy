@@ -12,16 +12,15 @@ export function isSessionAlarm(alarm: chrome.alarms.Alarm): boolean {
   return alarm.name === SESSION_ALARM;
 }
 
-// v2 Task 6: a distinct chrome.alarms name from SESSION_ALARM above, deliberately - the brief
-// calls out as a hard requirement that starting/stopping this alarm must never collide with or
-// cancel the session-timer alarm (they're independent lifecycles that happen to overlap in
-// time: the session-timer alarm counts down to the *local* session's next state transition,
-// this one just polls Supabase for friend events roughly once a minute while any session is
-// active - see docs/Draft1_Architecture_Overview.md's "Friend-event delivery" Phase 1).
+// A distinct chrome.alarms name from SESSION_ALARM above, deliberately - starting/stopping this
+// alarm must never collide with or cancel the session-timer alarm. They're independent lifecycles
+// that happen to overlap in time: the session-timer alarm counts down to the *local* session's
+// next state transition, this one just polls Supabase for friend events roughly once a minute
+// while any session is active.
 const FRIEND_POLL_ALARM = "snufflestudy-friend-poll";
 
-// periodInMinutes: 1 matches the architecture overview's "roughly once a minute" cadence.
-// chrome.alarms.create requires a `when`/`delayInMinutes` for the first fire even when a period
+// periodInMinutes: 1 gives a roughly-once-a-minute poll cadence. chrome.alarms.create requires a
+// `when`/`delayInMinutes` for the first fire even when a period
 // is given - delayInMinutes: 1 means the first poll happens one interval in, not immediately,
 // which is fine since this only ever starts alongside a session that will run far longer than
 // a minute.
@@ -37,10 +36,8 @@ export function isFriendPollAlarm(alarm: chrome.alarms.Alarm): boolean {
   return alarm.name === FRIEND_POLL_ALARM;
 }
 
-// v2 Task 12: schedules the DNR re-lock for a single hostname's temp-passcode unlock, at the
-// exact expiresAt approve-temp-passcode returned (v3.3 Task 10: previously the now-deleted
-// redeem-temp-passcode Edge Function's expiresAt - approval alone sets expires_at now, there is
-// no separate redemption step). Deliberately its OWN alarm, not a reuse of FRIEND_POLL_ALARM
+// Schedules the DNR re-lock for a single hostname's temp-passcode unlock, at the exact expiresAt
+// approve-temp-passcode returned. Deliberately its OWN alarm, not a reuse of FRIEND_POLL_ALARM
 // above - a temp-passcode unlock must re-lock regardless of friend-sync enablement/
 // group-membership/session-active-ness (FRIEND_POLL_ALARM's own eligibility gating in
 // alarmHandlers.ts's handleFriendPollAlarm checks exactly those unrelated conditions, none of

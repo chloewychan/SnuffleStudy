@@ -1,7 +1,7 @@
-// Covers messageRouter.ts's Task 6 additions: recordFriendStatusEvent wiring at v1's session
-// lifecycle transition points, and the friend-poll alarm's start/stop wiring - kept separate
-// from the main messageRouter.test.ts suite, mirroring messageRouterAccountability.test.ts's
-// precedent for Task 5's own additions.
+// Covers messageRouter.ts's recordFriendStatusEvent wiring at each session lifecycle
+// transition point, and the friend-poll alarm's start/stop wiring - kept separate from the
+// main messageRouter.test.ts suite, mirroring messageRouterAccountability.test.ts's own
+// convention.
 import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
@@ -53,8 +53,7 @@ function mockSignedInWithNoGroups(userId = "user-a") {
     data: { session: { user: { id: userId } } },
     error: null,
   } as never);
-  // hasAnyFriend's friendships query (v3.4 Task 2 - replaces isInAnyGroup's group_memberships
-  // query) - empty by default (no friends).
+  // hasAnyFriend's friendships query - empty by default (no friends).
   vi.spyOn(supabase, "from").mockReturnValue({
     select: vi.fn().mockReturnThis(),
     or: vi.fn().mockReturnThis(),
@@ -111,7 +110,7 @@ describe("messageRouter — recordFriendStatusEvent wiring at each lifecycle tra
     mockSignedInWithNoGroups();
   });
 
-  it("SESSION_START records SESSION_STARTED with a generic displayLabel, plus the real goal text (v2 Task 10)", async () => {
+  it("SESSION_START records SESSION_STARTED with a generic displayLabel, plus the real goal text", async () => {
     const recordSpy = vi
       .spyOn(sessionStatusSyncApi, "recordStatusEvent")
       .mockResolvedValue(undefined);
@@ -172,7 +171,7 @@ describe("messageRouter — recordFriendStatusEvent wiring at each lifecycle tra
     });
   });
 
-  it("DISTRACTION_ATTEMPT records DISTRACTION_ATTEMPT with a generic displayLabel (never the hostname), and the real hostname in its own field (v2 Task 10)", async () => {
+  it("DISTRACTION_ATTEMPT records DISTRACTION_ATTEMPT with a generic displayLabel (never the hostname), and the real hostname in its own field", async () => {
     const recordSpy = vi
       .spyOn(sessionStatusSyncApi, "recordStatusEvent")
       .mockResolvedValue(undefined);
@@ -192,7 +191,7 @@ describe("messageRouter — recordFriendStatusEvent wiring at each lifecycle tra
     });
     // The privacy rule this call site is required to follow (session_status_events'
     // display_label column comment) - the hostname must never leak into the synced label, even
-    // though (v2 Task 10) it's now also written to its own, separately-gated column.
+    // though it's also written to its own, separately-gated column.
     const call = recordSpy.mock.calls.find((c) => c[0].type === "DISTRACTION_ATTEMPT");
     expect(call?.[0].displayLabel).not.toContain("youtube.com");
   });

@@ -1,20 +1,17 @@
 import { Room, RoomEvent, type LocalTrack, type RemoteParticipant, type RemoteTrack, type RemoteTrackPublication } from "livekit-client";
 import { MEDIA_PERMISSION_HELP_MESSAGE, isMediaPermissionError } from "../media/mediaPermissions";
 
-// v2 Task 13: Study Rooms - the LiveKit room-join wrapper. Per this task's brief, this is "the
-// one file any future video-provider swap should touch" - every livekit-client type/import stays
-// contained here. studyRoomApi.ts never imports livekit-client at all (it only produces the
-// roomId/token strings this file's joinCall() consumes); StudyRoomPanel.tsx only ever sees this
-// file's own exported surface (plain strings, HTMLMediaElement, and the VideoCallEvent union
-// below) - never a Room/RemoteTrack/RemoteParticipant/etc. type. A future swap to a different
-// provider (Decision 6 names Daily.co/Twilio Video as the named alternatives) means rewriting
-// this one file's internals to the same exported surface; nothing outside it should need to
-// change.
+// The LiveKit room-join wrapper - the one file any future video-provider swap should touch, since
+// every livekit-client type/import stays contained here. studyRoomApi.ts never imports
+// livekit-client at all (it only produces the roomId/token strings this file's joinCall()
+// consumes); StudyRoomPanel.tsx only ever sees this file's own exported surface (plain strings,
+// HTMLMediaElement, and the VideoCallEvent union below) - never a Room/RemoteTrack/
+// RemoteParticipant/etc. type. A future swap to a different provider (e.g. Daily.co or Twilio
+// Video) means rewriting this one file's internals to the same exported surface; nothing outside
+// it should need to change.
 //
-// API confirmed against current LiveKit JS Client SDK docs/type declarations at build time
-// (docs.livekit.io/reference/client-sdk-js/, node_modules/livekit-client@2.21.0's own .d.ts
-// files) rather than guessed from memory, per this task's "confirm exact syntax against current
-// docs" instruction:
+// API verified against the LiveKit JS Client SDK docs/type declarations
+// (docs.livekit.io/reference/client-sdk-js/, node_modules/livekit-client's own .d.ts files):
 // - `new Room(options)`, `room.connect(url, token, opts?)`, `room.disconnect(stopTracks?)`.
 // - `room.localParticipant.setCameraEnabled(true)` / `.setMicrophoneEnabled(true)` - each
 //   resolves with the resulting LocalTrackPublication (or undefined) and requests a browser
@@ -33,59 +30,51 @@ import { MEDIA_PERMISSION_HELP_MESSAGE, isMediaPermissionError } from "../media/
 // Isolation note: this module holds its LiveKit Room instance and listener registry as private
 // module-level state (mirrors supabaseClient.ts's module-scoped singleton pattern) rather than a
 // class instance, matching this file's own two exported free functions
-// (joinCall/leaveCall: Promise<void>/void, per the plan's exact Interfaces signature) rather than
-// an object API - there is only ever one active call at a time in this extension (one sidepanel,
-// one Study Room joined at once), so a singleton is the right shape, not an under-justified
-// simplification.
+// (joinCall/leaveCall: Promise<void>/void) rather than an object API - there is only ever one
+// active call at a time in this extension (one sidepanel, one Study Room joined at once), so a
+// singleton is the right shape, not an under-justified simplification.
 
 // The minimal event-subscription surface StudyRoomPanel.tsx needs to actually render remote
-// participants' (and the local user's own) video/audio - the brief leaves the exact shape to this
-// file's judgment, provided it stays contained here. A single tagged union (rather than several
-// named callback props) keeps the panel's rendering logic to one switch/reducer instead of five
-// separate handler props, and mirrors this codebase's other tagged-union event shapes (e.g.
-// domain/rooms/studyRoom.ts's PresenceChangeEvent).
+// participants' (and the local user's own) video/audio. A single tagged union (rather than
+// several named callback props) keeps the panel's rendering logic to one switch/reducer instead
+// of five separate handler props, and mirrors this codebase's other tagged-union event shapes
+// (e.g. domain/rooms/studyRoom.ts's PresenceChangeEvent).
 export type VideoCallEvent =
   | { type: "track-added"; participantIdentity: string; isLocal: boolean; element: HTMLMediaElement }
   | { type: "track-removed"; participantIdentity: string; isLocal: boolean; element: HTMLMediaElement }
   | { type: "participant-disconnected"; participantIdentity: string }
   | { type: "disconnected" }
-  // QA-discovered bug (v3.2 Task 9): setCameraEnabled/setMicrophoneEnabled failing below used to
-  // only console.error and otherwise degrade completely silently - a real join with no local
-  // video/audio published looked identical, from the UI's perspective, to one where the panel
-  // simply never got a chance to say why. `actionable` is true specifically for the Chrome
-  // side-panel permission-prompt limitation (see mediaPermissions.ts) - StudyRoomPanel.tsx offers
-  // the "open a tab to grant access" fix only then, not for a genuinely missing/broken device.
+  // `actionable` is true specifically for the Chrome side-panel permission-prompt limitation (see
+  // mediaPermissions.ts) - StudyRoomPanel.tsx offers the "open a tab to grant access" fix only
+  // then, not for a genuinely missing/broken device. Without this distinction, a failed
+  // setCameraEnabled/setMicrophoneEnabled call would degrade silently: a join with no local
+  // video/audio published would look identical, from the UI's perspective, to one where the
+  // panel never got a chance to say why.
   | { type: "local-media-error"; kind: "camera" | "microphone"; message: string; actionable: boolean };
 
 type VideoCallEventListener = (event: VideoCallEvent) => void;
 
 let currentRoom: Room | null = null;
-// QA-discovered bug (v3.3 QA pass): setCameraEnabled below used to discard whatever
-// room.localParticipant.setCameraEnabled(enabled) resolved with, so a mid-call camera re-enable
-// never attached/emitted anything - the button's label flipped, but no local video tile ever
-// appeared, and a subsequent disable had no track to detach a stale tile from either. This holds
-// the currently-published local video track (set by whichever of joinCall's initial publish or
-// setCameraEnabled's own mid-call toggle most recently (re)published it) purely so a later
-// setCameraEnabled(false) has something to call .detach() on - mirrors how handleTrackUnsubscribed
-// below already detaches a REMOTE track's elements the same way, just for the local side, which
-// has no equivalent Room-level event to hook (see attachRoomListeners' own comment on why local
-// tracks are wired up directly around the setCameraEnabled/setMicrophoneEnabled calls instead).
+// Holds the currently-published local video track (set by whichever of joinCall's initial
+// publish or setCameraEnabled's own mid-call toggle most recently (re)published it) purely so a
+// later setCameraEnabled(false) has something to call .detach() on - mirrors how
+// handleTrackUnsubscribed below already detaches a REMOTE track's elements the same way, just for
+// the local side, which has no equivalent Room-level event to hook (see attachRoomListeners' own
+// comment on why local tracks are wired up directly around the setCameraEnabled/
+// setMicrophoneEnabled calls instead).
 let localVideoTrack: LocalTrack | null = null;
 const listeners = new Set<VideoCallEventListener>();
 
-// QA-discovered bug (v3.3 QA pass): a real two-account session produced FOUR media elements (two
-// video, two audio) stacked inside one remote participant's tile, with the freshly-working pair
-// hidden behind an older, unpopulated pair the DOM happened to render on top - visually
-// indistinguishable from "no video at all" (the tile's own beige placeholder background showing
-// through). Root cause: RoomEvent.TrackSubscribed fired a second time for the SAME participant's
-// SAME track kind (a reconnect/renegotiation - confirmed as expected, real-world SDK behavior, not
-// something to prevent) without a TrackUnsubscribed for the first pair ever arriving first, and
-// handleTrackSubscribed below unconditionally created and appended a brand-new element every
-// time, with nothing removing the stale one. Tracks the currently-attached remote element (and
-// the exact track instance it came from, so a genuinely late/out-of-order TrackUnsubscribed for
-// an already-replaced track can't clobber bookkeeping for whatever replaced it - see
-// handleTrackUnsubscribed below) per participant+kind, since a participant has at most one active
-// video and one active audio track at a time in this app (no screen share, no multiple cameras).
+// Tracks the currently-attached remote element (and the exact track instance it came from, so a
+// genuinely late/out-of-order TrackUnsubscribed for an already-replaced track can't clobber
+// bookkeeping for whatever replaced it - see handleTrackUnsubscribed below) per participant+kind,
+// since a participant has at most one active video and one active audio track at a time in this
+// app (no screen share, no multiple cameras). This matters because RoomEvent.TrackSubscribed can
+// fire a second time for the SAME participant's SAME track kind (a reconnect/renegotiation is
+// normal, expected SDK behavior) without a TrackUnsubscribed for the first pair ever arriving
+// first; without this map, handleTrackSubscribed below would unconditionally create and append a
+// brand-new element every time, leaving a stale, invisible element stacked underneath the current
+// one.
 const attachedRemoteMedia = new Map<string, { track: RemoteTrack; element: HTMLMediaElement }>();
 
 function remoteMediaKey(identity: string, kind: string): string {
@@ -176,18 +165,15 @@ function detachRoomListeners(room: Room): void {
 // header comment for why the room name is the study_rooms.id uuid itself) using
 // import.meta.env.WXT_LIVEKIT_URL, then publishes the local camera and microphone.
 //
-// Signature matches the plan's Interfaces line exactly (`joinCall(roomId: string, token: string):
-// Promise<void>`) - the connected Room instance is intentionally NOT returned; callers only ever
-// interact with this module through onVideoCallEvent/leaveCall, per the isolation requirement.
-// `roomId` isn't otherwise used in this function body (the token alone is what LiveKit's connect
-// call needs), but is kept in the signature both because the plan specifies it and because a
-// future provider swap may need the room identifier explicitly rather than only implicitly via
-// the token's own claims.
+// The connected Room instance is intentionally NOT returned; callers only ever interact with
+// this module through onVideoCallEvent/leaveCall, keeping every livekit-client type contained to
+// this file. `roomId` isn't otherwise used in this function body (the token alone is what
+// LiveKit's connect call needs), but is kept in the signature since a future provider swap may
+// need the room identifier explicitly rather than only implicitly via the token's own claims.
 //
-// v3.3 Task 9: `initial` lets a caller join with camera and/or mic already off (e.g.
-// StudyRoomPanel.tsx's pre-join toggles) - both fields default to `true`, preserving today's
-// "always publish both" behavior exactly when the param is omitted entirely, so every pre-Task-9
-// call site keeps working unchanged.
+// `initial` lets a caller join with camera and/or mic already off (e.g. StudyRoomPanel.tsx's
+// pre-join toggles) - both fields default to `true`, so omitting the param entirely preserves
+// the "always publish both" default behavior.
 export async function joinCall(
   roomId: string,
   token: string,
@@ -206,18 +192,15 @@ export async function joinCall(
     leaveCall();
   }
 
-  // QA-discovered bug (v3.3 QA pass, experiment): dynacast lets the SFU tell a publisher to
-  // pause/resume simulcast layers based on what subscribers actually need - extra renegotiation
-  // traffic on top of the base connection. A real two-account test found that enabling the camera
-  // MID-CALL (via setCameraEnabled below, after joining with the camera off) reliably produced a
-  // published track whose underlying MediaStreamTrack.readyState was already "ended" moments
-  // later (confirmed directly via devtools), while the exact same "camera enabled" code path
-  // succeeds reliably when it's part of the INITIAL join negotiation instead of a later
-  // renegotiation - the one concrete difference between those two paths being whether dynacast's
-  // renegotiation churn is in play for a track that didn't exist in the original offer. Disabled
-  // here as a targeted experiment to test that theory; re-enable if retesting shows it wasn't the
-  // cause (dynacast only affects bandwidth optimization for multi-viewer scenarios, not
-  // correctness, so disabling it costs nothing else in this small-group app either way).
+  // dynacast lets the SFU tell a publisher to pause/resume simulcast layers based on what
+  // subscribers actually need - extra renegotiation traffic on top of the base connection. With it
+  // enabled, enabling the camera MID-CALL (via setCameraEnabled below, after joining with the
+  // camera off) can produce a published track whose underlying MediaStreamTrack.readyState goes
+  // to "ended" moments later, whereas the same "camera enabled" path succeeds reliably as part of
+  // the INITIAL join negotiation. The difference is whether dynacast's renegotiation churn is in
+  // play for a track that didn't exist in the original offer. Disabled here since it only affects
+  // bandwidth optimization for multi-viewer scenarios, not correctness, so disabling it costs
+  // nothing else in this small-group app.
   const room = new Room({ adaptiveStream: true, dynacast: false });
   attachRoomListeners(room);
 
@@ -271,7 +254,7 @@ export async function joinCall(
   }
 }
 
-// v3.3 Task 9: mid-call camera/mic toggles. Thin wrappers around the same
+// Mid-call camera/mic toggles. Thin wrappers around the same
 // room.localParticipant.setCameraEnabled/setMicrophoneEnabled calls joinCall's initial publish
 // already uses - stops/(re)starts exactly that one track without leaving or rejoining the call.
 // No-op if no call is active (mirrors leaveCall's own "safe to call when idle" convention) rather
@@ -286,16 +269,16 @@ export async function joinCall(
 // UI-level error handling needed. Matches this file's existing "camera/mic access can partially
 // fail without tearing down anything else" posture.
 //
-// QA-discovered bug (v3.3 QA pass): a camera-off join never calls getUserMedia at all (see
-// joinCall's own comment) - so the first time a user re-enables it mid-call via
-// StudyRoomPanel.tsx's toggle button is genuinely the FIRST real camera acquisition for that call,
-// exactly like joinCall's own initial publish. This function used to discard whatever
-// room.localParticipant.setCameraEnabled(enabled) resolved with, so that first real acquisition
-// never got attached to an element or announced via "track-added" - the button's label flipped to
-// "On", but no video ever appeared. Now mirrors joinCall's own attach+emit treatment exactly on
-// enable, and detaches+emits "track-removed" for whatever this module itself last attached on
-// disable (there is no Room-level event for "my own track was unpublished" the way
-// TrackUnsubscribed covers a remote participant's - see attachRoomListeners' own comment).
+// A camera-off join never calls getUserMedia at all (see joinCall's own comment) - so the first
+// time a user re-enables it mid-call via StudyRoomPanel.tsx's toggle button is genuinely the
+// FIRST real camera acquisition for that call, exactly like joinCall's own initial publish. This
+// function must therefore attach whatever room.localParticipant.setCameraEnabled(enabled)
+// resolves with to an element and announce it via "track-added" (mirroring joinCall's own
+// attach+emit treatment), rather than discarding it - otherwise the button's label would flip to
+// "On" with no video ever appearing. On disable, it detaches+emits "track-removed" for whatever
+// this module itself last attached (there is no Room-level event for "my own track was
+// unpublished" the way TrackUnsubscribed covers a remote participant's - see
+// attachRoomListeners' own comment).
 export async function setCameraEnabled(enabled: boolean): Promise<void> {
   if (!currentRoom) return;
   const room = currentRoom;
@@ -373,7 +356,7 @@ export function leaveCall(): void {
 
 // Registers a listener for every VideoCallEvent this module emits; returns an unsubscribe
 // function. Mirrors studyRoomApi.ts's subscribeToPresence(...) return-an-unsubscriber shape for
-// consistency across this task's two "live callback" surfaces.
+// consistency across this codebase's "live callback" surfaces.
 export function onVideoCallEvent(listener: VideoCallEventListener): () => void {
   listeners.add(listener);
   return () => {

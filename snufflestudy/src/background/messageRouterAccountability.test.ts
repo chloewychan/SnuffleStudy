@@ -1,4 +1,4 @@
-// Covers messageRouter.ts's Task 5 additions (AUTH_*/FRIEND_* cases) in isolation from the main
+// Covers messageRouter.ts's AUTH_*/FRIEND_* cases in isolation from the main
 // messageRouter.test.ts suite. Spies on the supabaseClient singleton's `.auth` methods and on
 // friendshipApi's exported functions (this repo's established test style - see
 // friendshipApi.test.ts and OptionsApp.test.tsx's vi.spyOn(messenger, "sendMessage")) so these
@@ -97,12 +97,10 @@ describe("messageRouter — AUTH_*", () => {
     expect(result).toEqual({ ok: false, error: "Token has expired or is invalid" });
   });
 
-  // v3.3 Task 14: password auth.
-  // v3.4 Task 6: AUTH_SET_PASSWORD now first checks profileApi.getMyProfile().passwordSetAt to
-  // decide whether a currentPassword must be verified first - see messageRouter.ts's case. These
-  // two tests cover the "no password set yet" branch (profile: null), matching the pre-Task-6
-  // behavior other than the added markPasswordSet() call on success. The "already has a password"
-  // branch (require/verify/reject currentPassword) is covered in its own describe block below.
+  // AUTH_SET_PASSWORD first checks profileApi.getMyProfile().passwordSetAt to decide whether a
+  // currentPassword must be verified first - see messageRouter.ts's case. These two tests cover
+  // the "no password set yet" branch (profile: null). The "already has a password" branch
+  // (require/verify/reject currentPassword) is covered in its own describe block below.
   it("AUTH_SET_PASSWORD calls updateUser with the given password when no password is set yet", async () => {
     vi.spyOn(profileApi, "getMyProfile").mockResolvedValue(null);
     const markSpy = vi.spyOn(profileApi, "markPasswordSet").mockResolvedValue(undefined);
@@ -140,7 +138,7 @@ describe("messageRouter — AUTH_*", () => {
     expect(markSpy).not.toHaveBeenCalled();
   });
 
-  describe("AUTH_SET_PASSWORD — current password required once one is already set (v3.4 Task 6)", () => {
+  describe("AUTH_SET_PASSWORD — current password required once one is already set", () => {
     const existingPasswordProfile: Profile = {
       userId: "user-a",
       humanName: null,
@@ -270,8 +268,8 @@ describe("messageRouter — AUTH_*", () => {
   });
 });
 
-describe("messageRouter — FRIEND_* (v3.4 Task 2 - replaces GROUP_*)", () => {
-  it("FRIEND_INVITE_GENERATE_CODE calls friendshipApi.generateInviteCode with no arguments (Decision 2: no groupId)", async () => {
+describe("messageRouter — FRIEND_*", () => {
+  it("FRIEND_INVITE_GENERATE_CODE calls friendshipApi.generateInviteCode with no arguments", async () => {
     const inviteCode: InviteCode = {
       code: "ABCD1234",
       createdBy: "user-a",
@@ -392,7 +390,7 @@ describe("messageRouter — NUDGE_*", () => {
     expect(result).toEqual({ ok: true });
   });
 
-  it("NUDGE_SEND calls nudgeApi.sendNudge with a vault NudgeSource when the payload carries a vaultTextId instead of a messageId (v4.1 Task 1)", async () => {
+  it("NUDGE_SEND calls nudgeApi.sendNudge with a vault NudgeSource when the payload carries a vaultTextId instead of a messageId", async () => {
     const spy = vi.spyOn(nudgeApi, "sendNudge").mockResolvedValue({ ok: true });
 
     const result = (await handleMessage({
@@ -442,10 +440,9 @@ describe("messageRouter — NUDGE_*", () => {
   });
 });
 
-// v3.4 Task 3: was "messageRouter — UNLOCK_REQUEST_*" (unlockRequestApi.ts) - retargeted to the
-// consolidated friendRequestApi.ts/FRIEND_REQUEST_* messages, exercised here with
+// Covers friendRequestApi.ts's FRIEND_REQUEST_* messages, exercised here with
 // kind: "site_unlock" (site_temp_pass/session_end coverage lives in
-// messageRouterTempPasscode.test.ts/messageRouterSessionEnd.test.ts, retargeted the same way).
+// messageRouterTempPasscode.test.ts/messageRouterSessionEnd.test.ts).
 describe("messageRouter — FRIEND_REQUEST_* (site_unlock)", () => {
   const sampleRequest: FriendRequest = {
     id: "req-1",
@@ -530,7 +527,7 @@ describe("messageRouter — FRIEND_REQUEST_* (site_unlock)", () => {
   });
 });
 
-describe("messageRouter — DIGEST_FETCH (v2 Task 9)", () => {
+describe("messageRouter — DIGEST_FETCH", () => {
   it("calls digestApi.fetchDigestForDate with the given date", async () => {
     const digests: DigestSummary[] = [
       {
@@ -564,7 +561,7 @@ describe("messageRouter — DIGEST_FETCH (v2 Task 9)", () => {
   });
 });
 
-describe("messageRouter — PROFILE_* (v3.3 Task 8)", () => {
+describe("messageRouter — PROFILE_*", () => {
   const sampleProfile: Profile = {
     userId: "user-a",
     humanName: "Alice",
@@ -654,9 +651,6 @@ describe("messageRouter — PROFILE_* (v3.3 Task 8)", () => {
   });
 });
 
-// QA-discovered bug (v3.2): tasks used to have no account scoping at all - every account (and
-// signed-out use) on a device shared the exact same task list, and account deletion could never
-// reach them (local IndexedDB, not Supabase - see taskRepository.ts's own header comment).
 describe("messageRouter — TASK_* is scoped to the signed-in account", () => {
   it("TASK_LIST only returns the current account's own tasks, not another account's", async () => {
     stubSession("user-a");
@@ -734,12 +728,9 @@ describe("messageRouter — AUTH_DELETE_ACCOUNT clears that account's local task
     expect(result.ok).toBe(true);
   });
 
-  // QA-discovered bug (v3.4): deleting an account, then creating a fresh account on the same
-  // device (even a different auth.users id, e.g. via the same email after a real deletion),
-  // showed the OLD account's session history - StudySession/SessionEvent carry no userId at
-  // all (unlike Task), so this store was never scoped by account to begin with and
-  // AUTH_DELETE_ACCOUNT's local cleanup never touched it. Deliberately device-wide (clearAll,
-  // not "for this account") since there's no per-account concept to scope by here - see
+  // StudySession/SessionEvent carry no userId at all (unlike Task), so this store isn't scoped
+  // by account. AUTH_DELETE_ACCOUNT's local cleanup is deliberately device-wide (clearAll, not
+  // "for this account") since there's no per-account concept to scope by here - see
   // indexedDbRepository.ts's clearAll() comment.
   it("also clears local session history and events on account deletion", async () => {
     const historyRepo = new IndexedDbSessionRepository();

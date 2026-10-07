@@ -1,36 +1,30 @@
 import { supabase } from "./supabaseClient";
 import { requireUserId } from "./authHelpers";
 
-// v2 Task 10, Part A: the CRUD surface Task 7's own report flagged as missing - no
-// friendship_settings row was ever created anywhere, and no API/UI existed to create or edit one.
-// Rows are now auto-created (all default column values) by migration 20260815000012's
-// group_memberships_create_friendship_settings trigger the moment two users share a group - see
-// that migration's comment - so updateFriendshipSettings below is a plain UPDATE, not an upsert:
-// by the time a user can see a friend to configure settings for at all (they share a group with
-// them), the row already exists.
+// Rows are auto-created (all default column values) by the friendships_create_friendship_settings
+// trigger (supabase/migrations/20260815000040_v3.4_friendships.sql) the moment two users become
+// friends - so updateFriendshipSettings below is a plain UPDATE, not an upsert: by the time a user
+// can see a friend to configure settings for at all, the row already exists.
 //
 // Row shapes returned to callers are camelCase, mirroring this codebase's established row->
-// interface convention (sessionStatusSyncApi.ts's FriendEvent, nudgeApi.ts's FriendNudge,
-// friendGroupApi.ts's FriendGroup/GroupMembership all do the same) even though the underlying
-// Postgres columns are snake_case (supabase/migrations/20260815000001_v2_accountability_schema.sql,
-// extended by 20260815000012_v2_privacy_controls.sql).
+// interface convention (sessionStatusSyncApi.ts's FriendEvent and nudgeApi.ts's FriendNudge do
+// the same) even though the underlying Postgres columns are snake_case.
 export interface FriendshipSettings {
   userId: string;
   friendUserId: string;
-  // Pre-existing (Task 5/7) - the nudge/digest axis, defaults true.
+  // The nudge/digest axis - defaults true.
   receiveLiveNudges: boolean;
   sendLiveNudges: boolean;
   receiveDailyDigest: boolean;
-  // v3.4 Task 8: split from a single nudge_cooldown_seconds column into two independent
-  // per-type cooldowns (Written nudges vs. Audio nudges/Producer Tags), each defaulting to 60s -
-  // see supabase/migrations/20260815000044_v3.4_nudge_cooldowns_and_producer_tag_rate_limit.sql.
-  // Both types still share the one on/off toggle pair above (receiveLiveNudges/sendLiveNudges) -
-  // only the cooldown timers are separate.
+  // Two independent per-type cooldowns (Written nudges vs. Audio nudges/Producer Tags), each
+  // defaulting to 60s - see supabase/migrations/
+  // 20260815000044_v3.4_nudge_cooldowns_and_producer_tag_rate_limit.sql. Both types still share
+  // the one on/off toggle pair above (receiveLiveNudges/sendLiveNudges) - only the cooldown
+  // timers are separate.
   nudgeCooldownSecondsWritten: number;
   nudgeCooldownSecondsAudio: number;
-  // New (Task 10) - the five per-field visibility toggles, defaults false ("most-private-by-
-  // default" - see the migration's comment on why these five default differently from the three
-  // above).
+  // The five per-field visibility toggles - default false ("most-private-by-default"; see the
+  // migration's comment on why these five default differently from the three above).
   shareDistractionAttempts: boolean;
   shareCurrentDomain: boolean;
   shareGoalText: boolean;
@@ -100,10 +94,9 @@ function toRowPatch(patch: FriendshipSettingsPatch): Record<string, boolean | nu
   return row;
 }
 
-// Every friendship_settings row the current user owns (user_id = auth.uid()) - one per friend
-// they share a group with. RLS's "users manage only their own settings rows" policy (unchanged by
-// this task - see the migration's header comment on why the pre-existing INSERT/UPDATE/SELECT/
-// DELETE policy is deliberately left as-is) already restricts this to exactly those rows.
+// Every friendship_settings row the current user owns (user_id = auth.uid()) - one per friend.
+// RLS's "users manage only their own settings rows" policy already restricts this to exactly
+// those rows.
 export async function listMyFriendshipSettings(): Promise<FriendshipSettings[]> {
   const userId = await requireUserId();
   const { data, error } = await supabase
@@ -117,7 +110,7 @@ export async function listMyFriendshipSettings(): Promise<FriendshipSettings[]> 
 }
 
 // The current user's settings row toward one specific friend, or null if none exists yet (e.g.
-// they don't actually share a group, so migration 20260815000012's trigger never created one).
+// they aren't actually friends yet, so the auto-create trigger never fired).
 export async function getFriendshipSettings(
   friendUserId: string
 ): Promise<FriendshipSettings | null> {

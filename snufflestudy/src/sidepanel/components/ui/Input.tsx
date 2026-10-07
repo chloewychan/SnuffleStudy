@@ -13,13 +13,11 @@ interface DropdownProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "c
 
 type InputProps = TextboxProps | DropdownProps;
 
-// design-specs/frames/input.json (component set 173:1659). Property=default/blank is this
-// component's has-a-value vs. empty-placeholder mockup states, which map directly onto a real
-// <input>'s value vs. ::placeholder styling rather than needing a separate prop. Type=dropdown
-// (here, `variant` - "type" is reserved for the real HTML input type, text/email/password/etc.)
-// renders a real <select> with the chevron-down glyph layered on top (native appearance removed) -
-// dropdown's own text (the selected <option>) doesn't distinguish blank/default the way textbox's
-// placeholder does, so that Property has no visible effect here.
+// The has-a-value vs. empty-placeholder styling maps directly onto a real <input>'s value vs.
+// ::placeholder, so it doesn't need a separate prop. `variant: "dropdown"` ("type" is reserved
+// for the real HTML input type, text/email/password/etc.) renders a real <select> with the
+// chevron-down glyph layered on top (native appearance removed) - the selected <option>'s text
+// doesn't distinguish blank/default the way textbox's placeholder does.
 export function Input(props: InputProps) {
   const colour = props.colour ?? "white";
 

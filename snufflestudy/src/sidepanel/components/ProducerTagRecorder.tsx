@@ -12,26 +12,16 @@ interface ProducerTagRecorderProps {
   sending: boolean;
   sendLabel: string;
   sendDisabled?: boolean;
-  // design-specs/frames/page-friends.json's button-record-new-audio-nudge reads "Record New Audio
-  // Nudge", not this component's own generic default - callers outside that one spec-driven site
-  // keep the default.
+  // Overrides the generic "Record a tag" button copy for callers that need different wording.
   idleLabel?: string;
 }
 
-// v2 Task 14: the shared record -> preview -> send widget used by both FriendGroupPanel.tsx and
-// StudyRoomPanel.tsx (per this task's brief: "Minimal recording/playback UI... in both"). Factored
-// out into its own small component rather than duplicated twice - the record/preview/countdown
-// mechanics are identical in both places; only the send TARGET (a specific friend vs. the current
-// room) and what happens to already-received tags differ, which stays local to each panel per the
-// brief's own "self-contained, clearly-scoped addition to each" guidance (matching FriendGroupPanel's
-// own DigestCard/IncomingNudgeCard precedent for a small, focused sub-component) - this component
-// owns none of the send-target or received-tag logic, only recording itself.
+// A shared record -> preview -> send widget. It only owns the recording/preview/countdown
+// mechanics; the send target and what happens to already-received tags stay with each caller.
 //
-// The visual max-length enforcement (a live countdown, and auto-stopping the instant the cap is
-// hit rather than waiting for a manual "Stop" click) is ON TOP OF, not instead of,
-// audioRecorder.ts's own internal enforcement (see that module's header comment) - this
-// component's countdown/auto-stop threshold is read directly from audioRecorder.MAX_RECORDING_MS
-// so the two can never drift out of sync with each other.
+// The visible countdown and its auto-stop are on top of, not instead of, audioRecorder.ts's own
+// internal max-length enforcement. The threshold here is read directly from
+// audioRecorder.MAX_RECORDING_MS so the two can never drift out of sync with each other.
 export function ProducerTagRecorder({
   onSend,
   sending,
@@ -42,11 +32,10 @@ export function ProducerTagRecorder({
   const [recording, setRecording] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [recordError, setRecordError] = useState<string | null>(null);
-  // QA-discovered bug (v3.2 Task 9): getUserMedia() rejects with a real but genuinely confusing
-  // browser message ("Permission dismissed") when this panel can't show the permission prompt at
-  // all (a Chrome side-panel limitation, not a per-user mistake - see mediaPermissions.ts).
-  // Replaced with our own clear message + an actual fix action, instead of passing the raw
-  // browser text straight through.
+  // getUserMedia() rejects with a confusing browser message ("Permission dismissed") when a
+  // Chrome side-panel limitation prevents showing the permission prompt at all (see
+  // mediaPermissions.ts) - not a per-user mistake. We show our own clear message with an actual
+  // fix action instead of passing the raw browser text through.
   const [recordErrorActionable, setRecordErrorActionable] = useState(false);
   const [preview, setPreview] = useState<{ blob: Blob; url: string; durationMs: number } | null>(null);
 

@@ -1,13 +1,12 @@
-// Covers messageRouter.ts's v2 Task 13 fix round 1 additions (STUDY_ROOM_* cases, added when
-// createRoom/listRooms/leaveRoom/listParticipants moved from being called directly by
-// StudyRoomPanel.tsx to routing through messageRouter.ts - see studyRoomApi.ts's/
-// StudyRoomPanel.tsx's own header comments for why), mirroring
-// messageRouterAccountability.test.ts's/messageRouterTempPasscode.test.ts's own convention
-// exactly: spies on studyRoomApi's exported functions (this repo's established test style) so
-// these cases are verified to route to the right underlying call with the right arguments,
-// entirely offline - no real network call is ever made. STUDY_ROOM_JOIN is deliberately NOT a
-// message case (joinRoom stays a direct sidepanel call - see studyRoomApi.ts's header comment for
-// why), so there's nothing to test here for it.
+// Covers messageRouter.ts's STUDY_ROOM_* cases (createRoom/listRooms/leaveRoom/listParticipants
+// route through messageRouter.ts - see studyRoomApi.ts's/StudyRoomPanel.tsx's own header
+// comments for why), mirroring messageRouterAccountability.test.ts's/
+// messageRouterTempPasscode.test.ts's own convention: spies on studyRoomApi's exported
+// functions (this repo's established test style) so these cases are verified to route to the
+// right underlying call with the right arguments, entirely offline - no real network call is
+// ever made. STUDY_ROOM_JOIN is deliberately NOT a message case (joinRoom stays a direct
+// sidepanel call - see studyRoomApi.ts's header comment for why), so there's nothing to test
+// here for it.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import { handleMessage } from "./messageRouter";
@@ -122,8 +121,8 @@ describe("messageRouter — STUDY_ROOM_*", () => {
     expect(result).toEqual({ ok: false, error: "select failed" });
   });
 
-  // v3.3 Task 13: STUDY_ROOM_INVITEE_ADD/REMOVE/STUDY_ROOM_INVITEES_LIST - thin pass-throughs,
-  // same convention as every case above.
+  // STUDY_ROOM_INVITEE_ADD/REMOVE/STUDY_ROOM_INVITEES_LIST are thin pass-throughs, same
+  // convention as every case above.
   it("STUDY_ROOM_INVITEE_ADD calls studyRoomApi.addInvitee with the given roomId/userId", async () => {
     const spy = vi.spyOn(studyRoomApi, "addInvitee").mockResolvedValue(undefined);
 

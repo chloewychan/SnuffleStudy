@@ -20,8 +20,8 @@ interface HeaderProps {
   onSignInClick: () => void;
 }
 
-// design-specs/frames/header-bar.json (component 170:1476). Chrome has no chrome.sidePanel.close()
-// API - window.close() is the documented way for a side panel's own page to close itself.
+// Chrome has no chrome.sidePanel.close() API - window.close() is the documented way for a
+// side panel's own page to close itself.
 function handleClose() {
   window.close();
 }
@@ -29,8 +29,8 @@ function handleClose() {
 export function Header({ onSignInClick }: HeaderProps) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [loaded, setLoaded] = useState(false);
-  // v4.1 Task 2: replaces every panel's own Refresh button - this one re-runs every
-  // currently-mounted panel's own fetch via the app-shell-level RefreshRegistryProvider.
+  // Re-runs every currently-mounted panel's own fetch via the app-shell-level
+  // RefreshRegistryProvider, instead of each panel rendering its own Refresh button.
   const refreshAll = useRefreshAll();
 
   // Registered with the refresh registry (not just called once on mount) so a sign-in/sign-out/

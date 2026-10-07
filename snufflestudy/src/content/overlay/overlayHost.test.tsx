@@ -2,9 +2,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { act } from "react";
 import { mount } from "./overlayHost";
 
-// This fix round rearchitected mount() around a Shadow Root specifically to isolate the
-// overlay's styles from the host page in both directions (see
-// task-22-fix-round-1-report.md). SnufflesOverlay.test.tsx only exercises <SnufflesOverlay />
+// mount() is built around a Shadow Root specifically to isolate the overlay's styles from
+// the host page in both directions. SnufflesOverlay.test.tsx only exercises <SnufflesOverlay />
 // directly via React Testing Library's render() and never calls mount() at all, so none of
 // the Shadow DOM wiring below is covered anywhere else - a regression here (e.g. someone
 // "simplifying" mount() back to rendering straight into a plain <div>) would go undetected
@@ -36,7 +35,7 @@ describe("overlayHost mount", () => {
     expect(styleEl!.textContent).toContain(".snuffles-overlay--warning");
 
     // The rendered overlay lives inside the shadow tree... This test never mocks sendMessage, so
-    // SnufflesOverlay's SESSION_GET_ACTIVE fetch (v2 Task 11) has no listener to answer it and
+    // SnufflesOverlay's SESSION_GET_ACTIVE fetch has no listener to answer it and
     // fails - the overlay degrades gracefully to its generic fallback message rather than a
     // profile-specific pickWarningMessage() line, which is the correct, tested behavior for that
     // case (see SnufflesOverlay.test.tsx's own dedicated graceful-degradation tests).

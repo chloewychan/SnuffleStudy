@@ -4,9 +4,9 @@ import { WelcomeScreen } from "./WelcomeScreen";
 import { RefreshRegistryProvider } from "../../sidepanel/refresh/RefreshRegistryContext";
 import * as messenger from "../../infrastructure/messaging/extensionMessenger";
 
-// design-specs/frames/page-welcome.json: WelcomeScreen now renders the real Header (header-bar),
-// so it needs the same RefreshRegistryProvider/chrome.runtime.getURL/AUTH_GET_SESSION scaffolding
-// Header.test.tsx itself uses.
+// WelcomeScreen renders the real Header (header-bar), so it needs the same
+// RefreshRegistryProvider/chrome.runtime.getURL/AUTH_GET_SESSION scaffolding Header.test.tsx
+// itself uses.
 function renderWelcome(onContinue: () => void = () => {}) {
   return render(
     <RefreshRegistryProvider>

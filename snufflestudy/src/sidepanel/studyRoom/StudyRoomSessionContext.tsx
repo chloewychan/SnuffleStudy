@@ -11,34 +11,19 @@ import * as studyRoomApi from "../../infrastructure/backend/studyRoomApi";
 import * as videoCallClient from "../../infrastructure/video/videoCallClient";
 import type { StudyRoom, RoomParticipant } from "../../domain/rooms/studyRoom";
 
-// v4.1 Task 7: lifts the joined-room state StudyRoomPanel.tsx used to own locally (joinedRoom,
-// participants, tiles, camera/mic, the LiveKit connection) into shared, app-shell-level state -
-// mounted once in SidePanelApp.tsx (StudyRoomSessionProvider), so a joined call survives a tab
-// switch instead of tearing down the moment its owning tab unmounts. StudyRoomsBox.tsx (the Study
-// tab's list/create/manage-access box) and StudyRoomFooter.tsx (the persistent, joined-room view)
-// both read/act through useStudyRoomSession() instead of owning any of this themselves.
+// Holds the joined-room state (joinedRoom, participants, tiles, camera/mic, the LiveKit
+// connection) as shared, app-shell-level state, mounted once in SidePanelApp.tsx
+// (StudyRoomSessionProvider), so a joined call survives a tab switch instead of tearing down
+// the moment its owning tab unmounts. StudyRoomsBox.tsx (the Study tab's list/create/
+// manage-access box) and StudyRoomFooter.tsx (the persistent, joined-room view) both read/act
+// through useStudyRoomSession() instead of owning any of this themselves.
 //
-// Every piece of state and every handler below is moved from StudyRoomPanel.tsx's
-// joinedRoom/participants/tiles/cameraOn/micOn/mediaError/handleJoinRoom/handleLeaveRoom/
-// handleToggleCamera/handleToggleMic/applyPresenceEvent/the video-event useEffect/the
-// unmount-cleanup effect, with no behavior change beyond WHERE it lives - except that in-room
-// producer-tag recording/broadcasting (roomTags, subscribeToRoomProducerTags, the
-// handleSendProducerTagToRoom flow) is dropped entirely, not moved (scope doc: "Remove the ability
-// to record a producer tag from inside the room" - Decision 9 leaves the room-broadcast backend in
-// place, just unused after this version).
-//
-// New in this task: selectedParticipantIds (Set<string>), cleared on the same join/leave lifecycle
-// as tiles/participants, plus toggleParticipantSelected/clearParticipantSelection - selecting a
-// tile to nudge is a brand-new interaction (scope doc: "Make each tile selectable"), nothing to
-// move from the old component for this part.
-//
-// Direct-call exceptions (unchanged from StudyRoomPanel.tsx's own documented rationale - see that
-// file's header comment, preserved in this task's report rather than repeated verbatim here):
-// studyRoomApi.joinRoom (the LiveKit token must flow straight into videoCallClient.joinCall, which
-// needs this component's real DOM/media-permission context) and studyRoomApi.subscribeToPresence
-// (a live Realtime callback with no fit in the one-shot sendMessage()/messageRouter.ts surface).
-// videoCallClient.ts itself is always called directly - a pure client-side DOM/WebRTC wrapper, not
-// a backend call.
+// Two calls bypass the usual sendMessage()/messageRouter.ts bridge and go straight to their
+// backend/client modules: studyRoomApi.joinRoom (the LiveKit token must flow straight into
+// videoCallClient.joinCall, which needs this component's real DOM/media-permission context) and
+// studyRoomApi.subscribeToPresence (a live Realtime callback with no fit in the one-shot
+// sendMessage() surface). videoCallClient.ts itself is always called directly - a pure
+// client-side DOM/WebRTC wrapper, not a backend call.
 
 export interface Tile {
   participantIdentity: string;
@@ -96,10 +81,10 @@ export function StudyRoomSessionProvider({ children }: { children: ReactNode }) 
   const [participants, setParticipants] = useState<Map<string, RoomParticipant>>(new Map());
   const [tiles, setTiles] = useState<Tile[]>([]);
 
-  // v3.3 Task 9 precedent, unchanged: one pair of flags does double duty - before joining they
-  // drive the pre-join camera/mic checkboxes (StudyRoomsBox.tsx), read once by joinRoom() to build
-  // joinCall's `initial` param; once joined, the SAME flags become the two in-room toggle buttons'
-  // on/off label (StudyRoomFooter.tsx), updated optimistically on click.
+  // One pair of flags does double duty: before joining they drive the pre-join camera/mic
+  // checkboxes (StudyRoomsBox.tsx), read once by joinRoom() to build joinCall's `initial` param;
+  // once joined, the same flags become the two in-room toggle buttons' on/off label
+  // (StudyRoomFooter.tsx), updated optimistically on click.
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
 
@@ -233,13 +218,12 @@ export function StudyRoomSessionProvider({ children }: { children: ReactNode }) 
       console.error("Failed to resolve current user before joining a study room", err);
     }
 
-    // QA-discovered bug precedent (v3.3 QA pass, carried over from StudyRoomPanel.tsx): joining
-    // with the camera AND mic both off never fires a local "track-added" at all, so no tile ever
-    // existed for the local user to attach into. Seeding a tile for the local user here, before
-    // joinCall even runs, means the same empty/labeled placeholder tile shows immediately
+    // Joining with the camera AND mic both off never fires a local "track-added" event at all,
+    // so no tile would otherwise exist for the local user. Seeding a tile for the local user
+    // here, before joinCall even runs, means an empty/labeled placeholder tile shows immediately
     // regardless of the pre-join camera/mic toggles - a later track-added for this identity fills
-    // in videoElement/audioElement on this SAME entry (matched by participantIdentity), it doesn't
-    // create a second one.
+    // in videoElement/audioElement on this same entry (matched by participantIdentity), it
+    // doesn't create a second one.
     setTiles(
       selfUserId
         ? [{ participantIdentity: selfUserId, isLocal: true, videoElement: null, audioElement: null }]

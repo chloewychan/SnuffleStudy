@@ -106,8 +106,8 @@ describe("profileApi.getMyProfile", () => {
     await expect(getMyProfile()).rejects.toThrow("boom");
   });
 
-  // v3.4 Task 6: password_set_at is stored as a timestamptz string, mapped to epoch millis (or
-  // null) by toProfile() - see profileApi.ts.
+  // password_set_at is stored as a timestamptz string, mapped to epoch millis (or null) by
+  // toProfile() - see profileApi.ts.
   it("maps a non-null password_set_at to epoch millis", async () => {
     mockSignedIn("user-a");
     vi.spyOn(supabase, "from").mockReturnValue(
@@ -243,8 +243,8 @@ describe("profileApi.fetchProfilesByIds", () => {
   });
 });
 
-// v3.4 Task 6: markPasswordSet() is deliberately separate from saveMyProfile() - see its own
-// comment in profileApi.ts.
+// markPasswordSet() is deliberately separate from saveMyProfile() - see its own comment in
+// profileApi.ts.
 describe("profileApi.markPasswordSet", () => {
   it("upserts { user_id, password_set_at } with onConflict: user_id, using the caller's own id", async () => {
     mockSignedIn("user-a");

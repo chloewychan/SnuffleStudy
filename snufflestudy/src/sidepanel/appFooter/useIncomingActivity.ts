@@ -9,42 +9,26 @@ import {
   encodeDismissedItemKey,
 } from "../../infrastructure/storage/nudgeDismissalState";
 
-// v4.1 Task 8: powers the persistent Nudges & Unlock Requests footer (NudgesAndRequestsFooter.tsx,
-// mounted once inside AppFooter.tsx - this hook itself is only ever instantiated once, there).
-// Three independent streams, each moved with no behavior change to its own underlying fetch/resolve
-// call from where it used to live:
-//   - nudges/incomingTags: moved from useFriendGroupPanelData.ts's loadNudges/loadProducerTags -
-//     same NUDGES_FETCH/PRODUCER_TAG_SENDS_FETCH calls, same 24h lookback. Filtered against the
-//     persisted dismissed-item set (nudgeDismissalState.ts, Decision 3) instead of a single
-//     watermark - every undismissed item is returned, not just the single oldest one, since the new
-//     footer shows all of them simultaneously (each with its own Dismiss button).
-//   - requests: moved from the old standalone approver-side panel's loadSelf/loadRequests/
-//     handleResolve, unchanged in logic (same FRIEND_REQUESTS_FETCH/FRIEND_REQUEST_RESOLVE/
-//     FRIEND_REQUEST_APPROVE_TEMP_PASS calls, same first-responder-wins error handling, same
-//     "pending, not from myself" filter).
-//
-// A note on scope: FriendGroupPanel.tsx (and its own IncomingNudgeCard/NudgeSendSection children)
-// still independently fetch/render/dismiss the same nudges and producer-tag sends today - that
-// duplication is real but temporary and expected, not a bug introduced here. Task 9 deletes
-// FriendGroupPanel.tsx (and useFriendGroupPanelData.ts) wholesale; until it lands, both the old
-// overlay/list (in the Friends tab) and this new persistent footer independently show the same
-// underlying data, each with its own dismissal bookkeeping (both now backed by the same
-// nudgeDismissalState.ts id-set, so a dismissal in one place - keyed by the same `{kind, id}` - is
-// also respected by the other).
+// Powers the persistent Nudges & Unlock Requests footer, mounted once inside AppFooter.tsx -
+// this hook itself is only ever instantiated once, there. It combines three independent
+// streams:
+//   - nudges/incomingTags: fetched with a 24h lookback, then filtered against the persisted
+//     dismissed-item set (nudgeDismissalState.ts) instead of a single watermark, so every
+//     undismissed item is returned (not just the oldest one) - the footer shows all of them
+//     simultaneously, each with its own Dismiss button.
+//   - requests: pending friend requests from others, resolved through the shared
+//     FRIEND_REQUEST_RESOLVE path (or the temp-pass approval flow below), with
+//     first-responder-wins error handling.
 const LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
-// Mirrors useFriendGroupPanelData.ts's own "re-fetch on the same ~1-minute cadence the backend
-// friend-poll alarm uses" fix (v3.3 QA pass) - this hook now lives at the app-shell level and never
-// unmounts/remounts on a tab switch the way the old standalone approver-side panel used to (which
-// relied on that remount as its only "refresh" beyond its own local Refresh button), so it needs
-// the same interval-based re-fetch nudges/tags already have, or a pending request would only ever
-// update via the Header's Refresh button.
+// This hook lives at the app-shell level and never unmounts/remounts on a tab switch, so it
+// needs its own interval-based re-fetch (matching the backend friend-poll alarm's ~1-minute
+// cadence) - otherwise a pending request would only ever update via Header's Refresh button.
 const POLL_INTERVAL_MS = 60_000;
 
-// producer_tag_sends has no send-specific id of its own exposed on IncomingProducerTag (see that
-// interface's own comment - it's a joined view, not a domain type) - IncomingProducerTagCard.tsx's
-// existing React `key` already disambiguates the same way (`${tagId}-${sentAt}`), since the same
-// saved tag could in principle be sent more than once. Reused here as this stream's dismissal id.
+// producer_tag_sends has no send-specific id of its own exposed on IncomingProducerTag (it's a
+// joined view, not a domain type), so `${tagId}-${sentAt}` is used as this stream's dismissal
+// id - the same saved tag could in principle be sent more than once.
 function tagDismissalId(tag: IncomingProducerTag): string {
   return `${tag.tagId}-${tag.sentAt}`;
 }
@@ -80,7 +64,7 @@ export function useIncomingActivity(): IncomingActivity {
   const [resolvingRequestId, setResolvingRequestId] = useState<string | null>(null);
   const [resolveError, setResolveError] = useState<string | null>(null);
 
-  // Decision 3: a shared dismissed-item id set (persisted via nudgeDismissalState.ts), keyed by
+  // A shared dismissed-item id set (persisted via nudgeDismissalState.ts), keyed by
   // `{kind, id}` so a nudge id and an (accidentally) matching tag-dismissal id never collide.
   // `null` specifically means "not loaded from storage yet" - both nudges/incomingTags stay empty
   // until this resolves, so an already-dismissed item can't flash on screen for one render.
@@ -169,14 +153,11 @@ export function useIncomingActivity(): IncomingActivity {
     getDismissedNudgeIds()
       .then((ids) => setDismissedIds(ids))
       .catch((err) => {
-        // Best-effort, same convention as useFriendGroupPanelData.ts's identical load - worst
-        // case, an already-dismissed item briefly reappears once.
+        // Best-effort - worst case, an already-dismissed item briefly reappears once.
         console.error("Failed to load the dismissed-activity set", err);
         setDismissedIds(new Set());
       });
 
-    // Mirrors useFriendGroupPanelData.ts's own fix (v3.3 QA pass) - see this file's own header
-    // comment for why requests now join the same interval nudges/tags already had.
     const intervalId = setInterval(refresh, POLL_INTERVAL_MS);
     return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadSelf/refresh are stable
@@ -187,9 +168,8 @@ export function useIncomingActivity(): IncomingActivity {
     const key = encodeDismissedItemKey({ kind: "nudge", id: nudgeId });
     setDismissedIds((prev) => new Set(prev).add(key));
     markNudgeDismissed({ kind: "nudge", id: nudgeId }).catch((err) => {
-      // Standing convention in this codebase: never leave an async call triggered from a UI
-      // handler unhandled. Best-effort - the in-memory update above already updated what's shown
-      // this session; a failure here only risks the item reappearing on the next mount.
+      // Best-effort - the in-memory update above already updated what's shown this session;
+      // a failure here only risks the item reappearing on the next mount.
       console.error("Failed to persist the dismissed nudge", err);
     });
   }
@@ -206,10 +186,9 @@ export function useIncomingActivity(): IncomingActivity {
   function resolveRequest(request: FriendRequest, decision: "approved" | "denied") {
     setResolvingRequestId(request.id);
     setResolveError(null);
-    // Decision 3 (friend_requests, not this task's own Decision 3): approving a site_temp_pass
-    // request must go through the approve-temp-passcode Edge Function - the ONE friend_requests
-    // mutation that does not go through the shared FRIEND_REQUEST_RESOLVE path. Moved verbatim
-    // from the old standalone approver-side panel's handleResolve.
+    // Approving a site_temp_pass request must go through the approve-temp-passcode Edge
+    // Function - the one friend_requests mutation that doesn't go through the shared
+    // FRIEND_REQUEST_RESOLVE path.
     const usesTempPassApproval = decision === "approved" && request.kind === "site_temp_pass";
     const send = usesTempPassApproval
       ? sendMessage<{ ok: boolean; error?: string }>({
@@ -226,8 +205,7 @@ export function useIncomingActivity(): IncomingActivity {
         if (!res.ok) {
           // Server-side rejection - most commonly another friend already resolved this request
           // first ("first responder wins"). Surfaced inline, then the list is refreshed so this
-          // request's real current state replaces the stale pending row here - same convention the
-          // old standalone approver-side panel already used.
+          // request's real current state replaces the stale pending row here.
           setResolveError(
             res.error ?? "Could not resolve that request — a friend may have already answered it."
           );
@@ -257,10 +235,9 @@ export function useIncomingActivity(): IncomingActivity {
           (t) => !dismissedIds.has(encodeDismissedItemKey({ kind: "tag", id: tagDismissalId(t) }))
         );
 
-  // Guarded on selfLoaded, not just "selfUserId truthy" - mirrors the old standalone
-  // approver-side panel's identical guard: until loadSelf()'s round trip resolves, who-am-I is
-  // genuinely unknown, so rendering no requests avoids a flash of the viewer's own pending
-  // request if loadRequests() resolves first.
+  // Guarded on selfLoaded, not just "selfUserId truthy" - until loadSelf()'s round trip
+  // resolves, who-am-I is genuinely unknown, so rendering no requests avoids a flash of the
+  // viewer's own pending request if loadRequests() resolves first.
   const requests = selfLoaded
     ? rawRequests.filter((r) => r.status === "pending" && r.requesterUserId !== selfUserId)
     : [];

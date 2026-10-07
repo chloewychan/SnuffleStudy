@@ -25,9 +25,6 @@ function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Ha
   };
 }
 
-// v4.1 Task 9: FriendGroupPanel.tsx (and its NudgeSendSection/DigestSection/FriendEventFeed
-// children) is deleted - this tab now mounts exactly two boxes, FriendsBox and NudgeVaultBox,
-// each its own sp-card, replacing the single "Friend activity" panel this file used to test.
 describe("FriendsTab", () => {
   it("renders exactly two cards: Friends and Nudge Vault", async () => {
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}));

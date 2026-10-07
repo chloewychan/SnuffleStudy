@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useCallback, type ReactNode } from "react";
 
-// v4.1 Task 2: replaces every panel's own Refresh button with one in Header.tsx that re-runs
-// every currently-mounted panel's own fetch. A panel registers its fetch function via
-// useRegisterRefresh() while it's mounted; Header's one button calls useRefreshAll(), which
-// invokes every function still in the set. Unmounted panels unregister themselves (the
-// useEffect cleanup below), so refreshAll() never touches a stale closure on a tab the user has
-// since navigated away from.
+// Backs a single Refresh button in Header.tsx that re-runs every currently-mounted panel's own
+// fetch, instead of each panel needing its own Refresh control. A panel registers its fetch
+// function via useRegisterRefresh() while it's mounted; Header's one button calls
+// useRefreshAll(), which invokes every function still in the set. Unmounted panels unregister
+// themselves (the useEffect cleanup below), so refreshAll() never touches a stale closure on a
+// tab the user has since navigated away from.
 interface RefreshRegistryValue {
   register(fn: () => void): () => void; // returns an unregister function
   refreshAll(): void;

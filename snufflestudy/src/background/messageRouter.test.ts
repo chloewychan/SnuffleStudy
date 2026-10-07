@@ -74,9 +74,8 @@ describe("messageRouter — full session lifecycle", () => {
   });
 
   it("shows a notification when a session is ended manually (abandoned)", async () => {
-    // Regression guard: natural completion already notified (alarmHandlers.ts), but ending
-    // early via SESSION_END was previously silent - "nothing happens" from the user's
-    // perspective either way, since a manually-ended session gave no feedback at all.
+    // Both natural completion (alarmHandlers.ts) and a manually-ended session show a
+    // notification, so the user gets feedback regardless of how the session ended.
     const createNotificationSpy = vi.spyOn(chrome.notifications, "create");
     const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
       session: { id: string };
@@ -259,11 +258,10 @@ describe("messageRouter — SESSION_END hard-block enforcement", () => {
   });
 });
 
-// v3.3 Task 12: endRequestId is an alternative to passcode on a hard-restricted session's
-// SESSION_END - covered separately from the hard-block-enforcement describe block above (which
-// this task's DoD requires stay completely unaffected - and every test in it already does, since
-// none of them ever sets endRequestId) to keep the two paths' test intent clearly separated.
-describe("messageRouter — SESSION_END with an approved temporary pass (v3.3 Task 12)", () => {
+// endRequestId is an alternative to passcode on a hard-restricted session's SESSION_END -
+// covered separately from the hard-block-enforcement describe block above (none of those tests
+// ever set endRequestId) to keep the two paths' test intent clearly separated.
+describe("messageRouter — SESSION_END with an approved temporary pass", () => {
   const hardInput: CreateSessionInput = { ...createInput, restrictionMode: "hard" };
 
   async function createAndStartHardSession(): Promise<string> {
@@ -291,10 +289,10 @@ describe("messageRouter — SESSION_END with an approved temporary pass (v3.3 Ta
     expect(ended.session.state).toBe("ABANDONED");
   });
 
-  // The negative case this task's DoD names explicitly: isApprovedForSelf returning false (e.g.
-  // because the caller is the resolving friend, not the requester - see
-  // friendRequestApi.ts's isApprovedForSelf for why that specific check exists) must reject
-  // SESSION_END and leave the session untouched, exactly like an incorrect passcode does.
+  // isApprovedForSelf returning false (e.g. because the caller is the resolving friend, not
+  // the requester - see friendRequestApi.ts's isApprovedForSelf for why that specific check
+  // exists) must reject SESSION_END and leave the session untouched, exactly like an incorrect
+  // passcode does.
   it("rejects SESSION_END with an endRequestId that isApprovedForSelf denies, leaving the session active", async () => {
     await handleMessage({ type: "HARD_BLOCK_SET_PASSCODE", payload: { passcode: "1234" } });
     const sessionId = await createAndStartHardSession();
@@ -638,10 +636,9 @@ describe("messageRouter — MARK_SITE_STUDY_RELATED", () => {
     expect(result.session.allowedSites).toContain("youtube.com");
   });
 
-  // v2 Task 9, Part B: sessionMachine.recordRecovery existed since v1 but was never wired into
-  // any message handler - this is one of the two resolution paths that now call it (the other is
-  // RETURN_TO_WORK_CLOSE_TAB below). Only counts as a genuine recovery when there was an active
-  // warning (interventionLevel !== "none") at the time - DISTRACTION_ATTEMPT (via
+  // This is one of the two resolution paths that call sessionMachine.recordRecovery (the other
+  // is RETURN_TO_WORK_CLOSE_TAB below). Only counts as a genuine recovery when there was an
+  // active warning (interventionLevel !== "none") at the time - DISTRACTION_ATTEMPT (via
   // machine.warnSession) is what puts a session into that state.
   it("records a recovery (increments recoveries, clears interventionLevel, logs a RECOVERY event) when there was an active warning", async () => {
     const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
@@ -691,7 +688,7 @@ describe("messageRouter — MARK_SITE_STUDY_RELATED", () => {
   });
 });
 
-describe("messageRouter — RETURN_TO_WORK_CLOSE_TAB records a recovery when appropriate (v2 Task 9, Part B)", () => {
+describe("messageRouter — RETURN_TO_WORK_CLOSE_TAB records a recovery when appropriate", () => {
   it("records a recovery when the active session has an active warning", async () => {
     vi.spyOn(chrome.tabs, "remove").mockResolvedValue(undefined);
     const created = (await handleMessage({ type: "SESSION_CREATE", payload: createInput })) as {
@@ -857,8 +854,7 @@ describe("messageRouter — TASK_CREATE / TASK_UPDATE / TASK_DELETE / TASK_LIST"
     expect(created.ok).toBe(true);
     expect(created.task.title).toBe("STAT231");
     // Task's type carries only id/userId/title/createdAt/completedAt (verified at compile time,
-    // not by a runtime key-presence check) - the removed sub-item feature this task used to
-    // nest a checklist under no longer exists at all.
+    // not by a runtime key-presence check).
     expect(Object.keys(created.task).sort()).toEqual(["createdAt", "id", "title", "userId"]);
 
     const listed = (await handleMessage({ type: "TASK_LIST" })) as {

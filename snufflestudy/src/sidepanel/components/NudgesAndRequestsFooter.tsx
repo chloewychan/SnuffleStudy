@@ -10,15 +10,11 @@ import type { IncomingActivity } from "../appFooter/useIncomingActivity";
 import { ButtonBool } from "./ui/ButtonBool";
 import { ButtonSmall } from "./ui/ButtonSmall";
 
-// v4.1 Task 8: the second half of the persistent app-shell footer (stacked beneath
-// StudyRoomFooter.tsx inside AppFooter.tsx - see that file). Relocates logic that already worked -
-// FriendGroupPanel.tsx's incoming-nudge/incoming-audio-tag display+dismiss and the old standalone
-// approver-side panel's request list+resolve - into one always-mounted presentation, per the
-// scope doc's "Nudges & Unlock Requests footer" section. All data/handlers are supplied by
-// useIncomingActivity.ts (called once, by AppFooter.tsx) as props - this component itself owns no
-// fetches of its own beyond the lazy per-item audio download below.
+// The second half of the persistent app-shell footer, stacked beneath StudyRoomFooter.tsx
+// inside AppFooter.tsx. All data/handlers are supplied by useIncomingActivity.ts (called once,
+// by AppFooter.tsx) as props - this component itself owns no fetches beyond the lazy per-item
+// audio download below.
 
-// Moved verbatim from the old standalone approver-side friend-requests panel.
 function detailLine(r: FriendRequest, requesterName: string): string {
   if (r.kind === "site_unlock") return `${requesterName} wants to unlock ${r.hostname}`;
   if (r.kind === "site_temp_pass") return `${requesterName} wants a temporary passcode for ${r.hostname}`;
@@ -26,16 +22,15 @@ function detailLine(r: FriendRequest, requesterName: string): string {
 }
 
 // Every "pick a nudge to send" list elsewhere merges written + audio items into one chronological
-// list (StudyRoomFooter.tsx's VaultNudgeItem) - this footer's INCOMING side does the same, since
-// the scope doc's own footer spec treats "an incoming nudge" as one concept regardless of kind
-// ("the sender, its content (an audio player or the written text), and a Dismiss button").
+// list (StudyRoomFooter.tsx's VaultNudgeItem) - this footer's incoming side does the same,
+// treating "an incoming nudge" as one concept regardless of kind.
 type IncomingNudgeItem =
   | { kind: "nudge"; sentAt: number; nudge: FriendNudge }
   | { kind: "tag"; sentAt: number; tag: IncomingProducerTag };
 
-// Carried over from friendGroupPanel/NudgeSendSection.tsx's IncomingProducerTagCard - the audio
-// Blob is fetched lazily, only once "Play" is pressed, via producerTagApi.downloadTagAudio, called
-// DIRECTLY (not through sendMessage - see that file's own header comment for why).
+// The audio Blob is fetched lazily, only once "Play" is pressed, via
+// producerTagApi.downloadTagAudio, called directly rather than through sendMessage - this is a
+// Storage-client read, not a plain CRUD backend call.
 function IncomingTagRow({
   tag,
   senderLabel,
@@ -95,9 +90,7 @@ export function NudgesAndRequestsFooter({
   resolveRequest,
   refresh,
 }: IncomingActivity) {
-  // v4.1 Task 2: replaces this content's old separate Refresh buttons (the standalone
-  // approver-side panel's own, plus FriendGroupPanel's "Refresh" which used to also cover
-  // nudges/tags) with the Header's one button.
+  // Registers with the Header's shared Refresh button instead of rendering its own.
   useRegisterRefresh(refresh);
 
   const displayName = useDisplayNames([
@@ -114,7 +107,7 @@ export function NudgesAndRequestsFooter({
   // Each section only mounts once it has something to show OR its own fetch failed - so an error
   // is never silently dropped once the footer is already visible for some other reason, but a
   // fetch failure alone (with genuinely nothing pending) doesn't force the whole footer into view
-  // by itself - that stays AppFooter.tsx's own hasIncomingActivity gate (Decision 5/Task 7).
+  // by itself - that stays AppFooter.tsx's own hasIncomingActivity gate.
   const showNudgeSection = nudgeItems.length > 0 || nudgesError || tagsError;
   const showRequestSection = requests.length > 0 || requestsError;
 

@@ -14,8 +14,6 @@ interface TabBarProps {
   onSelect: (tab: SidePanelTab) => void;
 }
 
-// design-specs/frames/nagivation-bar.json (component 173:1609) - composes the button-tab
-// primitive built in Phase 1.
 export function TabBar({ active, onSelect }: TabBarProps) {
   return (
     <div className="sp-tabbar" role="tablist">

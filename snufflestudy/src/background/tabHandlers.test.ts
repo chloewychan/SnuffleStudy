@@ -16,10 +16,10 @@ beforeEach(() => {
   fakeBrowser.reset();
   stubFakeDeclarativeNetRequest();
   indexedDB.deleteDatabase("snufflestudy");
-  // Added alongside the v2 Task 8 unlock-request test below, which spies on friendSync.ts's/
-  // sessionStatusSyncApi's/nudgeApi's/friendRequestApi's exports - restoring between tests keeps
-  // that isolated rather than leaking into other tests in this file (mirrors
-  // alarmHandlers.test.ts's identical beforeEach convention).
+  // The unlock-request test below spies on friendSync.ts's/sessionStatusSyncApi's/nudgeApi's/
+  // friendRequestApi's exports - restoring between tests keeps that isolated rather than
+  // leaking into other tests in this file (mirrors alarmHandlers.test.ts's identical beforeEach
+  // convention).
   vi.restoreAllMocks();
 });
 
@@ -124,11 +124,10 @@ describe("handleTabUpdate", () => {
   });
 
   it("records a distraction attempt using tab.url even when changeInfo (the real Chrome shape on the terminal event) carries no url at all", async () => {
-    // Regression guard for the production bug this fix round closes: real Chrome only puts
-    // `url` on the loading-phase changeInfo, never on the terminal {status:"complete"} delta -
-    // the full current tab state (including url) is only in the third listener argument. A
-    // handler that (incorrectly) read changeInfo.url instead would see undefined here and
-    // silently no-op despite a real, classifiable navigation.
+    // Real Chrome only puts `url` on the loading-phase changeInfo, never on the terminal
+    // {status:"complete"} delta - the full current tab state (including url) is only in the
+    // third listener argument. A handler that (incorrectly) read changeInfo.url instead would
+    // see undefined here and silently no-op despite a real, classifiable navigation.
     await handleMessage({
       type: "SETTINGS_SAVE",
       payload: {
@@ -164,18 +163,16 @@ describe("handleTabUpdate", () => {
     expect(active.session.interventionLevel).toBe("warned");
   });
 
-  // v2 Task 8, Definition of Done: "a soft-restricted site, once an unlock request is approved
-  // by a friend, becomes accessible without a distraction warning for the rest of the session."
-  // This is the actual DoD-critical assertion end-to-end, entirely at the domain/integration
-  // level - no live database needed: an approved unlock request (delivered via
-  // alarmHandlers.ts's friend-poll alarm, mocked here at the friendRequestApi boundary, same as
-  // alarmHandlers.test.ts's own unlock-request-polling tests) merges the hostname into the
-  // active session's allowedSites, and THEN a real navigation to that exact hostname must not
-  // record a distraction attempt or escalate interventionLevel - proving tabHandlers.ts's
-  // warning path (classifySite(...) !== "BLOCKED" -> early return, see that file) never
-  // triggers for it, without needing siteRestrictionOverrides (which this task deliberately does
-  // not use - see this task's report for why).
-  it("v2 Task 8: a site approved via an unlock request stops triggering the distraction/warning path for the rest of the session", async () => {
+  // A soft-restricted site, once an unlock request is approved by a friend, becomes accessible
+  // without a distraction warning for the rest of the session. This test proves that end-to-end
+  // at the domain/integration level - no live database needed: an approved unlock request
+  // (delivered via alarmHandlers.ts's friend-poll alarm, mocked here at the friendRequestApi
+  // boundary, same as alarmHandlers.test.ts's own unlock-request-polling tests) merges the
+  // hostname into the active session's allowedSites, and THEN a real navigation to that exact
+  // hostname must not record a distraction attempt or escalate interventionLevel - proving
+  // tabHandlers.ts's warning path (classifySite(...) !== "BLOCKED" -> early return, see that
+  // file) never triggers for it.
+  it("a site approved via an unlock request stops triggering the distraction/warning path for the rest of the session", async () => {
     await handleMessage({
       type: "SETTINGS_SAVE",
       payload: {
@@ -217,7 +214,7 @@ describe("handleTabUpdate", () => {
     // was approved..." test.
     vi.spyOn(friendSync, "currentFriendSyncUserId").mockResolvedValue("user-a");
     vi.spyOn(friendSync, "hasAnyFriend").mockResolvedValue(true);
-    // v3.4 Task 2: pollFriendConnectionUpdates (alarmHandlers.ts's 8th stream) queries the
+    // pollFriendConnectionUpdates (one of alarmHandlers.ts's poll streams) queries the
     // supabase singleton directly (no dedicated *Api.ts module) - stubbed here so this test's
     // real handleAlarm() call below doesn't make a genuine, unmocked network request for that one
     // stream (every OTHER stream here is already mocked via its own *Api.ts spy).
@@ -259,7 +256,7 @@ describe("handleTabUpdate", () => {
     };
     expect(afterApproval.session.allowedSites).toContain("youtube.com");
 
-    // The actual DoD assertion: a fresh navigation to the now-approved hostname must NOT record
+    // The key assertion: a fresh navigation to the now-approved hostname must NOT record
     // another distraction attempt (distractionAttempts stays at 1, from before the approval) -
     // proving tabHandlers.ts's warning path never re-triggers for it.
     await handleTabUpdate(

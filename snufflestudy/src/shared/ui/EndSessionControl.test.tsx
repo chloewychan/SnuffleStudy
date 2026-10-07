@@ -44,7 +44,7 @@ describe("EndSessionControl", () => {
 
   it("reveals an inline passcode prompt instead of sending immediately for a hard-mode session", () => {
     const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
-    // v3.4 Task 3: opening the prompt now also triggers the requester-side friend picker's own
+    // Opening the prompt also triggers the requester-side friend picker's own
     // FRIENDS_LIST fetch (this test's own assertion below is only about SESSION_END never firing
     // on prompt-open, not about sendMessage being called zero times overall).
     const sendMessageSpy = vi.spyOn(messenger, "sendMessage").mockResolvedValue({ ok: true });
@@ -79,7 +79,7 @@ describe("EndSessionControl", () => {
 
   it("shows an error and keeps the prompt open when the passcode is incorrect, leaving the session active", async () => {
     const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
-    // v3.4 Task 3: routed by type - FRIENDS_LIST (the friend picker's own fetch, triggered by
+    // Routed by type - FRIENDS_LIST (the friend picker's own fetch, triggered by
     // opening the prompt) must resolve cleanly here, or its own "Couldn't load your friends"
     // alert would collide with this test's own passcode-error alert assertion below.
     vi.spyOn(messenger, "sendMessage").mockImplementation(((msg: ExtensionMessage) => {
@@ -102,7 +102,7 @@ describe("EndSessionControl", () => {
 
   it("shows an error and does not leave an unhandled rejection when the passcode sendMessage call rejects", async () => {
     const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
-    // v3.4 Task 3: routed by type, same rationale as the incorrect-passcode test above - the
+    // Routed by type, same rationale as the incorrect-passcode test above - the
     // friend picker's own FRIENDS_LIST fetch must not itself reject, or its own caught error
     // would produce a second, colliding alert.
     vi.spyOn(messenger, "sendMessage").mockImplementation(((msg: ExtensionMessage) => {
@@ -149,17 +149,15 @@ describe("EndSessionControl", () => {
   });
 });
 
-// v3.3 Task 12: the temporary-pass path, alongside (never instead of) the permanent-passcode
+// The temporary-pass path, alongside (never instead of) the permanent-passcode
 // form above - the tests above already cover that the passcode form itself is unaffected by any
 // of this. Mirrors LockedPage.test.tsx's routeSendMessage-by-type helper convention, since this
-// component now sends several distinct message types.
+// component sends several distinct message types.
 //
-// v3.4 Task 3: FRIEND_REQUEST_CREATE("session_end", ...)/FRIEND_REQUESTS_FETCH replace
-// SESSION_END_REQUEST_CREATE/SESSION_END_REQUESTS_FETCH, and this form gained a friend picker
-// (FRIENDS_LIST) that must resolve before "Request a temporary pass from a friend" becomes
-// clickable - every test below mocks FRIENDS_LIST with at least one friend and waits for the
-// button to become enabled before clicking it, mirroring LockedPage.test.tsx's own friend-picker
-// wait pattern.
+// This form has a friend picker (FRIENDS_LIST) that must resolve before "Request a temporary
+// pass from a friend" becomes clickable - every test below mocks FRIENDS_LIST with at least one
+// friend and waits for the button to become enabled before clicking it, mirroring
+// LockedPage.test.tsx's own friend-picker wait pattern.
 type Handler = (msg: ExtensionMessage) => unknown;
 
 function routeSendMessage(overrides: Partial<Record<ExtensionMessage["type"], Handler>>) {
@@ -197,7 +195,7 @@ async function requestButton() {
   });
 }
 
-describe("EndSessionControl — temporary pass to end a hard-restricted session early (v3.3 Task 12)", () => {
+describe("EndSessionControl — temporary pass to end a hard-restricted session early", () => {
   it("shows a 'Request a temporary pass from a friend' button alongside the unchanged passcode form, enabled once a friend loads", async () => {
     const session = machine.startSession(machine.createSession(hardInput, "session_1", 0), 0);
     vi.spyOn(messenger, "sendMessage").mockImplementation(routeSendMessage({}) as never);

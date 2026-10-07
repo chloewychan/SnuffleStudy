@@ -82,10 +82,9 @@ describe("sessionStatusSyncApi.recordStatusEvent", () => {
     expect(new Date(insertArg.occurred_at).getTime()).not.toBeNaN();
   });
 
-  // v2 Task 10: hostname/goalText are optional and additive - when provided, they're written to
-  // their own new columns (never into display_label - see the migration's comment on why
-  // display_label stays generic).
-  it("writes hostname/goal_text when provided (v2 Task 10)", async () => {
+  // hostname/goalText are optional and additive - when provided, they're written to their own
+  // columns, never into display_label (which stays generic).
+  it("writes hostname/goal_text when provided", async () => {
     mockSignedIn("user-a");
     const builder = makeBuilder({ data: null, error: null });
     vi.spyOn(supabase, "from").mockReturnValue(builder as never);
@@ -220,10 +219,10 @@ describe("sessionStatusSyncApi.fetchNewEventsForFriends", () => {
   });
 });
 
-// Fix round 1: alarmHandlers.ts's friend-poll alarm needs to distinguish "the fetch failed" from
-// "genuinely no new events" so it only advances its persisted last-checked cursor on confirmed
-// success (see that file's handleFriendPollAlarm) - fetchNewEventsForFriends's plain `[]` return
-// can't make that distinction, which is exactly why this richer-return variant exists.
+// alarmHandlers.ts's friend-poll alarm needs to distinguish "the fetch failed" from "genuinely no
+// new events" so it only advances its persisted last-checked cursor on confirmed success (see
+// that file's handleFriendPollAlarm) - fetchNewEventsForFriends's plain `[]` return can't make
+// that distinction, which is exactly why this richer-return variant exists.
 describe("sessionStatusSyncApi.pollNewEventsForFriends", () => {
   it("returns ok: true with the mapped events on a successful query", async () => {
     mockSignedIn("user-b");
@@ -307,12 +306,11 @@ describe("sessionStatusSyncApi.pollNewEventsForFriends", () => {
     expect(fromSpy).not.toHaveBeenCalled();
   });
 
-  // v2 Task 10 regression test: proves the baseline friend-events fetch never requests
-  // hostname/goal_text, regardless of any friendship_settings toggle's state - this is a
-  // client-side proof to go alongside verify-privacy-controls.mjs's live proof that a bare
-  // `.select()` would silently leak these two fields to everyone who can see the row at all,
-  // bypassing the new per-field toggles entirely (see BASELINE_EVENT_COLUMNS's comment in
-  // sessionStatusSyncApi.ts).
+  // Proves the baseline friend-events fetch never requests hostname/goal_text, regardless of any
+  // friendship_settings toggle's state - this is a client-side proof to go alongside
+  // verify-privacy-controls.mjs's live proof that a bare `.select()` would silently leak these
+  // two fields to everyone who can see the row at all, bypassing the per-field toggles entirely
+  // (see BASELINE_EVENT_COLUMNS's comment in sessionStatusSyncApi.ts).
   it("never requests hostname/goal_text - selects only the fixed baseline column list, regardless of toggle state", async () => {
     mockSignedIn("user-b");
     const builder = makeBuilder({ data: [], error: null });
@@ -328,7 +326,7 @@ describe("sessionStatusSyncApi.pollNewEventsForFriends", () => {
   });
 });
 
-describe("sessionStatusSyncApi.fetchFriendEventDetails (v2 Task 10)", () => {
+describe("sessionStatusSyncApi.fetchFriendEventDetails", () => {
   it("calls the fetch_friend_event_details RPC with the given event ids and maps the result to camelCase", async () => {
     const rpcSpy = vi.spyOn(supabase, "rpc").mockResolvedValue({
       data: [{ id: "event-1", hostname: "youtube.com", goal_text: "Finish chapter 6" }],
@@ -364,7 +362,7 @@ describe("sessionStatusSyncApi.fetchFriendEventDetails (v2 Task 10)", () => {
   });
 });
 
-describe("sessionStatusSyncApi.fetchFriendInterventionCount (v2 Task 10)", () => {
+describe("sessionStatusSyncApi.fetchFriendInterventionCount", () => {
   it("calls the fetch_friend_intervention_count RPC and returns the count", async () => {
     const rpcSpy = vi.spyOn(supabase, "rpc").mockResolvedValue({ data: 3, error: null } as never);
 
@@ -402,7 +400,7 @@ describe("sessionStatusSyncApi.fetchFriendInterventionCount (v2 Task 10)", () =>
   });
 });
 
-describe("sessionStatusSyncApi.fetchFriendFullHistory (v2 Task 10)", () => {
+describe("sessionStatusSyncApi.fetchFriendFullHistory", () => {
   it("calls the fetch_friend_full_history RPC and maps every row to camelCase", async () => {
     const rpcSpy = vi.spyOn(supabase, "rpc").mockResolvedValue({
       data: [
